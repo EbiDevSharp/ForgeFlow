@@ -1,0 +1,46 @@
+@inherits LayoutComponentBase
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="app-shell">
+    <BitNavPanel TItem="BitNavItem"
+                 Items="@NavigationItems"
+                 HeaderText="@Text["AppTitle"]"
+                 IconNavUrl="/"
+                 AriaLabel="@Text["Navigation"]"
+                 DrawerBreakpoint="BitNavPanelBreakpoint.Lg"
+                 NavMode="BitNavMode.Automatic"
+                 NavMatch="BitNavMatch.Exact"
+                 NoSearchBox="true"
+                 NoCollapse="true"
+                 ShowCloseButton="true"
+                 IsOpen="@drawerOpen"
+                 IsOpenChanged="@((bool isOpen) => drawerOpen = isOpen)"
+                 ToggleAriaLabel="@Text["CollapseNavigation"]"
+                 CloseAriaLabel="@Text["CloseNavigation"]"
+                 id="primary-navigation"
+                 Class="app-nav-panel" />
+    <main id="main-content">
+        <button class="nav-drawer-toggle" type="button" aria-expanded="@drawerOpen.ToString().ToLowerInvariant()"
+                aria-controls="primary-navigation" @onclick="ToggleDrawer">
+            @Text["OpenNavigation"]
+        </button>
+        @Body
+    </main>
+</div>
+
+@code {
+    private bool drawerOpen;
+
+    private IList<BitNavItem> NavigationItems =>
+    [
+        new()
+        {
+            Text = Text["SampleNavigation"],
+            AriaLabel = Text["SampleNavigation"],
+            Url = "/",
+            Match = BitNavMatch.Exact
+        }
+    ];
+
+    private void ToggleDrawer() => drawerOpen = !drawerOpen;
+}

@@ -1,0 +1,2477 @@
+# Slice 00 scope reconciliation - authoritative amendment 00-R6
+
+Date: 2026-11-08. Scope clarification authorized by the user. Slice 00 acceptance status is finalized in this receipt. This amendment governs conflicting requirements and status labels in the contract and receipts below. Earlier receipts remain records of what was observed; their authenticated-profile and sandbox-provisioning acceptance conditions are superseded here. No product code, evidence files, dependencies, tests, or Git state were changed or rerun.
+
+Slice 00 delivers the executable shell and reusable bilingual foundation through one compact sample. Authentication lifecycle implementation is outside Slice 00. Missing implementations below are open product deliverables, not sandbox blockers or failures of already-passing checks. The sample remains presentation-only with synthetic data and no database write; a submitted-value snapshot can demonstrate culture-independent values without persistence. Do not build a generic component showcase or form framework.
+
+## Gate disposition and traceability
+
+Source references name the original normative sections below, rather than unstable document line numbers. REQUIRED NOW means a Slice 00 acceptance obligation, not a claim of completion. DUPLICATE means one requirement with shared evidence, not a waiver.
+
+| Gate or requirement | Exact source in existing contract | Classification and acceptance obligation |
+|---|---|---|
+| Executable baseline, pinned versions, actual build/check results | Acceptance contract and evidence / Reproducible baseline; AGENTS.md dependency/check rules | REQUIRED NOW. Preserve user-confirmed restore, resolved assets/locks, increment 05 build and 48-test results. No new restore or dependency upgrade is needed for reconciliation. |
+| Explicit bilingual catalogs, key and placeholder checks | FF-A015 items 1, 4, 6; automated quality gates bullets 1-2; Resource completeness gate | REQUIRED NOW. Existing passing catalog/placeholder fixtures remain valid; extend coverage for newly added enum/error keys and typed parameter contracts. |
+| Syntax-aware hardcoded-text detection | FF-A015 items 2-3; automated quality gates bullet 3; Resource completeness gate | REQUIRED NOW. Implemented and verified in increment 08 with Roslyn C# parsing, scoped Razor/JavaScript scanners, positive/negative fixtures and documented limits. Latest application-source scan has no unexcepted findings; details and exact commands are in the increment 08 receipt below. |
+| Compact localized UI surfaces | Slice 00 sample and automated quality gates / sample paragraph; FF-A015 items 2, 5, 7; Complete sample UI gate | REQUIRED NOW. The localized table, dialog, tooltip, accessible controls, loading/empty states, success notification, parameterized localization-only error fixture and validation are implemented in increments 06-07 with browser evidence below. Formatting/input/draft round trips remain tracked by their separate gate. Reuse the same synthetic sample data and resources; no new business workflow. |
+| Identity error fixture | FF-A015 item 7; sample paragraph; automated quality gates bullet 4 | REQUIRED NOW only as a stable error-code/parameter localization fixture. It may use a representative Identity-style code. Label its evidence as localization-only. Actual IdentityErrorDescriber wiring, exhaustive provider error coverage and runtime Identity integration are DEFERRED to AUTH-01. |
+| Anonymous culture preference and switching | FF-A016 paragraphs 1-2; automated quality gates bullet 4; Culture and preference gate | REQUIRED NOW. Existing cookie/reload/fresh-tab/switch evidence is retained. Supported culture validation, cookie/header/default precedence, local return-route checks, antiforgery and localized failures remain requirements. |
+| Authenticated profile and account lifecycle | FF-A016 paragraph 2 (profile preference, persistence failure, sign-in and logout); final paragraph (test principal/profile adapter); draft bullets 2 and 5 (identity scope and changes); automated quality gates bullet 4; Culture and preference gate | DEFERRED to AUTH-01, the first Authentication and Identity slice. Includes actual profile lookup/update/failure reporting, sign-in preference precedence, cookie survival across logout, account switching, principal/identity isolation and clearing drafts across identity changes. Test-authentication/profile fixtures also move to AUTH-01. Never mark these PASS from anonymous or localization-fixture evidence. |
+| Date, numeric, currency and enum round trips | FF-A015 items 6, 8; FF-A016 draft bullets 1-4; FF-A017 both paragraphs; sample paragraph; Draft continuity and Formatting and storage gates | REQUIRED NOW. Implemented and verified in increment 09: strict culture-policy parsing, equivalent Jalali/Gregorian dates, exact currency identity, stable enum values, canonical submitted values, localized validation and invalid raw-input retention. No business entities or database persistence. |
+| Draft safety and restoration | FF-A016 draft bullets 1-4; automated quality gates bullet 4; Draft continuity gate | REQUIRED NOW for anonymous per-tab forms: allowlist/schema/expiry, dirty/touched/validation/focus state, failure handling, isolation, reload restoration, submit/discard clearing. Existing evidence plus affected increment 09 round-trip and migration checks pass. Actual authenticated identity transitions are DEFERRED to AUTH-01. |
+| Layout, keyboard and surface browser evidence | Acceptance contract / Browser and layout; FF-A016 paragraph 1 | REQUIRED NOW. Existing shell/layout/focus evidence remains PASS for tested surfaces. Add bilingual desktop/mobile/320 px browser assertions and visual evidence for new sample surfaces and fields; treat unimplemented surfaces as open product work. |
+| Repeated layout/dialog/table/notification blockers | Latest acceptance receipt / Complete sample UI and Browser and layout rows; sample paragraph | DUPLICATE of the compact-sample requirement above. Implement each surface once and use the same bilingual browser evidence for both gates. |
+| Repeated date/enum and currency blockers | Latest acceptance receipt / Draft continuity and Formatting and storage rows | DUPLICATE of the round-trip requirement above. One coherent input/format/submit/draft scenario supplies evidence to both gates. |
+| Honest reporting | Acceptance contract / Honest reporting; AGENTS.md increment/evidence rules | REQUIRED NOW. Keep design, implementation, verification and acceptance distinct; identify environment and actual commands/results. |
+
+## Preserved passing evidence
+
+- `verification/navigation-04/browser-results.json`: existing NavPanel routes, active state, labels, direction and desktop/mobile drawer behavior.
+- `verification/slice00-acceptance-05/browser-results.json`: keyboard/focus/containment/Escape/restoration; preference persistence; FA -> EN -> FA text/numeric preservation; localized validation; tab isolation; missing/malformed/incompatible payload handling; submit/discard clearing; current layouts.
+- The six sample and two open-drawer screenshots listed in increment 05 remain valid for the captured UI. `verification/slice00-acceptance-05/build.log` and `tests.log` retain the successful Release build and 48-test run.
+- `verification/runtime-02/corrected-result.json` remains SmokeTest HTTP/runtime evidence only. No passing evidence is relabeled as authenticated integration or native Development verification. Later changes require affected checks, not unconditional reruns of unchanged passing gates.
+
+## Deferred destination register
+
+AUTH-01 means the first Authentication and Identity slice, independent of its eventual numerical position. It owns all deferred FF-A016 profile/account/logout requirements above, test-principal/profile fixtures, actual Identity error adapter/provider integration from FF-A015 item 7, and browser verification of identity transitions and draft clearing. These items are DEFERRED, not PASS. This traceability does not authorize starting AUTH-01 or implementing authentication in Slice 00.
+
+## Native Development: normal Windows identity check
+
+The sandbox SID/profile and DPAPI probe failures are environment limitations of that execution identity. They are not product defects and do not require provisioning the sandbox SID, granting access to another user's keys, or altering host permissions. Replace the prior sandbox-profile provisioning prerequisite with a minimal manual check under the user's normal Windows PowerShell identity. SmokeTest evidence stays separate.
+
+Run in normal Windows PowerShell, using the existing Release output:
+
+```powershell
+Set-Location D:\Projects\ForgeFlow
+$env:DOTNET_ENVIRONMENT = 'Development'
+$env:ASPNETCORE_ENVIRONMENT = 'Development'
+dotnet run --project .\src\ForgeFlow.Web\ForgeFlow.Web.csproj -c Release --no-build --no-restore --no-launch-profile -- --urls http://localhost:5080
+```
+
+In a second normal PowerShell terminal:
+
+```powershell
+$response = Invoke-WebRequest -Uri http://localhost:5080/ -UseBasicParsing
+$response.StatusCode
+$response.Content.Contains('__RequestVerificationToken')
+```
+
+Minimum acceptance: server reports Development and listening at that address; the request returns 200 and the token check returns True; the page loads in a browser and the server records no Data Protection/DPAPI or permission exception during that request. This exercises response-time antiforgery/key use as well as startup. Record the Windows identity, date, command/output and relevant logs; stop with Ctrl+C. Failure must be recorded with its exact exception before deciding whether it is a product defect or that user's environment. User-reported manual verification: PASSED under the user's normal Windows identity. The user confirms startup, FA -> EN -> FA switching with preserved values, draft restoration after refresh, successful sample submission with canonical values, and absence of the submitted draft after refresh. This is user-reported evidence, not agent-executed or automated evidence.
+
+## Remaining Slice 00 checklist and smallest next task
+
+- Preserve the increment 08 syntax-aware presentation-text check and its narrow exception/fixture coverage.
+- Preserve the localized compact-sample surfaces and localization-only error-code fixture verified in increments 06-07.
+- Date/numeric/currency/enum parse-format-submit-draft round trips are complete and verified in increment 09; preserve that evidence with the unaffected passing gates above.
+- Record the manual normal-identity native Development check separately, then reassess Slice 00 acceptance. No acceptance is declared here.
+
+Smallest next task: run the documented native Development startup/request check under the user's normal Windows identity and record its output separately from SmokeTest. No further Slice 00 sample UI implementation is identified by the current 00-R6 checklist.
+
+---
+
+## Dialog acceptance receipt - increment 06 / 00-R6
+
+Scope: one localized BitDialog on the existing sample, displaying the current synthetic name, raw amount and notes. Installed Bit.BlazorUI 10.7.0 XML/API inspection confirmed Title, Message, Body, CancelText, CloseButtonTitle, AutoFocus, TrapFocus, RestoreFocus and CloseOnEscape. Dependencies and existing shell/culture/draft implementation are unchanged. Four explicit SampleResources keys per culture and their resource contracts supply all new display/accessibility text.
+
+Dialog gate: PASS in SmokeTest, Microsoft Edge 157.0.4341.42, fa-IR/RTL and en-US/LTR at 1440 and 320 px. Real browser assertions verify localized title/content/controls, current synthetic values, initial focus inside, forward/backward focus containment, Escape, close button, restoration to opener and unchanged form input after closing. Dialog bounds remain inside each viewport; document width equals viewport width. Evidence: `verification/dialog-06/browser-results.json` and four `dialog-<culture>-<width>.png` screenshots. Repeatable command: `node scripts/browser-dialog.mjs`.
+
+Build verification: normal `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` encountered MSB3026 copy retries because the existing running process locks `bin/Release/net10.0/ForgeFlow.Web.exe`. The attempted `-p:UseAppHost=false` also encountered a locked `ForgeFlow.Web.dll`; this is a live-output file-lock limitation, not a compiler error. The existing process was left running. Fresh isolated output was verified with `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1 -p:OutDir=D:\Projects\ForgeFlow\.tools\dialog-output\`: all five projects passed, zero warnings/errors. `dotnet vstest .\.tools\dialog-output\ForgeFlow.Web.Tests.dll --logger:'console;verbosity=minimal'`: 48 passed, zero failed/skipped. The browser harness launches this same fresh Web DLL. An earlier 48-test run against normal output is excluded as stale evidence.
+
+Overall Slice 00: NOT ACCEPTED. Only the dialog surface gate is closed by this receipt; other 00-R6 sample surfaces, syntax-aware text checks, formatting/input/draft round trips and normal-identity Development verification remain open. Prior passing evidence is preserved. No native Development result is inferred from SmokeTest.
+
+---
+
+## Compact localized sample surfaces receipt - increment 07 / 00-R6
+
+Scope: added only the sample surfaces still missing from the 00-R6 compact-sample checklist. The existing Bit dialog, NavPanel, language switching and draft handling are unchanged. The table reuses current sample name/number values with localized synthetic defaults; the Bit tooltip is focus-reachable; the sample-row action deterministically shows loading before alternating between populated and empty; a dismissible success notification and a parameterized Identity-style error-code fixture are localized. The fixture is explicitly labeled localization-only and calls no Identity service. No dependencies, routes, models, persistence, or authentication changed.
+
+The installed Bit.BlazorUI 10.7.0 API was confirmed from `C:\Users\PC\.nuget\packages\bit.blazorui\10.7.0\lib\net10.0\Bit.BlazorUI.xml`: `BitTooltip.Text`, `ShowOnFocus`, `ShowOnHover`, and `Relationship`; `BitMessage.Title`, child content, bindable `Dismissed`, `Dismissible`, `DismissAriaLabel`, and `Role`. The package has no simple table component, so the compact sample uses a semantic HTML table. New display, status, error and accessibility strings are explicit in both SampleResources catalogs and the resource-contract registry; the parameterized error uses matching `{0}` placeholders.
+
+Surface gate: PASS in SmokeTest with Microsoft Edge 157.0.4341.42. `node scripts/browser-sample-surfaces.mjs` launched the fresh isolated Release Web assembly and passed fa-IR/RTL and en-US/LTR at 1440 px and 320 px. Real-browser assertions checked localized table caption/headings and RTL/LTR column order; keyboard focus and accessible description for the tooltip; keyboard activation, status/alert roles, localized dismiss names and notification dismissal; the loading-to-empty and empty-to-populated transitions; explicit localization-only error-fixture labeling and parameter substitution; and no document/table horizontal overflow. All four document scroll widths equaled the viewport (1440 or 320 px), and table widths were 736 or 288 px. Screenshots: `verification/sample-surfaces-07/surfaces-fa-IR-320.png`, `surfaces-fa-IR-1440.png`, `surfaces-en-US-320.png`, and `surfaces-en-US-1440.png`; the Persian mobile and English desktop views were visually reviewed. Machine-readable results: `verification/sample-surfaces-07/browser-results.json`.
+
+Build/tests: the first isolated compile found two Razor type errors because `BitMessage.Content` is a RenderFragment alias; markup was corrected to use localized child content. Fresh build then passed with zero warnings/errors: `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1 -p:OutDir=D:\Projects\ForgeFlow\.tools\sample-surfaces-output\`. Fresh-binary tests passed: `dotnet vstest .\.tools\sample-surfaces-output\ForgeFlow.Web.Tests.dll --logger:'console;verbosity=minimal'` (48 passed, zero failed/skipped). The browser harness used `.tools/sample-surfaces-output/ForgeFlow.Web.dll`. The normal Release output was avoided because the already-running `ForgeFlow.Web` process PID 6316 is present; no process was stopped. Process account lookup was blocked: `Get-Process -IncludeUserName` requires elevated rights and `tasklist /V`/WMI returned Access denied. No elevation or security change was attempted.
+
+Overall Slice 00: NOT ACCEPTED. This receipt closes only the localized table, tooltip, loading/empty, notification and localization-only error-code surface work. Syntax-aware hardcoded-text checks, date/numeric/currency/enum round trips, associated draft evidence, and the normal-identity native Development check remain open. Existing NavPanel, dialog, localization, draft, and navigation evidence is retained; no unrelated checks were repeated. SmokeTest evidence does not imply native Development acceptance.
+
+---
+
+## Hardcoded display-text check receipt - increment 08 / 00-R6
+
+Scope: added a focused source-text gate to the existing Web test project, without changing product UI, resources, dependencies, or behavior. C# is parsed with the Roslyn assemblies shipped by the pinned .NET SDK 10.0.403 (`global.json`); there is no new NuGet package. Razor markup and JavaScript are inspected with small context-aware state/token scanners. The application scan reads only copied Web-owned `.razor`, `.cs`, and `.mjs` sources; generated/build/dependency directories and the test fixture tree are excluded. The existing `.resx` key and placeholder contract tests are reused unchanged.
+
+Supported detections:
+
+- Razor static element text; literal strings in `title`, `placeholder`, `alt`, `value`, `label`, `summary`, and selected `aria-*` attributes; direct string/interpolated-string expressions; and C# inside `@code`/`@functions`.
+- Roslyn C# syntax for string literals in validation/display attributes and assignments, recognized validation/error message sinks, validation exceptions, and literal arms of conditional/if/switch selections whose selector names refer to culture, language, locale, Persian, or English.
+- JavaScript token patterns for assignments to `textContent`, `innerText`, `innerHTML`, `outerHTML`, `title`, `placeholder`, `ariaLabel`, and `value`; `setAttribute` for supported user-facing attributes; `insertAdjacentText`/`insertAdjacentHTML`; and language-selected literal arms in those DOM sinks.
+- Resource-key access forms, routes, CSS/technical strings outside display sinks, and diagnostic logging are allowed. Razor/C# comments and JavaScript comments are ignored. Resource catalogs remain covered by `ResourceContractTests`.
+
+Findings include relative file, line, column, rule/symbol and exact offending text. The focused application scan is a test and therefore returns a failing VSTest exit code when a finding or unused exception exists. `scripts/display-text-exceptions.json` currently contains no exceptions. If one is needed, an entry must provide exact `file`, `line`, `column`, `text`, scanner `symbol`/rule, `reason`, and `reviewer`; only that exact source occurrence is suppressed, and stale/unmatched entries fail the check. The fixture proves that an exception for line 2, column 19, `Sample tool`, and `Razor attribute aria-label` leaves the identical line 1 occurrence reported.
+
+Fixtures: direct English and Persian markup plus user-facing attributes; English/Persian C# and JavaScript language-dependent selections; a C# validation message sink; allowed resource lookup, route, CSS, logging and DOM resource-adapter patterns; and the occurrence-specific exception test. These fixtures are under `tests/ForgeFlow.Web.Tests/Fixtures/DisplayText`, outside the scanned application root.
+
+Detection limits: this is not complete Razor or ECMAScript parsing and does not claim data-flow analysis. The Razor walker handles the markup, directives, comments, inline expressions, and code blocks used by this application; it does not analyze arbitrary Razor grammar or embedded `<script>` islands. The JavaScript tokenizer recognizes the listed DOM sink forms, not every ECMAScript syntax or framework adapter. C# Roslyn analysis uses a finite sink/attribute list and identifier-based language-selector heuristic. It will not reliably follow text through variables, arbitrary helper methods, reflection, generated/framework UI, or runtime data. Review findings and keep the sink list/exceptions narrow; this is a guard for common literal mistakes, not proof that all displayed text is localized.
+
+Verification against fresh isolated Release binaries:
+
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1 -p:OutDir=D:\Projects\ForgeFlow\.tools\hardcoded-text-output\` - all five projects passed, 0 warnings/errors.
+- `dotnet vstest .\.tools\hardcoded-text-output\ForgeFlow.Web.Tests.dll --TestCaseFilter:FullyQualifiedName~HardcodedDisplayTextScannerTests --logger:'console;verbosity=minimal'` - 10 passed, 0 failed/skipped. This includes the full application-source scan with zero unexcepted findings and the positive/negative fixtures.
+- `dotnet vstest .\.tools\hardcoded-text-output\ForgeFlow.Web.Tests.dll --TestCaseFilter:FullyQualifiedName~ResourceContractTests --logger:'console;verbosity=minimal'` - 12 passed, 0 failed/skipped.
+
+During initial focused runs, the new check exposed false positives on the `CultureSwitchRejected` diagnostic code and `rtl`/`ltr` direction values, then an exception-fixture path mismatch and an unrecognized localized JavaScript adapter pattern. The scanner/test fixtures were corrected; no application-source exception was added. These intermediate failures are not counted as passing evidence; the final commands above passed.
+
+One final Release build attempt also caught a `StartsWith(char, StringComparison)` overload error while tightening the technical-route allowlist (CS1503). It was corrected to the string overload; the recorded final Release build passed. No failed intermediate binary was used as test evidence.
+
+The normal Web output was not targeted; the existing Web process was left running. The only changed build outputs are isolated under `.tools/hardcoded-text-output`. No unrelated browser checks were repeated. Overall Slice 00 remains NOT ACCEPTED: date/numeric/currency/enum round trips, affected draft evidence, and normal-identity native Development verification remain open. No authentication, Domain, or database work is included.
+
+---
+
+## Formatting and draft round-trip receipt - increment 09 / 00-R6
+
+Scope: extended the existing compact synthetic sample with a date-only input, decimal amount and explicit currency code, and a two-value sample enum. Existing `DisplayFormatter`/`CulturePolicy` services own strict parsing, date rendering and canonical formatting. Persian input is Jalali `yyyy/MM/dd`; English input is Gregorian `MM/dd/yyyy`. A date-only `DateOnly` value is preserved across language changes and canonicalized as ISO `yyyy-MM-dd`; timestamps are not accepted. Decimal parsing follows the selected input culture and rejects grouping/foreign separators instead of guessing. Currency must be one of the explicit supported codes and is never converted. Enum option labels are localized while submitted values remain stable (`summary`, `detailed`).
+
+The sample keeps raw text and its input culture in its per-tab draft. Invalid date and decimal text remain unchanged through language switching and reload and continue to show localized validation. Draft schema version 2 includes date, amount, currency and mode; the existing compatibility policy rejects and clears version 1 rather than coercing missing fields. A successful synthetic submission captures and displays ISO date, invariant typed decimal, currency code and enum value, then clears the draft. Explicit discard also clears it. No database, business entities or dependency changes were made.
+
+Verification evidence and results:
+
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1 -p:OutDir=D:\Projects\ForgeFlow\.tools\format-roundtrip-output\` - all five projects passed, 0 warnings/errors. Fresh isolated output was used to avoid replacing files held by the existing Web process.
+- `dotnet vstest .\.tools\format-roundtrip-output\ForgeFlow.Web.Tests.dll --TestCaseFilter:FullyQualifiedName~SampleFormattingRoundTripTests --logger:'console;verbosity=minimal'` - 23 passed, 0 failed.
+- `dotnet vstest .\.tools\format-roundtrip-output\ForgeFlow.Web.Tests.dll --TestCaseFilter:FullyQualifiedName~SwitchAndDraftTests --logger:'console;verbosity=minimal'` - 16 passed, 0 failed.
+- `dotnet vstest .\.tools\format-roundtrip-output\ForgeFlow.Web.Tests.dll --TestCaseFilter:FullyQualifiedName~ResourceContractTests --logger:'console;verbosity=minimal'` - 13 passed, 0 failed.
+- `dotnet vstest .\.tools\format-roundtrip-output\ForgeFlow.Web.Tests.dll --TestCaseFilter:FullyQualifiedName~HardcodedDisplayTextScannerTests --logger:'console;verbosity=minimal'` - 10 passed, 0 failed; the application source scan reported no unexcepted hardcoded display text.
+- `node --test scripts/drafts.test.mjs` - 19 passed, 0 failed, including malformed, unsupported, older-version and future-version draft payload cases.
+- `node scripts/browser-format-roundtrip.mjs` - passed in Microsoft Edge 157.0.4341.42 under SmokeTest at 1440 and 320 px in fa-IR/RTL and en-US/LTR. Assertions covered culture switching, reload, raw invalid input, localized validation, canonical values, draft restoration, old-version rejection, submit/discard clearing and no horizontal overflow. Machine-readable evidence: `verification/format-roundtrip-09/browser-results.json`; screenshots: `verification/format-roundtrip-09/roundtrip-fa-IR-320.png`, `roundtrip-fa-IR-1440.png`, `roundtrip-en-US-320.png`, `roundtrip-en-US-1440.png`.
+
+During implementation, the first build found a Razor `@code` name collision and an unread primary-constructor parameter in a test; both were corrected before the final build. The first browser assertion incorrectly expected English number separators after switching to Persian; the assertion was corrected to match the selected-culture format. Only the final passing fresh-binary results above count as verification.
+
+| Requirement | Evidence | Result |
+|---|---|---|
+| Jalali/Gregorian date parsing and same underlying date through FA -> EN -> FA | `SampleFormattingRoundTripTests`; `browser-results.json` | PASS |
+| Culture-specific decimal parsing, reject ambiguous/invalid input, no silent magnitude change | `SampleFormattingRoundTripTests`; browser invalid-input/validation assertions | PASS |
+| Explicit currency identity and localized enum labels with stable values | `SampleFormattingRoundTripTests`; canonical submission browser assertion | PASS |
+| Valid draft restoration, invalid raw date/amount retention, unsupported currency/enum rejection, and schema migration policy | `scripts/drafts.test.mjs`; browser reload and version-1 rejection | PASS |
+| FA/EN at desktop and 320 px, RTL/LTR, no horizontal overflow | `browser-results.json` and four screenshots | PASS |
+| Synthetic submit canonical values and submit/discard draft clearing | `browser-results.json` | PASS |
+| Display-text scanner and resource contracts after new UI strings | Fresh-binary scanner and resource tests above | PASS |
+| Release build and affected tests | Isolated output `.tools/format-roundtrip-output` | PASS |
+| Native Development using normal Windows identity | Manual command in `Native Development: normal Windows identity check`; no result recorded in this increment | OPEN: this sandbox run cannot verify the user's normal Windows identity; user-run verification is pending. SmokeTest is separate. |
+| Authenticated profile, account switching, logout and identity-scoped drafts | AUTH-01 destination register above | DEFERRED, not PASS |
+
+Overall Slice 00: ACCEPTED. Required Slice 00 gates are covered by the evidence cited in the matrix and receipts. AUTH-01 profile/account/logout/identity requirements remain DEFERRED, never PASS.
+
+---
+
+# Slice 00 UI/localization acceptance receipt - 2026-11-08
+
+Status: all acceptance checks requested in this increment passed in the isolated SmokeTest browser. Slice 00 is NOT READY for acceptance because additional mandatory checklist gates remain unmet. The existing NavPanel implementation was preserved. No product UI, Domain, database, or authentication source was changed; the only new source artifact is a focused browser verification script.
+
+## Scope and evidence
+
+Reused `verification/navigation-04/browser-results.json` for the already-passed 1440 px and 390 px nav shell, active route, localized labels, drawer, and route behavior. Added `scripts/browser-slice00-gaps.mjs` for the remaining browser checks. Its captured results are in `verification/slice00-acceptance-05/browser-results.json`; visual captures are in the same directory. All browser evidence below is from Microsoft Edge 157.0.4341.42 with `DOTNET_ENVIRONMENT=SmokeTest` and `ASPNETCORE_ENVIRONMENT=SmokeTest`.
+
+Exact commands and results:
+
+- `dotnet build .\\ForgeFlow.slnx -c Release --no-restore -m:1` - passed all five projects, 0 warnings and 0 errors. Captured output: `verification/slice00-acceptance-05/build.log`.
+- `dotnet test .\\tests\\ForgeFlow.Web.Tests\\ForgeFlow.Web.Tests.csproj -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` - passed 48, failed 0, skipped 0 against the just-built Release binaries. Captured output: `verification/slice00-acceptance-05/tests.log`.
+- `node scripts/browser-slice00-gaps.mjs` - passed with 0 browser failures. Results: `verification/slice00-acceptance-05/browser-results.json`.
+
+## Requested UI/localization acceptance matrix
+
+| Requirement | Evidence | Result |
+|---|---|---|
+| Keyboard navigation, visible focus, drawer focus containment, Escape close, focus restored to opener | `browser-results.json`; measured focus ring is 3 px solid | PASS |
+| Persian and English at 320 px without horizontal overflow | `browser-results.json`; both document widths equal 320 px, no clipped visible controls | PASS |
+| Readability and RTL/LTR placement | Six sample screenshots at 1440, 390, and 320 px; two 390 px open-drawer screenshots; `browser-results.json` | PASS |
+| Preference after reload and in a fresh tab | `browser-results.json`; persistent HTTP-only culture cookie and fresh-tab culture assertion | PASS |
+| FA -> EN -> FA with unsaved text and numeric value | `browser-results.json`; mixed-script text, raw Persian digits, numeric preview, multiline notes, and focus preserved | PASS |
+| Localized validation after switching | `browser-results.json`; required-name and invalid-number messages asserted in both cultures and after switching back | PASS |
+| Draft isolation between tabs | `browser-results.json`; independent session keys and independent restored values | PASS |
+| Missing, malformed, and incompatible draft payloads | `browser-results.json`; missing key, malformed JSON, incompatible version, and incomplete field schema exercised in browser | PASS |
+| Clear drafts after successful submission and explicit discard | `browser-results.json`; both remain clear after reload | PASS |
+
+Visual evidence paths: `sample-fa-IR-1440.png`, `sample-en-US-1440.png`, `sample-fa-IR-390.png`, `sample-en-US-390.png`, `sample-fa-IR-320.png`, `sample-en-US-320.png`, `navigation-fa-IR-390-open.png`, and `navigation-en-US-390-open.png`, all under `verification/slice00-acceptance-05/`. The screenshots were inspected. Persian content aligns from the right, English from the left, the drawer opens from the logical start edge, and the visible form controls fit each viewport.
+
+## Full Slice 00 gate matrix
+
+| Required gate | Current evidence or precise gap | Result |
+|---|---|---|
+| Reproducible baseline | User-confirmed successful restore; resolved package assets/lock; Release build and 48 tests passed this increment | PASS |
+| Resource completeness | Explicit fa-IR/en-US catalog and key/placeholder checks pass. The documented syntax-aware hardcoded-display scan and reviewed narrow-exception manifest are still absent. | BLOCKED: static-analysis gate not implemented |
+| Complete sample UI | Current sample has the localized form and formatter previews. It does not implement the contract's table, dialog, tooltip, loading/empty states, notification, or Identity error fixture. | BLOCKED: required sample surfaces are absent; not added because this increment was limited to verifying listed gaps and forbids UI redesign/authentication |
+| Culture and preference | Anonymous cookie persistence, reload, fresh-tab preference, and local switching pass. | BLOCKED: authenticated profile preference and logout/identity-boundary tests are absent; authentication is explicitly excluded |
+| Draft continuity | Text/multiline/raw-number preservation, invalid validation, tab isolation, malformed payload handling, clearing, and restoration pass in SmokeTest. | BLOCKED: the formal sample matrix also requires date and enum fields/state, which are not present |
+| Formatting and storage | Existing explicit Jalali/Gregorian and number formatter tests pass; browser check confirms numeric preview across culture switch. | BLOCKED: date-entry and amount-plus-currency sample flow and canonical submitted-value evidence are absent |
+| Browser and layout | Real browser checks and screenshots pass for current shell/sample in both languages at 1440, 390, and 320 px; nav result reused from `verification/navigation-04/browser-results.json`. | BLOCKED: the full gate also requires browser coverage of dialog/table/notifications, which the current sample does not contain |
+| Honest reporting | Commands, actual results, screenshots, SmokeTest boundary, and remaining gaps are recorded here. | PASS |
+
+## Native Development boundary
+
+Native Windows Development was not run in this increment and is not inferred from the SmokeTest pass. Existing host evidence remains separate: the sandbox process SID `S-1-5-21-3755849481-2529867762-2974155886-1005` has no ProfileList registration; an isolated current-user DPAPI encrypt probe previously failed with HRESULT `0x00000002`. The prior profile/DPAPI evidence is `verification/runtime-02/profile-registration.json` and `verification/runtime-02/dpapi-probe.log`. Native Development remains BLOCKED pending a correctly provisioned execution profile; no host security or profile settings were changed.
+
+## Acceptance decision and next step
+
+Slice 00 is NOT READY for acceptance because the blocked mandatory gates above remain. The requested remaining UI/localization checks all pass, and no correction to the existing NavPanel or sample UI was required. Continue only within Slice 00 after the scope for the absent sample surfaces, formal date/enum draft matrix, formatter/storage matrix, authenticated preference fixtures, and static-analysis gate is authorized. Do not advance to later slices.
+
+---
+# Navigation shell implementation receipt - 2026-11-08
+
+Status: authorized NavPanel increment implemented and verified. Slice 00 remains unaccepted. This current receipt supersedes the prior blocked attempt recorded immediately below; its evidence reflects this checkout after the user restored the solution dependencies.
+
+## Scope and package/API evidence
+
+Implemented the minimal navigation shell with existing routes only: the ForgeFlow title and the existing sample page at `/`. `src/ForgeFlow.Web/obj/project.assets.json` resolves `Bit.BlazorUI.Extras/10.7.0` with package path `bit.blazorui.extras/10.7.0` and package root `C:\Users\PC\.nuget\packages\`. `src/ForgeFlow.Web/packages.lock.json` independently records resolved version 10.7.0 and its content hash. The readable package assembly and XML documentation are at `C:\Users\PC\.nuget\packages\bit.blazorui.extras\10.7.0\lib\net10.0\Bit.BlazorUI.Extras.dll` and `.xml`.
+
+The installed API documents `BitNavPanel<TItem>` as a responsive panel/drawer around `BitNav<T>`. The implementation uses `IList<BitNavItem>` for `Items` (also confirmed by compilation), `BitNavMode.Automatic`, exact route matching, `BitNavPanelBreakpoint.Lg` (drawer below 1280 px), `IsOpen`, `ShowCloseButton`, and its localized toggle/close label parameters. Extras CSS and JavaScript use the package-documented `_content/Bit.BlazorUI.Extras/styles/bit.blazorui.extras.css` and `_content/Bit.BlazorUI.Extras/scripts/bit.blazorui.extras.js` assets. No dependency version changed.
+
+## Implementation
+
+- `MainLayout.razor` now hosts the Extras `BitNavPanel`, localized ForgeFlow title, localized navigation landmark and item, localized desktop toggle and drawer close names, and the only application navigation link, `/`. Automatic exact matching highlights that existing route. A localized mobile drawer trigger is connected to the panel and references its navigation id.
+- `App.razor` loads the Extras CSS and JavaScript alongside the existing Bit.BlazorUI assets.
+- `app.css` lays out the panel and content at desktop width and lets the Extras panel become a drawer below 1280 px. The drawer placement follows the existing document direction from `CulturePolicy`; the shell does not add culture detection.
+- Both explicit `SharedResources` catalogs contain the new title and accessibility keys. The resource contract registry was updated.
+- `scripts/browser-navigation.mjs` provides focused browser checks and writes `verification/navigation-04/browser-results.json`.
+
+## Verification results
+
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` - passed; all five projects built, 0 warnings, 0 errors.
+- `dotnet test .\tests\ForgeFlow.Web.Tests\ForgeFlow.Web.Tests.csproj -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` - passed; 48 passed, 0 failed, 0 skipped, using binaries from the successful build above. This includes direct explicit-catalog and Razor key-reference checks.
+- `node scripts/browser-navigation.mjs` - passed in Microsoft Edge 157.0.4341.42. Persian/RTL and English/LTR were checked at 1440 px and 390 px. The run verified localized nav names, existing `/` link and `aria-current="page"`, desktop panel visibility and logical edge, mobile drawer open/close, localized dialog/control names, the `aria-controls` target, and no page errors. The existing language switch was exercised fa-IR to en-US; the sample name, multiline notes, invalid amount text, localized validation, and active route survived the switch. Results: `verification/navigation-04/browser-results.json`.
+
+## Remaining acceptance gaps and next small step
+
+This verifies the NavPanel increment only. Slice 00 is not accepted: the full form/draft matrix, keyboard and focus behavior, 320 px overflow, full sample visual review, screenshots, and remaining culture/preference and formatter acceptance are not covered by this focused navigation run. Next small step: continue Slice 00 acceptance with keyboard/focus and 320 px overflow checks for the current shell and sample, then record any remaining gaps before considering acceptance. Do not advance to later slices.
+
+---
+# Navigation shell continuation receipt - 2026-11-08
+
+Status: implementation blocked before source changes. Slice 00 remains unaccepted. No Domain or database files were changed.
+
+## Scope and acceptance evidence
+
+The authorized increment is limited to a minimal navigation shell using the restored Bit.BlazorUI.Extras 10.7.0 API, existing routes, desktop panel and mobile drawer, active-route highlighting, centralized RTL/LTR, localized labels and accessibility text, and preservation of the existing language switch and draft behavior. Required evidence is the actual restored package/API, no-restore Release build, affected localization checks, and browser navigation checks.
+
+## Dependency and API check
+
+The 10.7.0 package could not be verified as restored in this checkout. `src/ForgeFlow.Web/ForgeFlow.Web.csproj` and `Directory.Packages.props` declare version 10.7.0, but `src/ForgeFlow.Web/packages.lock.json` contains no resolved dependencies, `src/ForgeFlow.Web/obj/project.assets.json` lists no Extras library, and the package folders visible to this checkout contain only `C:\Users\PC\.nuget\packages\bit.blazorui.extras\8.9.0`. The package API was not inspected; no 8.9.0 API was substituted. No source or package version was changed.
+
+## Commands and observed results
+
+- `dotnet build ForgeFlow.sln -c Release --no-restore -m:1` - failed with `MSB1009: Project file does not exist. Switch: ForgeFlow.sln`. This checkout contains `ForgeFlow.slnx`, not `ForgeFlow.sln`.
+- `dotnet build ForgeFlow.slnx -c Release --no-restore -m:1` - failed in the Web project with `NU1301`; output reported the NuGet service index could not be loaded, SSL authentication failed, and no credentials were available in the security package. No restore command or separate network diagnosis was run. Domain, Application, and Infrastructure compiled before the Web failure.
+- `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` - 48 passed, 0 failed, 0 skipped. These are existing Release binaries from before this attempt; they do not verify a navigation implementation.
+- `node scripts/browser-slice00.mjs` - started the existing SmokeTest server and received HTTP 200 for `/`, then the browser launch stalled before browser assertions. The run was interrupted; it exited 1 and produced no browser-results.json. No browser navigation, layout, localization, or draft acceptance is claimed.
+
+## Changes and remaining gaps
+
+No navigation source changes were made because the requested 10.7.0 dependency and its API are not present in this checkout. Consequently there is no new navigation behavior for localization or browser checks to accept. Existing localization tests pass only for the pre-existing build. The requested `ForgeFlow.sln` build could not start because that filename is absent; the available `.slnx` no-restore build fails on unresolved Extras dependency metadata. The browser harness did not reach its assertions.
+
+Next small step: make the user's restored `Bit.BlazorUI.Extras` 10.7.0 package, generated lock/assets, and solution file available in this checkout; then inspect its actual API, implement only the scoped shell, and rerun the specified build, localization checks, and browser navigation checks. Do not advance beyond Slice 00.
+
+---
+
+# Slice 00 — Current workspace architecture and acceptance contract
+
+Revision: 00-R5 / acceptance increment 05 | Date: 2026-11-08 | Status: requested UI/localization browser checks pass in SmokeTest; Release build and 48 tests pass; Slice 00 remains not ready because required acceptance gates remain incomplete; native Windows Development remains host-limited.
+
+This section governs Slice 00 and the localization acceptance of every subsequent UI slice. It supersedes conflicting statements below that describe Slice 00 as documentation-only, advance directly to Slice 01, or imply that source and verification artifacts are available in this workspace. Earlier architectural and business rules remain historical context unless explicitly superseded here. This revision does not authorize implementation of later slices.
+
+## Observed workspace and evidence boundary
+
+The initial 00-R2 inspection found only `ForgeFlow.md`, including hidden-file enumeration. No `AGENTS.md` was found in the workspace or its ancestors (`D:\Projects`, `D:\`). No solution, project, application source, `.resx`, test project, CI configuration, SDK pin, ZIP, verification directory, or `.git` directory was present at that inspection. The user subsequently confirmed this is a greenfield project. Increment 01 adds the foundation listed in the execution record below; historical source is not its baseline. Git remains uninitialized.
+
+The earlier Day 10 and 00-R1 sections describe source files, upgrades, probes, and successful builds from another delivery. Those claims have not been reproduced here. Only the increment 01 and 02 evidence below applies to this repository. No browser or database acceptance is claimed. The initial PowerShell read displayed Persian incorrectly; rereading explicitly as UTF-8 displayed the existing text correctly. Preserve the existing document as UTF-8.
+
+## Scope and completion boundary
+
+Slice 00 must deliver the localization foundation and a working sample page. Documentation alone cannot satisfy acceptance. The baseline is ASP.NET Core with Blazor Interactive Server and the Domain, Application, Infrastructure, and Web boundaries described below; increment 01 now creates these projects. This is a greenfield implementation. Historical version numbers are not proof of installed or currently suitable packages; this increment verifies and pins its own versions.
+
+The 00-R2 revision changed documentation only. Increment 01 implements the minimal executable foundation, resource checks, and sample validation/formatting. Organization/site models, account provisioning, authentication, authorization management, business CRUD, database migrations, BOM changes, and later slices remain outside this increment. The full Slice 00 contract still requires the culture integration seam for authenticated principals, but it is deferred from increment 01. Production sign-in/sign-out verification becomes mandatory when that workflow exists.
+
+## FF-A015 — Resource ownership and presentation boundary
+
+1. Use ASP.NET Core Localization, `IStringLocalizer<T>`, and `.resx` resources. Web owns presentation resources. Proposed resource sets are `SharedResources`, `SampleResources`, `ValidationResources`, `IdentityResources`, and `ErrorResources`, each with complete explicit `fa-IR` and `en-US` resources. A neutral resource may provide runtime fallback but cannot satisfy translation completeness checks.
+2. Do not embed user-facing text in Razor, C#, or JavaScript. This includes document/page titles, navigation, field labels, hints, placeholders, buttons, dialogs, table headings, loading/empty/error states, notifications, tooltips, accessibility names, and framework/reconnect/error screens. Resource files and dedicated test fixtures may contain display text. Technical identifiers, routes, CSS classes, and diagnostic codes are not display labels.
+3. Do not select translated text by language comparisons, ternaries, or dictionaries of inline translations. Components consume resource keys. Culture-dependent calendar/direction behavior belongs exclusively to the shared culture and formatting services; it must not choose message text.
+4. Use complete messages with numbered placeholders and typed parameter contracts. Do not concatenate translated sentence fragments. Encode substituted user data; do not treat resource or parameter content as trusted HTML. JavaScript receives the required localized messages through a presentation adapter with safe serialization; it does not maintain a parallel translation catalog.
+5. Domain and Application expose language-independent errors as stable `Code` plus named, typed `Parameters`, optionally a field identifier. They never reference localization services or return display prose. Web maps known codes and parameter order to resource messages. Unknown codes produce a localized generic error and a correlation identifier; raw exception messages are not displayed. Logs retain stable diagnostic information.
+6. Persist enum values, permission names, business codes, and identifiers independently of language. Presentation maps enum members to resource keys and verifies exhaustive coverage. Never persist a translated label as an identifier.
+7. Resource-backed validation must cover field names, required/range/format rules, model binding, server validation, and any client validation. Configure localized DataAnnotations where used. A localized `IdentityErrorDescriber` and presentation adapter must cover all Identity errors, including password rules and parameterized errors. Inventory framework default messages so English defaults do not leak into Persian. Slice 00 exercises these adapters through fixtures; it does not create production accounts.
+8. User-entered business data stays unchanged when culture switches. Bilingual master-data names, when needed, are separate explicit fields such as `NameFa` and `NameEn`, with their own requiredness and missing-name policy in the owning slice. Do not automatically translate or overwrite user data.
+
+## FF-A016 — Central culture, direction, and form-state preservation
+
+Supported cultures and UI cultures are explicitly `fa-IR` and `en-US`; the initial default is `fa-IR`. One centralized culture policy owns the supported list, default, request localization configuration, direction, and preference resolution. Set both `CurrentCulture` and `CurrentUICulture` consistently at the request/circuit boundary. Do not mutate process-wide defaults per user or duplicate detection in components. Set document `lang` and `dir` from the policy. Use CSS logical properties for spacing, positioning, alignment, and borders; document any direction-sensitive icon behavior.
+
+Use `RequestLocalizationOptions` and request localization middleware before rendering culture-dependent output. A valid explicit switch wins and writes the culture cookie. Otherwise use a supported culture cookie, then an authenticated profile preference when available, then supported `Accept-Language`, then the default. Reject unsupported switch values without changing culture. Arbitrary query-string culture overrides are disabled. When Identity is introduced, an explicit authenticated switch also updates the profile preference through an adapter; sign-in preserves the current explicit browser choice. A profile persistence failure must be reported through a resource-backed message rather than falsely reporting synchronization. The cookie supports anonymous switching and survives logout.
+
+For Interactive Server, adopt a controlled full reload to establish a new request and circuit. The shared switch coordinator must preserve draft state before navigation:
+
+- Bind inputs on input events and flush any pending editor changes before capturing the draft. Capture an allowlisted, versioned form model, raw strings (including invalid/partially typed date and number inputs), dirty/touched fields, validation codes and parameters, and focus field identifier. Do not capture translated messages or the old circuit's `EditContext`.
+- Keep the draft in per-tab `sessionStorage`, keyed by route, form instance, and authenticated identity scope. Enforce schema validation and a short documented expiry (30 minutes for the sample), and clear it after successful submission, explicit discard, expiry, or an identity change. Do not store passwords, tokens, credentials, or other sensitive fields. A future form requiring sensitive drafts must use a separately reviewed server-side draft design.
+- Only after capture succeeds, submit an antiforgery-protected culture-switch request. Validate the culture and permit only local allowlisted return routes. Set the preference cookie and reload the same form route. A failed capture or switch leaves the current form usable and reports a localized error.
+- Restore the draft before the form becomes interactive, rebuild its validation state, and render messages in the new language. Preserve canonical typed values and invalid raw input without reparsing it under the new culture. Valid numeric/date inputs may be reformatted from canonical values; invalid input stays visible for correction. Restore focus where possible.
+- During logout or principal changes, clear scoped drafts so one account cannot restore another account's input. Repeated switches and separate tabs must not overwrite unrelated forms. Forms with unsupported state must implement preservation before their slice can be accepted.
+
+Slice 00 proves anonymous preference resolution and reusable culture/draft contracts. Authenticated-principal resolution, profile synchronization and failure, sign-in preference precedence, account switching, logout, and identity-scoped draft clearing are DEFERRED to AUTH-01 (the first Authentication and Identity slice), including test-authentication/in-memory-profile fixtures. These requirements are not PASS and do not gate Slice 00. AUTH-01 must verify them against its actual workflow before acceptance.
+
+## FF-A017 — Culture-independent values and shared formatting
+
+Introduce centralized date, number, and money formatting/parsing services at the presentation boundary. Persian renders Jalali dates using an explicit Persian calendar; English renders Gregorian dates. Do not rely on a machine's default calendar. Store instants as UTC and business dates as calendar-independent date values under the owning use case's contract. Convert an instant to the configured display time zone before calendar formatting; culture is not a time zone. The sample explicitly uses UTC as its display time zone.
+
+Preserve decimals as decimal values and money as amount plus explicit currency code. Culture switching never changes the currency, unit, exchange rate, business rounding, or stored value. Centralize supported digit normalization, grouping, decimal parsing, precision, and date validation. Invalid dates/numbers return stable validation codes. Test a known equivalent Jalali/Gregorian date, year boundaries, invalid dates, zero/negative/fractional numbers, and a fixed amount/currency pair. Resource messages supply complete surrounding labels and units where needed.
+
+## Slice 00 sample and automated quality gates
+
+The sample is a foundation demonstration, not a business CRUD slice. It includes resource-backed title/navigation, a language switcher, a form with business name, required input, multiline notes, date, decimal amount, currency, and a language-independent enum. It also demonstrates a table, dialog, tooltip, accessible controls, loading/empty/error states, success notification, parameterized Application error, validation errors, and an Identity error fixture. Sample text belongs in resources or dedicated fixtures. No database write is needed.
+
+The implementation must add repeatable automated checks that:
+
+- Enumerate each explicit culture resource set directly, bypassing runtime fallback; fail on missing/empty/duplicate keys, missing culture files, unused or unresolved key references, and incomplete enum/error-code mappings. Dynamically referenced keys need an explicit registry so they can be checked.
+- Parse composite format messages and compare placeholder indexes and their declared parameter contracts in both languages; fail on malformed formats or incompatible format specifiers. Test escaped braces and repeated placeholders. Fallback success is not evidence of complete translation.
+- Scan Razor, C#, JavaScript, and user-visible markup/attributes with syntax-aware checks for literal display text, inline language-selection patterns, and translated fragment concatenation. Cover framework adapters and JavaScript message delivery. Exempt only resources, dedicated test fixtures, and narrowly scoped technical literals. Each additional exception records exact file/symbol, reason, and reviewer; no blanket folder suppression. Verify checks with deliberately failing fixtures for each rule and document any static-analysis limits.
+- Exercise culture resolution, independent concurrent cultures, direction, cookie persistence, profile synchronization and failure, invalid switch values, local return-route enforcement, localized validation/Identity/error adapters, and formatter round trips. Verify draft capture failure, reload restoration, repeated switches, invalid raw input, tab isolation, expiry, and identity isolation.
+
+## Acceptance contract and evidence
+
+Every row is required. Until implementation and evidence exist, its status is pending. No UI slice is accepted with one language incomplete.
+
+| Gate | Required proof |
+|---|---|
+| Reproducible baseline | Actual solution/projects, documented SDK/dependencies, successful restore/build and relevant automated checks with exact commands and results. |
+| Resource completeness | Both explicit culture catalogs pass direct missing-key and placeholder checks; intentionally broken fixtures fail as expected; hardcoded-text checks pass with reviewed narrow exceptions. |
+| Complete sample UI | Every listed sample surface and its accessibility text is rendered through resources in both languages, including errors and framework states. |
+| Culture and preference | Anonymous preference survives switching, reload and fresh tabs; supported-cookie/header/default precedence and rejected switch requests are covered. Authenticated profile and lifecycle requirements are DEFERRED to AUTH-01. |
+| Draft continuity | Type a mixed-script name and multiline notes, select an enum, enter valid and invalid date/number inputs, trigger validation, switch both ways, then submit. Values, identifiers, dirty state, and recoverable validation survive; no unintended submit or write occurs. |
+| Formatting and storage | Equivalent Jalali/Gregorian dates and numeric/money samples render correctly; canonical submitted values stay identical across cultures; business data is unchanged. |
+| Browser and layout | Exercise the sample in `fa-IR`/RTL and `en-US`/LTR at 390 px mobile and 1440 px desktop, plus a 320 px overflow check. Record browser/version, viewport, keyboard/focus checks, switch behavior, dialog/table/notifications, and screenshots for each language/layout. No clipped controls or unintended horizontal overflow. |
+| Honest reporting | Record test commands, observed results, remaining limitations, and separate design/implementation/verification/acceptance status. A blocked browser run cannot be reported as visual acceptance. |
+
+Current status: the localization foundation, culture/draft coordinator, and NavPanel are implemented. The requested remaining UI/localization checks pass in Microsoft Edge 157 under SmokeTest; the Release build and 48 tests pass. Slice 00 is not ready because the resource static-analysis, complete sample UI, authenticated profile preference, full date/enum draft matrix, and amount/currency storage gates remain incomplete. Native Windows Development remains a separate host-limited environment.
+
+## Next small implementation step
+
+The requested remaining UI/localization browser checks are complete. Slice 00 remains pending on the gates listed in the current acceptance receipt: the documented syntax-aware hardcoded-display analysis, missing sample surfaces, authenticated preference seam, date/enum draft coverage, and date/amount/currency storage coverage. Keep native Windows Development profile verification separate from SmokeTest evidence. Do not start Slice 01 or later business features.
+## Increment 03 — Navigation shell dependency/API check
+
+Date: 2026-11-08. Scope: add the authorized matching Extras 10.7.0 package reference, restore it, inspect its installed API, and implement/verify a minimal navigation shell. Existing `Bit.BlazorUI` remains pinned at 10.7.0; `Bit.BlazorUI.Extras` 10.7.0 was added to `Directory.Packages.props` and the Web project. The normal restore command was run with the workspace-pinned SDK and workspace-local CLI/NuGet directories:
+
+`$env:DOTNET_CLI_HOME = (Join-Path (Get-Location) '.tools\cli-home'); $env:NUGET_PACKAGES = (Join-Path (Get-Location) '.tools\packages'); .\.tools\dotnet\dotnet.exe restore src/ForgeFlow.Web/ForgeFlow.Web.csproj --force-evaluate`
+
+Restore failed for the Web project with `NU1301: Unable to load the service index for source https://api.nuget.org/v3/index.json`, followed by `The SSL connection could not be established`, `Authentication failed`, and `No credentials are available in the security package`. No inference is made about the cause. Restore was interrupted after reporting that error. The Extras package is not in the local feed/cache, so its actual installed API cannot be inspected and package lock files were not updated. No component markup, service registration, import, or asset change was made. Release build, localization checks, and browser checks were not run because restore did not complete.
+
+## Follow-up — User restore and workspace verification
+
+Date: 2026-11-08. The user reported successfully restoring `ForgeFlow.sln` from normal Windows PowerShell. Rechecking this workspace found `Bit.BlazorUI.Extras` 10.7.0 absent from `.tools/packages`, `.tools/nuget-feed`, the Web package lock file, and the current user NuGet package path. `src/ForgeFlow.Web/obj/project.assets.json` contains only the unresolved dependency declaration, without a restored library. The workspace solution is `ForgeFlow.slnx`; no `ForgeFlow.sln` file is present. There is no restored Extras assembly/package here to inspect, so implementation against its API remains pending.
+
+The requested command `dotnet build ForgeFlow.sln -c Release --no-restore -m:1` was run. It failed at SDK initialization with `System.UnauthorizedAccessException: Access to the path 'C:\Users\PC\.dotnet\10.0.403.toolpath.sentinel' is denied.` No network diagnosis was repeated. The authorized Extras references remain pinned at 10.7.0; lock files were not updated. Localization checks and real-browser desktop/mobile checks were not run because the package is unavailable in this workspace and the requested build could not start.
+
+Language switching and draft capture/restoration remain **partial and unverified** against the full Slice 00 acceptance matrix; their implementation remains unchanged. Next step: make the user's restored `Bit.BlazorUI.Extras` 10.7.0 package and matching lock/assets available to this workspace, then inspect its actual API and continue the navigation increment. Slice 00 remains unaccepted.
+
+## Increment 01 — Actual implementation and verification
+
+Date: 2026-11-07. Source was created here from scratch; no previous application source was copied. `AGENTS.md` now records the slice workflow, localization boundaries, evidence requirements, execution restrictions, and prohibition on unrequested Git operations. Its instructions were read after creation.
+
+### Selected versions and compatibility evidence
+
+| Component | Selected pin | Official evidence |
+|---|---|---|
+| .NET SDK | 10.0.403, exact `global.json`, no roll-forward or prerelease | [Microsoft release metadata](https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json) lists this stable SDK and runtime 10.0.14. [Release index](https://builds.dotnet.microsoft.com/dotnet/release-metadata/releases-index.json) lists .NET 11 as RC, excluded from selection. |
+| .NET / ASP.NET Core | `net10.0`; minimum runtime 10.0.14 | Web and test project `RuntimeFrameworkVersion`; generated Web runtime configuration requests both shared frameworks at 10.0.14. |
+| EF Core | 10.0.14 | [Official Microsoft package](https://www.nuget.org/packages/Microsoft.EntityFrameworkCore/10.0.14) targets .NET 10. It is referenced only by Infrastructure; there is no DbContext, provider, entity, or migration. |
+| Bit.BlazorUI | 10.7.0 | [Publisher package](https://www.nuget.org/packages/Bit.BlazorUI/10.7.0) and downloaded signed package include a `net10.0` dependency/assembly group. No Extras package is needed for the sample button. |
+| Test tooling | Microsoft.NET.Test.Sdk 17.14.1, xunit 2.9.3, xunit.runner.visualstudio 3.1.4 | Explicit, stable test-tool pins; these are compatible selections, not claims of latest test-tool versions. Actual test execution passes on .NET 10. |
+
+The .NET/EF/Bit latest-stable checks were made against official metadata and NuGet indexes during this increment. `verification/versions.json` records the observed values and sources. `Directory.Packages.props` centralizes package versions; each project has `packages.lock.json`. No floating package versions are used. ASP.NET Core framework-provided packages are pruned by the SDK rather than redundantly referenced. Tests explicitly reference the ASP.NET Core shared framework.
+
+Only .NET 8 SDKs were originally installed. `python scripts/bootstrap-sdk.py` downloaded SDK 10.0.403 into `.tools/dotnet` and verified its SHA512 against Microsoft's release metadata before extraction. The script is pinned to that SDK on subsequent runs. The SDK, archive, local feed, and package cache are workspace artifacts excluded by `.gitignore`; no Git repository was created. `verification/sdk.log` and `verification/sdk-sha512.log` record the installed workspace SDK and verified archive hash.
+
+### Implemented foundation
+
+- `ForgeFlow.slnx` contains Domain, Application, Infrastructure, and Web projects plus `ForgeFlow.Web.Tests`. Domain and Application intentionally contain no business behavior. References follow Domain ← Application ← Infrastructure, with Web as the composition root referencing Application and Infrastructure.
+- Web registers Blazor Interactive Server, Bit.BlazorUI, ASP.NET Core Localization, and scoped culture/formatting services. Package inspection confirmed the actual stylesheet/script paths and button API before compilation. `App.razor` sets document `lang`/`dir` centrally and includes the import map and static assets. Application CSS uses logical spacing and sizing properties.
+- Explicit `SampleResources` and `SharedResources` catalogs exist for both `fa-IR` and `en-US`, with 15 keys per language. No neutral catalog is used to conceal missing translations. `IStringLocalizer<T>` supplies page title, navigation, form label/button, required-name validation, parameterized success message, and error/not-found text.
+- The sample at `/` validates a name using a presentation-only `SampleFormState`, preserves the entered value during validation, and performs no persistence. It displays a fixed canonical date and decimal through `DisplayFormatter`. Dates use explicit Persian/Gregorian calendars with `yyyy/MM/dd` and Latin digits; numbers use the selected culture's `N2` formatting. Monetary formatting, parsing, digit normalization, date/number inputs, and time-zone conversion remain pending.
+- `CulturePolicy` owns supported cultures, default Persian, request localization configuration, calendar selection, and direction. Cookies precede `Accept-Language`; query overrides are disabled. Supported cookie culture is normalized to one formatting/UI culture so inconsistent cookie pairs cannot select conflicting calendars and messages. There is no switch endpoint, profile adapter, or authentication in this increment.
+- Tests directly inspect culture-specific XML catalogs without fallback, reject missing/empty/duplicate/extra keys, validate composite formats and parameter indexes/specifiers, and check registered Razor key usage. Escaped braces, repeated/reordered placeholders, and deliberately invalid fixtures are covered. Tests also cover localizer resolution, request policy, cookie consistency, direction, Jalali/Gregorian year boundaries, decimal samples, and localized form validation in both languages.
+
+The key-reference check currently covers the sample's `Text["Key"]` Razor convention and an explicit registry. It is not a general C#/JavaScript key analyzer. Placeholder contracts currently declare parameter counts and matching format specifiers; typed error-parameter contracts remain pending because no Application errors exist yet. A syntax-aware hardcoded-text checker and its narrow-exception manifest are not implemented. These limits remain acceptance gaps.
+
+### Commands and actual results
+
+The following permitted inline PowerShell assignments set workspace-local SDK/cache paths for direct SDK commands; they do not alter execution policy or machine security settings:
+
+```powershell
+$env:DOTNET_CLI_HOME = Join-Path (Get-Location) '.tools/cli-home'
+$env:NUGET_PACKAGES = Join-Path (Get-Location) '.tools/packages'
+$env:DOTNET_ROOT = Join-Path (Get-Location) '.tools/dotnet'
+```
+
+| Exact command | Actual outcome and evidence |
+|---|---|
+| `python scripts/bootstrap-sdk.py` | Succeeded; SHA512 matched Microsoft metadata. |
+| `./.tools/dotnet/dotnet.exe restore ForgeFlow.slnx --verbosity minimal` | Failed with NU1301: SSL authentication failed; `No credentials are available in the security package`. Original output: `verification/restore.log`. |
+| `python scripts/cache-nuget.py` | Succeeded; official NuGet HTTPS downloads through Python with certificate verification enabled. Downloads compatible dependency candidates; NuGet remains the resolver and signature verifier. Sources/hashes: `verification/package-downloads.json`. |
+| `./.tools/dotnet/dotnet.exe restore ForgeFlow.slnx --source .tools/nuget-feed --verbosity minimal` | Succeeded after the in-scope restore fixes below; `verification/restore-local.log`. |
+| `./.tools/dotnet/dotnet.exe restore ForgeFlow.slnx --source .tools/nuget-feed --locked-mode --verbosity minimal` | Succeeded for all five projects; `verification/restore-locked.log`. |
+| `./.tools/dotnet/dotnet.exe build ForgeFlow.slnx -c Release --no-restore` | Succeeded; zero warnings and zero errors; `verification/build.log`. |
+| `./.tools/dotnet/dotnet.exe test ForgeFlow.slnx -c Release --no-build --no-restore --logger 'trx;LogFileName=slice00.trx' --results-directory verification/TestResults` | 24 passed, zero failed/skipped; `verification/tests.log` and `verification/TestResults/slice00.trx`. The result-file overwrite notice is from replacing the earlier 16-test run. |
+| `python scripts/smoke-http.py` | Failed before completing any culture response. Client received `IncompleteRead(2463 bytes read)`. Server reported Data Protection DPAPI decryption failure and Event Log `Access is denied`; `verification/server.log`, `verification/server-blocked.log`, `verification/http-smoke.log`, and `verification/http-smoke.json`. No HTTP or browser acceptance is claimed. |
+
+The local-feed restore does not prove a current vulnerability audit. No audit/signature/TLS checks were disabled, and no clean-security claim is made. Normal online restore/audit remains unverified in this environment.
+
+Other exact attempts and resolved issues:
+
+- `Invoke-RestMethod -Uri $url` against the Microsoft release metadata and NuGet flat-container indexes failed with `The underlying connection was closed: An unexpected error occurred on a receive.` `curl.exe -I https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json` failed with `SEC_E_NO_CREDENTIALS`. Python's standard HTTPS transport succeeded without changing certificate verification.
+- `./scripts/dotnet.ps1 restore ForgeFlow.slnx --source .tools/nuget-feed --verbosity minimal` was rejected: the file was not digitally signed (`PSSecurityException`, `UnauthorizedAccess`). That helper was removed; permitted direct SDK invocations were used. No execution-policy bypass or sandbox escalation was attempted.
+- Initial local restore exposed SDK warning-as-error NU1510 for a redundant Components.Web reference and NU1101 for the SDK's implicit `Microsoft.AspNetCore.App.Internal.Assets` package. Removing the redundant reference and caching the matching 10.0.14 assets package resolved them. Explicit ASP.NET Core framework reference in the tests resolved their transitive package-resolution failure. Final restore/build/test results above apply to the corrected files.
+- The HTTP smoke script launches and terminates only its test server. No Data Protection keys, DPAPI permissions, Event Log permissions, or OS security settings were modified to overcome the runtime block. The SDK's first-use output reported automatic development-certificate installation; no certificate-trust command was issued. No production authentication, roles, business data, migrations, or workflows were added.
+
+### Remaining acceptance gaps and handoff
+
+| Area | Status after increment 01 |
+|---|---|
+| Four-layer baseline, pins, resource infrastructure, minimal sample source | Implemented; compiled and covered by the relevant non-browser tests above. |
+| Real HTTP/circuit startup, asset delivery, localized error routes | Smoke script exists; verification blocked by host cryptography/logging restrictions. No successful response or circuit interaction claimed. |
+| Interactive language switching and preference persistence | Not implemented; existing supported cookie/header selection is not a switch workflow. |
+| Reload-safe draft capture/restoration and sensitive/identity isolation | Not implemented. Current form values survive validation only; reload preservation is not claimed. |
+| Full sample surfaces, enums, Application/Identity error adapters, richer validation | Not implemented; no authentication or Application errors were introduced. |
+| Money/number/date parsing and complete formatter contracts | Only date display and decimal display implemented; remaining contracts pending. |
+| Missing keys and placeholder parity | Automated checks pass for the implemented catalogs; general source analysis, typed parameters, and hardcoded-text checks remain pending. |
+| Persian/English visual review, RTL/LTR, keyboard, mobile, actual interactive validation | Browser acceptance not performed. Source resources and non-browser tests are not visual or interaction evidence. |
+
+Slice 00 is **not accepted**. The next increment stays within Slice 00: obtain runtime evidence under normal allowed host capabilities, then implement language switching together with draft restoration and its tests. No Git initialization, commit, push, merge, or later-slice implementation was performed.
+
+## Increment 02 — Runtime failure diagnosis and supported isolation
+
+Scope: runtime smoke failure only. `AGENTS.md` and the authoritative contract were read before changes. The four-layer baseline, resource catalogs, form behavior, dependencies, and completed checks were preserved. No language switching, draft restoration, authentication, business entities, migrations, or later slices were implemented. Increment 01's failed HTTP run remains historical evidence; the successful run below supersedes that blocker for the smoke environment only.
+
+### Reproduction and exact exception chain
+
+`python scripts/smoke-http.py` reproduced the original failure before correction. The client exited 1 with `http.client.IncompleteRead: IncompleteRead(2463 bytes read)`. The server did start listening; the failure arose while initializing/protecting Data Protection payloads and rendering a response, not while binding the socket.
+
+The exact server exceptions included:
+
+```text
+System.Security.Cryptography.CryptographicException: Error occurred during a cryptographic operation.
+  at Microsoft.AspNetCore.DataProtection.Cng.DpapiSecretSerializerHelper.UnprotectWithDpapiCore(...)
+  at Microsoft.AspNetCore.DataProtection.XmlEncryption.DpapiXmlDecryptor.Decrypt(...)
+
+System.AggregateException: An error occurred while writing to logger(s).
+  (Cannot open log for source '.NET Runtime'. You may not have write access.)
+ ---> System.InvalidOperationException: Cannot open log for source '.NET Runtime'. You may not have write access.
+ ---> System.ComponentModel.Win32Exception (5): Access is denied.
+
+System.Security.Cryptography.CryptographicException: An error occurred while trying to encrypt the provided data.
+  Refer to the inner exception for more information.
+```
+
+The final encryption exception wrapped a logging failure and occurred through Data Protection during response generation. Repeated Event Log exceptions also disrupted exception-handler logging and the response stream, producing the client's incomplete-read symptom. Full stack traces are in `verification/runtime-02/reproduction-server.log`; the client traceback and result are in `reproduction-client.log` and `reproduction-result.json`. The preceding run's log is preserved as `previous-server.log`.
+
+### Cause and responsibility
+
+| Layer/resource | Observed evidence | Finding |
+|---|---|---|
+| Application | No explicit Data Protection repository, wrapping mechanism, or local logging provider selection existed. No source/configuration file named another app or PC's key path. | Framework defaults unintentionally introduced profile-level and Windows Event Log dependencies into a greenfield local process. Localization and sample validation were not the source of these exceptions. |
+| Harness | It launched the real Web DLL in Development and inherited profile environment variables. | It did not isolate the smoke run's key lifecycle. The incomplete-read exception was a downstream symptom, not a Python TLS or HTTP-parser fault. |
+| Execution identity/profile | Process identity: `DESKTOP-EL7ANC1\CodexSandboxOffline`, SID `S-1-5-21-3755849481-2529867762-2974155886-1005`. `USERPROFILE=C:\Users\PC`; `LOCALAPPDATA=C:\Users\PC\AppData\Local`. No ProfileList registration for that sandbox SID was found. | The process identity and discovered profile belong to different accounts. A usable native current-user DPAPI profile cannot be assumed. |
+| Discovered key ring | `C:\Users\PC\AppData\Local\ASP.NET\DataProtection-Keys` contains three keys predating this project. Owner is `DESKTOP-EL7ANC1\PC`; `CodexSandboxUsers` has ReadAndExecute, not write access. DPAPI could not decrypt the keys. | ForgeFlow was reading pre-existing profile-owned key material. The owning applications cannot be identified from the inspected metadata; no claim is made that they were ForgeFlow keys. No key contents were printed or copied. |
+| Fresh current-user DPAPI | A separate in-memory encrypt/decrypt probe, without reading or writing any profile key files, failed in `DpapiSecretSerializerHelper.ProtectWithDpapiCore` / `DpapiXmlEncryptor.Encrypt`. Reported HRESULT: `0x00000002`. | Merely selecting an empty writable directory would not resolve this execution context's inability to wrap new keys with native current-user DPAPI. It is not just a file ACL problem. |
+| Logging | The default Windows Event Log provider tried the Application log, source `.NET Runtime`, and received Win32 error 5. | A second failure occurred while reporting the cryptographic failure. Logging then obscured the original error and disrupted error handling. |
+
+Identity, file metadata, ACL, profile-registration, and isolated DPAPI-probe evidence is retained in `verification/runtime-02/identity.json`, `profile-key-metadata.json`, `profile-key-acl.json`, `profile-registration.json`, and `dpapi-probe.log`. The probe source/project is in `verification/runtime-02/probe`; it is a diagnostic fixture outside the product solution. Its failing command was:
+
+```powershell
+./.tools/dotnet/dotnet.exe run --project verification/runtime-02/probe/RuntimeProbe.csproj -c Release --no-restore
+```
+
+The read-only registry inspection attempted `Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\S-1-5-21-3755849481-2529867762-2974155886-1005' -Name ProfileImagePath` and returned `PathNotFound`. No profile registration or host permissions were changed.
+
+### Smallest supported correction
+
+`Hosting/LocalRuntimeConfiguration.cs` is called before the host is built and has explicit environment boundaries:
+
+| Environment | Key repository/protection | Logging and lifecycle |
+|---|---|---|
+| Windows Development | App-owned `<content-root>/.local/data-protection`, application discriminator `ForgeFlow.Development`, explicitly protected with current-user DPAPI. | Console logging includes errors without requiring a Windows Event Log source. DPAPI failures still surface; native development startup is not claimed to work under the restricted sandbox identity. `.local` is ignored as local state. |
+| SmokeTest | Fresh `.tools/smoke-runs/<UUID>/keys` directory for each host, discriminator `ForgeFlow.SmokeTest`, full Data Protection with `ProtectKeysWithCertificate`. A self-signed RSA-3072/SHA-256 wrapping certificate is generated in memory and disposed after host shutdown. Persisted key XML is encrypted; no private key/PFX is written to disk or installed in a certificate store. | Captured Console logging retains errors. Both environment selectors are explicitly SmokeTest in the harness. The existing Web static-assets manifest is explicitly enabled for this non-Development test environment. A missing/relative key path or nonempty existing key directory is rejected. |
+| Production / Staging | No change to deployment-managed framework defaults. Smoke directory settings do not activate local behavior in these environments. | No local logging override, test certificate, or static-assets override is applied. Production deployment configuration/acceptance is not part of this increment. |
+
+Non-Windows Development retains its platform Data Protection defaults; only its local console sink is selected. No Data Protection provider was disabled/replaced with a no-op, no plaintext key repository was introduced, no current-user protection was expanded to machine-wide DPAPI, no ACLs were broadened, and no log-level filter hides cryptographic errors. Selecting a working local console sink prevents the secondary logging exception; it does not catch or discard the cryptographic exception. The isolated probe's failure remains recorded.
+
+The smoke wrapping certificate is intentionally valid only for a test host lifetime. Old smoke payloads cannot be restored after that host exits, so each invocation must use a fresh directory. This is a smoke-fixture lifecycle, not a production key-management or durable-session design. Tests prove that a second Data Protection provider can decrypt the persisted ring using the same live certificate, and a separate test run cannot decrypt another run's payload.
+
+These are supported framework configuration mechanisms: [Microsoft Data Protection repository and at-rest protection guidance](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/implementation/key-storage-providers?view=aspnetcore-10.0), [certificate protection and application isolation](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0), and [logging provider selection and Windows Event Log defaults](https://learn.microsoft.com/en-us/dotnet/core/extensions/logging/providers). An application discriminator separates payloads; a separate repository is also needed to avoid discovering the unrelated profile keys.
+
+### Actual verification after correction
+
+SDK/package environment assignments are unchanged from increment 01. No restore or dependency/version changes were necessary.
+
+| Exact command | Actual result |
+|---|---|
+| `./.tools/dotnet/dotnet.exe build ForgeFlow.slnx -c Release --no-restore` | Passed: zero warnings/errors; `verification/runtime-02/build.log`. |
+| `./.tools/dotnet/dotnet.exe test ForgeFlow.slnx -c Release --no-build --no-restore --logger 'trx;LogFileName=runtime02.trx' --results-directory verification/runtime-02/TestResults` | Passed: 32 tests, zero failed/skipped; `verification/runtime-02/tests.log` and `TestResults/runtime02.trx`. All preceding 24 tests remain passing. |
+| `python scripts/smoke-http.py` | Passed, exit 0; `verification/runtime-02/corrected-client.log`, `corrected-server.log`, and `corrected-result.json`. Current outputs are also in `verification/server.log` and `verification/http-smoke.json`. |
+
+Eight new regression cases cover certificate-encrypted key persistence/readback, actual Data Protection and antiforgery token generation, run isolation, rejection of missing/relative/reused key locations, Windows Development's app-owned repository/current-user DPAPI configuration, visible error logging, and unchanged Production/Staging service registrations. An initial test used an unqualified XML name for the namespaced `encryptedSecret`; correcting that assertion resolved the test failure. The final 32-test run above is the acceptance evidence for these checks, not the earlier failed run.
+
+The successful real HTTP smoke run verified:
+
+- `fa-IR`: HTTP 200, `lang=fa-IR`, `dir=rtl`, Persian resource text, and Jalali sample `1405/01/01`.
+- `en-US`: HTTP 200, `lang=en-US`, `dir=ltr`, English resource text, and Gregorian sample `2026/03/21`.
+- Correct Content-Language, default Persian, disabled query override, supported cookie precedence, and unsupported-header fallback.
+- Four required nonempty assets per language: Bit.BlazorUI CSS, app CSS, Blazor framework JavaScript, and Bit.BlazorUI JavaScript. Each returned HTTP 200 with the expected CSS/JavaScript content type. Fingerprinted paths/statuses are recorded in `corrected-result.json`.
+- Antiforgery form tokens and cookies are present. Values are not recorded in the result JSON; saved sample HTML redacts the request token. Localized not-found responses return 404; localized error pages return 200.
+- One certificate-encrypted persisted key file, with `encryptedSecret` and XML `EncryptedData` and no plaintext `masterKey`. The wrapping private key remains in memory. The corrected server log contains zero warning/error/critical records.
+
+These checks verify HTTP rendering and asset delivery, not a connected interactive circuit, JavaScript execution, visual appearance, mobile layout, or browser validation behavior.
+
+### Remaining host boundary and Slice 00 status
+
+No host permission change is needed for the smoke configuration. To run **native current-user DPAPI Development** under the sandbox account, the host must first provide a correctly provisioned/loaded profile for SID `S-1-5-21-3755849481-2529867762-2974155886-1005` (or run the developer process as its actual profile owner). That identity needs its own DPAPI master-key context and read/write/create access only to ForgeFlow's `D:\Projects\ForgeFlow\src\ForgeFlow.Web\.local\data-protection` directory and its own profile's DPAPI storage. The correct sandbox profile path cannot be reported as an existing resource because its ProfileList registration is absent. This is profile provisioning, not a request to grant access to PC's master keys.
+
+Do **not** grant the sandbox account access to PC's protected master keys, grant machine-wide permissions, change the Application Event Log/source ACL, or change OS security settings. Local console logging removes the local Event Log dependency. A genuine deployment using Event Log would require a deliberately provisioned app source/write permission under its service identity, outside this local correction; none was requested or applied.
+
+Language switching and reload-safe draft restoration remain unimplemented. Browser/mobile/interactive acceptance and the other increment 01 gaps remain pending. **Slice 00 is not accepted.** No Git initialization, commit, push, merge, host permission change, or later-slice work was performed.
+
+---
+# ForgeFlow — ممیزی معماری و ارتقای مبنای فنی، بازنگری ۰۰-R1
+
+تاریخ بررسی: ۲۰۲۶-۱۱-۰۷ | بستهٔ مبنا: ForgeFlow-Day10-Final.zip | وضعیت: ارتقای فنی محدود + نقشهٔ اصلاح؛ پذیرش تولید انجام نشده است.
+
+این بازنگری مقدم بر متن اسلایس ۰۰ در ادامه است. درخواست جدید، ارتقای فناوری را مجاز کرده است؛ جمله‌های «فقط مستندات» و «ارتقای نسخه نداریم» در نسخهٔ قبلی، شرح همان تحویل قبلی‌اند و محدودیت این تحویل نیستند. شماره‌های اسلایس ۰۱ تا ۰۶ حفظ شده‌اند. تصمیم‌های پیشنهادی باز، تا بسته‌شدن قرارداد اسلایس مربوط، دستور اجرای migration نیستند.
+
+## R1.۱ — نتیجهٔ اجرایی
+
+برنامه، هستهٔ اولیهٔ داده‌های پایه و تعریف تولید است؛ هنوز یک نرم‌افزار کامل و قابل‌پذیرش برای استفادهٔ چندکاربرهٔ کارخانه نیست. چهار لایهٔ موجود برای ادامه کافی‌اند، ولی نام Clean Architecture به تنهایی صحت پیاده‌سازی را ثابت نمی‌کند. کمبود اصلی، قراردادهای اجرایی و مسیر کامل UI، کنترل دسترسی، ماندگاری قابل‌بازتولید و اعتبارسنجی رفتار واقعی است. بازنویسی کامل، microservices و ساختن framework اختصاصی برای شروع لازم نیست.
+
+آخرین نسخه‌های پایدار به تاریخ بررسی از صفحهٔ رسمی انتشار و feed رسمی بسته‌ها کنترل شدند. target framework همچنان net10.0 است؛ patch نسخهٔ SDK، runtime و NuGet یک شمارهٔ مشترک ندارند.
+
+| جزء | بستهٔ Day 10 | مبنای جدید |
+|---|---|---|
+| .NET SDK | 10.0.100 | 10.0.403 در global.json؛ rollForward=latestPatch و allowPrerelease=false |
+| .NET / ASP.NET Core Runtime | patch دقیق در بسته pin نشده | حداقل 10.0.14 در Web.csproj و runtimeconfig؛ میزبان مقصد هم باید این patch یا patch پایدار جدیدترِ تأییدشده را نصب کند |
+| Target Framework | net10.0 | net10.0 |
+| C# | 14.0 | 14.0 |
+| Bit.BlazorUI | 10.5.0 | 10.7.0 |
+| Bit.BlazorUI.Extras | نبود | 10.7.0؛ DataGrid جدید از این بسته می‌آید |
+| EF Core / SqlServer / Design | 10.0.0 | 10.0.14 برای هر سه ارجاع |
+| System.Security.Cryptography.Pkcs | وابستگی غیرمستقیم | pin صریح 10.0.14 برای رفع نسخهٔ آسیب‌پذیر 9.0.11 در گراف SqlClient |
+
+.NET 11 در منبع رسمی هنگام بررسی RC است و وارد مبنای پایدار نشده است. نسخه‌های prerelease بستهٔ Bit نیز مبنای برنامه نیستند. این شماره‌ها «آخرین نسخه در تاریخ بررسی» هستند، نه قول به‌روزبودن همیشگی؛ هر ارتقای بعدی، restore/build و بررسی تغییرات ناسازگار خود را می‌خواهد.
+
+### تفاوت BlazorUI و bit Boilerplate
+
+بستهٔ فعلی یک Blazor Web App با کتابخانهٔ Bit.BlazorUI است؛ ساختار کامل bit Boilerplate در آن وجود ندارد. Blazor نسخهٔ مستقل از ASP.NET Core در این پروژه ندارد. ارتقای Bit.BlazorUI، امکانات حساب، چندمستاجری یا استقرار قالب Boilerplate را خودکار به پروژه اضافه نمی‌کند.
+
+تصمیم FF-A008: همین ساختار چهارلایه و Blazor Interactive Server حفظ و کتابخانهٔ UI ارتقا داده می‌شود. واردکردن کامل Boilerplate، Aspire، MAUI یا WebAssembly تغییر معماری جداست و در این ارتقا انجام نشده است. استفادهٔ گزینشی از الگوهای استاندارد آن، فقط پس از تطبیق با مرزهای ForgeFlow مجاز است. راهنمای آنلاین Bit ممکن است مربوط به نسخهٔ پیش‌نمایش باشد؛ API واقعی نسخهٔ نصب‌شده و یادداشت انتشار 10.7.0 مرجع سازگاری این تحویل است.
+
+### تغییرهای کوچک لازم برای build
+
+- تداخل namespace ماژول Application.BOM با entity به نام BOM، با alias صریح BOMEntity رفع شد.
+- چهار DbSet ویژگی‌های پویا که در IApplicationDbContext بودند، به ApplicationDbContext افزوده شدند.
+- imports مشترک Razor برای Components و Routing و RenderMode و Bit اضافه شد.
+- BitSpinner نامعتبر با BitSpinnerLoading جایگزین شد؛ ستون‌های Grid به BitDataGridColumn مهاجرت کردند و Extras هم‌نسخه و assetهای آن اضافه شدند.
+- وابستگی Pkcs اصلاح شد؛ هشدار امنیتی پنهان یا غیرفعال نشده است.
+- packages.lock.json برای چهار پروژه و restore در حالت locked اضافه/بررسی شد؛ وابستگی‌ها با نسخهٔ شناور رها نشده‌اند.
+
+تغییرهای بالا ساختاری/سازگاری‌اند. فرمول، resolver، چرخهٔ تأیید BOM، دادهٔ واقعی و schema نصب‌شده تغییر نکرده‌اند.
+
+## R1.۲ — یافته‌های ممیزی کد و مدل
+
+شدت‌ها: «مسدودکننده» یعنی پیش از اتکا به آن قابلیت باید بسته شود؛ «زیاد» یعنی پیش از پذیرش عملیاتی آن حوزه؛ «متوسط» یعنی بهبود لازم در اسلایس مربوط. نبود یک قابلیت آینده، به تنهایی bug نیست.
+
+| شناسه | شدت و شاهد | اثر و شرط بستن | محل بستن |
+|---|---|---|---|
+| A01 | مسدودکنندهٔ build: ApplicationDbContext چهار عضو قرارداد را نداشت؛ BOM با namespace تداخل داشت؛ imports و APIهای UI ناقص بود | در این تحویل اصلاح شد؛ پذیرش کسب‌وکار از build نتیجه نمی‌شود | ۰۰-R1 |
+| A02 | زیاد: Program.cs فاقد هویت/مجوز، Routes از RouteView عادی استفاده می‌کند | پیش‌فرض منع، کنترل server-side use case و مسیر ورود معتبر لازم است | ۰۲ تا ۰۴ |
+| A03 | زیاد: CreatedBy=0، UpdatedBy خالی، ExecuteUpdate بدون ممیزی | تمام writeها باید عامل معتبر، concurrency و ممیزی اتمیک داشته باشند | اولین عملیات جدید و ۰۶ |
+| A04 | زیاد: AddDbContext scoped در Blazor Interactive Server | context به عملیات محدود شود؛ دو رویداد circuit نباید context مشترک موازی مصرف کنند | ۰۰-B |
+| A05 | زیاد: migration/snapshot و تاریخچهٔ دیتابیس واقعی در بسته نیست | baseline تازه و مسیر تطبیق دیتابیس موجود جدا طراحی شوند؛ DDL تولیدشده مساوی migration آزمایش‌شده نیست | ۰۱ و ۰۰-B |
+| A06 | زیاد: catch خطای concurrency بدون rowversion مؤثر | DTO و شرط UPDATE باید نسخهٔ خوانده‌شده را حمل کند؛ رقابت واقعی دو کاربر آزموده شود | ۰۱ و هر write |
+| A07 | زیاد: BOMValidator بدون ManufacturingContext تمام نسخه‌های فعال مؤثر را بررسی می‌کند؛ Explosion پیش از Resolve آن را صدا می‌زند | نسخهٔ نامرتبط می‌تواند محاسبهٔ نسخهٔ منتخب سالم را متوقف کند؛ اعتبارسنجی تعریف BOM از اعتبارسنجی اجرای نسخهٔ resolved جدا شود | ۰۶-C |
+| A08 | زیاد: CanConvertAsync گراف عمومی و کالایی را ترکیب می‌کند؛ UnitConversionService دو گراف را جدا جست‌وجو می‌کند | validator می‌تواند مسیری را بپذیرد که converter قادر به محاسبهٔ آن نیست؛ یک قرارداد مسیر و تقدم مشترک لازم است | ۰۶-B |
+| A09 | زیاد: Explosion.AddInputLine کلید ItemId+UnitId دارد و تنها یک Path و CalculationMethod نگه می‌دارد | سهم مسیرها، سطوح و وضعیت اختیاری مخلوط می‌شود؛ خروجی درختی تفصیلی از جمع مواد جدا شود | ۰۶-C |
+| A10 | زیاد: Explosion ورودی را همیشه به واحد پایهٔ child تبدیل می‌کند | با وعدهٔ مستند Day 10 مبنی بر حفظ واحد BOM سازگار نیست؛ واحد سطر تفصیلی و واحد تجمیع صریح شوند | ۰۶-B/C |
+| A11 | زیاد: Matches برای Applicability غیرفعال true برمی‌گرداند، اما Dominates شرط‌هایش را می‌شمارد | غیرفعال‌کردن محدودیت ممکن است انتخاب را عمومی کند؛ معنای غیرفعال/فاقد شرط و رفتار dominance یکپارچه شود | ۰۶-C؛ نیازمند تصمیم قرارداد |
+| A12 | متوسط: Evaluate مقایسهٔ بی‌حساسیت به حروف دارد اما Dominates مقایسهٔ نهایی ordinal؛ نوع ContextDimension در مقایسه اعمال نمی‌شود | متن‌های معادل ممکن است dominance یکسان ندهند؛ normalizer و قرارداد انواع و فهرست‌های خالی تعریف شود | ۰۶-C |
+| A13 | زیاد: MainProduct بررسی می‌شود اما برابری مقدار آن با BaseOutputQuantity پس از تبدیل واحد کنترل نمی‌شود | امکان مقیاس‌دهی ناسازگار ورودی و خروجی؛ رابطهٔ کمیت مرجع و محصول اصلی باید invariant صریح باشد | ۰۶-C |
+| A14 | زیاد: Quantity سازندهٔ عمومی record دارد | قواعد Quantity.Create با new Quantity قابل دورزدن است؛ invariant در تمام مسیرهای ساخت تضمین شود | ۰۶-B |
+| A15 | زیاد: سرویس write برای انتقال وضعیت، تأیید، فعال‌سازی و immutable بودن BOM وجود ندارد؛ cascade در مدل هست | enum وضعیت، اجرای چرخهٔ عمر نیست؛ انتقال‌ها، دلیل لغو، حفاظت محتوا و حذف تاریخی تعریف شوند | ۰۶-C |
+| A16 | زیاد: ItemService برای نام خالی، طول، فعال‌بودن واحد، تکرار نرمال‌شده و اثر تغییر واحد پایه قرارداد کافی ندارد | validation سمت سرور + قیود SQL؛ تغییر واحد پایه پس از استفاده محدود و قابل‌ردیابی باشد | ۰۶-A/B |
+| A17 | زیاد: Dynamic Attributes فقط ValidateAsync دارد؛ scope طبقه‌بندی، min/max Integer و همخوانی شناسه‌های value با پارامترها کامل نیست | workflow مدیریت تعریف/مقدار، الزامی‌بودن مجموعه، حدود عددی و تعلق گزینه در SQL/سرویس بررسی شود | ۰۶-A |
+| A18 | متوسط: UnitConversionService اولین مسیر یافته‌شده را می‌گیرد؛ factor مثبت، ناسازگاری مسیرها و تبدیل معکوس قرارداد کامل ندارند | آزمون مسیرهای متعارض، صفر/منفی، عدم تطابق dimension و گردکردن لازم است | ۰۶-B |
+| A19 | زیاد: چند query جدا در resolver/explosion و بارگذاری هر child؛ حد عمق/تعداد سطر ندارد | ثبات نسخهٔ خوانده‌شده، جلوگیری از تغییر بین queryها و بودجهٔ محاسبه تعریف شود؛ N+1 با دادهٔ واقعی سنجیده شود | ۰۶-C |
+| A20 | متوسط: GetActiveItemsAsync همهٔ داده‌ها را بدون صفحه‌بندی می‌آورد؛ UI فقط یک فهرست انگلیسی است | جست‌وجو و sort/page سمت سرور، فرم‌ها، پیام خطا و empty state لازم است | shell و ۰۶-A |
+| A21 | زیاد: wwwroot/app.css و مسیر Error در بستهٔ اولیه نیست؛ کلیدهای DataProtection و تنظیم مقصد عملیاتی تعریف نشده | shell معتبر، خطای قابل‌پیگیری، کلید پایدار امن، HTTPS و reverse proxy درست لازم است | ۰۰-B و ۰۷ |
+| A22 | زیاد: پروژهٔ تست و CI در مبنا نیست | build و SQL integration و تست مجوز/هم‌زمانی/مرورگر به تناسب هر اسلایس لازم است | ۰۰-B و تمام اسلایس‌ها |
+| A23 | متوسط: classification چرخه/هم‌مجموعه‌بودن parent، defaultهای schema و constraint بعضی enumها کامل قراردادی نشده | قید یا validation مسئول هر invariant در مدل فیزیکی مشخص شود | ۰۶-A و baseline |
+| A24 | زیاد: retry دیتابیس فعال است ولی idempotency و مرز تراکنش برنامه هنوز تعریف نشده | retry نباید عملیات، شماره سند، ممیزی یا اثر خارجی را تکراری کند | قرارداد زیرساخت و اسلایس‌های نوشتن |
+
+یافته‌های A07 تا A19 عمدتاً تحلیل کد هستند؛ موارد بازتولیدشده در بخش شواهد جدا مشخص می‌شوند. SQL Server زنده و دیتابیس کاربر در این بررسی در دسترس نیستند؛ شدت ناظر به اثر بالقوهٔ کد است، نه گزارش خرابی اطلاعات واقعی.
+
+## R1.۳ — تکمیل قراردادهای معماری پیش از توسعهٔ عملیاتی
+
+### FF-A009 — تراکنش، retry و تکرار درخواست
+
+هر use case نوشتن، مرز تراکنش مشخص دارد. با EnableRetryOnFailure، تراکنش چندمرحله‌ای در execution strategy واحد اجرا می‌شود. درخواست کاربر هنگام دوبارکلیک یا قطع/وصل نباید دو سند یا دو انتقال وضعیت بسازد؛ برای عملیات دارای اثر غیرقابل‌تکرار، شناسهٔ درخواست و قید یکتاییِ scoped طراحی می‌شود. خروجیِ متناقض و حالت «commit شد ولی پاسخ نرسید» در پذیرش دیده می‌شود.
+
+اثر بیرونی مانند ارسال اعلان یا فایل خروجی با تراکنش دیتابیس یکی نیست. وقتی اولین اثر بیرونی قابل‌اعتماد نیاز شد، outbox و مصرف idempotent همان‌جا طراحی می‌شوند؛ message broker عمومی در این مرحله لازم نیست. ممیزی تغییر موفق، بخشی از همان تراکنش است؛ شکست آن اجازهٔ commit دادهٔ اصلی نمی‌دهد.
+
+### FF-A010 — مرز داده و دفاع در عمق
+
+اسلایس ۰۱ باید scope حساب، عضویت، نقش و رکورد را به‌طور مستقل تعریف کند. OrganizationId/SiteId ورودی قابل‌اعتماد نیست. افزون بر policy و query، روابطی که نباید از سازمان عبور کنند با کلید/قید مرکب SQL حفاظت می‌شوند. query filter به تنهایی تضمین جداسازی نیست؛ عملیات bulk، export و مدیریت نیز محدودیت دارند.
+
+حساب هویت با عضویت سازمانی یکی نیست. یک حساب غیرفعال، نشست قدیمی یا نقش منسوخ نباید به عنوان راه دورزدن scope عمل کند. تغییر scope در یک tab نباید عملیات در tab دیگر را به محدودهٔ جدید منتسب کند؛ هر عملیات محدودهٔ معتبر و نسخهٔ دسترسی خود را دوباره بررسی می‌کند. جزئیات انتخاب scope پیش از اجرا در ۰۱/۰۲ بسته می‌شود.
+
+### FF-A011 — امنیت و طول عمر Blazor
+
+ورود/خروجی که cookie را تغییر می‌دهد از درخواست HTTP معتبر با antiforgery و پاسخ قابل‌تنظیم انجام می‌شود؛ تغییر cookie صرفاً در callback یک circuit قرار نمی‌گیرد. سرویس use case باید actor و scope معتبر سرور را دریافت کند؛ HttpContext ممکن است در circuit جاری یا قابل‌اعتماد نباشد. session/security stamp و نسخهٔ دسترسی مجدداً بررسی می‌شوند؛ logout و تغییر نقش روی اتصال باز و چند tab سناریوی پذیرش دارند.
+
+خطاهای business/validation/forbidden/not-found/conflict/internal کد پایدار دارند؛ متن قابل‌ترجمه و شناسهٔ پیگیری به UI می‌رود، stack trace و SQL خام نمی‌رود. timeout و cancellation propagation لازم‌اند. جزئیات rate limit ورود، cookie، مدیریت secret، DataProtection و خطای غیرمنتظره در قرارداد اجرایی ۰۲/۰۷ قرار می‌گیرد.
+
+### FF-A012 — UI مشترک و تنظیمات
+
+یک shell مشترک شامل منو، مسیر جاری، کاربر و scope، خطای سراسری و وضعیت اتصال تعریف می‌شود. فرم‌ها، فهرست‌ها و dialogها قواعد ثابت loading/empty/error/forbidden/conflict، جلوگیری از submit تکراری و حفظ کار ذخیره‌نشده دارند. فارسی/انگلیسی، RTL/LTR، تاریخ شمسی برای نمایش، رقم، timezone، کیبورد و focus، اندازهٔ موبایل و تم روشن/تیره به عنوان معیار پذیرش همان صفحات‌اند.
+
+تنظیمات شخصی مثل زبان/تم، تنظیمات سازمانی مثل timezone/شماره‌گذاری و secretهای عملیاتی جدا هستند. موتور عمومی تنظیمات پویا ساخته نمی‌شود؛ هر setting با نوع، سطح اختیار، مقدار پیش‌فرض و ممیزی موردنیاز تعریف می‌شود. فرم‌ساز عمومی از روی هر جدول هم جای UI و قواعد دامنه را نمی‌گیرد.
+
+### FF-A013 — شواهد و مرز ادعا
+
+وضعیت هر قابلیت یکی از «مدل موجود»، «سرویس موجود»، «UI موجود»، «build تأییدشده»، «تست رفتار تأییدشده» و «پذیرفته‌شده» است؛ این وضعیت‌ها معادل نیستند. تست InMemory برای FK/transaction/locking SQL معتبر نیست. GenerateCreateScript فقط قابلیت ساخت مدل و تولید DDL را می‌سنجد. تست صفر مورد اجراشده، موفقیت مجموعهٔ تست محسوب نمی‌شود.
+
+## R1.۴ — برنامه چه امکاناتی کم دارد؟
+
+این جدول موجودی بسته را با مسیر محصول مقایسه می‌کند؛ ستون آینده، تعهد به ساخت همهٔ ERP نیست. انتخاب اسلایس‌های صنعتی بعد از هستهٔ مشترک باید با یک سناریوی واقعی کارخانه محدود شود.
+
+| بخش | وضعیت واقعی | تحویل لازم |
+|---|---|---|
+| راه‌اندازی/داشبورد | homepage و navigation کامل ندارد | shell، landing مناسب و راهنمای وضعیت راه‌اندازی |
+| سازمان/کارخانه/سایت | مدل اجرایی ندارد | محدوده، عضویت و سیاست دادهٔ مشترک |
+| کاربران و ورود | پیاده نشده | مدیر اولیه، ورود/خروج، نشست، تغییر/بازیابی کنترل‌شدهٔ رمز، فعال/غیرفعال |
+| نقش و مجوز | پیاده نشده | مجوز عملیات، نقش، تخصیص scoped، حفاظت آخرین مدیر و منع سمت سرور |
+| ممیزی/امنیت | ILogger و فیلدهای عامل اولیه | ممیزی اتمیک، رویداد امنیتی، جست‌وجو و جزئیات مجاز |
+| تنظیمات و پروفایل | ندارد | زبان، تم، timezone و تفکیک تنظیمات فرد/سازمان |
+| کالا/طبقه‌بندی/ویژگی | entity و بعضی سرویس‌ها؛ UI فهرست محدود | مدیریت کامل، اعتبارسنجی، جست‌وجو، وضعیت فعال، تاریخچه و قواعد ارجاع |
+| واحد و تبدیل | entity و محاسبهٔ اولیه | مدیریت واحد، تبدیل معتبر و مشترک، دقت و گردکردن |
+| تعریف تولید/BOM | مدل، resolver، validator و explosion موجود | UI و lifecycle و اصلاح ناسازگاری‌ها و آزمون golden case |
+| پیوست/خروجی/import | ندارد | فقط در صورت نیاز use case، همراه دسترسی، محدودیت و نسخه‌بندی قالب |
+| گزارش‌های پایه | ندارد | فهرست‌ها و خروجی مجاز؛ سپس گزارش نیاز مواد و تعریف BOM |
+| استقرار و نگهداری | پیکربندی اولیه | انتشار، سلامت سرویس، پشتیبان و بازیابی آزموده، راهنمای ارتقا و برگشت |
+| سفارش تولید | ندارد؛ صرفاً گام بعدی مستند شده | سفارش، snapshot تعریف، شماره سند و وضعیت؛ پس از پذیرش BOM |
+| انبار/بچ و lot | ندارد | دریافت/مصرف/تولید/برگشت و دفتر موجودی؛ طراحی مستقل و مبتنی بر نیاز |
+| تولید واقعی/کیفیت | ندارد | ثبت مصرف/خروجی واقعی، ضایعات، yield واقعی و traceability؛ مرحلهٔ بعد |
+| برنامه‌ریزی/MRP/بهای تمام‌شده | ندارد | متکی به موجودی و lead time و routing معتبر؛ در مرحلهٔ فعلی نیست |
+| خرید/فروش/مالی/تعمیرات | ندارد | انتخاب دامنهٔ مستقل در آینده؛ نبودشان نقص زیرساخت امروز نیست |
+
+AD/LDAP و ورود سازمانی می‌تواند بعداً به هویت وصل شود، اما در محدودهٔ اولیه الزام نشده است. قابلیت offline، اپ موبایل native و real-time همکاری چندنویسنده نیز تصمیم‌های محصول جدا هستند؛ Interactive Server به اتصال سرور نیاز دارد.
+
+## R1.۵ — ترتیب گام‌ها و معیار توقف
+
+| مرحله | خروجی محدود و قابل‌بررسی | شرط عبور |
+|---|---|---|
+| ۰۰-R1 | همین ارتقا و ممیزی | نسخه‌ها، تغییرات و شواهد روشن؛ هیچ ادعای production-ready |
+| ۰۰-B | تثبیت فنی اجرایی | context per operation، ساختار تست/CI، Error/root/static assets، قرارداد خطا و build بازتولیدپذیر |
+| ۰۱ | قرارداد سپس اجرای سازمان/سایت | G02 بسته؛ مرز داده، قیدها، baseline migration و نمونهٔ دسترسی دو سایت آزموده |
+| ۰۲ | ورود/نشست/مدیر اولیه | حداقل policy و ممیزی از اولین عملیات؛ ابطال نشست و circuit آزموده |
+| ۰۳ | مدیریت کاربر و عضویت | ایجاد تا غیرفعال‌سازی، کنترل هم‌زمانی و UI کامل |
+| ۰۴ | نقش و مجوز | ماتریس دسترسی، تغییر مجوز مؤثر و حفاظت آخرین مدیر |
+| ۰۵ | صفحات ممیزی و امنیت | فیلتر، صفحه‌بندی، نمایش تغییر مجاز و scope درست |
+| ۰۶-A | کالا و داده‌های توصیفی | UI مدیریت، classification/attribute invariants، مجوز و ممیزی |
+| ۰۶-B | واحد و کمیت | یک converter/validator سازگار، مسیر مختلط، factor و rounding آزموده |
+| ۰۶-C | تعریف تولید | lifecycle، context resolution، درخت/summary و golden cases پذیرفته |
+| ۰۷ | پذیرش عملیاتی هستهٔ مشترک | backup/restore واقعی، استقرار و upgrade/rollback، health، گزارش خطا و راهنمای مدیر |
+| ۰۸ | سفارش تولید حداقلی | snapshot ثابت BOM، idempotency و تاریخچهٔ سفارش؛ مرز انبار صریح |
+| ۰۹ به بعد | اولین سناریوی واقعی کارخانه | هر قابلیت صنعتی فقط با قرارداد و پذیرش همان اسلایس |
+
+اسلایس ۰۶ عمداً به سه بخش کوچک تقسیم شد؛ تا بستن یک بخش وارد بخش بعد نمی‌شویم. مستندات اسلایس‌های آینده تولید انبوه نمی‌شوند. مدل فیزیکی کامل و پذیرش هر اسلایس پیش از کدنویسی همان بخش بسته می‌شود. تغییرهای ناسازگار با Dayها با شناسه، دلیل و اثر داده‌ای ثبت می‌شوند. ZIP فقط برای milestone است؛ ForgeFlow.md همچنان مرجع اصلی است.
+
+گام عملی بعد از این تحویل: ۰۰-B را به اندازهٔ کوچک ببندیم، سپس قرارداد سازمان/سایت اسلایس ۰۱ را نهایی کنیم. تا آن زمان ایجاد جدول‌های تمام ماژول‌ها و پیاده‌سازی سفارش تولید شروع نمی‌شود.
+
+## R1.۶ — منابع نسخه و الگوهای فنی
+
+منابع رسمی بررسی‌شده در ۲۰۲۶-۱۱-۰۷:
+
+- [.NET 10 download و patchهای SDK/runtime](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
+- [Microsoft .NET release metadata](https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json)
+- [Bit.BlazorUI در NuGet](https://www.nuget.org/packages/Bit.BlazorUI)
+- [یادداشت انتشار Bit 10.7.0 و تغییرهای ناسازگار](https://github.com/bitfoundation/bitplatform/releases/tag/v-10.7.0)
+- [EF Core SQL Server](https://www.nuget.org/packages/Microsoft.EntityFrameworkCore.SqlServer)
+- [System.Security.Cryptography.Pkcs](https://www.nuget.org/packages/System.Security.Cryptography.Pkcs)
+- [راهنمای EF Core در Blazor](https://learn.microsoft.com/en-us/aspnet/core/blazor/blazor-ef-core?view=aspnetcore-10.0)
+- [تراکنش و execution strategy در EF Core](https://learn.microsoft.com/en-us/ef/core/miscellaneous/connection-resiliency)
+
+## R1.۷ — شواهد این تحویل و محدودیت‌ها
+
+| بررسی | نتیجهٔ واقعی |
+|---|---|
+| دریافت SDK از Microsoft | SHA512 دانلود با metadata رسمی تطبیق داده شد |
+| Release build چهار پروژه با SDK 10.0.403 | موفق؛ صفر warning و صفر error |
+| restore با packages.lock.json و --locked-mode | موفق |
+| NuGet vulnerability audit، شامل وابستگی‌های غیرمستقیم | در منبع بررسی‌شده هیچ آسیب‌پذیری شناخته‌شده‌ای گزارش نشد؛ به معنی اثبات امنیت کل برنامه نیست |
+| ساخت مدل و GenerateCreateScript با provider SQL Server | موفق؛ ۲۰ entity؛ بدون اتصال به SQL Server |
+| محاسبهٔ نمونهٔ ساده، ۳ کیلو محصول و ۶ کیلو ماده | موفق با EF InMemory |
+| نسخهٔ نامرتبطِ نامعتبر در کنار نسخهٔ منتخب سالم | ایراد A07 بازتولید شد؛ برطرف نشده |
+| تبدیل PACK → TON کالایی و TON → KG عمومی | ایراد A08 بازتولید شد؛ برطرف نشده |
+| ساخت مستقیم Quantity منفی با سازندهٔ عمومی | ایراد A14 بازتولید شد؛ برطرف نشده |
+| applicability غیرفعال با context خالی | پذیرش به‌صورت عمومی بازتولید شد؛ تصمیم قرارداد A11 هنوز باز است |
+| اجرای SQL migrations، FKها و تراکنش واقعی | انجام نشده؛ SQL Server زنده در این محیط موجود نیست |
+| پذیرش مرورگری UI | تلاش شد؛ Chromium هنگام ساخت process singleton socket با Operation not permitted متوقف شد؛ پذیرش مرورگری ادعا نمی‌شود |
+
+شش probe به معنی شش تست موفق محصول نیست: دو بررسی موفق، سه بازتولید نقص و یک بازتولید رفتار نیازمند تصمیم ثبت شده است. آزمون Golden Case روغن Day 10، رقابت دو کاربر، isolation سازمانی و پشتیبان/بازیابی هنوز باید در اسلایس‌های خود اجرا شوند.
+
+سورسِ probeهای قابل‌بازتولید، گزارش build، گزارش audit بسته‌ها و نتیجهٔ probeها در پوشهٔ verification بستهٔ جدید قرار دارند. این probeها مجموعهٔ تست رگرسیون برنامه نیستند؛ با رفع نقص‌ها باید انتظار آن‌ها به معیار پذیرش صحیح تبدیل شود. هیچ دیتابیس کاربر تغییر نکرده و هیچ commit/push/deploy انجام نشده است.
+
+وضعیت پایان: **ارتقای فنی تأییدشده در سطح build؛ ممیزی و ترتیب اصلاح آماده؛ پذیرش عملیاتی برنامه باز است.**
+
+---
+
+# نسخهٔ قبلی قرارداد اسلایس ۰۰ و سابقهٔ Day 1 تا Day 10
+
+# ForgeFlow — معماری اسلایس‌محور، مبنای جدید
+
+تاریخ: ۲۰۲۶-۱۱-۰۷ | مبنا: ForgeFlow-Day10-Final.zip
+وضعیت: قرارداد پیشنهادی اسلایس ۰۰ آمادهٔ بازبینی؛ هیچ قابلیت جدیدی پیاده‌سازی نشده است.
+
+این بخش مرجع جاری مسیر زیرساخت است. بخش‌های Day 1 تا Day 10 در ادامه، سابقهٔ تصمیم‌ها هستند؛ در تعارض‌ها، تصمیم جدیدِ صریح با شناسه و دلیل مقدم است. سکوت این بخش به معنی لغو قواعد تولید نیست. شماره‌گذاری اسلایس‌ها مستقل از Dayهاست.
+
+## ۰۰.۱ — هدف و محدوده
+
+هدف، آماده‌کردن پایهٔ مشترک ForgeFlow تا مدیریت کاربران، نقش‌ها، مجوزها، نشست‌ها و رویدادهاست. خروجی این مرحله مستند معماری است؛ تغییر کد، ساخت migration، تغییر دیتابیس و ادعای build/test در این مرحله انجام نمی‌شود. سفارش تولید Day 11، انبار، خرید، فروش، حسابداری و طراحی موتور گردش‌کار عمومی خارج از این مرحله‌اند.
+
+«طراحی کامل» با «پیاده‌سازی کامل» متفاوت است: در فاز طراحی هر اسلایس، قراردادها بسته می‌شوند؛ در فاز اجرا، همان اسلایس از دیتابیس تا UI و تست پذیرش تکمیل می‌شود. عبور به اسلایس بعد با نقص پذیرش ثبت‌نشده مجاز نیست.
+
+## ۰۰.۲ — بررسی وضعیت واقعی بسته
+
+این بررسی ایستا و محدود به محتوای ZIP است؛ وضعیت دیتابیس نصب‌شده یا مخزن بیرونی را اثبات نمی‌کند.
+
+| حوزه | شاهد در بسته | نتیجه |
+|---|---|---|
+| ساختار | ForgeFlow.sln و چهار پروژهٔ src | تفکیک لایه‌ها موجود است؛ نیاز به بازنویسی کامل نیست |
+| فناوری | global.json و csprojها | مبنای موجود .NET 10، Blazor Interactive Server، EF Core و SQL Server حفظ می‌شود؛ ارتقای نسخه در این مرحله نداریم |
+| دسترسی داده | Application/Common/Interfaces/IApplicationDbContext.cs و Application.csproj | Application به EF Core و DbSet وابسته است؛ استقلال کامل از ORM ادعا نمی‌شود |
+| UI | Web/Components/Pages/Items.razor | نمایش فهرست کالا و حالت خطا وجود دارد؛ UI کامل مدیریت ماژول‌ها نیست |
+| هویت | Web/Program.cs | ثبت و میان‌افزار احراز هویت و مجوزدهی دیده نشد |
+| عامل تغییر | Application/Items/ItemService.cs | CreatedBy در ایجاد کالا و طبقه‌بندی‌ها صفر است؛ UpdatedBy در ویرایش پر نمی‌شود |
+| لاگ | Infrastructure/Logging/AppLogger.cs | پوشش ILogger موجود است؛ این پوشش، تاریخچهٔ ممیزی پایدار نیست |
+| ممیزی | Domain/Common/AuditableEntity.cs | زمان و شناسهٔ عامل روی رکورد داریم؛ موجودیت مستقل تاریخچهٔ تغییر در بسته نیست |
+| نوشتن مستقیم | ItemService.DeactivateAsync | ExecuteUpdateAsync مسیر SaveChanges را دور می‌زند؛ ممیزی آینده باید این مسیر را صریح پوشش دهد |
+| هم‌زمانی | ItemService.UpdateAsync و تنظیمات مدل | catch مربوط به concurrency وجود دارد، اما rowversion/token متناظر در بررسی فایل‌ها دیده نشد |
+| دیتابیس | database/Day9_ManufacturingContext.sql و Day10_BOM_Explosion.sql | اسکریپت‌های افزایشی موجودند؛ زنجیرهٔ EF migrations و ModelSnapshot در ZIP نیست |
+| تست | فهرست فایل‌های ZIP و یادداشت پایان Day 10 | پروژهٔ تست وجود ندارد؛ یادداشت قبلی نیز نبود اجرای واقعی build/test را اعلام می‌کند |
+| یکدستی مسیر | Domain/Entities و Domain/entities | تفاوت حروف مسیر باید هنگام اجرای بازآرایی رفع شود تا رفتار ویندوز و لینوکس یکسان شود |
+
+قواعد BOM مانند عدم تغییر نسخهٔ تأییدشده از روی وجود enum Status اثبات نمی‌شوند؛ اجرای قواعد چرخه‌عمر و تاریخچه در زمان تثبیت ماژول تولید باید جدا بررسی و آزمایش شود.
+
+## ۰۰.۳ — تصمیم‌های معماری
+
+### FF-A001 — برنامهٔ ماژولار با استقرار واحد
+
+چهار پروژهٔ فعلی حفظ می‌شوند. قابلیت‌ها درون هر لایه بر اساس ماژول و use case مرتب می‌شوند؛ برای هر اسلایس پروژه یا سرویس مستقل ایجاد نمی‌شود. دامنه به UI، Identity، EF Core یا SQL وابسته نمی‌شود. Web، سرویس‌های Application را صدا می‌زند؛ SQL و DbContext در کامپوننت قرار نمی‌گیرند. اتصال پیاده‌سازی‌های Infrastructure در نقطهٔ ترکیب برنامه مجاز است.
+
+وابستگی EF Core فعلی Application فعلاً یک تصمیم آگاهانه و ثبت‌شده است. حذف آن شرط شروع کاربران نیست؛ گسترش وابستگی به provider SQL در Application مجاز نیست. abstraction جدید تنها در صورت نیاز واقعی اضافه می‌شود.
+
+### FF-A002 — مالکیت ماژول‌ها
+
+| ماژول | مالک اطلاعات و رفتار | مرز |
+|---|---|---|
+| Organization | سازمان، سایت/کارخانه، عضویت در محدوده | مجوز مشاهدهٔ داده را با Context تولید یکی نمی‌کند |
+| Identity & Access | حساب، نشست، نقش، مجوز، تخصیص | قواعد کالا و تولید در آن قرار نمی‌گیرد |
+| Audit & Diagnostics | تاریخچهٔ عملیات و رویدادهای امنیتی؛ ارتباط با خطاها | اجازهٔ تغییر دادهٔ اصلی ماژول‌ها ندارد |
+| Item Catalog | کالا، طبقه‌بندی و ویژگی‌های پویا | نقش خروجی BOM ویژگی ثابت کالا نیست |
+| Units | واحدها و تبدیل عمومی/وابسته به کالا | سیاست تبدیل صریح حفظ می‌شود |
+| Manufacturing Definition | BOM، نسخه، applicability، resolver و explosion | سفارش تولید و گردش موجودی در این مرحله ندارد |
+
+هر ماژول مالک نوشتن داده‌های خود است. تعامل از use case یا قرارداد مشخص انجام می‌شود؛ در ساختار فعلی queryهای ترکیبی کنترل‌شده مجازند، ولی تغییر مستقیم موجودیت ماژول دیگر ممنوع است. Shared فقط شامل قراردادهای واقعاً مشترک مثل عامل جاری، ساعت، نتیجه و محدوده است؛ به محل انباشت منطق کسب‌وکار تبدیل نمی‌شود.
+
+### FF-A003 — محدودهٔ سازمانی
+
+طراحی باید سازمان و سایت را به عنوان مفاهیم متمایز پشتیبانی کند؛ راه‌اندازی اولیه می‌تواند یک سازمان و یک سایت داشته باشد. معنای دقیق مالکیت کالا و BOM و یکتایی کدها در اسلایس ۰۱ تعیین می‌شود، پیش از افزودن ستون‌های scope به دادهٔ قدیمی.
+
+سایتِ انتخاب‌شده در UI صرفاً درخواست کاربر است؛ سرور عضویت فعال و مجوز را بررسی می‌کند. Context تولید در Resolver برای انتخاب نسخه است و جای کنترل دسترسی را نمی‌گیرد. عملیات سازمانی و عملیات محدود به سایت باید قرارداد مجزای مشخص داشته باشند؛ نبود scope معتبر نباید دسترسی را گسترده کند.
+
+### FF-A004 — هویت و مجوزدهی
+
+برای حساب‌ها از ASP.NET Core Identity استفاده می‌شود؛ رمزنگاری رمز و موتور حساب سفارشی ساخته نمی‌شود. شناسهٔ long با مدل موجود مبنای طراحی است؛ جزئیات نگاشت در قرارداد فیزیکی هویت نهایی می‌شود. خودثبت‌نام عمومی در محدودهٔ اولیه نیست.
+
+مجوز به شکل عملیات پایدار مانند Items.Read، Users.Create و Roles.Assign تعریف می‌شود؛ این نام‌ها نمونه‌اند و فهرست اجرایی در اسلایس مربوط تثبیت می‌شود. نقش مجموعه‌ای از مجوزهاست. حساب فعال + نشست معتبر + محدودهٔ معتبر + مجوز عملیات، همگی لازم‌اند. پیش‌فرض منع است. در مدل اولیه مجوز مستقیم به کاربر و override منع/اجازه اضافه نمی‌شود؛ اگر بعداً لازم شد قرارداد تقدم مستقل می‌خواهد.
+
+کنترل در use case سمت سرور اجرا می‌شود؛ مخفی‌کردن دکمه کافی نیست. تغییر نقش، لغو عضویت، تغییر رمز و غیرفعال‌سازی باید روی نشست‌های موجود نیز اثر تعریف‌شده داشته باشد. بازه و سازوکار بازاعتبارسنجی Blazor circuit در اسلایس ۰۲ مشخص می‌شود. مدیر اولیه یک مسیر bootstrap کنترل‌شده و قابل‌بستن دارد، بدون رمز ثابت داخل سورس. جلوگیری از حذف دسترسی آخرین مدیر مجاز، در اسلایس ۰۴ با کنترل هم‌زمانی تعریف می‌شود.
+
+### FF-A005 — سه نوع رویداد
+
+| نوع | هدف | دادهٔ پایه |
+|---|---|---|
+| لاگ فنی | عیب‌یابی و پشتیبانی | رخداد، شدت، زمان UTC، شناسهٔ ارتباط، خطای پاک‌سازی‌شده |
+| رویداد امنیتی | ورود ناموفق، قفل حساب، منع دسترسی و تغییرات امنیتی | عامل در صورت شناسایی، عملیات، نتیجه، محدوده، مبدأ قابل‌اعتماد |
+| ممیزی کسب‌وکار | چه کسی چه اطلاعاتی را تغییر داد | عامل، عملیات، نوع/شناسهٔ رکورد، زمان UTC، تغییر فیلدهای مجاز، نتیجه و شناسهٔ ارتباط |
+
+رمز، hash رمز، token، cookie و secret در هیچ‌یک ثبت نمی‌شود. دادهٔ قبل/بعد با فهرست فیلدهای مجاز و پوشاندن اطلاعات حساس ذخیره می‌شود. تغییر موفق اطلاعات و ممیزی آن در یک تراکنش SQL commit می‌شوند؛ شکست ممیزی، تغییر اصلی را rollback می‌کند. رویداد امنیتیِ تلاش ناموفق خارج از تراکنش شکست‌خورده ثبت می‌شود. رفتار اختلال ثبت رویداد امنیتی، نگهداری و پاک‌سازی در قرارداد اسلایس مربوط بسته می‌شود.
+
+ممیزی با دسترسی برنامه append-only است؛ سطح SQL باید مانع UPDATE/DELETE توسط principal برنامه باشد و اثبات آن جزو پذیرش اجرایی است. این قاعده به معنی مصونیت از مدیر دیتابیس نیست. عملیات bulk مانند ExecuteUpdate باید صریحاً عامل، concurrency و ممیزی اتمیک داشته باشند. خواندن تمام رکوردهای عادی به‌طور پیش‌فرض ممیزی نمی‌شود؛ خواندن حساس و خروجی‌گرفتن مطابق قرارداد هر اسلایس ثبت می‌شود.
+
+### FF-A006 — ماندگاری و هم‌زمانی
+
+پیش از اولین migration جدید، وضعیت دیتابیس واقعی و تاریخچهٔ موجود بررسی می‌شود. دو مسیر داریم: دیتابیس تازه با baseline بازتولیدپذیر؛ دیتابیس موجود با تطبیق schema و برنامهٔ انتقال داده. ثبت صوری migration بدون تطبیق، یا اجرای خودکار destructive migration مجاز نیست.
+
+برای هر اسلایس جدول فیزیکی شامل PK/FK، نوع، طول، nullability، یکتایی، index، رفتار حذف و کنترل هم‌زمانی لازم است. رکوردهای قابل‌ویرایش مشترک از optimistic concurrency با rowversion استفاده می‌کنند؛ write باید نسخهٔ خوانده‌شده را همراه داشته باشد. حذف آبشاری برای تاریخچه و دادهٔ تأییدشده ممنوع است؛ برای فرزندان draft فقط طبق قرارداد صریح مجاز است.
+
+در Blazor Interactive Server، DbContext نباید در طول circuit مشترک بماند؛ در اجرا، طول عمر آن به یک عملیات محدود می‌شود. عملیات هم‌زمان یک circuit از context مشترک استفاده نمی‌کنند. شناسهٔ کاربر از context معتبر سرور می‌آید؛ برای کار سیستم، هویت سیستمِ صریح تعریف می‌شود و عدد صفر جایگزین هویت نیست.
+
+زمان رخدادها UTC ذخیره می‌شود. تاریخ اعتبار تولید، زمان رخداد فنی و نمایش شمسی سه مفهوم متفاوت‌اند؛ تبدیل تقویم در UI انجام می‌شود. قرارداد DateOnly/DateTime تاریخ تولید پیش از تغییر مدل تثبیت می‌شود. گردکردن مقدار و دقت decimal بخشی از قرارداد هر محاسبه است.
+
+### FF-A007 — حفظ دستاوردهای Day 10
+
+هویت عمومی Item، جدایی classification/attributes/capabilities، نقش‌های خروجی در BOM، جدایی Resolver و Explosion، زمینهٔ تولید، Quantity همراه واحد، جدایی تبدیل عمومی و کالایی و جلوگیری از محاسبهٔ دوگانهٔ yield/scrap حفظ می‌شوند. چند نسخهٔ فعال و همپوشانی زمانی به خودی خود ممنوع نیست؛ ابهام انتخاب در زمینهٔ یکسان خطاست. قواعد تأیید و عدم تغییر تاریخچه حفظ و اجرای واقعی آن‌ها بعداً اثبات می‌شود.
+
+## ۰۰.۴ — ترتیب اسلایس‌ها و تحویل ملموس
+
+| شماره | تحویل | معیار نمونهٔ پذیرش | وابستگی |
+|---|---|---|---|
+| ۰۰ | همین مبنا، شکاف‌ها و ترتیب اجرا | تصمیم‌ها و ابهام‌های مسدودکننده قابل‌ردیابی باشند | بستهٔ Day 10 |
+| ۰۱ | قرارداد سازمان، سایت و مالکیت داده | عضویت سایت A به دادهٔ سایت B دسترسی ندهد؛ سیاست دادهٔ مشترک روشن باشد | ۰۰ |
+| ۰۲ | ورود/خروج، مدیر اولیه و نشست | خروج، قفل حساب و ابطال نشست روی circuit موجود هم آزموده شود | ۰۱؛ حداقل مجوز و رویداد از همین‌جا |
+| ۰۳ | ایجاد/ویرایش/غیرفعال‌سازی کاربر و عضویت | مدیر مجاز کاربر بسازد؛ کاربر غیرفعال نتواند با نشست قدیمی ادامه دهد | ۰۲ |
+| ۰۴ | نقش‌ها و تخصیص مجوز و نقش | منع سمت سرور، تغییر مؤثر دسترسی و حفاظت آخرین مدیر | ۰۳ |
+| ۰۵ | صفحات بررسی ممیزی و رویدادها | جست‌وجو، جزئیات مجاز، صفحه‌بندی و محدودیت scope | رویدادهای تولیدشده در ۰۱ تا ۰۴ |
+| ۰۶ | اعمال الگو روی کالا، واحد و BOM | هر عملیات موجود، policy و scope و عامل و ممیزی لازم را رعایت کند | ۰۴ و ۰۵ |
+
+۰۱ و مراحل ابتدایی هویت در توسعه روی محیط محدود اجرا می‌شوند؛ پیش از راه‌اندازی هویت، هیچ مسیر مدیریتی برای استفادهٔ عمومی باز نمی‌شود. سازوکار حداقلی ثبت رویداد و مجوز در همان اولین عملیات لازم ساخته می‌شود؛ امنیت به پایان اسلایس ۰۴ یا ثبت رویداد به اسلایس ۰۵ موکول نمی‌شود. شروع Production Order منوط به پذیرش زیرساخت و تثبیت وضعیت واقعی Day 10 است.
+
+## ۰۰.۵ — قرارداد اجباری هر اسلایس
+
+هر اسلایس در همین مرجع، این بخش‌ها را خواهد داشت:
+
+1. هدف، بازیگران، پیش‌شرط، خروجی و خارج از محدوده.
+2. سناریوی موفق، خطا، تکرار درخواست و وضعیت هم‌زمانی.
+3. مدل مفهومی و مدل فیزیکی دقیق، همراه انتقال داده و rollback عملی.
+4. use caseها: ورودی، خروجی، اعتبارسنجی، خطاهای پایدار و مرز تراکنش.
+5. ماتریس عملیات × مجوز × محدوده؛ جلوگیری از دسترسی با شناسهٔ حدس‌زده‌شده.
+6. فهرست رویدادها، فیلدهای مجاز و رفتار شکست ثبت.
+7. صفحات: مسیر، فیلدها، دکمه‌ها، loading/empty/error/forbidden/conflict و رفتار فارسی/انگلیسی و موبایل.
+8. سناریوهای پذیرش قابل‌اجرا، دادهٔ نمونه و شواهد موردنیاز.
+9. تصمیم‌های جدید، دلیل و اثر تغییر نسبت به نسخهٔ قبل.
+10. وضعیت جداگانهٔ طراحی، پیاده‌سازی، اعتبارسنجی و پذیرش؛ مانع‌ها و گام بعدی.
+
+پایان طراحی: ابهام اثرگذار بر دیتابیس، امنیت یا رفتار کاربر در محدوده باقی نماند. پایان پیاده‌سازی: مسیر کامل UI تا persistence کار کند، migration قابل‌تکرار باشد و build و تست‌های مرتبط واقعاً اجرا شده باشند. تست دامنه، Application، SQL، دسترسی، هم‌زمانی و مرورگر به تناسب ریسک همان اسلایس انتخاب می‌شود. هشدار/خطای جدیدِ حل‌نشده و مانع پذیرش بسته‌نشده، باید پیش از اعلام تکمیل رفع شود.
+
+## ۰۰.۶ — فهرست شکاف‌ها و محل بستن آن‌ها
+
+| شناسه | شکاف/تصمیم باز | مرحلهٔ بستن | مانع چه چیزی است؟ |
+|---|---|---|---|
+| G01 | وضعیت دیتابیس واقعی و زنجیرهٔ migration نامعلوم | پیش از اولین اجرای persistence | اجرای migration |
+| G02 | مالکیت سازمانی کالا، واحد، BOM و یکتایی کدها | طراحی ۰۱ | مدل فیزیکی scope |
+| G03 | هویت، bootstrap و چرخهٔ نشست وجود ندارد | طراحی/اجرای ۰۲ | استفادهٔ چندکاربره |
+| G04 | عامل صفر و نبود ممیزی اتمیک | اولین عملیات جدید؛ پوشش کد قدیمی در ۰۶ | پذیرش عملیات تغییردهنده |
+| G05 | سیاست مجوز و ابطال دسترسی کامل نیست | حداقل در ۰۲؛ تکمیل در ۰۴ | پذیرش امنیت |
+| G06 | concurrency و writeهای bulk | قرارداد هر عملیات؛ قدیمی‌ها در ۰۶ | پذیرش ویرایش مشترک |
+| G07 | نبود شواهد build، تست و migration Day 10 | اجرای تثبیت پیش از اتکا به امکانات موجود | ادعای سلامت baseline |
+| G08 | طول عمر DbContext در Blazor | قبل از اولین اسلایس اجرایی چندکاربره | اجرای هم‌زمان امن |
+| G09 | نگهداری لاگ، failure policy و مقصد لاگ فنی | با اولین ثبت رویداد؛ صفحات در ۰۵ | پذیرش عملیاتی ثبت رویداد |
+| G10 | تفاوت Entities/entities و اجرای lifecycle BOM | بازآرایی کنترل‌شده و تثبیت ۰۶ | پذیرش چندسکویی و تولید |
+
+## ۰۰.۷ — ثبت تغییر از طراحی قبلی
+
+| قبل | اکنون | دلیل و اثر |
+|---|---|---|
+| گام بعدی Day 11 سفارش تولید | ابتدا اسلایس‌های زیرساخت ۰۰ تا ۰۶ | جلوگیری از توسعهٔ عملیات بدون هویت و کنترل دسترسی |
+| پیشروی روزمحور با گزارش کلی | قرارداد و پذیرش مستقل هر اسلایس | پایان هر قابلیت قابل‌سنجش می‌شود |
+| AuditableEntity و ILogger اولیه | عامل معتبر + ممیزی تراکنشی + رویداد امنیتی + لاگ فنی | فیلدهای ثبت‌کننده جای تاریخچه را نمی‌گیرند |
+| الزام نوشتاری EF migrations همراه اسکریپت‌های SQL پراکنده | baseline واقعی پیش از migration بعدی | جلوگیری از ناسازگاری schema و سابقهٔ migrations |
+| سرویس scoped داده در Interactive Server | context محدود به عملیات در طرح اجرا | جلوگیری از context طولانی و استفادهٔ هم‌زمان |
+
+وضعیت پایان این تحویل: مستند اسلایس ۰۰ آمادهٔ بازبینی است؛ هیچ migration، build، test یا پیاده‌سازی امنیتی انجام نشده است. گام بعد، قرارداد اسلایس ۰۱ و بستن G02 است. بستهٔ Day 10 و سورس آن در این تحویل تغییر نکرده‌اند.
+
+---
+
+# سابقهٔ معماری Day 1 تا Day 10
+
+
+# ForgeFlow
+
+## Architecture Log
+
+---
+
+## Imported documentation: ARCHITECTURE.md
+
+# ForgeFlow — Day 1 Architecture Contract
+
+## Technology baseline
+
+- .NET 10 LTS
+- ASP.NET Core 10
+- C# 14
+- Blazor Web App
+- Initial rendering: Interactive Server
+- bit BlazorUI: 10.5.0 (pinned)
+- Entity Framework Core 10.0.0
+- SQL Server 2025
+- Visual Studio 2026
+- Clean Architecture
+- Git
+
+## Solution structure
+
+```text
+ForgeFlow.sln
+src/
+├── ForgeFlow.Domain
+├── ForgeFlow.Application
+├── ForgeFlow.Infrastructure
+└── ForgeFlow.Web
+```
+
+## Dependency direction
+
+```text
+Web
+ ↓
+Application
+ ↓
+Domain
+
+Infrastructure → Application / Domain
+```
+
+Domain must not depend on Blazor, ASP.NET Core, EF Core, or SQL Server.
+
+## Day 1 Item Master
+
+```text
+Classification 1 ─── N Item
+Category 1 ─── N Item
+Category 1 ─── N Category (Parent/Child)
+UnitType 1 ─── N Unit
+Item N ─── 1 Unit (BaseUnit)
+Item N ─── N Unit (ItemUnit)
+Unit N ─── N Unit (UnitConversion)
+```
+
+Core entities:
+
+- Item
+- Classification
+- Category
+- Unit
+- UnitType
+- UnitConversion
+- ItemUnit
+
+Industry-specific properties are intentionally not columns on `Item`. A future Attribute system will handle properties such as MFI, density, thickness, purity, viscosity, etc.
+
+## Rules
+
+1. Business rules belong in Domain/Application, not UI components.
+2. Blazor components must not execute direct SQL queries.
+3. Infrastructure contains EF Core and persistence implementations.
+4. Use `decimal` for exact business quantities, conversion factors and monetary values.
+5. Database schema changes must be handled through EF Core migrations and committed to Git.
+6. .NET SDK is controlled by `global.json`.
+7. NuGet versions are pinned; no floating package versions.
+8. Do not add a second UI component library without a documented architectural reason.
+9. BOM is deliberately not implemented until Item Master is finalized against real case studies.
+
+
+## Day 2 — BOM
+
+Relationship: `Item → BOM → BOMVersion → BOMInput/BOMOutput → Item`
+
+BOM is the planned manufacturing structure. BOMVersion preserves version history and effective dates and defines a BaseOutputQuantity/BaseOutputUnit. BOMInput defines consumed Item, quantity, consumption Unit, sequence, optionality and scrap allowance. BOMOutput defines produced Item, quantity, Unit, sequence and contextual OutputType. Circular BOM validation is an application-level rule. Active-version applicability and resolution are handled by the BOM Resolver.
+
+## Day 3 — BOM Validation and Explosion
+
+BOM validation and recursive BOM explosion live in the Application layer. Explosion is a calculation/query result and is not persisted as a Domain Entity.
+
+The selection contract now requires a deterministic BOM Version resolution using Item + production date + Manufacturing Context. Recursive child Items without an active BOM are treated as leaf materials. Circular dependencies, invalid versions, missing unit conversion paths and BOM ambiguity are reported as business validation errors.
+
+## Day 6
+- ItemType removed from Item; Classification is the generic taxonomy.
+- Item capabilities: CanBePurchased, CanBeManufactured, CanBeSold, CanBeConsumed.
+- BOM output roles are contextual and belong to Manufacturing BOM, not Item.
+
+## Day 7
+- BOMItem replaced by explicit BOMInput and BOMOutput.
+- BOMVersion has BaseOutputQuantity and BaseOutputUnitId.
+- Output types: MainProduct, CoProduct, ByProduct, Waste.
+- Explosion scales by requested output and returns consumed input lines plus produced output lines.
+
+---
+
+## Imported documentation: DAY6_DATABASE_MIGRATION_NOTES.md
+
+# Day 6 Database Migration Notes
+
+Day 6 removes `ItemTypeId` from `Items` and removes the `ItemTypes` model from the application.
+
+Generate the EF migration on the development machine:
+
+```bash
+dotnet ef migrations add Day6_RemoveItemType_AddItemCapabilities --project src/ForgeFlow.Infrastructure --startup-project src/ForgeFlow.Web
+dotnet ef database update --project src/ForgeFlow.Infrastructure --startup-project src/ForgeFlow.Web
+```
+
+Inspect the generated migration before applying it.
+
+Expected changes:
+- Drop the foreign key from `Items.ItemTypeId`.
+- Drop `Items.ItemTypeId`.
+- Add `CanBePurchased`, `CanBeManufactured`, `CanBeSold`, `CanBeConsumed`.
+- Drop `ItemTypes` if it is no longer used.
+
+For an existing database, back it up first and map old ItemType values into the generic Classification hierarchy before dropping the old table.
+
+---
+
+## Imported documentation: DAY6_ITEM_CLASSIFICATION_CAPABILITIES.md
+
+# ForgeFlow — Day 6
+
+## Item Classification & Capabilities
+
+Day 6 makes a deliberate architectural distinction between **what an Item is classified as** and **what the Item is allowed to do operationally**.
+
+### 1. Item is the universal master
+
+Every material, component, packaging item, semi-finished item, finished product, by-product or waste item is an `Item`. No industry-specific Product/Material master is introduced.
+
+### 2. Classification replaces ItemType as the classification mechanism
+
+`ItemType` is removed from the Item aggregate. Existing hierarchical `ClassificationSet` + `Classification` + `ItemClassification` is the generic classification mechanism.
+
+Example:
+
+```text
+Product
+└── Food
+    └── Edible Oil
+        └── Frying Oil
+
+Raw Material
+└── Polymer
+    └── Polystyrene
+        ├── HIPS
+        └── GPPS
+
+Packaging
+└── Primary Packaging
+    └── Bottle
+```
+
+### 3. Capabilities are Item properties
+
+The Day 6 model adds four basic operational capabilities directly to Item:
+
+- `CanBePurchased`
+- `CanBeManufactured`
+- `CanBeSold`
+- `CanBeConsumed`
+
+These are capabilities, not classifications and not BOM roles.
+
+### 4. BOM roles remain contextual
+
+`MainProduct`, `CoProduct`, `ByProduct` and `Waste` are intentionally deferred to the Manufacturing BOM model. They describe the role of an Item in a particular BOM output, not the identity of the Item itself.
+
+### 5. Example
+
+`Refined Sunflower Oil` may be classified as `Raw Material / Oil / Vegetable Oil` and have Purchase, Manufacture and Consume capabilities.
+
+`Frying Oil 800g` may be classified as `Product / Food / Edible Oil` and have Manufacture and Sell capabilities.
+
+`Bottle 800ml` may be classified as `Packaging / Primary Packaging / Bottle` and have Purchase and Consume capabilities.
+
+### 6. Architecture rule
+
+```text
+Item
+├── Classification(s)
+├── Attributes
+├── Base Unit
+└── Capabilities
+```
+
+Classification is for taxonomy. Attributes describe the Item. Capabilities describe allowed operational use. BOM defines contextual manufacturing relationships.
+
+### 7. Explicitly deferred
+
+A separate `ItemPolicy` entity, advanced capability rules and context-dependent capabilities are deferred until procurement, sales, inventory and production-order requirements are designed.
+
+---
+
+## Imported documentation: README.md
+
+# ForgeFlow — Day 1 (Item Master)
+
+## ساختار پروژه (Clean Architecture)
+```
+ForgeFlow.sln
+global.json
+src/
+  ForgeFlow.Domain/          # Entity ها: Item, Classification, Unit, UnitType, UnitConversion, ItemUnit
+  ForgeFlow.Application/     # DTO ها، Interface ها، ItemService (Use Case ها)
+  ForgeFlow.Infrastructure/  # EF Core DbContext، Configuration ها، Logger، DI
+  ForgeFlow.Web/             # Blazor Web App (Interactive Server) + bit BlazorUI
+```
+
+## چه چیزی پیاده شد
+- تمام Entity های روز اول طبق سند Item Master، دقیقا با همان فیلدها و روابط.
+- EF Core Fluent Configuration برای هر Entity، به همراه:
+  - Unique Index روی `Code` در `Item`, `ClassificationSet`, `Classification`, `UnitType`, `Unit`
+  - Composite Index روی `(IsActive, Code)` در `Item` برای کوئری‌های لیست فعال‌ها
+  - Unique composite index روی `(FromUnitId, ToUnitId)` در `UnitConversion` و `(ItemId, UnitId)` در `ItemUnit`
+  - `decimal(18,6)` برای `Factor` طبق قانون دقت عددی سند
+- `ItemService` با CRUD پایه (Create/Update/Deactivate/Get) که تمام قوانین خواسته‌شده رعایت شده:
+  - **کوئری بهینه**: `AsNoTracking()` روی همه Read ها، Projection مستقیم به DTO (بدون Load کردن کل Entity Graph)، `AnyAsync` برای چک یکتایی به‌جای Load کردن رکورد، `ExecuteUpdateAsync` برای Deactivate (یک UPDATE ساده، بدون Load).
+  - **try/catch به‌جا**: خطاهای مورد انتظار (`NotFoundException`, `ValidationAppException`) جدا از خطاهای غیرمنتظره (`DbUpdateException`, خطای عمومی) مدیریت می‌شوند و همه‌جا Log می‌شوند.
+  - **آماده برای Logger آینده**: `IAppLogger<T>` یک Interface عمومی است؛ الان با `Microsoft.Extensions.Logging` (Console) پیاده شده، بعدا فقط با تغییر DI می‌توانید Serilog/Seq/App Insights را جایگزین کنید — کد Service دست نمی‌خورد.
+- یک صفحه نمونه `Items.razor` با `BitDataGrid` برای نمایش لیست Item های فعال.
+
+## پیش‌نیازها (روی سیستم خودتان نصب کنید)
+این پروژه در محیط sandbox من (بدون دسترسی به اینترنت/NuGet و بدون .NET SDK نصب‌شده) ساخته شده، پس build واقعی را باید روی سیستم خودتان انجام دهید:
+
+1. **.NET 10 SDK** — https://dotnet.microsoft.com/download/dotnet/10.0
+2. **Visual Studio 2026** با Workload مربوط به ASP.NET and web development
+3. **SQL Server 2025 (Developer Edition)** یا هر SQL Server نصب‌شده محلی
+4. اتصال اینترنت برای Restore پکیج‌های NuGet (`Bit.BlazorUI`, `Microsoft.EntityFrameworkCore.SqlServer`, ...)
+
+## طریقه Build و اجرا
+
+### 1) باز کردن پروژه
+```
+دابل‌کلیک روی ForgeFlow.sln در Visual Studio 2026
+```
+یا از خط فرمان:
+```bash
+cd ForgeFlow
+dotnet restore
+```
+
+### 2) تنظیم Connection String
+فایل `src/ForgeFlow.Web/appsettings.json` را باز کنید و `DefaultConnection` را با اطلاعات SQL Server خودتان تطبیق دهید (الان روی `localhost` با Windows Authentication تنظیم شده).
+
+### 3) ساخت اولین Migration و دیتابیس
+```bash
+cd src/ForgeFlow.Web
+dotnet tool install --global dotnet-ef   # فقط بار اول
+dotnet ef migrations add InitialItemMaster --project ../ForgeFlow.Infrastructure --startup-project .
+dotnet ef database update --project ../ForgeFlow.Infrastructure --startup-project .
+```
+
+### 4) اجرای پروژه
+```bash
+dotnet run --project src/ForgeFlow.Web
+```
+یا در Visual Studio: پروژه `ForgeFlow.Web` را Startup Project کنید و F5 بزنید.
+
+سپس به آدرس `https://localhost:xxxx/items` بروید تا لیست Item ها را ببینید.
+
+### نکته درباره نسخه Bit.BlazorUI
+در `ForgeFlow.Web.csproj` ورژن به‌صورت `10.5.0` pin شده است. این نسخه در زمان آماده‌سازی پروژه از NuGet به‌عنوان نسخه فعلی پایدار Bit.BlazorUI بررسی شده است. راهنمای رسمی نصب و assetهای فعلی در https://blazorui.bitplatform.dev/getting-started قرار دارد.
+
+## قدم بعدی (خارج از Day 1)
+- افزودن Attribute/AttributeDefinition/ItemAttributeValue برای ویژگی‌های اختصاصی صنعت
+- افزودن UnitType/Unit/Classification Seed Data اولیه
+- جایگزینی `IAppLogger` با یک Provider واقعی (Serilog + Seq/File/App Insights) برای Log عملیات‌ها
+- افزودن Authentication/Authorization و پر کردن واقعی `CreatedBy`/`UpdatedBy`
+
+## Day 1 Architecture Decisions
+
+- Project name: **ForgeFlow**
+- .NET: **10 LTS**
+- C#: **14**
+- ASP.NET Core: **10**
+- Blazor: **Blazor Web App**, initially **Interactive Server**
+- UI: **Bit.BlazorUI 10.5.0** (pinned; no floating versions)
+- EF Core: **10.0.0**
+- SQL Server: **2025**
+- IDE: **Visual Studio 2026**
+- Architecture: **Clean Architecture**
+- BOM is intentionally not implemented in Day 1; Item Master is stabilized first.
+- Industry-specific properties belong in a future Attribute system, not as fixed columns on `Item`.
+- `IApplicationDbContext` remains a Day-1 persistence abstraction and is not treated as a permanent architectural contract; it can be revised when application use-case boundaries mature.
+- Audit user resolution (`CreatedBy`/`UpdatedBy`) will be connected to an `ICurrentUserService` when authentication/identity is introduced.
+
+
+## Current milestone
+- Day 1: Item Master
+- Day 2: BOM / BOM Version / BOM Item
+- Next: BOM validation, multi-level BOM explosion and production structure
+
+## Day 6
+- ItemType is removed from the Item model. ClassificationSet/Classification/ItemClassification is the generic classification system.
+- Item capabilities added: CanBePurchased, CanBeManufactured, CanBeSold, CanBeConsumed.
+- MainProduct/CoProduct/ByProduct/Waste are BOM-context roles and are deferred to Day 7 Manufacturing BOM.
+
+---
+
+## Imported documentation: DAY2_BOM_DESIGN.md
+
+# ForgeFlow — Day 2: BOM Design
+
+## Core model
+Item → BOM → BOMVersion → BOMInput → Item
+
+## Business rules
+1. Every BOM belongs to exactly one Product Item.
+2. One Item may have many BOMs.
+3. VersionNumber is unique within a BOM and starts at 1.
+4. EffectiveTo may be NULL but cannot be earlier than EffectiveFrom.
+5. Quantity must be greater than zero.
+6. Sequence must be greater than zero and unique inside a BOM Version.
+7. ScrapPercent, when supplied, must be between 0 and 100.
+8. BOMInput stores its consumption Unit explicitly; Item.BaseUnit remains the master unit.
+9. Historical released versions must remain available for traceability.
+10. Active versions for the same BOM may overlap when their applicability differs; same-context ambiguity is forbidden.
+11. Circular BOM dependencies are forbidden.
+12. BOM describes planned structure, not actual consumption or inventory.
+
+## Version state
+Draft → PendingApproval → Approved → Active → Obsolete
+Draft/PendingApproval may be transitioned according to workflow. Approved/Active are immutable. Obsolete is retained for history.
+
+## Multi-level BOM
+An Item used by BOMInput may itself be the ProductItem of another BOM. Circular dependencies require graph validation and will be handled in the BOM validation/explosion stage.
+
+## Out of scope
+Routing, operations, work centers, machines, labor, inventory, lots, batches, quality, costing, production orders, purchasing and sales.
+
+## Implementation
+BOM, BOMVersion and BOMInput domain entities plus EF Core configurations were added. Generate the EF migration in the development environment after reviewing the model.
+
+
+Day 7 note: the generic BOMItem model has been superseded by explicit BOMInput and BOMOutput entities.
+
+---
+
+## Imported documentation: DAY7_DATABASE_MIGRATION_NOTES.md
+
+# Day 7 Database Migration Notes
+
+Day 7 replaces the generic BOMItems model with explicit BOMInputs and BOMOutputs.
+
+For an existing database, do NOT simply drop BOMItems.
+
+Recommended migration strategy:
+
+1. Rename `BOMItems` to `BOMInputs`.
+2. Rename the old indexes/constraints as appropriate.
+3. Add `BOMOutputs`.
+4. Add `BaseOutputQuantity` and `BaseOutputUnitId` to `BOMVersions`.
+5. Populate BaseOutputQuantity/BaseOutputUnitId from the real manufacturing definition before activating versions.
+6. Create one MainProduct BOMOutput per active BOM Version, referencing BOM.ProductItem.
+7. Only after the data is migrated and validated should old compatibility artifacts be removed.
+
+Important: Day 6/7 source contains no committed EF migration history. Generate the migration on the development machine and inspect the SQL before applying it.
+
+```bash
+dotnet ef migrations add Day7_ManufacturingBOM --project src/ForgeFlow.Infrastructure --startup-project src/ForgeFlow.Web
+dotnet ef database update --project src/ForgeFlow.Infrastructure --startup-project src/ForgeFlow.Web
+```
+
+Existing BOM versions cannot safely receive a guessed BaseOutputQuantity/BaseOutputUnit. Those values are business data and must be supplied from the actual BOM definition.
+
+---
+
+## Imported documentation: DAY7_MANUFACTURING_BOM.md
+
+# ForgeFlow — Day 7: Manufacturing BOM
+
+## Goal
+
+Replace the ambiguous `BOMItem` model with explicit manufacturing inputs and outputs.
+
+```text
+BOM
+└── BOMVersion
+    ├── Inputs
+    │   ├── Material
+    │   ├── Component
+    │   └── Packaging
+    └── Outputs
+        ├── MainProduct
+        ├── CoProduct
+        ├── ByProduct
+        └── Waste
+```
+
+## Entities
+
+- `BOM`
+- `BOMVersion`
+- `BOMInput`
+- `BOMOutput`
+- `BOMOutputType`
+
+## BOMVersion base output
+
+`BaseOutputQuantity` + `BaseOutputUnitId` define the reference quantity for the version.
+All input and output quantities are defined against this base output. Explosion calculates:
+
+```text
+Scale = Requested Output / Version Base Output
+```
+
+The version base output is normalized to the Product Item Base Unit through the unit conversion service.
+
+## BOMInput
+
+- ItemId
+- Quantity
+- UnitId
+- Sequence
+- ScrapPercent
+- IsOptional
+- Notes
+
+## BOMOutput
+
+- ItemId
+- Quantity
+- UnitId
+- OutputType
+- Sequence
+- Notes
+
+`MainProduct`, `CoProduct`, `ByProduct` and `Waste` are contextual BOM roles, not Item types.
+
+## Validation rules
+
+1. Exactly one active BOM for an Item is currently required for explosion.
+2. Exactly one effective active BOM Version must exist for the requested date.
+3. Version base output quantity must be positive.
+4. Version must have at least one input and one output.
+5. Exactly one `MainProduct` output is required.
+6. MainProduct Item must equal BOM.ProductItem.
+7. Input and output quantities must be positive.
+8. Input scrap must be between 0 and 100.
+9. Input/output units must exist, be active and be convertible to the referenced Item BaseUnit.
+10. Circular dependencies in the input graph are rejected.
+
+## Explosion
+
+Explosion now:
+
+1. Finds the effective BOM Version.
+2. Scales the version from `BaseOutputQuantity` to requested quantity.
+3. Applies input scrap.
+4. Recursively explodes child Items that have an active BOM.
+5. Normalizes leaf input quantities to Item BaseUnit.
+6. Returns consumed `InputLines` and produced `OutputLines`.
+
+`Lines` remains as a compatibility alias for `InputLines`.
+
+## Routing boundary
+
+```text
+BOM     = What is required / produced
+Routing = How it is produced
+Production Order = When and how much to produce
+Inventory = What is actually available
+```
+
+Routing and operations are intentionally deferred.
+
+## Case study: Frying Oil 800g
+
+Base output:
+
+```text
+1,000 PCS
+```
+
+Inputs:
+
+```text
+Refined Oil = 800 KG
+Bottle      = 1,000 PCS
+Cap         = 1,000 PCS
+Label       = 1,000 PCS
+```
+
+Output:
+
+```text
+Frying Oil 800g = 1,000 PCS / MainProduct
+```
+
+For 5,000 PCS the scale is 5, so the input quantities scale to 4,000 KG oil and 5,000 PCS of each packaging component.
+
+---
+
+## Imported documentation: DAY5_DYNAMIC_ITEM_ATTRIBUTES.md
+
+# ForgeFlow Day 5 — Dynamic Item Attributes
+
+## Goal
+Allow any Item to carry industry-specific properties without changing the Item table for each industry.
+
+## Model
+- ItemAttributeGroup: UI/semantic grouping such as Physical Properties or Chemical Properties.
+- ItemAttributeDefinition: definition of a property, data type, optional Unit, optional Classification scope, required flag and validation limits.
+- ItemAttributeOption: allowed values for Option attributes.
+- ItemAttributeValue: one typed value for an Item/Attribute pair.
+
+## Data Types
+Text, Integer, Decimal, Boolean, Date, DateTime, Option.
+
+## Typed Value Rule
+Exactly one value column is populated according to AttributeDataType. This is enforced by the Application validation service; database CHECK constraints can be added later if required by the final migration strategy.
+
+## Classification Scope
+An AttributeDefinition may be global (ClassificationId NULL) or scoped to a Classification. The first implementation does not automatically infer descendant classifications; that policy will be defined in the Item Attribute query layer.
+
+## Examples
+HIPS: Grade, Density, Melt Flow, Moisture.
+Frying Oil: Oil Type, Density, Volume, Acidity.
+Glass: Thickness, Width, Height, Color.
+
+## Important Boundary
+Item attributes describe the Item itself. BOMInput Quantity/Unit describes consumption of an Item inside a BOM. These concerns remain separate.
+
+---
+
+## Imported documentation: DAY4_ITEM_MASTER_UNITS_CLASSIFICATION.md
+
+# ForgeFlow — Day 4
+
+## Item Master + Unit of Measure + Generic Classification
+
+### Architecture decision
+`Item` is the generic master object. It is not synonymous with finished product.
+
+### Item
+- Code: string, unique
+- Name: string
+- ItemTypeId: FK
+- BaseUnitId: FK to Unit
+- Description: optional
+- IsActive: bool
+
+### Generic Classification
+Instead of hard-coding `Category` into Item, ForgeFlow uses:
+
+`ClassificationSet -> Classification tree -> ItemClassification`
+
+This allows the same tree model to be reused for Item categories and future classification domains without changing Item itself.
+
+### Unit model
+`UnitType -> Unit`
+
+Examples:
+- Mass: KG, G, TON
+- Volume: L, ML
+- Count: PCS, BOX, CARTON
+- Length: M, CM, MM
+
+Unit contains `Symbol` and `DecimalPrecision`.
+
+### Conversion model
+Two levels are supported:
+
+1. `UnitConversion`: global conversion such as KG -> G.
+2. `ItemUnitConversion`: item-specific packaging/count conversion such as Bottle A: 1 BOX = 24 PCS.
+
+### ItemUnit
+Defines units in which an Item can be expressed/handled. BaseUnit remains the canonical calculation unit.
+
+### BOM interaction
+BOMInput stores its own quantity and Unit. Explosion normalizes quantities to the component BaseUnit using the conversion graph.
+
+### Example
+Frying Oil 800g:
+- Item type: Finished Product
+- Base unit: PCS
+
+Refined Oil:
+- Item type: Raw Material
+- Base unit: KG
+
+BOM line:
+- Quantity: 0.800
+- Unit: KG
+
+20 G of Shrink Film can normalize to 0.020 KG.
+
+### Important constraints
+- Unit conversion Factor > 0.
+- Global conversions should only connect compatible UnitTypes.
+- Item-specific conversions must belong to the same Item.
+- BOX/PCS style conversions are item-specific unless the business explicitly defines them globally.
+- Classification is many-to-many: one Item can have multiple classifications.
+- Classification is hierarchical through ParentId.
+
+---
+
+## Imported documentation: DAY3_BOM_VALIDATION_EXPLOSION.md
+
+# ForgeFlow — Day 3: BOM Validation & Multi-Level BOM Explosion
+
+## Objective
+
+Day 3 adds the application-layer rules required to validate a BOM and recursively explode a multi-level BOM into material requirements.
+
+## Contracts
+
+### BOM Validator
+
+`IBOMValidator.ValidateAsync(rootItemId, effectiveDate)`
+
+The validator checks:
+
+- Root Item exists and is active.
+- Root Item has exactly one active BOM in the current Day 3 model.
+- Version numbers are positive and unique within a BOM.
+- Version effective date ranges are valid.
+- Effective date ranges are valid but may overlap.
+- Exactly one BOM Version must be resolution-dominant for the requested date and manufacturing context.
+- BOM versions are not empty.
+- BOM Item quantity is positive.
+- BOM Item sequence is positive.
+- Scrap percentage is between 0 and 100.
+- Referenced Items and Units exist and are active.
+- A conversion path exists from BOM Item Unit to the component Item Base Unit.
+- Recursive structures do not contain cycles.
+
+### BOM Explosion
+
+`IBOMExplosionService.ExplodeAsync(itemId, quantity, effectiveDate)`
+
+The service:
+
+1. Validates the BOM graph.
+2. Selects the BOM Version effective on the requested date.
+3. Recursively traverses child BOMs.
+4. Applies BOM quantity and scrap percentage.
+5. Converts component quantities to the component Item Base Unit.
+6. Aggregates repeated leaf materials.
+7. Returns level, leaf/optional status and the traversal path.
+
+## Output
+
+Explosion is a calculation result, not a persisted Domain Entity.
+
+```text
+Item → BOM → BOMVersion → BOMInput → Item → BOM → ...
+```
+
+The result contains:
+
+- Root Item
+- Root Quantity
+- Root Unit
+- Effective Date
+- Item Id
+- Unit Id
+- Required Quantity
+- Level
+- IsLeaf
+- IsOptional
+- ScrapPercent
+- Path
+
+## Current Unit Conversion Contract
+
+`UnitConversion.Factor` means:
+
+```text
+QuantityInToUnit = QuantityInFromUnit × Factor
+```
+
+The application resolves a conversion path through the UnitConversion graph. Identity conversion is always supported when FromUnitId equals ToUnitId.
+
+## Case Study — Frying Oil 800g
+
+```text
+Frying Oil 800g
+├── Refined Oil      0.800 KG
+├── Bottle           1 PCS
+├── Cap              1 PCS
+└── Packaging Set    1 PCS
+    ├── Carton       1/12 PCS
+    ├── Shrink Film  0.002 KG
+    └── Label        1 PCS
+```
+
+For 1,000 units:
+
+```text
+Refined Oil       800 KG
+Bottle            1000 PCS
+Cap               1000 PCS
+Carton            83.333... PCS before unit rounding
+Shrink Film       2 KG
+Label             1000 PCS
+```
+
+The Day 3 engine keeps quantities in decimal form. Final unit-specific rounding policy belongs to the Unit/UOM design and should be applied before operational documents are generated.
+
+## Error Codes
+
+- `ITEM_NOT_FOUND`
+- `ITEM_INACTIVE`
+- `BOM_NOT_FOUND`
+- `MULTIPLE_ACTIVE_BOMS`
+- `BOM_VERSION_NOT_FOUND`
+- `BOM_VERSION_OVERLAP`
+- `BOM_VERSION_NUMBER_DUPLICATE`
+- `BOM_VERSION_NUMBER_INVALID`
+- `BOM_VERSION_DATE_RANGE_INVALID`
+- `BOM_EMPTY`
+- `BOM_ITEM_QUANTITY_INVALID`
+- `BOM_ITEM_SEQUENCE_INVALID`
+- `BOM_ITEM_SCRAP_INVALID`
+- `BOM_ITEM_UNIT_NOT_FOUND`
+- `BOM_ITEM_UNIT_INACTIVE`
+- `BOM_ITEM_UNIT_CONVERSION_MISSING`
+- `BOM_CIRCULAR_DEPENDENCY`
+
+## Architectural Boundary
+
+Explosion is implemented in the Application layer. It is deliberately not a method on the BOM Entity because it requires database access, version selection, unit conversion, recursive traversal and aggregation.
+
+## Day 3 Implementation Files
+
+```text
+ForgeFlow.Application/BOM/
+├── Explosion/
+│   ├── IBOMExplosionService.cs
+│   ├── BOMExplosionService.cs
+│   └── BOMExplosionResult.cs
+└── Validation/
+    ├── IBOMValidator.cs
+    ├── BOMValidator.cs
+    └── BOMValidationResult.cs
+```
+
+Infrastructure DI registers both services as scoped services.
+
+## Deliberate Limitation
+
+The current model allows one active BOM per Item for explosion. Alternate/parallel BOMs are intentionally deferred until the domain defines BOM purpose, priority, production site, order quantity, routing and other selection criteria.
+
+
+Day 7 note: the generic BOMItem model has been superseded by explicit BOMInput and BOMOutput entities.
+
+# Day 8 — BOM Version Lifecycle & Resolution
+
+## Changes from Previous Design
+
+### Change 1 — BOM Version Overlap
+
+**Previous:** BOM Version effective date ranges must never overlap.
+
+**Final:** Overlapping effective periods are allowed when Versions apply to different manufacturing contexts.
+
+**Reason:** The same Item may legitimately be produced with different valid BOM Versions at the same time, for example Plant A vs Plant B or Line A vs Line B. The problem is ambiguity, not overlap itself.
+
+### Change 2 — Active BOM Versions
+
+**Previous assumption:** One Active Version per BOM.
+
+**Final:** Multiple Active Versions are allowed.
+
+**Reason:** Different manufacturing contexts can require different valid definitions during the same period.
+
+### Change 3 — BOM Resolution
+
+**Previous:** Select the latest/current Version.
+
+**Final:** Resolve using Item + Date + Manufacturing Context.
+
+Resolution:
+
+```text
+0 → No applicable BOM
+1 → Select
+2+ → Ambiguous BOM → Error
+```
+
+The system must never silently guess.
+
+### Change 4 — Version Mutation
+
+Approved/Active Versions are immutable. A production-affecting change creates a new Version.
+
+### Change 5 — Historical Traceability
+
+Historical production retains the exact BOM Version used. Historical Versions are not deleted.
+
+## 1. BOM vs BOM Version
+
+- **BOM** identifies the manufacturing structure for an Item.
+- **BOM Version** identifies a specific definition of that structure.
+- A BOM may contain multiple Versions.
+
+```text
+Frying Oil 800g
+└── BOM
+    ├── V1
+    ├── V2
+    └── V3
+```
+
+## 2. Version Lifecycle
+
+```text
+Draft
+  ↓
+PendingApproval
+  ↓
+Approved
+  ↓
+Active
+  ↓
+Obsolete
+```
+
+Cancellation:
+
+```text
+Draft → Cancelled
+PendingApproval → Cancelled
+```
+
+Rules:
+- Draft: editable.
+- PendingApproval: normal structural editing locked.
+- Approved: immutable.
+- Active: eligible for production when applicability rules match.
+- Obsolete: retained for traceability; not eligible for new production.
+- Cancelled: retained for audit; not eligible for production.
+
+## 3. Effective Dates
+
+A Version may have:
+
+```text
+EffectiveFrom
+EffectiveTo
+```
+
+**Valid overlap:**
+
+```text
+V1 Active  2026-08-01 → 2026-09-30  Plant A
+V2 Active  2026-08-01 → 2026-09-30  Plant B
+```
+
+**Invalid ambiguity:**
+
+```text
+V1 Active  2026-08-01 → 2026-09-30  Plant A
+V2 Active  2026-08-15 → 2026-09-30  Plant A
+```
+
+if both match the same production request.
+
+> Overlapping effective periods are allowed. Overlapping applicability for the same production context is not.
+
+## 4. BOM Resolution
+
+```text
+Production Order
+      ↓
+BOM Resolver
+      ↓
+Find candidate BOM Versions
+      ↓
+Filter by Item
+      ↓
+Filter by Effective Dates
+      ↓
+Filter by Manufacturing Context
+      ↓
+0 candidates  → No applicable BOM
+1 candidate   → Select
+2+ candidates → Ambiguous BOM
+```
+
+No automatic fallback to the newest Version.
+
+## 5. Manufacturing Context
+
+Day 8 establishes the concept without hard-coding every dimension.
+
+Potential dimensions:
+- Site / Plant
+- Production Line
+- Market
+- Customer
+- Production Purpose
+- Other company-specific applicability dimensions
+
+A dedicated applicability/selection mechanism will be designed later.
+
+## 6. Version Number and Revision
+
+Version Number identifies a production definition:
+
+```text
+V1
+V2
+V3
+```
+
+A production-affecting change creates a new Version.
+
+Revision is a controlled audit marker, not a substitute for a production-changing Version.
+
+Example:
+
+```text
+Version 2 / Revision A
+Version 2 / Revision B
+```
+
+A material recipe change:
+
+```text
+V2 → 0.800 KG
+V3 → 0.805 KG
+```
+
+does not modify V2.
+
+## 7. Historical Traceability
+
+A Production Order must retain:
+
+```text
+Production Order
+├── BOMId
+└── BOMVersionId
+```
+
+A later execution/snapshot design may persist a BOM snapshot where required.
+
+## 8. BOMVersion Target Shape
+
+```text
+BOMVersion
+├── Id
+├── BOMId
+├── VersionNumber
+├── Revision
+├── Status
+├── EffectiveFrom
+├── EffectiveTo
+├── BaseOutputQuantity
+├── BaseOutputUnitId
+├── CreatedAt
+├── CreatedBy
+├── ApprovedAt
+├── ApprovedBy
+├── ObsoletedAt
+└── ObsoletedBy
+```
+
+## 9. Validation Rules
+
+1. VersionNumber is unique within a BOM.
+2. BaseOutputQuantity must be positive.
+3. BaseOutputUnit must be valid and active.
+4. A production-eligible Version must contain valid Inputs and Outputs.
+5. A Version must not be edited after approval.
+6. EffectiveTo, when present, must satisfy the project's date-boundary convention relative to EffectiveFrom.
+7. Overlapping dates are permitted.
+8. For a given production request/context/date, at most one Version may be applicable.
+9. Zero applicable Versions produces a clear resolution error.
+10. More than one applicable Version produces an ambiguity error; the system must not guess.
+
+## 10. Case Study — Frying Oil 800g
+
+```text
+BOM: Frying Oil 800g
+
+V1
+Active
+2026-08-01 → 2026-09-30
+Plant = Tehran
+
+V2
+Active
+2026-08-01 → 2026-09-30
+Plant = Tabriz
+```
+
+Both are valid.
+
+```text
+Production Request
+Plant = Tehran
+Date  = 2026-08-20
+→ V1
+```
+
+```text
+Production Request
+Plant = Tabriz
+Date  = 2026-08-20
+→ V2
+```
+
+If two Versions both match the same context and date:
+
+```text
+→ Ambiguous BOM
+→ Production cannot proceed until resolved
+```
+
+## 11. Architectural Boundary
+
+Day 8 does not implement:
+- Production Orders
+- Routing
+- Operations
+- Full Manufacturing Context
+- Inventory/Lot traceability
+
+These are future modules.
+
+Day 8 establishes the rules they must follow.
+
+## Final Day 8 Decision
+
+```text
+Multiple active BOM Versions: ALLOWED
+Date overlap: ALLOWED
+Same-context ambiguity: FORBIDDEN
+Automatic guessing: FORBIDDEN
+Approved/Active Version mutation: FORBIDDEN
+Historical Version deletion: FORBIDDEN
+```
+
+# Day 9 — BOM Applicability, Manufacturing Context & Deterministic Resolution
+
+## Changes from Day 8
+
+### Change 1 — Effective-Date Overlap Is Not the Problem
+
+**Previous Day 8 rule:** Multiple Active Versions were allowed, but ambiguity had to be prevented.
+
+**Day 9 clarification:** Effective-date ranges may overlap. Overlap by itself is valid because different BOM Versions may apply to different manufacturing contexts.
+
+**Reason:** A company may legitimately produce the same Item using different BOM Versions at the same time, for example:
+
+```text
+V1 → Plant = Tehran
+V2 → Plant = Tabriz
+```
+
+The forbidden condition is not date overlap. The forbidden condition is **multiple equally valid BOM Versions for the same Item + production date + manufacturing context**.
+
+### Change 2 — ManufacturingContext Is Runtime Data
+
+**Previous:** Manufacturing Context was only a conceptual placeholder.
+
+**Final:** `ManufacturingContext` is a runtime Value Object. It is not a mandatory persisted Master Data entity.
+
+Example:
+
+```text
+ManufacturingContext
+├── PLANT = TEHRAN
+└── PRODUCTION_LINE = LINE-A
+```
+
+A Production Order or resolution request can later persist a snapshot of the context used for traceability.
+
+### Change 3 — Generic Context Dimensions
+
+ForgeFlow does not hard-code `PlantId`, `ProductionLineId`, `MarketId`, or `CustomerId` into `BOMVersion`.
+
+A persisted `ContextDimension` defines generic dimensions such as:
+
+```text
+PLANT
+PRODUCTION_LINE
+MARKET
+CUSTOMER
+MANUFACTURING_METHOD
+```
+
+The list is extensible and is not tied to the polymer, food, glass, or any other industry.
+
+### Change 4 — Applicability Conditions
+
+A BOM Version may have one `BOMApplicability` containing zero or more `BOMApplicabilityCondition` records.
+
+A condition contains:
+
+```text
+DimensionCode
+Operator
+Value
+```
+
+Supported operators:
+
+```text
+Equals
+NotEquals
+In
+NotIn
+```
+
+Conditions within one applicability are evaluated with **AND** semantics.
+
+`In` / `NotIn` values are stored as a JSON string array; the resolver also accepts comma-separated values as a compatibility fallback.
+
+### Change 5 — Missing Context Is No Match
+
+If an applicability condition references a dimension that is missing from the request context, the condition does not match.
+
+This applies even to `NotEquals` and `NotIn`.
+
+Reason: Missing information must never be interpreted as permission to use a manufacturing definition.
+
+### Change 6 — Specificity and Dominance
+
+The resolver does not use a numeric Priority to hide conflicting master data.
+
+A BOM applicability is more specific only when all conditions of the less-specific applicability are also present with the same dimension, operator, and value, and the more-specific applicability contains at least one additional condition.
+
+Example:
+
+```text
+A: Plant = Tehran
+B: Plant = Tehran AND Line = Extrusion-2
+
+B dominates A.
+```
+
+But:
+
+```text
+A: Plant = Tehran
+B: Line = Extrusion-2
+```
+
+Neither dominates the other.
+
+If both match the request, the result is `AmbiguousBOM`.
+
+### Change 7 — BOM Resolver Contract
+
+The Application layer now exposes:
+
+```text
+BOMResolutionRequest
+IBOMResolver
+BOMResolutionResult
+ManufacturingContext
+```
+
+Resolution is deterministic:
+
+```text
+Item + Production Date + Manufacturing Context
+                    ↓
+          Candidate Active Versions
+                    ↓
+             Applicability Match
+                    ↓
+            Specificity/Dominance
+                    ↓
+          ┌─────────┼─────────┐
+          ↓         ↓         ↓
+          0         1         2+
+          ↓         ↓         ↓
+       No BOM    Success   Ambiguous
+```
+
+The resolver never chooses an arbitrary candidate.
+
+## Day 9 Domain Model
+
+```text
+BOM
+└── BOMVersion
+    └── BOMApplicability
+        └── BOMApplicabilityCondition
+              └── ContextDimension
+```
+
+Runtime request:
+
+```text
+BOMResolutionRequest
+├── ItemId
+├── ProductionDate
+└── ManufacturingContext
+      └── DimensionCode → Value
+```
+
+## Entity Definitions
+
+### ContextDimension — بُعد زمینه تولید
+
+```text
+Id
+Code
+Name
+DataType
+ReferenceType?
+IsActive
+```
+
+`DataType`:
+
+```text
+String
+Integer
+Decimal
+Boolean
+Date
+Reference
+```
+
+`ReferenceType` is intentionally extensible. ForgeFlow does not hard-code a specific Master Data entity into the Context Dimension model.
+
+### BOMApplicability — شرایط اعمال BOM
+
+```text
+Id
+BOMVersionId
+IsActive
+```
+
+One BOM Version has zero or one applicability definition.
+
+### BOMApplicabilityCondition — شرط اعمال BOM
+
+```text
+Id
+BOMApplicabilityId
+DimensionCode
+Operator
+Value
+```
+
+There may be at most one condition per `DimensionCode` within one applicability definition.
+
+## BOM Version Status
+
+The Day 8 status model is now reflected in code:
+
+```text
+Draft = 0
+PendingApproval = 1
+Approved = 2
+Active = 3
+Obsolete = 4
+Cancelled = 5
+```
+
+Only `Active` Versions are production-eligible for BOM Resolution.
+
+`Approved` means approved but not necessarily currently executable.
+
+## Case Study — Frying Oil 800g
+
+```text
+BOM-FRY-800
+│
+├── V1 Active
+│   Effective: 2026-08-01 → 2026-09-30
+│   Plant = Tehran
+│
+└── V2 Active
+    Effective: 2026-08-01 → 2026-09-30
+    Plant = Tabriz
+```
+
+Request:
+
+```text
+Item = Frying Oil 800g
+Date = 2026-08-20
+Plant = Tehran
+```
+
+Resolution:
+
+```text
+V1 → Match
+V2 → No Match
+
+Result → V1
+```
+
+## Case Study — GPPS 525
+
+```text
+V1
+Plant = Tehran
+
+V2
+Plant = Tehran
+Line = Extrusion-2
+
+Request:
+Plant = Tehran
+Line = Extrusion-2
+```
+
+Both versions match, but V2 dominates V1 because it contains all V1 conditions plus an additional condition.
+
+```text
+Result → V2
+```
+
+If instead:
+
+```text
+V1
+Plant = Tehran
+
+V2
+Line = Extrusion-2
+```
+
+both match but neither dominates the other:
+
+```text
+Result → AmbiguousBOM
+```
+
+## Application and Infrastructure Changes
+
+Added:
+
+```text
+ForgeFlow.Application/BOM/Resolution/
+├── BOMResolutionRequest.cs
+├── BOMResolutionResult.cs
+├── BOMResolver.cs
+├── IBOMResolver.cs
+└── ManufacturingContext.cs
+```
+
+Added Domain entities:
+
+```text
+ForgeFlow.Domain/entities/BOM/
+├── BOMApplicability.cs
+└── ContextDimension.cs
+```
+
+Added SQL Server EF configurations for:
+
+```text
+BOMApplicabilities
+BOMApplicabilityConditions
+ContextDimensions
+```
+
+`BOMExplosionService` now resolves BOM Versions through `IBOMResolver` and accepts an optional `ManufacturingContext`, so explosion cannot silently select a conflicting Version.
+
+## Validation Rule Update
+
+The previous validator rule that rejected overlapping Active Version date ranges has been removed.
+
+The validator still rejects invalid date ranges:
+
+```text
+EffectiveTo < EffectiveFrom
+```
+
+Context-aware ambiguity is now handled by the BOM Resolver.
+
+## Day 9 Final Decisions
+
+```text
+Multiple Active BOM Versions: ALLOWED
+Effective-date overlap: ALLOWED
+Different-context overlap: ALLOWED
+Same-context ambiguity: FORBIDDEN
+Automatic guessing: FORBIDDEN
+Priority-based conflict hiding: FORBIDDEN
+Missing context condition: NO MATCH
+Conditions inside one applicability: AND
+OR operator: NOT IMPLEMENTED
+Item Identity ≠ Item Attributes ≠ Manufacturing Context
+ManufacturingContext persisted as mandatory Master Data: NO
+Production traceability snapshot: FUTURE
+Resolver determinism: REQUIRED
+```
+
+## Day 10 — BOM Explosion, Quantity, UOM Conversion & Golden Case
+
+Day 10 turns the resolved `BOMVersion` into a deterministic material/component requirement tree.
+
+### What changed from Day 9
+
+```text
+Day 9:
+Production Request
+    -> BOM Resolver
+    -> BOM Version
+
+Day 10:
+Production Request
+    -> BOM Resolver
+    -> BOM Version
+    -> BOM Explosion
+    -> Quantity/UOM conversion
+    -> Recursive component requirements
+```
+
+The key change is that BOM resolution and BOM explosion remain separate responsibilities: the resolver chooses the applicable Version; the explosion service calculates quantities without mutating Master Data.
+
+### New Application contracts
+
+```text
+BOMExplosionRequest
+BOMExplosionMode
+BOMExplosionResult
+BOMExplosionLine
+IQuantityConverter
+```
+
+`BOMExplosionMode`:
+
+```text
+LeafOnly
+AllLevels
+```
+
+`BOMExplosionResult` now records `ResolvedBOMVersionId` for traceability.
+
+### Quantity model
+
+A `Quantity` is a Value Object containing:
+
+```text
+Value + UnitId
+```
+
+A bare decimal is therefore not considered a complete business quantity.
+
+### UOM conversion
+
+Two conversion layers remain separate:
+
+```text
+UnitConversion
+    Global UOM conversion, e.g. TON -> KG
+
+ItemUnitConversion
+    Item-specific conversion, e.g. 1 Pallet Bottle -> 1000 EA
+```
+
+BOM Explosion preserves the BOM-defined unit. Conversion is performed only when a different unit is explicitly required.
+
+### Yield and Scrap
+
+`BOMVersion.YieldPercent` represents process yield and defaults to `100%`.
+
+`BOMInput.CalculationMethod` is explicit:
+
+```text
+Standard       = no adjustment
+YieldAdjusted  = use BOM Version yield when calculating input consumption
+ScrapAdjusted  = apply ScrapPercent as a true scrap rate
+```
+
+Yield and scrap are intentionally not stacked on the same input. This prevents double-counting loss.
+
+For a scrap rate `s`:
+
+```text
+Gross Requirement = Net Requirement / (1 - s)
+```
+
+For a yield `y`:
+
+```text
+Gross Input = Required Output / y
+```
+
+### Recursive BOMs
+
+An Item may itself have a BOM. Explosion recursively traverses child BOMs.
+
+Circular dependencies are rejected:
+
+```text
+A -> B -> C -> A
+    => BOM_CIRCULAR_DEPENDENCY
+```
+
+### Golden Case — Frying Oil 800g
+
+For `1,000 EA` of `Oil 800g`:
+
+```text
+Level 1
+Refined Oil = 800 KG
+Bottle      = 1000 EA
+Cap         = 1000 EA
+Label       = 1000 EA
+```
+
+`Refined Oil` has:
+
+```text
+Base Oil = 0.950 KG
+Additive = 0.050 KG
+Yield    = 98%
+```
+
+Therefore:
+
+```text
+Input required for 800 KG output = 800 / 0.98 = 816.3265 KG
+
+Base Oil = 816.3265 * 0.95 = 775.5102 KG
+Additive = 816.3265 * 0.05 = 40.8163 KG
+```
+
+Leaf-only explosion result:
+
+```text
+Base Oil    = 775.5102 KG
+Additive    = 40.8163 KG
+Bottle      = 1000 EA
+Cap         = 1000 EA
+Label       = 1000 EA
+```
+
+### Day 10 Architectural Rules
+
+```text
+1. Resolver selects the BOM Version; Explosion consumes that decision.
+2. Explosion never changes BOM Master Data.
+3. Sub-BOM traversal is recursive.
+4. Circular BOMs must fail deterministically.
+5. LeafOnly returns terminal requirements; AllLevels also returns intermediate inputs.
+6. BOM quantities retain their defined UOM.
+7. Global and Item-specific UOM conversions are separate concepts.
+8. Quantity always carries its UOM.
+9. Yield and Scrap are explicit calculation concepts and must not be double-counted.
+10. Explosion results retain the resolved BOM Version for traceability.
+```
+
+### Database Changes
+
+Added:
+
+```text
+BOMVersions.YieldPercent
+BOMInputs.CalculationMethod
+```
+
+Migration script:
+
+```text
+database/Day10_BOM_Explosion.sql
+```
+
+### Verification Note
+
+The implementation was updated from the Day 9 milestone. The environment used for this milestone does not expose the .NET SDK executable, so a real `dotnet build`/test run cannot be claimed here. The source was updated consistently with the existing .NET 10 project structure; compilation and automated tests must be executed in the normal ForgeFlow development environment.
+
+## Next Step — Day 11
+
+Next we should define the **Production Order / Manufacturing Order boundary**: when an explosion becomes a committed production requirement, how the resolved BOM Version and explosion snapshot are persisted, and how later BOM changes are prevented from rewriting historical production decisions.

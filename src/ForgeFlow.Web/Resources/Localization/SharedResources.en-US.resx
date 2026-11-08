@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Navigation" xml:space="preserve"><value>Main navigation</value></data>
+  <data name="SampleNavigation" xml:space="preserve"><value>Localization sample</value></data>
+  <data name="AppTitle" xml:space="preserve"><value>ForgeFlow</value></data>
+  <data name="OpenNavigation" xml:space="preserve"><value>Open navigation</value></data>
+  <data name="CloseNavigation" xml:space="preserve"><value>Close navigation</value></data>
+  <data name="CollapseNavigation" xml:space="preserve"><value>Collapse navigation</value></data>
+  <data name="ErrorTitle" xml:space="preserve"><value>Something went wrong</value></data>
+  <data name="UnexpectedError" xml:space="preserve"><value>An unexpected error occurred. Reload the page to try again.</value></data>
+  <data name="Reload" xml:space="preserve"><value>Return to the sample</value></data>
+  <data name="NotFoundTitle" xml:space="preserve"><value>Page not found</value></data>
+  <data name="NotFoundMessage" xml:space="preserve"><value>The requested page could not be found.</value></data>
+</root>

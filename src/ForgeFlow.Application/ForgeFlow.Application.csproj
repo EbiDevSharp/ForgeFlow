@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../ForgeFlow.Domain/ForgeFlow.Domain.csproj" />
+  </ItemGroup>
+</Project>

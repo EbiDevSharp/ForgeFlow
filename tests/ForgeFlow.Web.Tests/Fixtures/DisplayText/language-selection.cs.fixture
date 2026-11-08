@@ -1,0 +1,4 @@
+internal static class Fixture
+{
+    private static string Label(bool isPersian) => isPersian ? "ذخیره" : "Save";
+}

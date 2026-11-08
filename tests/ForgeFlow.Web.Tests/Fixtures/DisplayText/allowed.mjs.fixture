@@ -1,0 +1,6 @@
+const input = document.querySelector('#sample-name');
+input.value = snapshot.value;
+console.info('draft saved');
+const storageKey = 'draft:sample';
+element.textContent = messages["SampleNavigation"];
+element.textContent = localizer.getString('SampleNavigation');

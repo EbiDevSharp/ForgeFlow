@@ -1,0 +1,258 @@
+@page "/"
+@implements IDisposable
+@using ForgeFlow.Web.Drafts
+@inject IStringLocalizer<SampleResources> Text
+@inject DisplayFormatter Formatter
+@inject CulturePolicy Culture
+@inject DraftCoordinator Drafts
+
+<PageTitle>@Text["Title"]</PageTitle>
+<h1>@Text["Title"]</h1>
+<p>@Text["Introduction"]</p>
+<button id="sample-dialog-open" type="button" @onclick="() => dialogOpen = true">@Text["DialogOpen"]</button>
+<BitDialog @bind-IsOpen="dialogOpen" Title="@Text["DialogTitle"]" Message="@Text["DialogContent"]"
+           AriaLabel="@Text["DialogTitle"]" CloseButtonTitle="@Text["DialogClose"]"
+           CancelText="@Text["DialogClose"]" ShowOkButton="false" ShowCancelButton="true" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <dl>
+            <dt>@Text["NameLabel"]</dt><dd>@form.Name</dd>
+            <dt>@Text["AmountLabel"]</dt><dd>@form.AmountRaw</dd>
+            <dt>@Text["NotesLabel"]</dt><dd>@form.Notes</dd>
+        </dl>
+    </Body>
+</BitDialog>
+<section class="sample-surface" aria-labelledby="sample-table-title">
+    <h2 id="sample-table-title">@Text["TableTitle"]</h2>
+    <BitTooltip Text="@Text["TooltipContent"]" ShowOnFocus="true" ShowOnHover="true" Relationship="BitTooltipRelationship.Description">
+        <button id="sample-tooltip-trigger" type="button" aria-label="@Text["TooltipButton"]">@Text["TooltipButton"]</button>
+    </BitTooltip>
+    <table id="sample-table">
+        <caption>@Text["TableCaption"]</caption>
+        <thead><tr><th scope="col">@Text["TableFieldHeading"]</th><th scope="col">@Text["TableValueHeading"]</th></tr></thead>
+        @if (sampleRowsVisible)
+        {
+            <tbody>
+                <tr><th scope="row">@Text["NameLabel"]</th><td>@(string.IsNullOrWhiteSpace(form.Name) ? Text["SyntheticName"] : form.Name)</td></tr>
+                <tr><th scope="row">@Text["AmountLabel"]</th><td data-sample-amount>@(string.IsNullOrWhiteSpace(form.AmountRaw) ? Text["SyntheticAmount"] : form.AmountRaw)</td></tr>
+            </tbody>
+        }
+    </table>
+    @if (loadingSample)
+    {
+        <p id="sample-loading" role="status" aria-live="polite">@Text["SampleLoading"]</p>
+    }
+    else if (!sampleRowsVisible)
+    {
+        <p id="sample-empty" role="status">@Text["SampleEmpty"]</p>
+    }
+    <button id="sample-refresh" type="button" @onclick="ToggleSampleRows" disabled="@loadingSample">@Text["SampleRefresh"]</button>
+</section>
+<section class="sample-surface" aria-labelledby="sample-feedback-title">
+    <h2 id="sample-feedback-title">@Text["FeedbackTitle"]</h2>
+    <button id="sample-notify" type="button" @onclick="ShowNotification">@Text["NotificationTrigger"]</button>
+    @if (notificationVisible)
+    {
+        <BitMessage Title="@Text["NotificationTitle"]" Role="status" Dismissible="true"
+                    DismissAriaLabel="@Text["MessageDismiss"]" @bind-Dismissed="notificationDismissed">
+            @Text["NotificationContent"]
+        </BitMessage>
+    }
+    <h3>@Text["IdentityFixtureTitle"]</h3>
+    <p>@Text["IdentityFixtureScope"]</p>
+    <button id="sample-identity-error" type="button" @onclick="ShowIdentityError">@Text["IdentityFixtureTrigger"]</button>
+    @if (identityErrorVisible)
+    {
+        <BitMessage Title="@Text["IdentityFixtureTitle"]" Role="alert" Dismissible="true"
+                    DismissAriaLabel="@Text["MessageDismiss"]" @bind-Dismissed="identityErrorDismissed">
+            @Text["IdentityErrorDuplicateUserName", "sample-user"]
+        </BitMessage>
+    }
+</section>
+<fieldset disabled="@(!ready || busy)" class="sample-controls" aria-busy="@busy.ToString().ToLowerInvariant()">
+    <legend class="visually-hidden">@Text["FormLegend"]</legend>
+    <div class="language-controls" role="group" aria-label="@Text["LanguageLabel"]">
+        <button id="language-fa" type="button" @onclick="() => Switch(CulturePolicy.Persian)">@Text["LanguagePersian"]</button>
+        <button id="language-en" type="button" @onclick="() => Switch(CulturePolicy.English)">@Text["LanguageEnglish"]</button>
+    </div>
+    <EditForm id="sample" EditContext="form.EditContext" OnSubmit="Submit" FormName="sample"
+              data-validation-attempted="@form.ValidationAttempted.ToString().ToLowerInvariant()">
+        <div class="field">
+            <label for="sample-name">@Text["NameLabel"]</label>
+            <input id="sample-name" @bind="form.Name" @bind:event="oninput" maxlength="100"
+                   aria-required="true" aria-invalid="@form.HasNameError.ToString().ToLowerInvariant()" aria-describedby="name-error" />
+            <div id="name-error" aria-live="polite"><ValidationMessage For="() => form.Name" /></div>
+        </div>
+        <div class="field">
+            <label for="sample-date">@Text["DateInputLabel"]</label>
+            <input id="sample-date" value="@form.DateRaw" @oninput="DateChanged" inputmode="text" maxlength="32"
+                   data-input-culture="@form.DateCulture" aria-required="true"
+                   aria-invalid="@form.HasDateError.ToString().ToLowerInvariant()" aria-describedby="date-hint date-error" />
+            <div id="date-hint">@Text["DateInputHint"]</div>
+            <div id="date-error" aria-live="polite"><ValidationMessage For="() => form.DateRaw" /></div>
+        </div>
+        <div class="field">
+            <label for="sample-amount">@Text["AmountLabel"]</label>
+            <input id="sample-amount" value="@form.AmountRaw" @oninput="AmountChanged" inputmode="decimal" maxlength="64"
+                   data-input-culture="@form.AmountCulture" aria-required="true"
+                   aria-invalid="@form.HasAmountError.ToString().ToLowerInvariant()" aria-describedby="amount-error" />
+            <div id="amount-error" aria-live="polite"><ValidationMessage For="() => form.AmountRaw" /></div>
+        </div>
+        <div class="field">
+            <label for="sample-currency">@Text["CurrencyLabel"]</label>
+            <select id="sample-currency" @bind="form.CurrencyCode" aria-required="true"
+                    aria-invalid="@form.HasCurrencyError.ToString().ToLowerInvariant()" aria-describedby="currency-error">
+                <option value="">@Text["ChooseCurrency"]</option>
+                @foreach (var currencyCode in DisplayFormatter.SupportedCurrencyCodes)
+                {
+                    <option value="@currencyCode">@(Text[DisplayFormatter.CurrencyResourceKey(currencyCode)])</option>
+                }
+            </select>
+            <div id="currency-error" aria-live="polite"><ValidationMessage For="() => form.CurrencyCode" /></div>
+        </div>
+        <div class="field">
+            <label for="sample-mode">@Text["SampleModeLabel"]</label>
+            <select id="sample-mode" @bind="form.ModeValue" aria-required="true"
+                    aria-invalid="@form.HasModeError.ToString().ToLowerInvariant()" aria-describedby="mode-error">
+                <option value="">@Text["ChooseMode"]</option>
+                @foreach (var mode in Enum.GetValues<SampleMode>())
+                {
+                    <option value="@DisplayFormatter.SampleModeValue(mode)">@(Text[DisplayFormatter.SampleModeResourceKey(mode)])</option>
+                }
+            </select>
+            <div id="mode-error" aria-live="polite"><ValidationMessage For="() => form.ModeValue" /></div>
+        </div>
+        <div class="field">
+            <label for="sample-notes">@Text["NotesLabel"]</label>
+            <textarea id="sample-notes" @bind="form.Notes" @bind:event="oninput" maxlength="500" rows="3"></textarea>
+        </div>
+        <div class="actions">
+            <BitButton id="sample-submit" ButtonType="BitButtonType.Submit">@Text["ValidateButton"]</BitButton>
+            <button id="sample-discard" type="button" @onclick="Discard">@Text["DiscardButton"]</button>
+        </div>
+    </EditForm>
+</fieldset>
+@if (operationMessage is not null)
+{
+    <p id="draft-status" role="status">@operationMessage</p>
+}
+@if (submittedName is not null)
+{
+    <p id="submission-status" role="status">@Text["ValidationSucceeded", submittedName]</p>
+}
+@if (submittedValues is not null)
+{
+    <section id="canonical-values" aria-labelledby="canonical-values-title" role="status">
+        <h2 id="canonical-values-title">@Text["CanonicalValuesTitle"]</h2>
+        <dl>
+            <dt>@Text["SubmittedDate"]</dt><dd id="submitted-date" dir="ltr">@DisplayFormatter.CanonicalDate(submittedValues.Date)</dd>
+            <dt>@Text["SubmittedAmount"]</dt><dd id="submitted-amount" dir="ltr">@DisplayFormatter.CanonicalAmount(submittedValues.Amount)</dd>
+            <dt>@Text["SubmittedCurrency"]</dt><dd id="submitted-currency" dir="ltr">@submittedValues.CurrencyCode</dd>
+            <dt>@Text["SubmittedMode"]</dt><dd id="submitted-mode" dir="ltr">@DisplayFormatter.SampleModeValue(submittedValues.Mode)</dd>
+        </dl>
+    </section>
+}
+<dl>
+    <dt>@Text["DateLabel"]</dt><dd id="formatted-date">@Formatter.Date(new DateOnly(2026, 3, 21))</dd>
+    @if (Formatter.TryDateOnly(form.DateRaw, form.DateCulture, out var enteredDate))
+    {
+        <dt>@Text["DatePreview"]</dt><dd id="date-preview" dir="ltr">@Formatter.Date(enteredDate)</dd>
+    }
+    <dt>@Text["NumberLabel"]</dt><dd id="formatted-number">@Formatter.Number(12345.67m)</dd>
+    @if (Formatter.TryNumber(form.AmountRaw, form.AmountCulture, out var amount) && Formatter.TryCurrencyCode(form.CurrencyCode, out var previewCurrency))
+    {
+        <dt>@Text["AmountPreview"]</dt><dd id="amount-preview" dir="ltr">@Formatter.Number(amount)</dd>
+        <dt>@Text["CurrencyPreview"]</dt><dd id="money-preview" dir="ltr">@Formatter.Money(amount, previewCurrency)</dd>
+    }
+</dl>
+
+@code {
+    private readonly SampleFormState form = new();
+    private bool ready, busy;
+    private bool dialogOpen;
+    private bool sampleRowsVisible = true, loadingSample;
+    private bool notificationVisible, notificationDismissed = true;
+    private bool identityErrorVisible, identityErrorDismissed = true;
+    private string? operationMessage, submittedName, pendingFocus;
+    private SampleFormState.CanonicalValues? submittedValues;
+    protected override void OnInitialized()
+    {
+        form.AmountCulture = Culture.Language;
+        form.DateCulture = Culture.Language;
+        Drafts.StorageUnavailable += StorageFailed;
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var result = await Drafts.InitializeAsync(new DraftDefinition("sample", "anonymous:/", 2,
+                [new("Name", "sample-name", 100), new("DateRaw", "sample-date", 32, "date"),
+                 new("AmountRaw", "sample-amount", 64, "number"), new("CurrencyCode", "sample-currency", 3, "currency", [.. DisplayFormatter.SupportedCurrencyCodes]),
+                 new("ModeValue", "sample-mode", 16, "enum", ["summary", "detailed"]), new("Notes", "sample-notes", 500)], CulturePolicy.Supported));
+            if (result.Snapshot is not null)
+            {
+                form.Restore(result.Snapshot);
+                if (form.ValidationAttempted) Validate();
+                pendingFocus = result.Snapshot.FocusId;
+            }
+            if (result.Status == "Rejected") operationMessage = Text["DraftRejected"];
+            if (result.Status == "Unavailable") operationMessage = Text["DraftUnavailable"];
+            ready = true;
+            StateHasChanged();
+        }
+        else if (pendingFocus is not null)
+        {
+            var focus = pendingFocus; pendingFocus = null;
+            await Drafts.FocusAsync(focus);
+        }
+    }
+    private void AmountChanged(ChangeEventArgs args)
+    {
+        form.AmountRaw = args.Value?.ToString() ?? string.Empty;
+        form.AmountCulture = Culture.Language;
+    }
+    private void DateChanged(ChangeEventArgs args)
+    {
+        form.DateRaw = args.Value?.ToString() ?? string.Empty;
+        form.DateCulture = Culture.Language;
+    }
+    private async Task ToggleSampleRows()
+    {
+        loadingSample = true;
+        StateHasChanged();
+        await Task.Delay(350);
+        sampleRowsVisible = !sampleRowsVisible;
+        loadingSample = false;
+    }
+    private void ShowNotification() { notificationDismissed = false; notificationVisible = true; }
+    private void ShowIdentityError() { identityErrorDismissed = false; identityErrorVisible = true; }
+    private void Validate() => form.Validate(Text["NameRequired"], Text["DateInvalid"], Text["AmountInvalid"],
+        Text["CurrencyInvalid"], Text["SampleModeInvalid"], Formatter);
+    private async Task Switch(string culture)
+    {
+        busy = true; operationMessage = null;
+        var status = await Drafts.SwitchAsync(culture);
+        if (status != "Navigating")
+        {
+            operationMessage = status == "DraftUnavailable" ? Text["DraftUnavailable"] : Text["SwitchFailed"];
+            busy = false;
+        }
+    }
+    private async Task Submit()
+    {
+        submittedName = null; submittedValues = null; operationMessage = null;
+        Validate();
+        if (!form.Submitted) return;
+        if (!await Drafts.ClearAsync()) { operationMessage = Text["DraftUnavailable"]; return; }
+        submittedName = form.Name;
+        submittedValues = form.CreateCanonicalValues();
+        form.Reset(Culture.Language); pendingFocus = "sample-name";
+    }
+    private async Task Discard()
+    {
+        if (!await Drafts.ClearAsync()) { operationMessage = Text["DraftUnavailable"]; return; }
+        form.Reset(Culture.Language); submittedName = null; submittedValues = null; operationMessage = Text["DraftDiscarded"]; pendingFocus = "sample-name";
+    }
+    private void StorageFailed() { operationMessage = Text["DraftUnavailable"]; _ = InvokeAsync(StateHasChanged); }
+    public void Dispose() => Drafts.StorageUnavailable -= StorageFailed;
+}

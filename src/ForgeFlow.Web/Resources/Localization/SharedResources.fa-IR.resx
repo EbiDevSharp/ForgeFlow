@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Navigation" xml:space="preserve"><value>ناوبری اصلی</value></data>
+  <data name="SampleNavigation" xml:space="preserve"><value>نمونهٔ بومی‌سازی</value></data>
+  <data name="AppTitle" xml:space="preserve"><value>ForgeFlow</value></data>
+  <data name="OpenNavigation" xml:space="preserve"><value>باز کردن پیمایش</value></data>
+  <data name="CloseNavigation" xml:space="preserve"><value>بستن پیمایش</value></data>
+  <data name="CollapseNavigation" xml:space="preserve"><value>جمع کردن پیمایش</value></data>
+  <data name="ErrorTitle" xml:space="preserve"><value>خطایی رخ داد</value></data>
+  <data name="UnexpectedError" xml:space="preserve"><value>خطای پیش‌بینی‌نشده‌ای رخ داد. برای تلاش دوباره صفحه را بارگیری کنید.</value></data>
+  <data name="Reload" xml:space="preserve"><value>بازگشت به نمونه</value></data>
+  <data name="NotFoundTitle" xml:space="preserve"><value>صفحه پیدا نشد</value></data>
+  <data name="NotFoundMessage" xml:space="preserve"><value>صفحهٔ درخواستی پیدا نشد.</value></data>
+</root>

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Title" xml:space="preserve"><value>ForgeFlow localization sample</value></data>
+  <data name="Introduction" xml:space="preserve"><value>Use invented, non-sensitive values only. This sample keeps a temporary draft in this browser tab for 30 minutes. Submission validates the sample and clears its draft; no business data is saved.</value></data>
+  <data name="NameLabel" xml:space="preserve"><value>Name</value></data>
+  <data name="NameRequired" xml:space="preserve"><value>Enter a name.</value></data>
+  <data name="ValidateButton" xml:space="preserve"><value>Submit sample</value></data>
+  <data name="ValidationSucceeded" xml:space="preserve"><value>The name “{0}” is valid. No data was saved.</value></data>
+  <data name="DateLabel" xml:space="preserve"><value>Sample date (Gregorian)</value></data>
+  <data name="NumberLabel" xml:space="preserve"><value>Sample number</value></data>
+  <data name="FormLegend" xml:space="preserve"><value>Sample form and language controls</value></data>
+  <data name="LanguageLabel" xml:space="preserve"><value>Choose language</value></data>
+  <data name="LanguagePersian" xml:space="preserve"><value>Persian</value></data>
+  <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
+  <data name="AmountLabel" xml:space="preserve"><value>Sample numeric value</value></data>
+  <data name="AmountInvalid" xml:space="preserve"><value>Enter a number with up to two decimal places, without grouping separators.</value></data>
+  <data name="AmountPreview" xml:space="preserve"><value>Formatted numeric value</value></data>
+  <data name="NotesLabel" xml:space="preserve"><value>Invented notes</value></data>
+  <data name="DiscardButton" xml:space="preserve"><value>Discard draft</value></data>
+  <data name="DraftDiscarded" xml:space="preserve"><value>The draft was discarded.</value></data>
+  <data name="DraftRejected" xml:space="preserve"><value>The saved draft was expired or incompatible and was removed. You can start a new sample.</value></data>
+  <data name="DraftUnavailable" xml:space="preserve"><value>The draft could not be stored or cleared in this tab. Keep this page open and try again; language switching has not reloaded the page.</value></data>
+  <data name="SwitchFailed" xml:space="preserve"><value>The language could not be changed. Your form is still available; try again.</value></data>
+  <data name="DialogOpen" xml:space="preserve"><value>View sample values</value></data>
+  <data name="DialogTitle" xml:space="preserve"><value>Sample values</value></data>
+  <data name="DialogContent" xml:space="preserve"><value>These temporary values have not been saved.</value></data>
+  <data name="DialogClose" xml:space="preserve"><value>Close dialog</value></data>
+  <data name="TableTitle" xml:space="preserve"><value>Sample values</value></data>
+  <data name="TableCaption" xml:space="preserve"><value>Current temporary sample values</value></data>
+  <data name="TableFieldHeading" xml:space="preserve"><value>Field</value></data>
+  <data name="TableValueHeading" xml:space="preserve"><value>Value</value></data>
+  <data name="SyntheticName" xml:space="preserve"><value>Sample visitor</value></data>
+  <data name="SyntheticAmount" xml:space="preserve"><value>12.50</value></data>
+  <data name="TooltipButton" xml:space="preserve"><value>About this sample</value></data>
+  <data name="TooltipContent" xml:space="preserve"><value>Only temporary example values are shown here.</value></data>
+  <data name="SampleRefresh" xml:space="preserve"><value>Toggle sample rows</value></data>
+  <data name="SampleLoading" xml:space="preserve"><value>Updating sample rows…</value></data>
+  <data name="SampleEmpty" xml:space="preserve"><value>There are no sample rows to show.</value></data>
+  <data name="FeedbackTitle" xml:space="preserve"><value>Sample feedback</value></data>
+  <data name="NotificationTrigger" xml:space="preserve"><value>Show success notification</value></data>
+  <data name="NotificationTitle" xml:space="preserve"><value>Sample complete</value></data>
+  <data name="NotificationContent" xml:space="preserve"><value>This is a localized sample notification. No data was saved.</value></data>
+  <data name="MessageDismiss" xml:space="preserve"><value>Dismiss message</value></data>
+  <data name="IdentityFixtureTitle" xml:space="preserve"><value>Identity-style error fixture</value></data>
+  <data name="IdentityFixtureScope" xml:space="preserve"><value>Localization-only fixture; no Identity service is called.</value></data>
+  <data name="IdentityFixtureTrigger" xml:space="preserve"><value>Show duplicate-name error fixture</value></data>
+  <data name="IdentityErrorDuplicateUserName" xml:space="preserve"><value>The name “{0}” is already in use.</value></data>
+  <data name="DateInputLabel" xml:space="preserve"><value>Calendar date</value></data>
+  <data name="DateInputHint" xml:space="preserve"><value>Enter a Gregorian date as month/day/year (MM/DD/YYYY).</value></data>
+  <data name="DateInvalid" xml:space="preserve"><value>Enter a valid Gregorian date in month/day/year order.</value></data>
+  <data name="DatePreview" xml:space="preserve"><value>Date in the current calendar</value></data>
+  <data name="CurrencyLabel" xml:space="preserve"><value>Currency code</value></data>
+  <data name="CurrencyUsd" xml:space="preserve"><value>US dollar (USD)</value></data>
+  <data name="CurrencyEur" xml:space="preserve"><value>Euro (EUR)</value></data>
+  <data name="CurrencyIrr" xml:space="preserve"><value>Iranian rial (IRR)</value></data>
+  <data name="CurrencyInvalid" xml:space="preserve"><value>Choose a supported currency code.</value></data>
+  <data name="CurrencyPreview" xml:space="preserve"><value>Amount and currency code</value></data>
+  <data name="SampleModeLabel" xml:space="preserve"><value>Sample detail level</value></data>
+  <data name="SampleModeSummary" xml:space="preserve"><value>Summary</value></data>
+  <data name="SampleModeDetailed" xml:space="preserve"><value>Detailed</value></data>
+  <data name="SampleModeInvalid" xml:space="preserve"><value>Choose a supported sample detail level.</value></data>
+  <data name="CanonicalValuesTitle" xml:space="preserve"><value>Canonical submitted sample values</value></data>
+  <data name="SubmittedDate" xml:space="preserve"><value>Date (ISO date-only)</value></data>
+  <data name="SubmittedAmount" xml:space="preserve"><value>Amount (invariant decimal)</value></data>
+  <data name="SubmittedCurrency" xml:space="preserve"><value>Currency code</value></data>
+  <data name="SubmittedMode" xml:space="preserve"><value>Stable sample mode</value></data>
+  <data name="ChooseCurrency" xml:space="preserve"><value>Choose a currency code</value></data>
+  <data name="ChooseMode" xml:space="preserve"><value>Choose a detail level</value></data>
+</root>

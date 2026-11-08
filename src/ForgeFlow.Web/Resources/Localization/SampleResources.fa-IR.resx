@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Title" xml:space="preserve"><value>نمونهٔ بومی‌سازی فورج‌فلو</value></data>
+  <data name="Introduction" xml:space="preserve"><value>فقط مقادیر ساختگی و غیرحساس وارد کنید. پیش‌نویس موقت این نمونه به مدت ۳۰ دقیقه در همین برگهٔ مرورگر نگه داشته می‌شود. ارسال، نمونه را اعتبارسنجی و پیش‌نویس آن را پاک می‌کند؛ اطلاعات کسب‌وکار ذخیره نمی‌شود.</value></data>
+  <data name="NameLabel" xml:space="preserve"><value>نام</value></data>
+  <data name="NameRequired" xml:space="preserve"><value>نام را وارد کنید.</value></data>
+  <data name="ValidateButton" xml:space="preserve"><value>ارسال نمونه</value></data>
+  <data name="ValidationSucceeded" xml:space="preserve"><value>نام «{0}» معتبر است. هیچ اطلاعاتی ذخیره نشد.</value></data>
+  <data name="DateLabel" xml:space="preserve"><value>تاریخ نمونه (هجری شمسی)</value></data>
+  <data name="NumberLabel" xml:space="preserve"><value>عدد نمونه</value></data>
+  <data name="FormLegend" xml:space="preserve"><value>فرم نمونه و کنترل‌های زبان</value></data>
+  <data name="LanguageLabel" xml:space="preserve"><value>انتخاب زبان</value></data>
+  <data name="LanguagePersian" xml:space="preserve"><value>فارسی</value></data>
+  <data name="LanguageEnglish" xml:space="preserve"><value>انگلیسی</value></data>
+  <data name="AmountLabel" xml:space="preserve"><value>مقدار عددی نمونه</value></data>
+  <data name="AmountInvalid" xml:space="preserve"><value>یک عدد با حداکثر دو رقم اعشار و بدون جداکنندهٔ هزارگان وارد کنید.</value></data>
+  <data name="AmountPreview" xml:space="preserve"><value>نمایش قالب‌بندی‌شدهٔ مقدار عددی</value></data>
+  <data name="NotesLabel" xml:space="preserve"><value>یادداشت‌های ساختگی</value></data>
+  <data name="DiscardButton" xml:space="preserve"><value>حذف پیش‌نویس</value></data>
+  <data name="DraftDiscarded" xml:space="preserve"><value>پیش‌نویس حذف شد.</value></data>
+  <data name="DraftRejected" xml:space="preserve"><value>پیش‌نویس ذخیره‌شده منقضی یا ناسازگار بود و حذف شد. می‌توانید نمونهٔ تازه‌ای شروع کنید.</value></data>
+  <data name="DraftUnavailable" xml:space="preserve"><value>ذخیره یا حذف پیش‌نویس در این برگه ممکن نشد. این صفحه را باز نگه دارید و دوباره تلاش کنید؛ تغییر زبان باعث بارگیری دوبارهٔ صفحه نشده است.</value></data>
+  <data name="SwitchFailed" xml:space="preserve"><value>تغییر زبان انجام نشد. فرم شما همچنان در دسترس است؛ دوباره تلاش کنید.</value></data>
+  <data name="DialogOpen" xml:space="preserve"><value>نمایش مقادیر نمونه</value></data>
+  <data name="DialogTitle" xml:space="preserve"><value>مقادیر نمونه</value></data>
+  <data name="DialogContent" xml:space="preserve"><value>این مقادیر موقت ذخیره نشده‌اند.</value></data>
+  <data name="DialogClose" xml:space="preserve"><value>بستن گفتگو</value></data>
+  <data name="TableTitle" xml:space="preserve"><value>مقادیر نمونه</value></data>
+  <data name="TableCaption" xml:space="preserve"><value>مقادیر موقت نمونهٔ فعلی</value></data>
+  <data name="TableFieldHeading" xml:space="preserve"><value>فیلد</value></data>
+  <data name="TableValueHeading" xml:space="preserve"><value>مقدار</value></data>
+  <data name="SyntheticName" xml:space="preserve"><value>کاربر نمونه</value></data>
+  <data name="SyntheticAmount" xml:space="preserve"><value>۱۲٫۵۰</value></data>
+  <data name="TooltipButton" xml:space="preserve"><value>دربارهٔ این نمونه</value></data>
+  <data name="TooltipContent" xml:space="preserve"><value>فقط مقادیر موقت نمونه در اینجا نمایش داده می‌شوند.</value></data>
+  <data name="SampleRefresh" xml:space="preserve"><value>تغییر ردیف‌های نمونه</value></data>
+  <data name="SampleLoading" xml:space="preserve"><value>ردیف‌های نمونه در حال به‌روزرسانی هستند…</value></data>
+  <data name="SampleEmpty" xml:space="preserve"><value>ردیفی برای نمایش وجود ندارد.</value></data>
+  <data name="FeedbackTitle" xml:space="preserve"><value>بازخورد نمونه</value></data>
+  <data name="NotificationTrigger" xml:space="preserve"><value>نمایش اعلان موفقیت</value></data>
+  <data name="NotificationTitle" xml:space="preserve"><value>نمونه کامل شد</value></data>
+  <data name="NotificationContent" xml:space="preserve"><value>این یک اعلان نمونهٔ بومی‌سازی‌شده است. هیچ داده‌ای ذخیره نشد.</value></data>
+  <data name="MessageDismiss" xml:space="preserve"><value>بستن پیام</value></data>
+  <data name="IdentityFixtureTitle" xml:space="preserve"><value>نمونهٔ خطای مشابه Identity</value></data>
+  <data name="IdentityFixtureScope" xml:space="preserve"><value>فقط نمونهٔ بومی‌سازی است؛ هیچ سرویس Identity فراخوانی نمی‌شود.</value></data>
+  <data name="IdentityFixtureTrigger" xml:space="preserve"><value>نمایش نمونهٔ خطای نام تکراری</value></data>
+  <data name="IdentityErrorDuplicateUserName" xml:space="preserve"><value>نام «{0}» قبلاً استفاده شده است.</value></data>
+  <data name="DateInputLabel" xml:space="preserve"><value>تاریخ تقویمی</value></data>
+  <data name="DateInputHint" xml:space="preserve"><value>تاریخ هجری شمسی را به‌شکل سال/ماه/روز وارد کنید.</value></data>
+  <data name="DateInvalid" xml:space="preserve"><value>تاریخ معتبر هجری شمسی را به‌ترتیب سال، ماه و روز وارد کنید.</value></data>
+  <data name="DatePreview" xml:space="preserve"><value>تاریخ در تقویم فعلی</value></data>
+  <data name="CurrencyLabel" xml:space="preserve"><value>کد ارز</value></data>
+  <data name="CurrencyUsd" xml:space="preserve"><value>دلار آمریکا (USD)</value></data>
+  <data name="CurrencyEur" xml:space="preserve"><value>یورو (EUR)</value></data>
+  <data name="CurrencyIrr" xml:space="preserve"><value>ریال ایران (IRR)</value></data>
+  <data name="CurrencyInvalid" xml:space="preserve"><value>یک کد ارز پشتیبانی‌شده انتخاب کنید.</value></data>
+  <data name="CurrencyPreview" xml:space="preserve"><value>مبلغ و کد ارز</value></data>
+  <data name="SampleModeLabel" xml:space="preserve"><value>سطح جزئیات نمونه</value></data>
+  <data name="SampleModeSummary" xml:space="preserve"><value>خلاصه</value></data>
+  <data name="SampleModeDetailed" xml:space="preserve"><value>با جزئیات</value></data>
+  <data name="SampleModeInvalid" xml:space="preserve"><value>یک سطح جزئیات پشتیبانی‌شده انتخاب کنید.</value></data>
+  <data name="CanonicalValuesTitle" xml:space="preserve"><value>مقادیر معیار ارسال‌شدهٔ نمونه</value></data>
+  <data name="SubmittedDate" xml:space="preserve"><value>تاریخ (فقط تاریخ ISO)</value></data>
+  <data name="SubmittedAmount" xml:space="preserve"><value>مبلغ (عدد ده‌دهی مستقل از زبان)</value></data>
+  <data name="SubmittedCurrency" xml:space="preserve"><value>کد ارز</value></data>
+  <data name="SubmittedMode" xml:space="preserve"><value>مقدار پایدار حالت نمونه</value></data>
+  <data name="ChooseCurrency" xml:space="preserve"><value>یک کد ارز انتخاب کنید</value></data>
+  <data name="ChooseMode" xml:space="preserve"><value>یک سطح جزئیات انتخاب کنید</value></data>
+</root>

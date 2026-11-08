@@ -1,0 +1,26 @@
+﻿.tools/
+**/bin/
+**/obj/
+TestResults/
+.vs/
+**/.local/
+**/node_modules/
+**/packages/
+
+# Local credentials, secrets, and machine-specific configuration
+.env
+.env.*
+!.env.example
+**/appsettings.*.local.json
+**/secrets.json
+**/user-secrets/
+**/keyrings/
+**/key-ring/
+**/certificates/
+**/*.pfx
+**/*.p12
+**/*.key
+**/*.pem
+**/*.p7b
+**/*.p7c
+**/*.snk

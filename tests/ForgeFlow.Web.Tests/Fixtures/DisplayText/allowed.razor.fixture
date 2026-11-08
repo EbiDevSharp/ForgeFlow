@@ -1,0 +1,2 @@
+@page "/technical-route"
+<a href="/sample" class="nav-link" id="sample-link">@Text["SampleNavigation"]</a>

@@ -1,0 +1,9 @@
+internal static class Fixture
+{
+    private static void WriteLog(ILogger logger, string id) => logger.LogInformation("request {Id}", id);
+    private static string Route = "/sample";
+    private static string CssClass = "nav-link";
+    private static string Direction(bool isPersian) => isPersian ? "rtl" : "ltr";
+    private static string ErrorCode(bool isPersian) => isPersian ? "CultureSwitchRejected" : "CultureSwitchRejected";
+    private static string Label(IStringLocalizer<Fixture> text) => text["SampleNavigation"];
+}

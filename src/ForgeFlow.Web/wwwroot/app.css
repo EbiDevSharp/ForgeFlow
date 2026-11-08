@@ -1,0 +1,38 @@
+:root { font-family: Tahoma, Arial, sans-serif; color: #182c3a; background: #f4f7f9; }
+body { margin: 0; }
+* { box-sizing: border-box; }
+.app-shell { min-block-size: 100vh; }
+.app-nav-panel { flex: 0 0 auto; }
+.nav-drawer-toggle { display: block; margin-block-end: 1rem; }
+.app-shell > main { flex: 1 1 auto; min-inline-size: 0; inline-size: auto; }
+@media (min-width: 1280px) {
+    .app-shell { display: flex; align-items: flex-start; }
+    .app-shell > main { max-inline-size: 48rem; margin-inline: auto; }
+    .nav-drawer-toggle { display: none; }
+}
+@media (max-width: 1279.98px) {
+    .app-shell > main { max-inline-size: 48rem; margin-inline: auto; }
+}
+.sample-controls { border: 0; padding: 0; margin: 0; min-inline-size: 0; }
+.language-controls, .actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-block: 1rem; }
+button { font: inherit; padding-block: .6rem; padding-inline: 1rem; cursor: pointer; }
+button:disabled { cursor: wait; }
+textarea { font: inherit; min-inline-size: 0; max-inline-size: 100%; padding: .6rem; }
+:focus-visible { outline: 3px solid #185f91; outline-offset: 3px; }
+p, dd { overflow-wrap: anywhere; }
+.visually-hidden { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+main { max-inline-size: 48rem; margin-inline: auto; padding-block: 1.5rem; padding-inline: 1rem; }
+main { background: white; border-radius: .75rem; }
+a { color: #185f91; }
+.field { display: grid; gap: .5rem; margin-block-end: 1rem; }
+input, select { font: inherit; padding-block: .6rem; padding-inline: .75rem; border: 1px solid #587080; border-radius: .3rem; min-inline-size: 0; max-inline-size: 100%; }
+.validation-message { color: #a51a29; }
+dt { font-weight: bold; margin-block-start: 1rem; }
+dd { margin-inline-start: 0; margin-block-start: .4rem; }
+#blazor-error-ui { display: none; position: fixed; inset-block-end: 0; inset-inline: 0; padding: 1rem; background: #fff0d0; }
+.sample-surface { margin-block: 1.5rem; min-inline-size: 0; }
+.sample-surface table { inline-size: 100%; table-layout: fixed; border-collapse: collapse; }
+.sample-surface caption { text-align: start; font-weight: bold; padding-block: .5rem; }
+.sample-surface th, .sample-surface td { border: 1px solid #8798a3; padding: .5rem; text-align: start; overflow-wrap: anywhere; }
+.sample-surface td[data-sample-amount] { direction: ltr; unicode-bidi: plaintext; }
+.sample-surface h2, .sample-surface h3 { margin-block: .75rem; }

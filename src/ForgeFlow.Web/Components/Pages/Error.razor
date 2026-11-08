@@ -1,0 +1,6 @@
+@page "/error"
+@inject IStringLocalizer<SharedResources> Text
+<PageTitle>@Text["ErrorTitle"]</PageTitle>
+<h1>@Text["ErrorTitle"]</h1>
+<p role="alert">@Text["UnexpectedError"]</p>
+<a href="/">@Text["Reload"]</a>

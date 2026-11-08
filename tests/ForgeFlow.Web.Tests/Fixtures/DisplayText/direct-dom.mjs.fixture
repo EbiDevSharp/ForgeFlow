@@ -1,0 +1,2 @@
+element.textContent = 'Save';
+element.setAttribute('aria-label', 'Open settings');
