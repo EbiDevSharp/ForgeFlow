@@ -1,0 +1,69 @@
+{
+  "environment": "SmokeTest",
+  "browser": "Microsoft Edge 157.0.4341.42",
+  "cases": [
+    {
+      "width": 1440,
+      "languages": [
+        "fa-IR",
+        "en-US"
+      ],
+      "layout": {
+        "fa": {
+          "viewport": 1440,
+          "document": 1440,
+          "mainDirection": "rtl",
+          "dateDirection": "rtl"
+        },
+        "en": {
+          "viewport": 1440,
+          "document": 1440,
+          "mainDirection": "ltr",
+          "dateDirection": "ltr"
+        }
+      },
+      "cultureSwitchAndReload": "all fields and input cultures preserved",
+      "validation": "invalid Jalali date and localized numeric input retained; errors relocalized FA→EN→FA",
+      "canonicalSubmission": {
+        "date": "2025-03-21",
+        "amount": "1234.5",
+        "currency": "EUR",
+        "mode": "detailed"
+      },
+      "submitAndDiscardClear": "passed",
+      "olderVersionPolicy": "version 1 rejected and cleared"
+    },
+    {
+      "width": 320,
+      "languages": [
+        "fa-IR",
+        "en-US"
+      ],
+      "layout": {
+        "fa": {
+          "viewport": 320,
+          "document": 320,
+          "mainDirection": "rtl",
+          "dateDirection": "rtl"
+        },
+        "en": {
+          "viewport": 320,
+          "document": 320,
+          "mainDirection": "ltr",
+          "dateDirection": "ltr"
+        }
+      },
+      "cultureSwitchAndReload": "all fields and input cultures preserved",
+      "validation": "invalid Jalali date and localized numeric input retained; errors relocalized FA→EN→FA",
+      "canonicalSubmission": {
+        "date": "2025-03-21",
+        "amount": "1234.5",
+        "currency": "EUR",
+        "mode": "detailed"
+      },
+      "submitAndDiscardClear": "passed",
+      "olderVersionPolicy": "covered at 1440px"
+    }
+  ],
+  "failures": []
+}

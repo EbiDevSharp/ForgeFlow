@@ -1,0 +1,39 @@
+{
+  "browser": "Microsoft Edge 157.0.4341.42",
+  "checks": [
+    {
+      "culture": "fa-IR",
+      "direction": "rtl",
+      "width": 1440,
+      "nav": "localized",
+      "activeRoute": true
+    },
+    {
+      "culture": "en-US",
+      "direction": "ltr",
+      "width": 1440,
+      "nav": "localized",
+      "activeRoute": true
+    },
+    {
+      "culture": "fa-IR",
+      "direction": "rtl",
+      "width": 390,
+      "nav": "localized",
+      "activeRoute": true
+    },
+    {
+      "culture": "en-US",
+      "direction": "ltr",
+      "width": 390,
+      "nav": "localized",
+      "activeRoute": true
+    },
+    {
+      "cultureSwitch": "fa-IR to en-US",
+      "draftValuesAndLocalizedValidationPreserved": true,
+      "activeRoutePreserved": true
+    }
+  ],
+  "failures": []
+}

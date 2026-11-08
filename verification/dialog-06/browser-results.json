@@ -1,0 +1,59 @@
+{
+  "environment": "SmokeTest",
+  "checks": [
+    {
+      "culture": "fa-IR",
+      "width": 1440,
+      "layout": {
+        "dir": "rtl",
+        "left": 604.685302734375,
+        "right": 835.330322265625,
+        "scroll": 1440,
+        "width": 1440
+      },
+      "keyboard": "passed",
+      "closeAndFocusRestoration": "passed"
+    },
+    {
+      "culture": "fa-IR",
+      "width": 320,
+      "layout": {
+        "dir": "rtl",
+        "left": 44.6866455078125,
+        "right": 275.3289794921875,
+        "scroll": 320,
+        "width": 320
+      },
+      "keyboard": "passed",
+      "closeAndFocusRestoration": "passed"
+    },
+    {
+      "culture": "en-US",
+      "width": 1440,
+      "layout": {
+        "dir": "ltr",
+        "left": 556.953125,
+        "right": 883.0468139648438,
+        "scroll": 1440,
+        "width": 1440
+      },
+      "keyboard": "passed",
+      "closeAndFocusRestoration": "passed"
+    },
+    {
+      "culture": "en-US",
+      "width": 320,
+      "layout": {
+        "dir": "ltr",
+        "left": 0.7316131591796875,
+        "right": 319.2683563232422,
+        "scroll": 320,
+        "width": 320
+      },
+      "keyboard": "passed",
+      "closeAndFocusRestoration": "passed"
+    }
+  ],
+  "failures": [],
+  "browser": "157.0.4341.42"
+}
