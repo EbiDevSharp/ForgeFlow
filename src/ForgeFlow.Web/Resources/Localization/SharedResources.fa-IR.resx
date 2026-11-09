@@ -15,4 +15,20 @@
   <data name="Reload" xml:space="preserve"><value>بازگشت به نمونه</value></data>
   <data name="NotFoundTitle" xml:space="preserve"><value>صفحه پیدا نشد</value></data>
   <data name="NotFoundMessage" xml:space="preserve"><value>صفحهٔ درخواستی پیدا نشد.</value></data>
+  <data name="LoginTitle" xml:space="preserve"><value>ورود به ForgeFlow</value></data>
+  <data name="LoginIntroduction" xml:space="preserve"><value>برای ادامه به فضای کاری، با حساب خود وارد شوید.</value></data>
+  <data name="UsernameLabel" xml:space="preserve"><value>نام کاربری</value></data>
+  <data name="PasswordLabel" xml:space="preserve"><value>گذرواژه</value></data>
+  <data name="PasswordVisibilityToggle" xml:space="preserve"><value>نمایش یا پنهان‌کردن گذرواژه</value></data>
+  <data name="LoginSubmit" xml:space="preserve"><value>ورود</value></data>
+  <data name="LoginLoading" xml:space="preserve"><value>در حال ورود</value></data>
+  <data name="LoginRequired" xml:space="preserve"><value>نام کاربری و گذرواژه را وارد کنید.</value></data>
+  <data name="LoginUnavailable" xml:space="preserve"><value>ورود در دسترس نیست. صفحه را تازه‌سازی و دوباره تلاش کنید.</value></data>
+  <data name="LoginLanguageLabel" xml:space="preserve"><value>زبان</value></data>
+  <data name="LanguagePersian" xml:space="preserve"><value>فارسی</value></data>
+  <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
+  <data name="LoginLink" xml:space="preserve"><value>ورود</value></data>
+  <data name="AuthenticatedAs" xml:space="preserve"><value>واردشده با نام {0}</value></data>
+  <data name="Logout" xml:space="preserve"><value>خروج</value></data>
+  <data name="LogoutUnavailable" xml:space="preserve"><value>تأیید خروج ممکن نشد. برای تازه‌سازی نشست، صفحه را بارگذاری کنید.</value></data>
 </root>

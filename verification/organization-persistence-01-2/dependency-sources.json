@@ -1,0 +1,32 @@
+[
+  {
+    "id": "microsoft.entityframeworkcore.sqlserver",
+    "version": "10.0.14",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.sqlserver/10.0.14/microsoft.entityframeworkcore.sqlserver.10.0.14.nupkg",
+    "sha512": "0349dc611916b71ac26406ff7be28ce4a131c161947759a60052b2ed272a95ad9eaa85f0928e114bb84e438e245dad10905da3ef10b251f74a1bc5744e12fb40"
+  },
+  {
+    "id": "microsoft.entityframeworkcore.design",
+    "version": "10.0.14",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.design/10.0.14/microsoft.entityframeworkcore.design.10.0.14.nupkg",
+    "sha512": "61aa52beb7a9ad87fc1a18dcbf68ab65d7352428065efdb28a98fba8dd6dd28719866b59497ffd7e53769b957f82278cc20ee55fad148263cdfd74be963bed4f"
+  },
+  {
+    "id": "dotnet-ef",
+    "version": "10.0.14",
+    "source": "https://api.nuget.org/v3-flatcontainer/dotnet-ef/10.0.14/dotnet-ef.10.0.14.nupkg",
+    "sha512": "674a5e4d7b010a725edabd493905b7f6a21962cf708426b31bfb5136eb8871162bdad0a1f47733283b8156bc9e5f7f97f47adb05fcf6fa2aa5a2b1d701e11062"
+  },
+  {
+    "id": "microsoft.entityframeworkcore.relational",
+    "version": "10.0.14",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.entityframeworkcore.relational/10.0.14/microsoft.entityframeworkcore.relational.10.0.14.nupkg",
+    "sha512": "a33a241f8dd47ac05d372e7cb6a22c7667b04eaab32a3fd30e5a75d7e08c58f8776b6573d461b5810b90b58df396d5a5cbd4bde67e96272da488f6c44b4184d2"
+  },
+  {
+    "id": "microsoft.data.sqlclient",
+    "version": "6.1.7",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.data.sqlclient/6.1.7/microsoft.data.sqlclient.6.1.7.nupkg",
+    "sha512": "d1ca1206473af7e8c1aa1d7c3c367bf50628b81526d330db4ca388db79efb75c694a0db4f643ae854deb8540c63ad82d379216d7f7e5264928a1f83d8a8e0885"
+  }
+]

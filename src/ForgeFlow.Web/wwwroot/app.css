@@ -1,4 +1,58 @@
-:root { font-family: Tahoma, Arial, sans-serif; color: #182c3a; background: #f4f7f9; }
+@font-face {
+    font-family: Vazirmatn;
+    src: url("fonts/Vazirmatn.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+}
+:root { font-family: Vazirmatn, Tahoma, Arial, sans-serif; color: #182c3a; background: #f4f7f9; --bit-tpg-font-family: Vazirmatn, Tahoma, Arial, sans-serif; --bit-tpg-inherit-font-family: Vazirmatn, Tahoma, Arial, sans-serif; --bit-clr-pri: #14607f; --bit-TextField-radius: 8px; --bit-TextField-min-height: 48px; --bit-Button-radius: 8px; --bit-Button-min-height: 48px; }
+[hidden] { display: none !important; }
+/* Bit installs theme variables dynamically; keep typography consistent in portals too. */
+:root, [bit-theme], [bit-theme-overlay] {
+    --bit-tpg-font-family: Vazirmatn, Tahoma, Arial, sans-serif !important;
+    --bit-tpg-inherit-font-family: Vazirmatn, Tahoma, Arial, sans-serif !important;
+    --bit-clr-pri: #14607f !important;
+}
+:where(input, button, select, textarea, [role="menu"], [role="dialog"]) { font-family: var(--bit-tpg-font-family); }
+.auth-error { text-align: start; color: #a51a29; }
+.login-layout .login-field { --bit-TextField-radius: 8px; --bit-TextField-min-height: 48px; min-inline-size: 0; }
+.login-layout .login-field-wrapper,
+.login-layout .login-field-group,
+.login-layout .login-field-group::before,
+.login-layout .login-field-group::after { border-radius: 8px; }
+.login-layout .login-field-group { block-size: 48px; min-block-size: 48px; box-sizing: border-box; }
+.login-layout .login-field-input { block-size: 100%; min-block-size: 0; border: 0; border-radius: 8px; background: transparent; box-shadow: none; }
+.login-layout .login-field-reveal { block-size: 100%; min-block-size: 0; inline-size: 46px; padding: 0; border: 0; border-radius: 8px; background: transparent; }
+.login-layout .login-field-reveal::before,
+.login-layout .login-field-reveal::after { border-radius: inherit; }
+.login-layout .login-field-reveal:focus-visible { outline-offset: -4px; border-radius: 8px; }
+/* Pin physical and logical corners across Bit state classes and browser autofill. */
+.login-layout .login-field :is(.login-field-wrapper, .login-field-group, .login-field-input, .login-field-reveal),
+.login-layout .login-field :is(.login-field-wrapper, .login-field-group, .login-field-input, .login-field-reveal)::before,
+.login-layout .login-field :is(.login-field-wrapper, .login-field-group, .login-field-input, .login-field-reveal)::after {
+    border-radius: 8px !important;
+    border-start-start-radius: 8px !important;
+    border-start-end-radius: 8px !important;
+    border-end-start-radius: 8px !important;
+    border-end-end-radius: 8px !important;
+}
+.login-layout .login-field-group:focus-within { outline: 2px solid #14607f; outline-offset: 2px; }
+.login-layout .login-field-input:focus-visible { outline: none; }
+.login-layout .login-field-reveal:focus-visible { outline: 2px solid #14607f; outline-offset: -4px; }
+.login-layout .login-field-input:is(:autofill, :-webkit-autofill) { border-radius: 8px !important; }
+.login-layout { min-block-size: 100dvh; display: grid; place-items: center; padding: clamp(.75rem, 3vw, 2rem); background: #eff5f6; }
+.login-layout .auth-page { inline-size: 100%; min-block-size: 0; background: transparent; }
+.login-layout .auth-card { inline-size: min(100%, 30rem); padding: clamp(1.25rem, 4vw, 2.5rem); border-radius: 16px; }
+.login-layout .auth-submit { block-size: 48px; min-block-size: 48px; background: #14607f; border-radius: 8px; }
+.login-layout .auth-loading-indicator { inline-size: 1rem; block-size: 1rem; overflow: hidden; }
+.login-layout .auth-loading-indicator > * { max-inline-size: 1rem; max-block-size: 1rem; }
+.login-layout input { border-radius: 8px; min-block-size: 48px; }
+.login-layout .auth-error { padding: .75rem; border: 1px solid #f0b5b2; background: #fff0ef; color: #8f2027; border-radius: 8px; font-size: .9rem; line-height: 1.65; text-align: start; }
+.login-layout .auth-error > [data-auth-error-message] { color: inherit; background: transparent; }
+.login-layout .auth-language-options { gap: 0; border: 1px solid #b8cbd2; border-radius: .65rem; overflow: hidden; }
+.login-layout .auth-language-options button { border: 0; border-radius: 0; background: white; color: #243947; }
+.login-layout .auth-language-options [aria-pressed="true"] { background: #14607f; color: white; outline: none; }
+.login-layout .auth-language-options button:focus-visible { outline: 3px solid #153e50; outline-offset: -3px; }
 body { margin: 0; }
 * { box-sizing: border-box; }
 .app-shell { min-block-size: 100vh; }
@@ -19,6 +73,8 @@ button { font: inherit; padding-block: .6rem; padding-inline: 1rem; cursor: poin
 button:disabled { cursor: wait; }
 textarea { font: inherit; min-inline-size: 0; max-inline-size: 100%; padding: .6rem; }
 :focus-visible { outline: 3px solid #185f91; outline-offset: 3px; }
+/* FocusOnNavigate targets h1 and makes it programmatically focusable. */
+h1[tabindex="-1"]:focus { outline: none; }
 p, dd { overflow-wrap: anywhere; }
 .visually-hidden { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
 main { max-inline-size: 48rem; margin-inline: auto; padding-block: 1.5rem; padding-inline: 1rem; }
@@ -36,3 +92,62 @@ dd { margin-inline-start: 0; margin-block-start: .4rem; }
 .sample-surface th, .sample-surface td { border: 1px solid #8798a3; padding: .5rem; text-align: start; overflow-wrap: anywhere; }
 .sample-surface td[data-sample-amount] { direction: ltr; unicode-bidi: plaintext; }
 .sample-surface h2, .sample-surface h3 { margin-block: .75rem; }
+
+.auth-page {
+    display: grid;
+    place-items: center;
+    min-block-size: min(74vh, 48rem);
+    padding-block: clamp(1rem, 5vh, 3rem);
+    padding-inline: clamp(.25rem, 2vw, 1.25rem);
+    background: radial-gradient(ellipse at 50% 0%, #eaf3f8 0, #f7f9fb 56%, #fff 100%);
+    border-radius: 1rem;
+}
+.auth-card {
+    inline-size: min(100%, 29rem);
+    min-inline-size: 0;
+    padding: clamp(1.25rem, 5vw, 2.5rem);
+    border: 1px solid #e1e9ee;
+    border-radius: 1.25rem;
+    background: #fff;
+    box-shadow: 0 1.25rem 3.5rem rgb(24 44 58 / 12%);
+}
+.auth-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: .7rem;
+    color: #163b55;
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+.auth-brand-mark {
+    display: grid;
+    place-items: center;
+    inline-size: 2.4rem;
+    block-size: 2.4rem;
+    border-radius: .75rem;
+    background: #14607f;
+    color: white;
+    font-size: 1.2rem;
+}
+.auth-heading { margin-block: 2rem 1.5rem; }
+.auth-heading h1 { margin: 0; color: #172f40; font-size: clamp(1.45rem, 5vw, 1.9rem); line-height: 1.35; }
+.auth-heading p { margin-block: .65rem 0; color: #516775; line-height: 1.7; overflow-wrap: anywhere; }
+.auth-fields { display: grid; gap: 1.2rem; min-inline-size: 0; }
+.auth-submit { inline-size: 100%; min-block-size: 3rem; margin-block-start: 1.5rem; font-weight: 700; }
+.auth-loading-indicator { display: inline-flex; align-items: center; margin-inline-start: .5rem; }
+.auth-error { margin-block-start: 1rem; }
+.auth-language { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin-block-start: 1.75rem; padding-block-start: 1.25rem; border-block-start: 1px solid #e6ecef; color: #516775; }
+.auth-language-options { display: flex; flex-wrap: wrap; gap: .5rem; }
+.auth-language-options [aria-pressed="true"] { outline: 2px solid #176b87; outline-offset: 2px; }
+.auth-user-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin-block-end: 1rem; color: #405765; }
+.auth-user-bar form { margin: 0; }
+.auth-login-link { display: inline-block; margin-block-end: 1rem; }
+.auth-ui-notice { margin-block-end: 1rem; padding: .85rem 1rem; border-inline-start: .25rem solid #a51a29; border-radius: .35rem; background: #fff3f2; color: #7d1b24; line-height: 1.6; overflow-wrap: anywhere; }
+[data-authenticated-content][hidden], .auth-ui-notice[hidden] { display: none !important; }
+@media (max-width: 420px) {
+    .auth-page { padding-inline: 0; }
+    .auth-card { border-radius: .9rem; }
+    .auth-language { align-items: flex-start; flex-direction: column; }
+    .auth-user-bar { align-items: flex-start; flex-direction: column; }
+}

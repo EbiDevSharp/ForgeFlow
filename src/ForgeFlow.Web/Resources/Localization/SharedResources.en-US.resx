@@ -15,4 +15,20 @@
   <data name="Reload" xml:space="preserve"><value>Return to the sample</value></data>
   <data name="NotFoundTitle" xml:space="preserve"><value>Page not found</value></data>
   <data name="NotFoundMessage" xml:space="preserve"><value>The requested page could not be found.</value></data>
+  <data name="LoginTitle" xml:space="preserve"><value>Sign in to ForgeFlow</value></data>
+  <data name="LoginIntroduction" xml:space="preserve"><value>Use your account to continue to the workspace.</value></data>
+  <data name="UsernameLabel" xml:space="preserve"><value>Username</value></data>
+  <data name="PasswordLabel" xml:space="preserve"><value>Password</value></data>
+  <data name="PasswordVisibilityToggle" xml:space="preserve"><value>Show or hide password</value></data>
+  <data name="LoginSubmit" xml:space="preserve"><value>Sign in</value></data>
+  <data name="LoginLoading" xml:space="preserve"><value>Signing in</value></data>
+  <data name="LoginRequired" xml:space="preserve"><value>Enter your username and password.</value></data>
+  <data name="LoginUnavailable" xml:space="preserve"><value>Sign-in is unavailable. Reload this page and try again.</value></data>
+  <data name="LoginLanguageLabel" xml:space="preserve"><value>Language</value></data>
+  <data name="LanguagePersian" xml:space="preserve"><value>Persian</value></data>
+  <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
+  <data name="LoginLink" xml:space="preserve"><value>Sign in</value></data>
+  <data name="AuthenticatedAs" xml:space="preserve"><value>Signed in as {0}</value></data>
+  <data name="Logout" xml:space="preserve"><value>Sign out</value></data>
+  <data name="LogoutUnavailable" xml:space="preserve"><value>Sign-out could not be confirmed. Reload the page to refresh your session.</value></data>
 </root>

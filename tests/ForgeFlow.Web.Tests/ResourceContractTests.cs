@@ -38,7 +38,12 @@ public sealed class ResourceContractTests
         {
             ["Navigation"] = 0, ["SampleNavigation"] = 0, ["AppTitle"] = 0,
             ["OpenNavigation"] = 0, ["CloseNavigation"] = 0, ["CollapseNavigation"] = 0, ["ErrorTitle"] = 0,
-            ["UnexpectedError"] = 0, ["Reload"] = 0, ["NotFoundTitle"] = 0, ["NotFoundMessage"] = 0
+            ["UnexpectedError"] = 0, ["Reload"] = 0, ["NotFoundTitle"] = 0, ["NotFoundMessage"] = 0,
+            ["LoginTitle"] = 0, ["LoginIntroduction"] = 0, ["UsernameLabel"] = 0, ["PasswordLabel"] = 0,
+            ["PasswordVisibilityToggle"] = 0, ["LoginSubmit"] = 0, ["LoginLoading"] = 0,
+            ["LoginRequired"] = 0, ["LoginUnavailable"] = 0, ["LoginLanguageLabel"] = 0, ["LanguagePersian"] = 0,
+            ["LanguageEnglish"] = 0, ["LoginLink"] = 0, ["AuthenticatedAs"] = 1, ["Logout"] = 0,
+            ["LogoutUnavailable"] = 0
         }
     };
 

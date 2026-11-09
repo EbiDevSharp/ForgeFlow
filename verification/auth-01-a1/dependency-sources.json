@@ -1,0 +1,32 @@
+[
+  {
+    "id": "microsoft.aspnetcore.identity.entityframeworkcore",
+    "version": "10.0.14",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.aspnetcore.identity.entityframeworkcore/10.0.14/microsoft.aspnetcore.identity.entityframeworkcore.10.0.14.nupkg",
+    "sha512": "199da3b32d4bd39a94a6a2d2379ba8c681d49a5bac94f34b0e3fbc6a66d372ac749c2af0e3050eed98701ce541c42ed228d3621b1b4edc60f0d43e9f3677e8fd"
+  },
+  {
+    "id": "microsoft.extensions.identity.stores",
+    "version": "10.0.14",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.extensions.identity.stores/10.0.14/microsoft.extensions.identity.stores.10.0.14.nupkg",
+    "sha512": "edfc4d15cc7be9b711079db57c542111c1554e0f28d079bebe0272a6d34cdbbf83df7fb294607f2577c875b21facc890074b090891e69c34607fc63f7c63358c"
+  },
+  {
+    "id": "microsoft.extensions.identity.core",
+    "version": "10.0.14",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.extensions.identity.core/10.0.14/microsoft.extensions.identity.core.10.0.14.nupkg",
+    "sha512": "0916910cc827f563ebf2fb564c0da620b027a76f0c519a8628098adbd1370604bf83707eb15d1675bb1101ed4028e23f916a1de4a217546bd3d77b0eac958cc5"
+  },
+  {
+    "id": "microsoft.aspnetcore.cryptography.keyderivation",
+    "version": "10.0.14",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.aspnetcore.cryptography.keyderivation/10.0.14/microsoft.aspnetcore.cryptography.keyderivation.10.0.14.nupkg",
+    "sha512": "922afb187b75fd2a4e26187ae2d027e0398eef9dd4d4a1289dac204d434fd8563e36864dab46fefa4d228d3230c927cc09a26b47efe8ac599044b57a1f34c81b"
+  },
+  {
+    "id": "microsoft.aspnetcore.cryptography.internal",
+    "version": "10.0.14",
+    "source": "https://api.nuget.org/v3-flatcontainer/microsoft.aspnetcore.cryptography.internal/10.0.14/microsoft.aspnetcore.cryptography.internal.10.0.14.nupkg",
+    "sha512": "72b23db7ab6ad97116e2a52dc99acf0cde448f8d78bac107349515c6cd09ea915d71b3b8802f74baa0bf4fe91a139b22ec1b3a5a46e513605272fcbe30664010"
+  }
+]

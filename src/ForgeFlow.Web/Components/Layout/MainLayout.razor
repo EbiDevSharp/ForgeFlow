@@ -1,6 +1,12 @@
 @inherits LayoutComponentBase
+@implements IAsyncDisposable
 @inject IStringLocalizer<SharedResources> Text
+@inject AuthenticationStateProvider AuthProvider
+@inject Microsoft.JSInterop.IJSRuntime JS
+@inject NavigationManager Navigation
 
+<AuthorizeView Context="shellAuth">
+<Authorized>
 <div class="app-shell">
     <BitNavPanel TItem="BitNavItem"
                  Items="@NavigationItems"
@@ -20,6 +26,25 @@
                  id="primary-navigation"
                  Class="app-nav-panel" />
     <main id="main-content">
+        <div id="auth-ui-notice" class="auth-ui-notice" role="status" hidden></div>
+        <AuthorizeView>
+            <Authorized Context="auth">
+                <div class="auth-user-bar" data-authenticated-content>
+                    <span>@Text["AuthenticatedAs", new object[] { auth.User.Identity?.Name ?? string.Empty }]</span>
+                    <form action="/account/logout" method="post" data-auth-logout>
+                        <input type="hidden" name="returnUrl" value="/" />
+                        <input type="hidden" name="__RequestVerificationToken" value="" />
+                        <BitButton ButtonType="BitButtonType.Submit" data-auth-submit="true">@Text["Logout"]</BitButton>
+                    </form>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                @if (!IsLoginPage)
+                {
+                    <a class="auth-login-link" href="/account/login" data-enhance-nav="false">@Text["LoginLink"]</a>
+                }
+            </NotAuthorized>
+        </AuthorizeView>
         <button class="nav-drawer-toggle" type="button" aria-expanded="@drawerOpen.ToString().ToLowerInvariant()"
                 aria-controls="primary-navigation" @onclick="ToggleDrawer">
             @Text["OpenNavigation"]
@@ -28,8 +53,52 @@
     </main>
 </div>
 
+</Authorized>
+<NotAuthorized>
+    <AnonymousRedirect />
+</NotAuthorized>
+</AuthorizeView>
+
 @code {
     private bool drawerOpen;
+    private bool wasAuthenticated;
+    private Microsoft.JSInterop.IJSObjectReference? authUi;
+    private bool IsLoginPage => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0]
+        .TrimEnd('/').Equals("account/login", StringComparison.OrdinalIgnoreCase);
+
+    protected override void OnInitialized() => AuthProvider.AuthenticationStateChanged += AuthenticationStateChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        authUi = await JS.InvokeAsync<Microsoft.JSInterop.IJSObjectReference>("import", "./auth-ui.mjs");
+        var state = await AuthProvider.GetAuthenticationStateAsync();
+        wasAuthenticated = state.User.Identity?.IsAuthenticated == true;
+    }
+
+    private async void AuthenticationStateChanged(Task<AuthenticationState> stateTask)
+    {
+        try
+        {
+            var state = await stateTask;
+            var isAuthenticated = state.User.Identity?.IsAuthenticated == true;
+            if (wasAuthenticated && !isAuthenticated && authUi is not null)
+                await authUi.InvokeVoidAsync("clearDrafts");
+            wasAuthenticated = isAuthenticated;
+        }
+        catch (Microsoft.JSInterop.JSDisconnectedException) { }
+        catch (Microsoft.JSInterop.JSException) { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        AuthProvider.AuthenticationStateChanged -= AuthenticationStateChanged;
+        if (authUi is not null)
+        {
+            try { await authUi.DisposeAsync(); }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { }
+        }
+    }
 
     private IList<BitNavItem> NavigationItems =>
     [

@@ -7,6 +7,9 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../../src/ForgeFlow.Web/ForgeFlow.Web.csproj" />
+    <ProjectReference Include="../../tools/ForgeFlow.Bootstrap/ForgeFlow.Bootstrap.csproj" />
+    <ProjectReference Include="../../tools/ForgeFlow.LocalTestRecovery/ForgeFlow.LocalTestRecovery.csproj" />
+    <ProjectReference Include="../../tools/ForgeFlow.LocalTestAccount/ForgeFlow.LocalTestAccount.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />

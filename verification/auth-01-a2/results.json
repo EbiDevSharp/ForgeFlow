@@ -1,0 +1,51 @@
+{
+  "increment": "AUTH-01 A2",
+  "status": "IMPLEMENTED_SQL_AND_NATIVE_RECOVERY_DEFERRED",
+  "deferral": "User explicitly deferred remaining SQL and native interactive gates to integrated authentication/UI acceptance; never PASS",
+  "releaseBuild": {
+    "command": "dotnet build .\\ForgeFlow.slnx -c Release --no-restore -m:1",
+    "attribution": "Agent-executed",
+    "projects": 6,
+    "warnings": 0,
+    "errors": 0
+  },
+  "freshTests": {
+    "command": "dotnet test .\\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~AuthRecovery|FullyQualifiedName~AuthBootstrapTests|FullyQualifiedName~ResourceContractTests|FullyQualifiedName~DisplayText' --logger 'console;verbosity=normal'",
+    "attribution": "Agent-executed against fresh Release binaries",
+    "passed": 47,
+    "failed": 0,
+    "skippedSqlGroups": 7,
+    "newOfflineRecoveryCases": 8,
+    "sqlCasesWhenEnabled": 9
+  },
+  "sql": {
+    "status": "DEFERRED",
+    "reason": "FORGEFLOW_TEST_SQLSERVER is absent; no SQL connections or diagnosis attempted",
+    "manualCommand": "dotnet test .\\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~AuthRecoverySqlTests' --logger 'console;verbosity=normal'",
+    "requiredOutcome": "9 passed, 0 failed, 0 skipped",
+    "target": "Existing harness creates and drops only generated disposable databases; never the initialized A1 database"
+  },
+  "nativeRecovery": {
+    "status": "DEFERRED",
+    "command": "dotnet run --project .\\tools\\ForgeFlow.Bootstrap\\ForgeFlow.Bootstrap.csproj -c Release --no-build --no-restore -- reset-password",
+    "connectionVariable": "FORGEFLOW_RECOVERY_SQLSERVER",
+    "attestation": "RECOVER: owner verified out of band, operator supervises private input",
+    "expected": "Auth.PasswordResetCompleted and exit 0; password/confirmation hidden",
+    "target": "Separate disposable installation and synthetic account only; never recover the existing initialized account"
+  },
+  "behavior": [
+    "Dedicated host-only provisioning capability; excludes runtime roles and system database targets",
+    "Identity reset-token validation/hash/stamp rotation using process-only ephemeral Data Protection",
+    "Serializable target-user lock; password, all unrevoked subject sessions and required security events commit atomically",
+    "Account eligibility/lockout/membership/grants unchanged; no additional authority",
+    "No automatic replay; unknown commit resolved with same per-user operation ID and completion event",
+    "No new schema/migration/package versions or Web runtime registration"
+  ],
+  "limitations": [
+    "SQL persistence, rollback and concurrency assertions have not executed here",
+    "Real recovery hidden-input and operator controls require native manual verification",
+    "A3 session issuance must take the same target-user lock and recheck current stamp/eligibility",
+    "A1 user-executed evidence remains distinct; its initialized database was not accessed and cleanup remains unreported"
+  ],
+  "scope": "AUTH-01 and Slice 01 incomplete and unaccepted. UI is separate. No existing database operations, recovery invocation, or Git writes performed."
+}

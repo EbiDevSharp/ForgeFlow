@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="Auth.LoginRejected" xml:space="preserve"><value>ورود ناموفق بود. اطلاعات ورود را بررسی کنید یا با مسئول استقرار تماس بگیرید.</value></data>
+  <data name="Auth.SessionInvalid" xml:space="preserve"><value>نشست شما دیگر معتبر نیست. دوباره وارد شوید.</value></data>
+  <data name="Auth.AccessDenied" xml:space="preserve"><value>اجازهٔ انجام این عملیات را ندارید.</value></data>
+  <data name="Auth.ServiceUnavailable" xml:space="preserve"><value>سرویس ورود در دسترس نیست. بعداً دوباره تلاش کنید.</value></data>
+  <data name="Auth.LogoutRevocationIncomplete" xml:space="preserve"><value>از این مرورگر خارج شدید، اما لغو نشست در سرور تأیید نشد.</value></data>
+  <data name="Auth.RequestRejected" xml:space="preserve"><value>درخواست تأیید نشد. صفحه را دوباره بارگذاری و تلاش کنید.</value></data>
+  <data name="Auth.LoginThrottled" xml:space="preserve"><value>تعداد تلاش‌های ورود زیاد است. بعداً دوباره تلاش کنید.</value></data>
+</root>

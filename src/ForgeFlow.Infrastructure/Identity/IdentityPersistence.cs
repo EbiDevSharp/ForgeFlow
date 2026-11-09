@@ -1,0 +1,47 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+namespace ForgeFlow.Infrastructure.Identity;
+
+public static class IdentityPersistence
+{
+    // Host-only composition. Deliberately not called by Web's runtime registration.
+    public static IServiceCollection AddBootstrapIdentity(this IServiceCollection services, Action<DbContextOptionsBuilder> options)
+        => AddCore(services, options, isolatedHost: true);
+
+    public static IServiceCollection AddRuntimeIdentity(this IServiceCollection services, Action<DbContextOptionsBuilder> options)
+        => AddCore(services, options, isolatedHost: false);
+
+    private static IServiceCollection AddCore(IServiceCollection services, Action<DbContextOptionsBuilder> options, bool isolatedHost)
+    {
+        services.AddLogging(logging => { if (isolatedHost) logging.ClearProviders(); });
+        services.AddDbContext<AuthDbContext>(options);
+        services.AddIdentityCore<ApplicationAccount>(identity => {
+            identity.Stores.SchemaVersion = IdentitySchemaVersions.Version1;
+            identity.Password.RequiredLength = 12;
+            identity.Password.RequireDigit = false; identity.Password.RequireNonAlphanumeric = false;
+            identity.Password.RequireUppercase = false; identity.Password.RequireLowercase = false;
+            identity.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-@+";
+            identity.Lockout.MaxFailedAccessAttempts = 5;
+            identity.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+        }).AddEntityFrameworkStores<AuthDbContext>().AddPasswordValidator<BootstrapPasswordValidator>();
+        return services;
+    }
+}
+
+public sealed class BootstrapPasswordValidator : IPasswordValidator<ApplicationAccount>
+{
+    public Task<IdentityResult> ValidateAsync(UserManager<ApplicationAccount> manager, ApplicationAccount user, string? password)
+        => Task.FromResult(password is null || password.Length > 128
+            ? IdentityResult.Failed(new IdentityError { Code = "PasswordTooLong", Description = "" }) : IdentityResult.Success);
+}
+
+public sealed class AuthDesignTimeFactory : IDesignTimeDbContextFactory<AuthDbContext>
+{
+    public AuthDbContext CreateDbContext(string[] args) => new(new DbContextOptionsBuilder<AuthDbContext>()
+        .UseSqlServer("Server=invalid.invalid;Database=ForgeFlow_AuthDesignOnly;Integrated Security=true;Encrypt=true;Connect Timeout=1",
+            sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "auth")).Options);
+}

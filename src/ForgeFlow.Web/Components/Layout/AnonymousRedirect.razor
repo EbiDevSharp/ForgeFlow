@@ -1,0 +1,5 @@
+@inject NavigationManager Navigation
+
+@code {
+    protected override void OnInitialized() => Navigation.NavigateTo("/account/login?returnUrl=%2F", forceLoad: true, replace: true);
+}

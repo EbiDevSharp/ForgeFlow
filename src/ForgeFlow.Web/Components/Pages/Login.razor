@@ -1,0 +1,84 @@
+@page "/account/login"
+@layout ForgeFlow.Web.Components.Layout.LoginLayout
+@inject IStringLocalizer<SharedResources> Text
+@inject CulturePolicy Culture
+
+<PageTitle>@Text["LoginTitle"]</PageTitle>
+<section class="auth-page" aria-labelledby="login-title">
+    <div class="auth-card">
+        <a class="auth-brand" href="/" data-enhance-nav="false" aria-label="@Text["AppTitle"]">
+            <span class="auth-brand-mark" aria-hidden="true">F</span>
+            <span>@Text["AppTitle"]</span>
+        </a>
+        <div class="auth-heading">
+            <h1 id="login-title">@Text["LoginTitle"]</h1>
+            <p>@Text["LoginIntroduction"]</p>
+        </div>
+
+        <form id="auth-login-form" action="/account/sign-in" method="post" data-auth-login
+              data-required-message="@Text["LoginRequired"]" data-unavailable-message="@Text["LoginUnavailable"]" novalidate>
+            <input type="hidden" name="returnUrl" value="/" />
+            <input type="hidden" name="__RequestVerificationToken" value="" />
+            <div class="auth-fields">
+                <BitTextField Name="username" Type="BitInputType.Text" Label="@Text["UsernameLabel"]"
+                              Classes="@LoginFieldClasses"
+                              InputHtmlAttributes="@UsernameAttributes" />
+                <BitTextField Name="password" Type="BitInputType.Password" Label="@Text["PasswordLabel"]"
+                              Classes="@LoginFieldClasses"
+                              CanRevealPassword="true" RevealPasswordAriaLabel="@Text["PasswordVisibilityToggle"]"
+                              InputHtmlAttributes="@PasswordAttributes" />
+            </div>
+            <div id="login-error" class="auth-error" role="alert" hidden>
+                <span data-auth-error-message></span>
+            </div>
+            <BitButton ButtonType="BitButtonType.Submit" Color="BitColor.Primary" FullWidth="true"
+                       Class="auth-submit" data-auth-submit="true" LoadingLabel="@Text["LoginLoading"]">
+                <span data-auth-submit-label>@Text["LoginSubmit"]</span>
+                <span class="auth-loading-indicator" data-auth-loading hidden aria-hidden="true">
+                    <BitProgress Circular="true" Indeterminate="true" Label="@Text["LoginLoading"]" />
+                </span>
+            </BitButton>
+        </form>
+
+        <div class="auth-language" aria-label="@Text["LoginLanguageLabel"]">
+            <span>@Text["LoginLanguageLabel"]</span>
+            <div class="auth-language-options">
+                <BitButton ButtonType="BitButtonType.Button" data-auth-culture="fa-IR"
+                           aria-pressed="@(Culture.Language == CulturePolicy.Persian ? "true" : "false")">
+                    @Text["LanguagePersian"]
+                </BitButton>
+                <BitButton ButtonType="BitButtonType.Button" data-auth-culture="en-US"
+                           aria-pressed="@(Culture.Language == CulturePolicy.English ? "true" : "false")">
+                    @Text["LanguageEnglish"]
+                </BitButton>
+            </div>
+        </div>
+    </div>
+</section>
+
+@code {
+    private static readonly BitTextFieldClassStyles LoginFieldClasses = new()
+    {
+        Root = "login-field",
+        InputWrapper = "login-field-wrapper",
+        FieldGroup = "login-field-group",
+        Input = "login-field-input",
+        RevealPassword = "login-field-reveal"
+    };
+
+    private static readonly Dictionary<string, object> UsernameAttributes = new()
+    {
+        ["id"] = "login-username",
+        ["autocomplete"] = "username",
+        ["autocapitalize"] = "none",
+        ["spellcheck"] = "false",
+        ["aria-required"] = "true"
+    };
+
+    private static readonly Dictionary<string, object> PasswordAttributes = new()
+    {
+        ["id"] = "login-password",
+        ["autocomplete"] = "current-password",
+        ["aria-required"] = "true"
+    };
+}

@@ -1,0 +1,109 @@
+{
+  "environment": "SmokeTest HTTP, synthetic failure interception; no SQL/authentication proof",
+  "cases": [
+    {
+      "culture": "fa-IR",
+      "width": 1440,
+      "headingFonts": [
+        {
+          "familyName": "Vazirmatn",
+          "postScriptName": "Vazirmatn-Bold",
+          "isCustomFont": true,
+          "glyphCount": 17
+        }
+      ],
+      "fontLoaded": true,
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "keyboard focus",
+        "password reveal",
+        "synthetic invalid",
+        "CDP autofill state"
+      ],
+      "autofillPseudoMatched": true,
+      "syntheticPostAndFailure": true,
+      "noOverflow": true,
+      "pass": true
+    },
+    {
+      "culture": "fa-IR",
+      "width": 320,
+      "headingFonts": [
+        {
+          "familyName": "Vazirmatn",
+          "postScriptName": "Vazirmatn-Bold",
+          "isCustomFont": true,
+          "glyphCount": 17
+        }
+      ],
+      "fontLoaded": true,
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "keyboard focus",
+        "password reveal",
+        "synthetic invalid",
+        "CDP autofill state"
+      ],
+      "autofillPseudoMatched": true,
+      "syntheticPostAndFailure": true,
+      "noOverflow": true,
+      "pass": true
+    },
+    {
+      "culture": "en-US",
+      "width": 1440,
+      "headingFonts": [
+        {
+          "familyName": "Vazirmatn",
+          "postScriptName": "Vazirmatn-Bold",
+          "isCustomFont": true,
+          "glyphCount": 20
+        }
+      ],
+      "fontLoaded": true,
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "keyboard focus",
+        "password reveal",
+        "synthetic invalid",
+        "CDP autofill state"
+      ],
+      "autofillPseudoMatched": true,
+      "syntheticPostAndFailure": true,
+      "noOverflow": true,
+      "pass": true
+    },
+    {
+      "culture": "en-US",
+      "width": 320,
+      "headingFonts": [
+        {
+          "familyName": "Vazirmatn",
+          "postScriptName": "Vazirmatn-Bold",
+          "isCustomFont": true,
+          "glyphCount": 20
+        }
+      ],
+      "fontLoaded": true,
+      "states": [
+        "default",
+        "hover",
+        "focus",
+        "keyboard focus",
+        "password reveal",
+        "synthetic invalid",
+        "CDP autofill state"
+      ],
+      "autofillPseudoMatched": true,
+      "syntheticPostAndFailure": true,
+      "noOverflow": true,
+      "pass": true
+    }
+  ]
+}

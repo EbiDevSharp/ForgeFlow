@@ -1,0 +1,22 @@
+{
+  "increment": "01.2",
+  "status": "INCREMENT_01_2_VERIFIED_USER_REPORTED_SQL",
+  "migration": "20261108124505_OrganizationSitesBaseline",
+  "efVersion": "10.0.14",
+  "releaseBuild": { "projects": 5, "warnings": 0, "errors": 0, "output": "normal Release outputs" },
+  "freshTests": { "filter": "FullyQualifiedName~Organization", "agentExecuted": true, "passed": 42, "failed": 0, "skipped": 6 },
+  "offlineChecks": ["mapping metadata", "EF materialization and relationship fixup", "factory lifetime", "unattributed write guard", "snapshot consistency", "forward and rollback SQL generation"],
+  "sqlServer": {
+    "status": "PASS_USER_REPORTED",
+    "executedBy": "user in normal Windows PowerShell; not agent-executed",
+    "command": "dotnet test .\\tests\\ForgeFlow.Web.Tests\\ForgeFlow.Web.Tests.csproj -c Release --no-build --no-restore --filter \"FullyQualifiedName~OrganizationSqlServerTests\" --logger \"console;verbosity=normal\"",
+    "reportedResult": { "passed": 6, "failed": 0, "skipped": 0 },
+    "reportedCoverage": ["independent-context rowversion conflict and losing-write audit absence", "runtime-role deletion and audit-mutation restrictions", "fresh migration, rollback and reapplication on disposable database", "invalid codes, foreign keys and referenced deletion", "audit-failure rollback and Unicode audit values", "organization/site uniqueness scopes and inactive-code reservation"],
+    "connection": { "server": "localhost", "authentication": "Windows", "encrypt": true, "trustServerCertificate": true, "scope": "local test session only", "environmentVariableRemovedAfterward": true },
+    "productionTlsValidation": "not claimed",
+    "source": "User-reported result supported by output pasted in conversation; no output log was captured in the workspace.",
+    "agentRun": false
+  },
+  "remainingSlice01Acceptance": ["synchronized parent/site lifecycle races and secured use cases", "AUTH-01 integration", "authenticated bilingual management UI"],
+  "scopeNotes": "No EF InMemory/SQLite substituted, no automatic startup migration, no endpoints or authorization provider. User-reported SQL results are not agent-executed. Overall Slice 01 remains incomplete."
+}

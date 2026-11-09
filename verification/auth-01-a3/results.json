@@ -1,0 +1,59 @@
+{
+  "increment": "AUTH-01 A3",
+  "status": "BACKEND_IMPLEMENTED_INTEGRATED_ACCEPTANCE_DEFERRED",
+  "priorGates": {
+    "A1": "VERIFIED with original user-executed SQL/native attribution preserved",
+    "A2": "Remaining SQL/native verification explicitly DEFERRED by user to integrated authentication/UI acceptance, never PASS"
+  },
+  "releaseBuild": {
+    "command": "dotnet build .\\ForgeFlow.slnx -c Release --no-restore -m:1",
+    "attribution": "Agent-executed, fresh Release binaries",
+    "projects": 6,
+    "warnings": 0,
+    "errors": 0
+  },
+  "focusedTests": {
+    "command": "dotnet test .\\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~AuthBackendTests|FullyQualifiedName~AuthHttpTests|FullyQualifiedName~AuthBootstrapTests|FullyQualifiedName~AuthRecoveryTests|FullyQualifiedName~ResourceContractTests|FullyQualifiedName~DisplayText' --logger 'console;verbosity=minimal'",
+    "attribution": "Agent-executed against freshly built binaries",
+    "passed": 79,
+    "failed": 0,
+    "deferredTlsTestSkipped": 1,
+    "liveSqlExecuted": 0
+  },
+  "initialTlsAttempt": {
+    "status": "FAILED_ENVIRONMENT_NOT_PASS",
+    "test": "AuthHttpTests.Real_http_enforces_antiforgery_local_targets_cookie_security_and_outage_denial",
+    "error": "HttpRequestException -> AuthenticationException -> Win32Exception: No credentials are available in the security package, during Windows Schannel credential acquisition before HTTP assertions",
+    "initialRun": { "passed": 77, "failed": 1 },
+    "currentGate": "DEFERRED to normal-identity integrated acceptance; opt in with FORGEFLOW_AUTH_HTTP_TESTS=1",
+    "hostSecuritySettingsChanged": false,
+    "substituteEvidenceLimit": "In-process real antiforgery and cookie-removal checks do not close actual HTTPS/HTTP integration"
+  },
+  "preparedIntegration": {
+    "A2SqlCases": 9,
+    "A3ServiceSqlCases": 10,
+    "A3SqlHttpCases": 1,
+    "nonSqlTlsHttpCases": 1,
+    "totalPreparedCases": 21,
+    "status": "DEFERRED_NOT_EXECUTED",
+    "futureCommand": "dotnet test .\\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~AuthRecoverySqlTests|FullyQualifiedName~AuthSession|FullyQualifiedName~AuthHttpTests' --logger 'console;verbosity=normal'",
+    "requirements": "Normal Windows identity; privately supplied FORGEFLOW_TEST_SQLSERVER for the generated disposable-database harness; FORGEFLOW_AUTH_HTTP_TESTS=1; fresh Release build",
+    "expected": "21 executed, 21 passed, 0 failed, 0 skipped",
+    "remainingChecklist": "docs/slices/auth-01/test-plan.md; also includes native recovery, integrated races/circuit/browser, production deployment boundaries and A4 UI"
+  },
+  "backend": [
+    "Real Identity credential validation and lockout; SQL sessions and required security events in account-locked serializable operations",
+    "HTTP form antiforgery, local destination allowlist, nonpersistent secure host cookie and fixed eight-hour lifetime",
+    "Current DB user/session/stamp checks on HTTP cookies, each trusted actor/permission evaluation and server circuit revalidation",
+    "Exact organization/site ownership, active memberships and fixed roles; no claim-based authority or fake runtime principals",
+    "Current-session logout, stale-session invalidation and truthful local-cookie removal feedback on storage failure",
+    "English/Persian localized public authentication error resources; no raw Identity descriptions or credential logging"
+  ],
+  "uiConsumes": [
+    "POST /account/login: username, password, returnUrl and standard antiforgery form token",
+    "POST /account/logout: returnUrl and standard antiforgery form token",
+    "Redirect on success; localized code/message and status on error; current return destination allowlist is only /",
+    "Cascading AuthenticationStateProvider and existing OrganizationUseCases with trusted adapters"
+  ],
+  "scope": "UI/profile/culture identity-boundary drafts remain a separate task. No migrations/dependency upgrades, existing database access, bootstrap/recovery commands, or Git writes. AUTH-01 and Slice 01 remain incomplete and unaccepted. A1 database cleanup remains unreported."
+}

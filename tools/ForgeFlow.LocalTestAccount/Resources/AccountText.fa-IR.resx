@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader><resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader><resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="ExecutionRequired" xml:space="preserve"><value>اجرای صریح در پایانهٔ خصوصی و تعاملی محیط توسعه لازم است.</value></data>
+  <data name="Target" xml:space="preserve"><value>یک حساب آزمایشی جدید در localhost/testforgflow با مدیریت شرکتی فقط برای ORG1 موجود ساخته می‌شود. اختیار استقرار ندارد و حساب‌های موجود تغییر نمی‌کنند. فقط مسئول میزبان مجاز است ادامه دهد. پایانه را ضبط نکنید. استثنای گواهی SQL فقط محلی است.</value></data>
+  <data name="Consent" xml:space="preserve"><value>برای تأیید مقصد و مسئولیت، CREATE TEST ACCOUNT را وارد کنید: </value></data>
+  <data name="Cancelled" xml:space="preserve"><value>ساخت حساب پیش از دسترسی به پایگاه داده لغو شد.</value></data>
+  <data name="Operation" xml:space="preserve"><value>شناسهٔ عملیات ساخت را نگه دارید: {0}</value></data>
+  <data name="Result" xml:space="preserve"><value>نتیجهٔ ساخت حساب: {0}</value></data>
+  <data name="Verified" xml:space="preserve"><value>ثبت حساب فعال، اعتبار گذرواژه در Identity، عضویت ORG1، مجوز مدیریت شرکتی بدون اختیار استقرار و رویدادهای لازم تأیید شد.</value></data>
+  <data name="UserName" xml:space="preserve"><value>نام کاربری آزمایشی جدید: {0}</value></data>
+  <data name="Password" xml:space="preserve"><value>گذرواژهٔ موقت آزمایشی، فقط یک بار نمایش داده می‌شود: {0}</value></data>
+  <data name="Unconfirmed" xml:space="preserve"><value>تأیید ساخت کامل نشد و ممکن است ثبت شده باشد. اطلاعات ورود نمایش داده نمی‌شود. شناسهٔ {0} را نگه دارید و بدون بررسی تکرار نکنید.</value></data>
+  <data name="Failure" xml:space="preserve"><value>ساخت تأیید نشد. مرحله: {0}؛ عملیات: {1}؛ نوع خطا: {2}. اطلاعات ورود نمایش داده نمی‌شود. پیش از تکرار، وضعیت عملیات را بررسی کنید.</value></data>
+</root>

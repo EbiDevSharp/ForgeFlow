@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader><resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader><resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="ExecutionRequired" xml:space="preserve"><value>Explicit execution in a private, non-redirected Development terminal is required.</value></data>
+  <data name="Target" xml:space="preserve"><value>Create one NEW local test account in localhost/testforgflow, with company-only administrator access to existing ORG1. No deployment authority. Existing accounts are untouched. Only the responsible host operator may continue. Do not record this private terminal. The SQL certificate exception is local-only.</value></data>
+  <data name="Consent" xml:space="preserve"><value>Type CREATE TEST ACCOUNT to confirm the target and your operator responsibility: </value></data>
+  <data name="Cancelled" xml:space="preserve"><value>Account creation cancelled before database access.</value></data>
+  <data name="Operation" xml:space="preserve"><value>Keep this creation operation reference: {0}</value></data>
+  <data name="Result" xml:space="preserve"><value>Account creation result: {0}</value></data>
+  <data name="Verified" xml:space="preserve"><value>Committed account verified: active, Identity password valid, ORG1 membership and company administrator grant present, no deployment grant, required audit present.</value></data>
+  <data name="UserName" xml:space="preserve"><value>New local test username: {0}</value></data>
+  <data name="Password" xml:space="preserve"><value>Temporary test password (displayed once): {0}</value></data>
+  <data name="Unconfirmed" xml:space="preserve"><value>Creation verification failed. It may have committed. Credentials are not displayed. Retain operation {0}; do not blindly repeat.</value></data>
+  <data name="Failure" xml:space="preserve"><value>Creation is not confirmed. Stage: {0}; operation: {1}; exception type: {2}. No credentials are disclosed. Resolve the operation before retrying.</value></data>
+</root>

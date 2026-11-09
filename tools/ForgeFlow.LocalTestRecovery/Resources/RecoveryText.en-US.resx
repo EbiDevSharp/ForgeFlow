@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="ExecutionRequired" xml:space="preserve"><value>Explicit execution in a non-redirected private Development terminal is required.</value></data>
+  <data name="Target" xml:space="preserve"><value>Local test recovery only: localhost / testforgflow / ebrahim. Only the responsible host operator may continue. Verify the account owner and target. Do not record or transcribe this private terminal. The SQL certificate exception is local-only.</value></data>
+  <data name="Consent" xml:space="preserve"><value>Type RECOVER to attest your operator responsibility and owner verification: </value></data>
+  <data name="Cancelled" xml:space="preserve"><value>Recovery cancelled before database access.</value></data>
+  <data name="PreviousCommitted" xml:space="preserve"><value>Prior operation {0} has a committed A2 completion. A newly authorized reset will use a fresh operation.</value></data>
+  <data name="PreviousNotCommitted" xml:space="preserve"><value>Prior operation {0} has no committed A2 completion after acquiring the account lock.</value></data>
+  <data name="Operation" xml:space="preserve"><value>Keep this new operation reference: {0}</value></data>
+  <data name="Result" xml:space="preserve"><value>Recovery result: {0}</value></data>
+  <data name="Verified" xml:space="preserve"><value>Recovery verified: completion audit, security-stamp rotation, prior-session revocation and password validation passed. Permissions and eligibility are unchanged.</value></data>
+  <data name="TemporaryPassword" xml:space="preserve"><value>Temporary test password (displayed once): {0}</value></data>
+  <data name="Unconfirmed" xml:space="preserve"><value>Recovery verification did not complete. It may have committed. No password is displayed. Retain operation {0}; do not blindly retry.</value></data>
+  <data name="Failure" xml:space="preserve"><value>Recovery is not confirmed. Stage: {0}; operation: {1}; exception type: {2}. No password is displayed. Resolve the operation before retrying.</value></data>
+</root>

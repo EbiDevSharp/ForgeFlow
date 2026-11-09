@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="ExecutionRequired" xml:space="preserve"><value>اجرای صریح در پایانهٔ خصوصی و تعاملی محیط توسعه لازم است.</value></data>
+  <data name="Target" xml:space="preserve"><value>بازیابی فقط برای آزمون محلی: localhost / testforgflow / ebrahim. فقط مسئول میزبان مجاز است ادامه دهد. مالک حساب و مقصد را تأیید کنید. خروجی پایانهٔ خصوصی را ضبط نکنید. استثنای گواهی SQL فقط محلی است.</value></data>
+  <data name="Consent" xml:space="preserve"><value>برای تأیید مسئولیت و شناسایی مالک، RECOVER را وارد کنید: </value></data>
+  <data name="Cancelled" xml:space="preserve"><value>بازیابی پیش از دسترسی به پایگاه داده لغو شد.</value></data>
+  <data name="PreviousCommitted" xml:space="preserve"><value>عملیات پیشین {0} دارای ثبت موفق A2 است. بازنشانی تازهٔ مجاز با شناسه‌ای جدید انجام می‌شود.</value></data>
+  <data name="PreviousNotCommitted" xml:space="preserve"><value>پس از دریافت قفل حساب، عملیات پیشین {0} ثبت موفق A2 ندارد.</value></data>
+  <data name="Operation" xml:space="preserve"><value>شناسهٔ عملیات جدید را نگه دارید: {0}</value></data>
+  <data name="Result" xml:space="preserve"><value>نتیجهٔ بازیابی: {0}</value></data>
+  <data name="Verified" xml:space="preserve"><value>ثبت رویداد تکمیل، تغییر نشان امنیتی، لغو نشست‌های پیشین و اعتبار گذرواژه تأیید شد. مجوزها و وضعیت دسترسی تغییر نکرده‌اند.</value></data>
+  <data name="TemporaryPassword" xml:space="preserve"><value>گذرواژهٔ موقت آزمایشی، فقط یک بار نمایش داده می‌شود: {0}</value></data>
+  <data name="Unconfirmed" xml:space="preserve"><value>تأیید بازیابی کامل نشد و ممکن است عملیات ثبت شده باشد. گذرواژه نمایش داده نمی‌شود. شناسهٔ {0} را نگه دارید و بدون بررسی تکرار نکنید.</value></data>
+  <data name="Failure" xml:space="preserve"><value>بازیابی تأیید نشد. مرحله: {0}؛ عملیات: {1}؛ نوع خطا: {2}. گذرواژه نمایش داده نمی‌شود. پیش از تکرار، وضعیت عملیات را بررسی کنید.</value></data>
+</root>

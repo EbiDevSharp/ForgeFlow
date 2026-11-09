@@ -1,0 +1,49 @@
+{
+  "increment": "AUTH-01 A1",
+  "status": "VERIFIED_USER_EXECUTED",
+  "migration": "20261108150853_IdentityBootstrapBaseline",
+  "newDependency": "Microsoft.AspNetCore.Identity.EntityFrameworkCore 10.0.14",
+  "releaseBuild": { "projects": 6, "warnings": 0, "errors": 0, "command": "dotnet build .\\ForgeFlow.slnx -c Release --no-restore -m:1" },
+  "freshTests": {
+    "command": "dotnet test .\\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~ForgeFlow.Web.Tests.AuthBootstrapTests' --logger 'console;verbosity=normal'",
+    "passed": 16,
+    "failed": 0,
+    "skipped": 0,
+    "sqlCasesSelected": 0,
+    "sqlCasesWhenEnabled": 13
+  },
+  "initialAgentTestsBeforeCorrection": { "passed": 11, "failed": 0, "skippedSqlGroups": 6 },
+  "userExecutedSqlBeforeCorrection": {
+    "executed": 13,
+    "passed": 12,
+    "failed": 1,
+    "skipped": 0,
+    "failure": "Every_required_stage_rolls_back_identity_business_grants_history_and_completion(stage: business-audit): no exception thrown",
+    "attribution": "User-reported normal Windows PowerShell execution; not agent-executed"
+  },
+  "faultInjectionCorrection": {
+    "cause": "Business-audit matching omitted MERGE for batched OrganizationChange inserts; only SecurityEvent previously recognized MERGE.",
+    "productionCodeChanged": false,
+    "assertions": ["exact target INSERT/MERGE matching", "one sentinel hit", "same sentinel in propagated exception chain", "all Identity/business/grant/history rows empty", "all completion fields null with Pending state"],
+    "nonSqlRegressionCasesPassed": 5,
+    "sqlRerunAfterCorrection": "PASS_USER_EXECUTED; see userExecutedSqlAfterCorrection"
+  },
+  "offlineEvidence": ["ten auth tables with business exclusions", "migration/snapshot consistency", "Identity validators/normalizer/hasher", "Domain code/name validation delegation", "explicit operator consent", "English/Persian host resources", "forward and guarded rollback SQL generation"],
+  "cliGuard": { "command": "dotnet run --project .\\tools\\ForgeFlow.Bootstrap\\ForgeFlow.Bootstrap.csproj -c Release --no-build --no-restore -- initialize-deployment", "observedOutput": "An interactive private terminal is required.", "observedExitCode": 1, "initializedDatabase": false },
+  "agentSqlExecution": { "status": "NOT_RUN", "reason": "No opted-in SQL connection was configured in the agent environment; no database was modified by the agent." },
+  "userExecutedSqlAfterCorrection": { "suite": "AuthBootstrapSqlTests", "executed": 13, "passed": 13, "failed": 0, "skipped": 0, "attribution": "User-reported normal Windows PowerShell result; not agent-executed; tests not rerun during receipt reconciliation" },
+  "nativeInteractiveHiddenInput": {
+    "status": "PASS_USER_EXECUTED",
+    "command": "dotnet run --project .\\tools\\ForgeFlow.Bootstrap\\ForgeFlow.Bootstrap.csproj -c Release --no-build --no-restore -- initialize-deployment",
+    "operatorConfirmed": "INITIALIZE",
+    "operationId": "Generated automatically",
+    "passwordAndConfirmation": "Entered with hidden input; not recorded",
+    "result": "Auth.Initialized",
+    "exitCode": 0,
+    "connectionVariable": "FORGEFLOW_BOOTSTRAP_SQLSERVER removed afterward",
+    "attribution": "User-reported normal Windows PowerShell execution; not agent-executed",
+    "earlierUnsuccessfulAttempt": "User-reported earlier interactive attempt retained for traceability; details do not establish its cause. Distinct from the agent's known noninteractive guard refusal.",
+    "databaseCleanup": "Not reported; no database operation performed during documentation update"
+  },
+  "scope": "A1 VERIFIED from separate USER-EXECUTED SQL and native interactive evidence plus agent build/non-SQL checks. A2 supervised recovery/session workflow is the next bounded planned backend increment and requires separate authorization. UI work remains separate. AUTH-01 and Slice 01 remain incomplete and unaccepted. No tests rerun, application changes, database operations, or Git writes were performed for this update."
+}
