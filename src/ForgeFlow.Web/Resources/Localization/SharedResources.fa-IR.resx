@@ -685,7 +685,7 @@
     <value>ممیزی و رویدادها</value>
   </data>
   <data name="AuditCaption" xml:space="preserve">
-    <value>سوابق رویدادهای ممیزی و امنیتی</value>
+    <value>سوابق تغییرات کسب‌وکار، رویدادهای امنیتی، خروجی‌ها و عملیات ردشده</value>
   </data>
   <data name="AuditCategoryLabel" xml:space="preserve">
     <value>دسته‌بندی</value>
@@ -1941,4 +1941,229 @@
   <data name="RptExportSuccessNotice" xml:space="preserve">
     <value>فایل گزارش CSV آماده و ذخیره شد.</value>
   </data>
+  <data name="ErrorReferenceLabel" xml:space="preserve">
+    <value>شناسه پیگیری خطا</value>
+  </data>
+  <data name="ErrorCorrelationLabel" xml:space="preserve">
+    <value>شناسه همبستگی</value>
+  </data>
+  <data name="PermPageDiagnostics" xml:space="preserve">
+    <value>لاگ خطاهای سیستم</value>
+  </data>
+  <data name="PermOpExportAudit" xml:space="preserve">
+    <value>خروجی CSV ممیزی</value>
+  </data>
+  <data name="PermOpReadErrorLogs" xml:space="preserve">
+    <value>مشاهده لاگ خطاها</value>
+  </data>
+  <data name="PermOpManageErrorLogs" xml:space="preserve">
+    <value>پاک‌سازی لاگ خطاهای قدیمی</value>
+  </data>
+  <data name="DiagErrorRetentionInvalid" xml:space="preserve">
+    <value>بازه نگهداری باید بین ۷ تا ۳۶۵۰ روز باشد.</value>
+  </data>
+  <data name="AuditCategoryOperations" xml:space="preserve">
+    <value>خروجی‌ها و عملیات ردشده</value>
+  </data>
+  <data name="AuditActorFilterLabel" xml:space="preserve">
+    <value>کاربر</value>
+  </data>
+  <data name="AuditAllActorsOption" xml:space="preserve">
+    <value>همه کاربران</value>
+  </data>
+  <data name="AuditOutcomeFilterLabel" xml:space="preserve">
+    <value>نتیجه</value>
+  </data>
+  <data name="AuditFromDateLabel" xml:space="preserve">
+    <value>از تاریخ</value>
+  </data>
+  <data name="AuditToDateLabel" xml:space="preserve">
+    <value>تا تاریخ</value>
+  </data>
+  <data name="AuditExportCsvBtn" xml:space="preserve">
+    <value>خروجی CSV</value>
+  </data>
+  <data name="AuditExportFileName" xml:space="preserve">
+    <value>audit-operations-log</value>
+  </data>
+  <data name="AuditExportSuccessNotice" xml:space="preserve">
+    <value>فایل CSV لاگ عملیات ذخیره شد.</value>
+  </data>
+  <data name="AuditColSite" xml:space="preserve">
+    <value>سایت</value>
+  </data>
+  <data name="AuditColCorrelation" xml:space="preserve">
+    <value>شناسه همبستگی</value>
+  </data>
+  <data name="ErrorLogs" xml:space="preserve">
+    <value>لاگ خطاها</value>
+  </data>
+  <data name="ErrorLogsCaption" xml:space="preserve">
+    <value>ثبت خطاهای زمان اجرا، HTTP، مدار Blazor و زیرساخت SQL پس از پاک‌سازی محرمانه‌ها.</value>
+  </data>
+  <data name="ErrorLogsKpi24h" xml:space="preserve">
+    <value>خطاهای ۲۴ ساعت اخیر</value>
+  </data>
+  <data name="ErrorLogsKpiCritical" xml:space="preserve">
+    <value>بحرانی (۲۴ ساعت)</value>
+  </data>
+  <data name="ErrorLogsKpiSql" xml:space="preserve">
+    <value>خطاهای SQL (۲۴ ساعت)</value>
+  </data>
+  <data name="ErrorLogsKpiPipeline" xml:space="preserve">
+    <value>خطای HTTP / Circuit</value>
+  </data>
+  <data name="ErrorLogsSeverityLabel" xml:space="preserve">
+    <value>شدت خطا</value>
+  </data>
+  <data name="ErrorLogsSourceLabel" xml:space="preserve">
+    <value>منبع</value>
+  </data>
+  <data name="ErrorLogsRefColumn" xml:space="preserve">
+    <value>کد پیگیری</value>
+  </data>
+  <data name="ErrorLogsTypeColumn" xml:space="preserve">
+    <value>نوع خطا</value>
+  </data>
+  <data name="ErrorLogsMessageColumn" xml:space="preserve">
+    <value>پیام پاک‌سازی‌شده</value>
+  </data>
+  <data name="ErrorLogsSqlColumn" xml:space="preserve">
+    <value>کد خطای SQL</value>
+  </data>
+  <data name="ErrorLogsPathColumn" xml:space="preserve">
+    <value>مسیر درخواست</value>
+  </data>
+  <data name="ErrorLogsDetailsTitle" xml:space="preserve">
+    <value>جزئیات خطای ثبت‌شده</value>
+  </data>
+  <data name="ErrorLogsStackTraceLabel" xml:space="preserve">
+    <value>رد پشته پاک‌سازی‌شده</value>
+  </data>
+  <data name="ErrorLogsUserAgentLabel" xml:space="preserve">
+    <value>مرورگر / کلاینت</value>
+  </data>
+  <data name="ErrorLogsSevWarning" xml:space="preserve">
+    <value>هشدار</value>
+  </data>
+  <data name="ErrorLogsSevError" xml:space="preserve">
+    <value>خطا</value>
+  </data>
+  <data name="ErrorLogsSevCritical" xml:space="preserve">
+    <value>بحرانی</value>
+  </data>
+  <data name="ErrorLogsSrcHttp" xml:space="preserve">
+    <value>درخواست HTTP</value>
+  </data>
+  <data name="ErrorLogsSrcCircuit" xml:space="preserve">
+    <value>مدار Blazor</value>
+  </data>
+  <data name="ErrorLogsSrcComponent" xml:space="preserve">
+    <value>کامپوننت UI</value>
+  </data>
+  <data name="ErrorLogsSrcStore" xml:space="preserve">
+    <value>پایگاه‌داده SQL</value>
+  </data>
+  <data name="ErrorLogsSrcHost" xml:space="preserve">
+    <value>میزبان</value>
+  </data>
+  <data name="ErrorLogsPurgeBtn" xml:space="preserve">
+    <value>پاک‌سازی خطاهای قدیمی</value>
+  </data>
+  <data name="ErrorLogsPurgeDaysLabel" xml:space="preserve">
+    <value>بازه نگهداری (روز)</value>
+  </data>
+  <data name="ErrorLogsPurgeSuccess" xml:space="preserve">
+    <value>{0} رکورد خطای قدیمی پاک‌سازی شد.</value>
+  </data>
+  <data name="AuditEv_OrganizationCreated" xml:space="preserve"><value>ایجاد سازمان</value></data>
+  <data name="AuditEv_OrganizationRenamed" xml:space="preserve"><value>تغییر نام سازمان</value></data>
+  <data name="AuditEv_OrganizationActivated" xml:space="preserve"><value>فعال‌سازی سازمان</value></data>
+  <data name="AuditEv_OrganizationDeactivated" xml:space="preserve"><value>غیرفعال‌سازی سازمان</value></data>
+  <data name="AuditEv_SiteCreated" xml:space="preserve"><value>ایجاد سایت</value></data>
+  <data name="AuditEv_SiteRenamed" xml:space="preserve"><value>تغییر نام سایت</value></data>
+  <data name="AuditEv_SiteActivated" xml:space="preserve"><value>فعال‌سازی سایت</value></data>
+  <data name="AuditEv_SiteDeactivated" xml:space="preserve"><value>غیرفعال‌سازی سایت</value></data>
+  <data name="AuditEv_UnitCreated" xml:space="preserve"><value>ایجاد واحد سنجش</value></data>
+  <data name="AuditEv_UnitUpdated" xml:space="preserve"><value>ویرایش واحد سنجش</value></data>
+  <data name="AuditEv_UnitActivated" xml:space="preserve"><value>فعال‌سازی واحد سنجش</value></data>
+  <data name="AuditEv_UnitDeactivated" xml:space="preserve"><value>غیرفعال‌سازی واحد سنجش</value></data>
+  <data name="AuditEv_UnitConversionCreated" xml:space="preserve"><value>ایجاد ضریب تبدیل واحد</value></data>
+  <data name="AuditEv_UnitConversionUpdated" xml:space="preserve"><value>ویرایش ضریب تبدیل واحد</value></data>
+  <data name="AuditEv_UnitConversionActivated" xml:space="preserve"><value>فعال‌سازی ضریب تبدیل واحد</value></data>
+  <data name="AuditEv_UnitConversionDeactivated" xml:space="preserve"><value>غیرفعال‌سازی ضریب تبدیل واحد</value></data>
+  <data name="AuditEv_ItemCreated" xml:space="preserve"><value>ایجاد کالا</value></data>
+  <data name="AuditEv_ItemUpdated" xml:space="preserve"><value>ویرایش کالا</value></data>
+  <data name="AuditEv_ItemActivated" xml:space="preserve"><value>فعال‌سازی کالا</value></data>
+  <data name="AuditEv_ItemDeactivated" xml:space="preserve"><value>غیرفعال‌سازی کالا</value></data>
+  <data name="AuditEv_ClassificationSetCreated" xml:space="preserve"><value>ایجاد مجموعه طبقه‌بندی</value></data>
+  <data name="AuditEv_ClassificationCreated" xml:space="preserve"><value>ایجاد رده طبقه‌بندی</value></data>
+  <data name="AuditEv_ClassificationUpdated" xml:space="preserve"><value>ویرایش رده طبقه‌بندی</value></data>
+  <data name="AuditEv_ClassificationActivated" xml:space="preserve"><value>فعال‌سازی رده طبقه‌بندی</value></data>
+  <data name="AuditEv_ClassificationDeactivated" xml:space="preserve"><value>غیرفعال‌سازی رده طبقه‌بندی</value></data>
+  <data name="AuditEv_ItemClassificationUpdated" xml:space="preserve"><value>تغییر طبقه‌بندی کالا</value></data>
+  <data name="AuditEv_ItemUnitConversionCreated" xml:space="preserve"><value>ایجاد تبدیل واحد اختصاصی کالا</value></data>
+  <data name="AuditEv_ItemUnitConversionUpdated" xml:space="preserve"><value>ویرایش تبدیل واحد اختصاصی کالا</value></data>
+  <data name="AuditEv_ItemUnitConversionActivated" xml:space="preserve"><value>فعال‌سازی تبدیل واحد کالا</value></data>
+  <data name="AuditEv_ItemUnitConversionDeactivated" xml:space="preserve"><value>غیرفعال‌سازی تبدیل واحد کالا</value></data>
+  <data name="AuditEv_AttributeDefinitionCreated" xml:space="preserve"><value>ایجاد تعریف ویژگی</value></data>
+  <data name="AuditEv_AttributeDefinitionUpdated" xml:space="preserve"><value>ویرایش تعریف ویژگی</value></data>
+  <data name="AuditEv_AttributeDefinitionActivated" xml:space="preserve"><value>فعال‌سازی تعریف ویژگی</value></data>
+  <data name="AuditEv_AttributeDefinitionDeactivated" xml:space="preserve"><value>غیرفعال‌سازی تعریف ویژگی</value></data>
+  <data name="AuditEv_ItemAttributeValueUpdated" xml:space="preserve"><value>ویرایش مقدار ویژگی کالا</value></data>
+  <data name="AuditEv_ContextDimensionCreated" xml:space="preserve"><value>ایجاد بُعد زمینه تولید</value></data>
+  <data name="AuditEv_ContextDimensionUpdated" xml:space="preserve"><value>ویرایش بُعد زمینه تولید</value></data>
+  <data name="AuditEv_ContextDimensionActivated" xml:space="preserve"><value>فعال‌سازی بُعد زمینه تولید</value></data>
+  <data name="AuditEv_ContextDimensionDeactivated" xml:space="preserve"><value>غیرفعال‌سازی بُعد زمینه تولید</value></data>
+  <data name="AuditEv_BomCreated" xml:space="preserve"><value>ایجاد ساختار محصول (BOM)</value></data>
+  <data name="AuditEv_BomRenamed" xml:space="preserve"><value>تغییر نام ساختار محصول</value></data>
+  <data name="AuditEv_BomActivated" xml:space="preserve"><value>فعال‌سازی ساختار محصول</value></data>
+  <data name="AuditEv_BomDeactivated" xml:space="preserve"><value>غیرفعال‌سازی ساختار محصول</value></data>
+  <data name="AuditEv_BomVersionCreated" xml:space="preserve"><value>ایجاد نسخه BOM</value></data>
+  <data name="AuditEv_BomVersionUpdated" xml:space="preserve"><value>ویرایش نسخه BOM</value></data>
+  <data name="AuditEv_BomVersionStatusChanged" xml:space="preserve"><value>تغییر وضعیت نسخه BOM</value></data>
+  <data name="AuditEv_BomVersionLinesSaved" xml:space="preserve"><value>ذخیره اقلام نسخه BOM</value></data>
+  <data name="AuditEv_BomVersionApplicabilitySaved" xml:space="preserve"><value>ذخیره شرایط کاربرد BOM</value></data>
+  <data name="AuditEv_ProductionOrderCreated" xml:space="preserve"><value>ایجاد سفارش تولید</value></data>
+  <data name="AuditEv_ProductionOrderUpdated" xml:space="preserve"><value>ویرایش / ثبت مقادیر سفارش تولید</value></data>
+  <data name="AuditEv_ProductionOrderRefreshed" xml:space="preserve"><value>بروزرسانی رونوشت BOM سفارش</value></data>
+  <data name="AuditEv_ProductionOrderReleased" xml:space="preserve"><value>ابلاغ سفارش تولید</value></data>
+  <data name="AuditEv_ProductionOrderStarted" xml:space="preserve"><value>شروع اجرای سفارش تولید</value></data>
+  <data name="AuditEv_ProductionOrderCompleted" xml:space="preserve"><value>تکمیل سفارش تولید</value></data>
+  <data name="AuditEv_ProductionOrderCancelled" xml:space="preserve"><value>لغو سفارش تولید</value></data>
+  <data name="AuditEv_WarehouseCreated" xml:space="preserve"><value>ایجاد انبار</value></data>
+  <data name="AuditEv_WarehouseUpdated" xml:space="preserve"><value>ویرایش انبار</value></data>
+  <data name="AuditEv_WarehouseActivated" xml:space="preserve"><value>فعال‌سازی انبار</value></data>
+  <data name="AuditEv_WarehouseDeactivated" xml:space="preserve"><value>غیرفعال‌سازی انبار</value></data>
+  <data name="AuditEv_InventoryTransactionPosted" xml:space="preserve"><value>ثبت سند گردش انبار</value></data>
+  <data name="AuditEv_InventoryTransactionReversed" xml:space="preserve"><value>برگشت سند انبار</value></data>
+  <data name="AuditEv_BootstrapCompleted" xml:space="preserve"><value>راه‌اندازی اولیه پلتفرم</value></data>
+  <data name="AuditEv_AccountCreated" xml:space="preserve"><value>ایجاد حساب کاربری</value></data>
+  <data name="AuditEv_SignInFailed" xml:space="preserve"><value>ورود ناموفق</value></data>
+  <data name="AuditEv_AccountLocked" xml:space="preserve"><value>قفل‌شدن حساب کاربری</value></data>
+  <data name="AuditEv_SessionIssued" xml:space="preserve"><value>ورود موفق (صدور نشست)</value></data>
+  <data name="AuditEv_SessionRevoked" xml:space="preserve"><value>خروج / ابطال نشست</value></data>
+  <data name="AuditEv_AccessDenied" xml:space="preserve"><value>عدم مجوز دسترسی</value></data>
+  <data name="AuditEv_PasswordResetCompleted" xml:space="preserve"><value>تغییر یا بازنشانی رمز عبور</value></data>
+  <data name="AuditEv_AccountEligibilityChanged" xml:space="preserve"><value>تغییر وضعیت فعال‌بودن حساب</value></data>
+  <data name="AuditEv_MembershipChanged" xml:space="preserve"><value>تغییر عضویت سازمان / سایت</value></data>
+  <data name="AuditEv_ScopedRoleChanged" xml:space="preserve"><value>تغییر انتساب نقش کاربر</value></data>
+  <data name="AuditEv_RoleDefinitionChanged" xml:space="preserve"><value>ایجاد یا ویرایش تعریف نقش</value></data>
+  <data name="AuditEv_DirectPermissionChanged" xml:space="preserve"><value>تغییر مجوز مستقیم کاربر</value></data>
+  <data name="AuditEv_CulturePreferenceChanged" xml:space="preserve"><value>تغییر زبان ترجیحی کاربر</value></data>
+  <data name="AuditEv_ReportsShortageExported" xml:space="preserve"><value>خروجی CSV گزارش کسری مواد</value></data>
+  <data name="AuditEv_ReportsVarianceExported" xml:space="preserve"><value>خروجی CSV گزارش مغایرت تولید</value></data>
+  <data name="AuditEv_AuditExported" xml:space="preserve"><value>خروجی CSV لاگ ممیزی و عملیات</value></data>
+  <data name="AuditEv_OrganizationActionRejected" xml:space="preserve"><value>رد عملیات سازمان</value></data>
+  <data name="AuditEv_SiteActionRejected" xml:space="preserve"><value>رد عملیات سایت</value></data>
+  <data name="AuditEv_UnitActionRejected" xml:space="preserve"><value>رد عملیات واحد سنجش</value></data>
+  <data name="AuditEv_ItemActionRejected" xml:space="preserve"><value>رد عملیات کاتالوگ کالا</value></data>
+  <data name="AuditEv_BomActionRejected" xml:space="preserve"><value>رد عملیات ساختار محصول</value></data>
+  <data name="AuditEv_ProductionOrderActionRejected" xml:space="preserve"><value>رد عملیات سفارش تولید</value></data>
+  <data name="AuditEv_InventoryActionRejected" xml:space="preserve"><value>رد عملیات انبار</value></data>
+  <data name="AuditEv_UserActionRejected" xml:space="preserve"><value>رد عملیات مدیریت کاربران</value></data>
+  <data name="AuditEv_RoleActionRejected" xml:space="preserve"><value>رد عملیات نقش و دسترسی</value></data>
+  <data name="AuditEv_ReportingActionRejected" xml:space="preserve"><value>رد درخواست خروجی گزارش</value></data>
+  <data name="UserMenuLastLoginTitle" xml:space="preserve"><value>آخرین ورود</value></data>
+  <data name="UserMenuFirstLoginNotice" xml:space="preserve"><value>این اولین ورود شماست</value></data>
 </root>

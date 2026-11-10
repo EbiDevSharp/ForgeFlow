@@ -1,7 +1,10 @@
 using System.Data;
 using System.Data.Common;
+using System.Net;
+using System.Text.Json;
 using ForgeFlow.Application.Audit;
 using ForgeFlow.Application.Boms;
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Inventory;
 using ForgeFlow.Application.Items;
 using ForgeFlow.Application.Organizations;
@@ -28,6 +31,7 @@ public sealed class SessionReference(long userId, Guid sessionId, string securit
     public override string ToString() => nameof(SessionReference);
 }
 public sealed record SessionLoginResult(string Code, SessionReference? Session = null, DateTimeOffset? Expires = null);
+public sealed record PreviousSignInInfo(DateTime OccurredAtUtc, string? IpAddress);
 public interface ICurrentAuthenticatedSession
 {
     ValueTask<SessionReference?> GetAsync(CancellationToken ct);
@@ -52,10 +56,19 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
     }
     private static Task<ApplicationAccount?> LockUser(AuthDbContext db, long id, CancellationToken ct) => db.Users
         .FromSqlInterpolated($"SELECT * FROM [auth].[User] WITH (UPDLOCK,HOLDLOCK) WHERE [Id]={id}").SingleOrDefaultAsync(ct);
-    private static void Event(AuthDbContext db, string code, DateTime now, Guid correlation, long? subject = null, Guid? session = null, bool actor = false, byte outcome = 0)
+    private static void Event(AuthDbContext db, string code, DateTime now, Guid correlation, long? subject = null, Guid? session = null, bool actor = false, byte outcome = 0, string dataJson = "{}")
         => db.SecurityEvents.Add(new SecurityEvent { EventCode = code, OccurredAtUtc = now, CorrelationId = correlation,
             ActorKind = actor ? (byte)1 : (byte)0, ActorUserId = actor ? subject : null, SubjectUserId = subject,
-            SessionId = session, Outcome = outcome, DataJson = "{}" });
+            SessionId = session, Outcome = outcome, DataJson = dataJson });
+    private static string BuildSessionEventJson(string? clientIp)
+    {
+        if (string.IsNullOrWhiteSpace(clientIp))
+            return "{}";
+        if (!IPAddress.TryParse(clientIp.Trim(), out var parsed))
+            return "{}";
+        var normalized = parsed.IsIPv4MappedToIPv6 ? parsed.MapToIPv4().ToString() : parsed.ToString();
+        return JsonSerializer.Serialize(new { ip = normalized });
+    }
     private static async Task Revoke(AuthDbContext db, long userId, string reason, DateTime now, Guid correlation, CancellationToken ct, string? currentStamp = null)
     {
         foreach (var session in await db.Sessions.Where(s => s.UserId == userId && s.RevokedAtUtc == null && (reason != "StampChanged" || s.SecurityStampSnapshot != currentStamp)).ToListAsync(ct))
@@ -77,9 +90,10 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
         return session.RevokedAtUtc is null && session.IssuedAtUtc <= now && session.ExpiresAtUtc > now
             && reference.SecurityStamp == user.SecurityStamp && reference.SecurityStamp == session.SecurityStampSnapshot;
     }
-    public async Task<SessionLoginResult> LoginAsync(string username, string password, CancellationToken ct = default)
+    public async Task<SessionLoginResult> LoginAsync(string username, string password, CancellationToken ct = default, string? clientIp = null)
     {
         var stage = "store-open";
+        var eventDataJson = BuildSessionEventJson(clientIp);
         try
         {
             await using var scope = scopes.CreateAsyncScope(); var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
@@ -106,7 +120,7 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
                 }
                 else if (user is not null && (!user.IsActive || Locked(user,now)))
                     await Revoke(db,user.Id,user.IsActive ? "AccountLocked" : "AccountDisabled",now,correlation,ct);
-                Event(db,"SignInFailed",now,correlation,user?.Id,outcome:1);
+                Event(db,"SignInFailed",now,correlation,user?.Id,outcome:1,dataJson:eventDataJson);
                 await db.SaveChangesAsync(ct); if (!await Commit(tx,ct,[password, username])) return new("Auth.ServiceUnavailable"); return new("Auth.LoginRejected");
             }
             stage = "identity-reset-failures";
@@ -118,7 +132,7 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
             var issued=Now;
             var session = new AccountSession { Id = Guid.NewGuid(), UserId = user!.Id, SecurityStampSnapshot = user.SecurityStamp!,
                 IssuedAtUtc = issued, ExpiresAtUtc = issued.Add(Lifetime) };
-            db.Sessions.Add(session); Event(db,"SessionIssued",session.IssuedAtUtc,correlation,user.Id,session.Id,true);
+            db.Sessions.Add(session); Event(db,"SessionIssued",session.IssuedAtUtc,correlation,user.Id,session.Id,true,dataJson:eventDataJson);
             await db.SaveChangesAsync(ct); stage = "session-commit"; if (!await Commit(tx,ct,[password, username])) return new("Auth.ServiceUnavailable");
             return new("Auth.SignedIn",new(user.Id,session.Id,user.SecurityStamp!,user.UserName),new DateTimeOffset(session.ExpiresAtUtc));
         }
@@ -127,6 +141,51 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
             Failure(stage, e, password, username);
             logger.LogWarning("AUTH-LOGIN stage={Stage} outcome=unavailable exceptionType={ExceptionType}", stage, e.GetType().Name);
             Unavailable(); return new("Auth.ServiceUnavailable");
+        }
+    }
+    public async Task<PreviousSignInInfo?> GetPreviousSignInAsync(SessionReference reference, CancellationToken ct = default)
+    {
+        if (reference.UserId <= 0 || reference.SessionId == Guid.Empty) return null;
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var row = await db.SecurityEvents.AsNoTracking()
+                .Where(e => e.SubjectUserId == reference.UserId
+                            && e.EventCode == "SessionIssued"
+                            && e.Outcome == 0
+                            && e.SessionId != null
+                            && e.SessionId != reference.SessionId)
+                .OrderByDescending(e => e.OccurredAtUtc)
+                .ThenByDescending(e => e.Id)
+                .Select(e => new { e.OccurredAtUtc, e.DataJson })
+                .FirstOrDefaultAsync(ct);
+
+            if (row is null)
+                return null;
+
+            string? ip = null;
+            if (!string.IsNullOrWhiteSpace(row.DataJson))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(row.DataJson);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Object
+                        && doc.RootElement.TryGetProperty("ip", out var prop)
+                        && prop.ValueKind == JsonValueKind.String)
+                    {
+                        ip = prop.GetString();
+                    }
+                }
+                catch (JsonException) { }
+            }
+
+            return new PreviousSignInInfo(DateTime.SpecifyKind(row.OccurredAtUtc, DateTimeKind.Utc), string.IsNullOrWhiteSpace(ip) ? null : ip);
+        }
+        catch (Exception e) when (AvailableFailure(e))
+        {
+            Failure("previous-signin-lookup", e, reference.SecurityStamp);
+            return null;
         }
     }
     public async Task<string> ValidateAsync(SessionReference reference, CancellationToken ct = default)
@@ -316,8 +375,13 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
         if (scope is OrganizationScope.Platform)
         {
             if (descriptor.Applicability != PermissionScopeApplicability.PlatformOnly
-                && permission is not (UserPermissions.UsersSetActive or UserPermissions.UsersUnlock or UserPermissions.UsersResetPassword or AuditPermissions.AuditRead))
+                && permission is not (UserPermissions.UsersSetActive or UserPermissions.UsersUnlock or UserPermissions.UsersResetPassword or AuditPermissions.AuditRead or AuditPermissions.AuditExport))
                 return false;
+
+            var provisionerBuiltIn = permission is AuditPermissions.AuditRead
+                or AuditPermissions.AuditExport
+                or DiagnosticPermissions.ErrorLogsRead
+                or DiagnosticPermissions.ErrorLogsManage;
 
             return await (from r in db.ScopedRoleAssignments.AsNoTracking()
                           join rd in db.RoleDefinitions.AsNoTracking() on r.RoleId equals rd.Id
@@ -330,7 +394,8 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
                                 && rd.IsActive
                                 && rd.ScopeKind == 0
                                 && rp.IsActive
-                                && (rp.PermissionCode == permission || (r.RoleId == FixedAccessRoles.DeploymentProvisioner && permission == AuditPermissions.AuditRead))
+                                && (rp.PermissionCode == permission
+                                    || (r.RoleId == FixedAccessRoles.DeploymentProvisioner && provisionerBuiltIn))
                           select r.Id).AnyAsync(ct);
         }
 
@@ -433,7 +498,7 @@ public static class FixedRolePolicy
     public static bool Allows(long role, OrganizationScope scope, string permission) => role switch
     {
         FixedAccessRoles.DeploymentProvisioner => scope is OrganizationScope.Platform
-            && permission is OrganizationPermissions.OrganizationsCreate or UserPermissions.UsersAttachOrganization or UserPermissions.UsersSetActive or UserPermissions.UsersUnlock or UserPermissions.UsersResetPassword or AuditPermissions.AuditRead,
+            && permission is OrganizationPermissions.OrganizationsCreate or UserPermissions.UsersAttachOrganization or UserPermissions.UsersSetActive or UserPermissions.UsersUnlock or UserPermissions.UsersResetPassword or AuditPermissions.AuditRead or AuditPermissions.AuditExport or DiagnosticPermissions.ErrorLogsRead or DiagnosticPermissions.ErrorLogsManage,
         FixedAccessRoles.OrganizationAdministrator => scope switch {
             OrganizationScope.Organization => PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(permission, 1),
             OrganizationScope.Site => PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(permission, 2), _=>false },

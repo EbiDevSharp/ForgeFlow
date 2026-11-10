@@ -1,15 +1,20 @@
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Inventory;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Units;
+using ForgeFlow.Infrastructure.Diagnostics;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ForgeFlow.Infrastructure.Organizations;
 
-public sealed class SqlInventoryOperationsStore(Func<IDbContextFactory<OrganizationDbContext>> getFactory)
+public sealed class SqlInventoryOperationsStore(
+    Func<IDbContextFactory<OrganizationDbContext>> getFactory,
+    IErrorLogRecorder? errorRecorder = null,
+    IOperationContextAccessor? opContext = null)
     : IInventoryOperationsStore
 {
     private IDbContextFactory<OrganizationDbContext> Factory => getFactory();
@@ -570,6 +575,7 @@ public sealed class SqlInventoryOperationsStore(Func<IDbContextFactory<Organizat
         }
         catch (Exception ex) when (Unavailable(ex))
         {
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlInventoryOperationsStore));
             throw new InventoryStoreUnavailableException(ex);
         }
     }
@@ -638,7 +644,11 @@ public sealed class SqlInventoryOperationsStore(Func<IDbContextFactory<Organizat
             });
         }
         catch (InventoryRuleException ex) { return OrganizationResult<T>.Failure(ex.Code, ex.Parameters); }
-        catch (Exception ex) when (Unavailable(ex)) { return OrganizationResult<T>.Failure(InventoryErrors.PersistenceUnavailable); }
+        catch (Exception ex) when (Unavailable(ex))
+        {
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlInventoryOperationsStore), access.Actor.ActorId);
+            return OrganizationResult<T>.Failure(InventoryErrors.PersistenceUnavailable);
+        }
     }
 
     private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long orgId, CancellationToken ct)

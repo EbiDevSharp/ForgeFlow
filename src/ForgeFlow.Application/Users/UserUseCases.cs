@@ -1,3 +1,6 @@
+using System.Globalization;
+using ForgeFlow.Application.Common;
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.Users;
@@ -8,18 +11,33 @@ namespace ForgeFlow.Application.Users;
 public sealed class UserUseCases(
     IUserOperationsStore store,
     ITrustedActorAccessor? actors = null,
-    IOrganizationPermissionEvaluator? permissions = null)
+    IOrganizationPermissionEvaluator? permissions = null,
+    IUserOperationRecorder? operationRecorder = null,
+    IOperationContextAccessor? opContext = null)
 {
     private async ValueTask<(TrustedActor? Actor, string? Error)> Authorize(OrganizationScope? scope, string permission, CancellationToken ct)
     {
         if (actors is null) return (null, UserManagementErrors.ActorRequired);
         var actor = await actors.ResolveAsync(ct);
         if (actor is null) return (null, UserManagementErrors.ActorRequired);
-        if (scope is null) return (null, UserManagementErrors.ScopeRequired);
+        if (scope is null) return (actor, UserManagementErrors.ScopeRequired);
         if (permissions is null || !(await permissions.EvaluateAsync(actor, scope, permission, ct)).IsAllowed)
-            return (null, UserManagementErrors.AccessDenied);
+            return (actor, UserManagementErrors.AccessDenied);
         return (actor, null);
     }
+
+    private Task<OrganizationResult<T>> RecordRejected<T>(
+        OrganizationResult<T> result,
+        TrustedActor? actor,
+        OrganizationScope? scope,
+        long? organizationId,
+        long? siteId,
+        string entityType,
+        string? entityRef,
+        string action)
+        => OperationAuditHelper.RecordIfRejectedAsync(
+            result, operationRecorder, opContext, UserOperationCatalog.UserActionRejected,
+            actor, scope, organizationId, siteId, entityType, entityRef, new { Action = action });
 
     private OrganizationWriteAccess Access(TrustedActor actor, OrganizationScope scope, string permission) => new(actor, async ct =>
     {
@@ -117,22 +135,26 @@ public sealed class UserUseCases(
     {
         const string permission = UserPermissions.UsersCreate;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserDetails>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, request.OrganizationId))
-            return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
-
-        UserAccountName canonicalUserName;
-        try { canonicalUserName = UserAccountName.Parse(request.UserName); }
-        catch (UserRuleException ex) { return FailFromRule<UserDetails>(ex); }
-
-        if (!HasValidInitialPassword(request.InitialPassword))
-            return OrganizationResult<UserDetails>.Failure(UserManagementErrors.PasswordInvalid, new Dictionary<string, object> { ["field"] = "InitialPassword" });
-
-        if (!TryNormalizeSiteIds(request.SiteIds, out var siteIds))
-            return OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
-
-        return await Execute(() => store.CreateOrganizationUser(
-            request, canonicalUserName, siteIds, Access(auth.Actor!, scope!, permission), ct));
+        OrganizationResult<UserDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<UserDetails>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, request.OrganizationId))
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+        else
+        {
+            try
+            {
+                var canonicalUserName = UserAccountName.Parse(request.UserName);
+                if (!HasValidInitialPassword(request.InitialPassword))
+                    res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.PasswordInvalid, new Dictionary<string, object> { ["field"] = "InitialPassword" });
+                else if (!TryNormalizeSiteIds(request.SiteIds, out var siteIds))
+                    res = OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
+                else
+                    res = await Execute(() => store.CreateOrganizationUser(
+                        request, canonicalUserName, siteIds, Access(auth.Actor!, scope!, permission), ct));
+            }
+            catch (UserRuleException ex) { res = FailFromRule<UserDetails>(ex); }
+        }
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, null, "User", request.UserName, "CreateOrganizationUser");
     }
 
     public async Task<OrganizationResult<UserDetails>> AttachExistingUserToOrganization(
@@ -142,21 +164,26 @@ public sealed class UserUseCases(
     {
         const string permission = UserPermissions.UsersAttachOrganization;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserDetails>.Failure(auth.Error);
-        if (scope is not OrganizationScope.Platform)
-            return OrganizationResult<UserDetails>.Failure(UserManagementErrors.AccessDenied);
-        if (request.OrganizationId <= 0)
-            return OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.OrganizationNotFound);
-
-        UserAccountName canonicalUserName;
-        try { canonicalUserName = UserAccountName.Parse(request.UserName); }
-        catch (UserRuleException ex) { return FailFromRule<UserDetails>(ex); }
-
-        if (!TryNormalizeSiteIds(request.SiteIds, out var siteIds))
-            return OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
-
-        return await Execute(() => store.AttachExistingUserToOrganization(
-            request, canonicalUserName, siteIds, Access(auth.Actor!, scope, permission), ct));
+        OrganizationResult<UserDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<UserDetails>.Failure(auth.Error);
+        else if (scope is not OrganizationScope.Platform)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.AccessDenied);
+        else if (request.OrganizationId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.OrganizationNotFound);
+        else
+        {
+            try
+            {
+                var canonicalUserName = UserAccountName.Parse(request.UserName);
+                if (!TryNormalizeSiteIds(request.SiteIds, out var siteIds))
+                    res = OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
+                else
+                    res = await Execute(() => store.AttachExistingUserToOrganization(
+                        request, canonicalUserName, siteIds, Access(auth.Actor!, scope, permission), ct));
+            }
+            catch (UserRuleException ex) { res = FailFromRule<UserDetails>(ex); }
+        }
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId > 0 ? request.OrganizationId : null, null, "User", request.UserName, "AttachExistingUserToOrganization");
     }
 
     public async Task<OrganizationResult<UserDetails>> SetUserActive(
@@ -166,25 +193,28 @@ public sealed class UserUseCases(
     {
         const string permission = UserPermissions.UsersSetActive;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserDetails>.Failure(auth.Error);
-
-        if (!MatchesAccountScope(scope!, request.OrganizationId, out var scopeError))
-            return OrganizationResult<UserDetails>.Failure(scopeError!);
-
-        if (request.UserId <= 0)
-            return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
-
-        if (!request.IsActive)
+        OrganizationResult<UserDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<UserDetails>.Failure(auth.Error);
+        else if (!MatchesAccountScope(scope!, request.OrganizationId, out var scopeError))
+            res = OrganizationResult<UserDetails>.Failure(scopeError!);
+        else if (request.UserId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+        else
         {
-            try { TenantAccessPolicy.EnsureNotSelfDeactivation(auth.Actor!.ActorId, request.UserId); }
-            catch (UserRuleException ex) { return FailFromRule<UserDetails>(ex); }
+            try
+            {
+                if (!request.IsActive)
+                    TenantAccessPolicy.EnsureNotSelfDeactivation(auth.Actor!.ActorId, request.UserId);
+
+                if (DecodeVersion(request.ExpectedAccountRowVersion) is not byte[] version)
+                    res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
+                else
+                    res = await Execute(() => store.SetUserActive(
+                        request.OrganizationId, request.UserId, request.IsActive, version, Access(auth.Actor!, scope!, permission), ct));
+            }
+            catch (UserRuleException ex) { res = FailFromRule<UserDetails>(ex); }
         }
-
-        var version = DecodeVersion(request.ExpectedAccountRowVersion);
-        if (version is null) return OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
-
-        return await Execute(() => store.SetUserActive(
-            request.OrganizationId, request.UserId, request.IsActive, version, Access(auth.Actor!, scope!, permission), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, null, "User", request.UserId.ToString(CultureInfo.InvariantCulture), "SetUserActive");
     }
 
     public async Task<OrganizationResult<UserDetails>> UnlockUser(
@@ -194,19 +224,18 @@ public sealed class UserUseCases(
     {
         const string permission = UserPermissions.UsersUnlock;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserDetails>.Failure(auth.Error);
-
-        if (!MatchesAccountScope(scope!, request.OrganizationId, out var scopeError))
-            return OrganizationResult<UserDetails>.Failure(scopeError!);
-
-        if (request.UserId <= 0)
-            return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
-
-        var version = DecodeVersion(request.ExpectedAccountRowVersion);
-        if (version is null) return OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
-
-        return await Execute(() => store.UnlockUser(
-            request.OrganizationId, request.UserId, version, Access(auth.Actor!, scope!, permission), ct));
+        OrganizationResult<UserDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<UserDetails>.Failure(auth.Error);
+        else if (!MatchesAccountScope(scope!, request.OrganizationId, out var scopeError))
+            res = OrganizationResult<UserDetails>.Failure(scopeError!);
+        else if (request.UserId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedAccountRowVersion) is not byte[] version)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
+        else
+            res = await Execute(() => store.UnlockUser(
+                request.OrganizationId, request.UserId, version, Access(auth.Actor!, scope!, permission), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, null, "User", request.UserId.ToString(CultureInfo.InvariantCulture), "UnlockUser");
     }
 
     public async Task<OrganizationResult<UserDetails>> ResetUserPassword(
@@ -216,22 +245,20 @@ public sealed class UserUseCases(
     {
         const string permission = UserPermissions.UsersResetPassword;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserDetails>.Failure(auth.Error);
-
-        if (!MatchesAccountScope(scope!, request.OrganizationId, out var scopeError))
-            return OrganizationResult<UserDetails>.Failure(scopeError!);
-
-        if (request.UserId <= 0)
-            return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
-
-        if (!HasValidInitialPassword(request.NewPassword))
-            return OrganizationResult<UserDetails>.Failure(UserManagementErrors.PasswordInvalid, new Dictionary<string, object> { ["field"] = "NewPassword" });
-
-        var version = DecodeVersion(request.ExpectedAccountRowVersion);
-        if (version is null) return OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
-
-        return await Execute(() => store.ResetUserPassword(
-            request.OrganizationId, request.UserId, request.NewPassword!, version, Access(auth.Actor!, scope!, permission), ct));
+        OrganizationResult<UserDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<UserDetails>.Failure(auth.Error);
+        else if (!MatchesAccountScope(scope!, request.OrganizationId, out var scopeError))
+            res = OrganizationResult<UserDetails>.Failure(scopeError!);
+        else if (request.UserId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+        else if (!HasValidInitialPassword(request.NewPassword))
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.PasswordInvalid, new Dictionary<string, object> { ["field"] = "NewPassword" });
+        else if (DecodeVersion(request.ExpectedAccountRowVersion) is not byte[] version)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
+        else
+            res = await Execute(() => store.ResetUserPassword(
+                request.OrganizationId, request.UserId, request.NewPassword!, version, Access(auth.Actor!, scope!, permission), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, null, "User", request.UserId.ToString(CultureInfo.InvariantCulture), "ResetUserPassword");
     }
 
     public async Task<OrganizationResult<UserDetails>> SetOrganizationMembershipActive(
@@ -241,21 +268,26 @@ public sealed class UserUseCases(
     {
         const string permission = UserPermissions.MembershipsManage;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserDetails>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0)
-            return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
-
-        if (!request.IsActive)
+        OrganizationResult<UserDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<UserDetails>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+        else
         {
-            try { TenantAccessPolicy.EnsureNotSelfDeactivation(auth.Actor!.ActorId, request.UserId); }
-            catch (UserRuleException ex) { return FailFromRule<UserDetails>(ex); }
+            try
+            {
+                if (!request.IsActive)
+                    TenantAccessPolicy.EnsureNotSelfDeactivation(auth.Actor!.ActorId, request.UserId);
+
+                if (DecodeVersion(request.ExpectedMembershipRowVersion) is not byte[] version)
+                    res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
+                else
+                    res = await Execute(() => store.SetOrganizationMembershipActive(
+                        request.OrganizationId, request.UserId, request.IsActive, version, Access(auth.Actor!, scope!, permission), ct));
+            }
+            catch (UserRuleException ex) { res = FailFromRule<UserDetails>(ex); }
         }
-
-        var version = DecodeVersion(request.ExpectedMembershipRowVersion);
-        if (version is null) return OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
-
-        return await Execute(() => store.SetOrganizationMembershipActive(
-            request.OrganizationId, request.UserId, request.IsActive, version, Access(auth.Actor!, scope!, permission), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, null, "OrganizationMembership", request.UserId.ToString(CultureInfo.InvariantCulture), "SetOrganizationMembershipActive");
     }
 
     public async Task<OrganizationResult<UserDetails>> AssignSiteMembership(
@@ -265,13 +297,15 @@ public sealed class UserUseCases(
     {
         const string permission = UserPermissions.MembershipsManage;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserDetails>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0)
-            return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
-        if (request.SiteId <= 0)
-            return OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
-
-        return await Execute(() => store.AssignSiteMembership(request, Access(auth.Actor!, scope!, permission), ct));
+        OrganizationResult<UserDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<UserDetails>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+        else if (request.SiteId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
+        else
+            res = await Execute(() => store.AssignSiteMembership(request, Access(auth.Actor!, scope!, permission), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, request.SiteId > 0 ? request.SiteId : null, "SiteMembership", request.UserId.ToString(CultureInfo.InvariantCulture), "AssignSiteMembership");
     }
 
     public async Task<OrganizationResult<UserDetails>> SetSiteMembershipActive(
@@ -281,17 +315,18 @@ public sealed class UserUseCases(
     {
         const string permission = UserPermissions.MembershipsManage;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserDetails>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0)
-            return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
-        if (request.SiteId <= 0)
-            return OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
-
-        var version = DecodeVersion(request.ExpectedMembershipRowVersion);
-        if (version is null) return OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
-
-        return await Execute(() => store.SetSiteMembershipActive(
-            request.OrganizationId, request.UserId, request.SiteId, request.IsActive, version, Access(auth.Actor!, scope!, permission), ct));
+        OrganizationResult<UserDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<UserDetails>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+        else if (request.SiteId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
+        else if (DecodeVersion(request.ExpectedMembershipRowVersion) is not byte[] version)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
+        else
+            res = await Execute(() => store.SetSiteMembershipActive(
+                request.OrganizationId, request.UserId, request.SiteId, request.IsActive, version, Access(auth.Actor!, scope!, permission), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, request.SiteId > 0 ? request.SiteId : null, "SiteMembership", request.UserId.ToString(CultureInfo.InvariantCulture), "SetSiteMembershipActive");
     }
 
     public async Task<OrganizationResult<UserDetails>> AssignTenantRole(
@@ -301,14 +336,20 @@ public sealed class UserUseCases(
     {
         const string permission = UserPermissions.RolesAssignFixed;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserDetails>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0)
-            return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
-
-        try { TenantAccessPolicy.ValidateTenantRoleScope(request.Role, request.OrganizationId, request.SiteId); }
-        catch (UserRuleException ex) { return FailFromRule<UserDetails>(ex); }
-
-        return await Execute(() => store.AssignTenantRole(request, Access(auth.Actor!, scope!, permission), ct));
+        OrganizationResult<UserDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<UserDetails>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+        else
+        {
+            try
+            {
+                TenantAccessPolicy.ValidateTenantRoleScope(request.Role, request.OrganizationId, request.SiteId);
+                res = await Execute(() => store.AssignTenantRole(request, Access(auth.Actor!, scope!, permission), ct));
+            }
+            catch (UserRuleException ex) { res = FailFromRule<UserDetails>(ex); }
+        }
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, request.SiteId, "TenantRole", request.UserId.ToString(CultureInfo.InvariantCulture), "AssignTenantRole");
     }
 
     public async Task<OrganizationResult<UserDetails>> SetTenantRoleActive(
@@ -318,23 +359,27 @@ public sealed class UserUseCases(
     {
         const string permission = UserPermissions.RolesAssignFixed;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserDetails>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0)
-            return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
-
-        try
+        OrganizationResult<UserDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<UserDetails>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+        else
         {
-            TenantAccessPolicy.ValidateTenantRoleScope(request.Role, request.OrganizationId, request.SiteId);
-            if (!request.IsActive && request.Role == TenantRoleKind.OrganizationAdministrator)
-                TenantAccessPolicy.EnsureNotSelfDeactivation(auth.Actor!.ActorId, request.UserId);
+            try
+            {
+                TenantAccessPolicy.ValidateTenantRoleScope(request.Role, request.OrganizationId, request.SiteId);
+                if (!request.IsActive && request.Role == TenantRoleKind.OrganizationAdministrator)
+                    TenantAccessPolicy.EnsureNotSelfDeactivation(auth.Actor!.ActorId, request.UserId);
+
+                if (DecodeVersion(request.ExpectedRoleRowVersion) is not byte[] version)
+                    res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
+                else
+                    res = await Execute(() => store.SetTenantRoleActive(
+                        request.OrganizationId, request.UserId, request.Role, request.SiteId, request.IsActive, version, Access(auth.Actor!, scope!, permission), ct));
+            }
+            catch (UserRuleException ex) { res = FailFromRule<UserDetails>(ex); }
         }
-        catch (UserRuleException ex) { return FailFromRule<UserDetails>(ex); }
-
-        var version = DecodeVersion(request.ExpectedRoleRowVersion);
-        if (version is null) return OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
-
-        return await Execute(() => store.SetTenantRoleActive(
-            request.OrganizationId, request.UserId, request.Role, request.SiteId, request.IsActive, version, Access(auth.Actor!, scope!, permission), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, request.SiteId, "TenantRole", request.UserId.ToString(CultureInfo.InvariantCulture), "SetTenantRoleActive");
     }
 
     private static bool MatchesAccountScope(OrganizationScope scope, long? organizationId, out string? error)

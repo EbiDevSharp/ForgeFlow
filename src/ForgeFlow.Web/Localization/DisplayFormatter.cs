@@ -2,9 +2,10 @@ using System.Globalization;
 
 namespace ForgeFlow.Web.Localization;
 
-public sealed class DisplayFormatter(CulturePolicy culture)
+public sealed class DisplayFormatter(CulturePolicy culture, TimeZoneInfo? displayTimeZone = null)
 {
     private static readonly string[] CurrencyCodes = ["USD", "EUR", "IRR"];
+    private readonly TimeZoneInfo timeZone = displayTimeZone ?? TimeZoneInfo.Local;
 
     public string Date(DateOnly value)
     {
@@ -12,6 +13,25 @@ public sealed class DisplayFormatter(CulturePolicy culture)
         var calendar = culture.Calendar;
         return string.Create(CultureInfo.InvariantCulture,
             $"{calendar.GetYear(date):0000}/{calendar.GetMonth(date):00}/{calendar.GetDayOfMonth(date):00}");
+    }
+
+    public DateTime ToDisplayDateTime(DateTime value)
+    {
+        var utc = value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
+        return TimeZoneInfo.ConvertTimeFromUtc(utc, timeZone);
+    }
+
+    public string Timestamp(DateTime value, string separator = " ")
+    {
+        var local = ToDisplayDateTime(value);
+        var dateText = Date(DateOnly.FromDateTime(local));
+        var timeText = local.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+        return $"{dateText}{separator}{timeText}";
     }
 
     public string Number(decimal value) => value.ToString("N2", culture.Current);
@@ -29,7 +49,7 @@ public sealed class DisplayFormatter(CulturePolicy culture)
         var supported = CulturePolicy.Normalize(inputCulture);
         if (supported is null || raw.Length != 10) return false;
         var normalized = NormalizeDigits(raw);
-        var separator = supported == CulturePolicy.Persian ? '/' : '/';
+        var separator = '/';
         if (normalized[4] != separator && supported == CulturePolicy.Persian ||
             normalized[2] != separator && supported == CulturePolicy.English) return false;
         var yearFirst = supported == CulturePolicy.Persian;
@@ -111,13 +131,27 @@ public sealed class DisplayFormatter(CulturePolicy culture)
             CultureInfo.InvariantCulture, out value);
     }
 
-    private static string NormalizeDigits(string raw) => new(raw.Select(character => character switch
+    private static string NormalizeDigits(string value)
     {
-        >= '\u06f0' and <= '\u06f9' => (char)('0' + character - '\u06f0'),
-        >= '\u0660' and <= '\u0669' => (char)('0' + character - '\u0660'),
-        _ => character
-    }).ToArray());
+        Span<char> buffer = stackalloc char[value.Length];
+        for (var i = 0; i < value.Length; i++)
+        {
+            var ch = value[i];
+            buffer[i] = ch is >= '\u06F0' and <= '\u06F9' ? (char)('0' + (ch - '\u06F0'))
+                : ch is >= '\u0660' and <= '\u0669' ? (char)('0' + (ch - '\u0660'))
+                : ch;
+        }
+        return new string(buffer);
+    }
 
-    private static bool TryDigits(ReadOnlySpan<char> raw, out int value)
-        => int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out value);
+    private static bool TryDigits(ReadOnlySpan<char> span, out int value)
+    {
+        value = 0;
+        foreach (var ch in span)
+        {
+            if (ch is < '0' or > '9') return false;
+            value = (value * 10) + (ch - '0');
+        }
+        return true;
+    }
 }

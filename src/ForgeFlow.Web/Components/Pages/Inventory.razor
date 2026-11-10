@@ -178,7 +178,7 @@
                                 <Template Context="b"><strong dir="ltr">@Format.Number(b.OnHandBaseQuantity) @b.BaseUnitSymbol</strong></Template>
                             </BitDataGridColumn>
                             <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvLastMovedLabel"]">
-                                <Template Context="b"><bdi dir="ltr">@FormatTimestamp(b.LastMovedAtUtc)</bdi></Template>
+                                <Template Context="b"><bdi dir="ltr">@Format.Timestamp(b.LastMovedAtUtc)</bdi></Template>
                             </BitDataGridColumn>
                         </Columns>
                     </BitDataGrid>
@@ -215,7 +215,7 @@
                                 <Template Context="t"><bdi dir="ltr">@(t.ProductionOrderNumber ?? "—")</bdi></Template>
                             </BitDataGridColumn>
                             <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["AuditTimeColumn"]">
-                                <Template Context="t"><bdi dir="ltr">@FormatTimestamp(t.PostedAtUtc)</bdi></Template>
+                                <Template Context="t"><bdi dir="ltr">@Format.Timestamp(t.PostedAtUtc)</bdi></Template>
                             </BitDataGridColumn>
                             <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["ReadActions"]">
                                 <Template Context="t">
@@ -494,7 +494,7 @@
                         }
                         <div class="audit-meta-row">
                             <span class="audit-meta-label">@Text["AuditTimeColumn"]</span>
-                            <bdi class="audit-meta-val" dir="ltr">@FormatTimestamp(t.PostedAtUtc)</bdi>
+                            <bdi class="audit-meta-val" dir="ltr">@Format.Timestamp(t.PostedAtUtc)</bdi>
                         </div>
                         @if (!string.IsNullOrWhiteSpace(t.ReferenceNote))
                         {
@@ -1105,11 +1105,4 @@
         InventoryTransactionType.Reversal => "po-status-cancelled",
         _ => "po-status-draft"
     };
-
-    private string FormatTimestamp(DateTime utc)
-    {
-        var dateText = Format.Date(DateOnly.FromDateTime(utc));
-        var timeText = utc.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
-        return $"{dateText} {timeText} UTC";
-    }
 }

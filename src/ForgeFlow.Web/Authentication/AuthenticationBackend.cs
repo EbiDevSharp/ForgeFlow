@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using ForgeFlow.Application.Organizations;
@@ -149,6 +150,45 @@ public static class AuthenticationBackend
         }
         finally { context.User=current; }
     }
+    public static string? ResolveClientIp(HttpContext context)
+    {
+        if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwarded))
+        {
+            foreach (var rawHeader in forwarded)
+            {
+                if (string.IsNullOrWhiteSpace(rawHeader)) continue;
+                foreach (var segment in rawHeader.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (TryParseIpToken(segment, out var ip))
+                        return NormalizeIp(ip);
+                }
+            }
+        }
+
+        return context.Connection.RemoteIpAddress is { } remote
+            ? NormalizeIp(remote)
+            : null;
+    }
+
+    private static bool TryParseIpToken(string raw, out IPAddress address)
+    {
+        var candidate = raw.Trim();
+        if (candidate.StartsWith('[') && candidate.IndexOf(']') is > 1 and var closeIdx)
+        {
+            candidate = candidate[1..closeIdx];
+        }
+        else if (candidate.Count(c => c == ':') == 1)
+        {
+            var colonIdx = candidate.IndexOf(':');
+            if (colonIdx > 0 && int.TryParse(candidate[(colonIdx + 1)..], out _))
+                candidate = candidate[..colonIdx];
+        }
+        return IPAddress.TryParse(candidate, out address!);
+    }
+
+    private static string NormalizeIp(IPAddress address) =>
+        address.IsIPv4MappedToIPv6 ? address.MapToIPv4().ToString() : address.ToString();
+
     public static async Task<IResult> Login(HttpContext context,IAntiforgery antiforgery,RuntimeSessions sessions)
     {
         context.Response.Headers.CacheControl="no-store";
@@ -163,7 +203,7 @@ public static class AuthenticationBackend
         var target=LocalReturnUrl(form["returnUrl"].ToString()); if (target is null) return Error(context,"Auth.RequestRejected",400);
         // An identity change must cross an explicit logout boundary before another sign-in.
         if (context.User.Identity?.IsAuthenticated==true) return Error(context,"Auth.RequestRejected",400);
-        var result=await sessions.LoginAsync(form["username"].ToString(),form["password"].ToString(),context.RequestAborted);
+        var result=await sessions.LoginAsync(form["username"].ToString(),form["password"].ToString(),context.RequestAborted,ResolveClientIp(context));
         if (result.Session is null) return Error(context,result.Code,result.Code=="Auth.ServiceUnavailable" ? 503 : 401);
         try {
             await context.SignInAsync(IdentityConstants.ApplicationScheme,SessionClaims.Create(result.Session),

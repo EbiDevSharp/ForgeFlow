@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ForgeFlow.Application.Boms;
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Inventory;
 using ForgeFlow.Application.Items;
 using ForgeFlow.Application.Organizations;
@@ -29,27 +30,43 @@ public static class OrganizationPersistenceRegistration
         // Lazy persistence resolution lets missing trusted adapters fail closed before requesting a connection.
         services.AddScoped<OrganizationUseCases>(provider => new OrganizationUseCases(
             new OrganizationOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
-            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
         services.AddScoped<UnitUseCases>(provider => new UnitUseCases(
             new UnitOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
-            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
         services.AddScoped<ItemUseCases>(provider => new ItemUseCases(
             new ItemOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
             new UnitOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
-            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
         services.AddScoped<BomUseCases>(provider => new BomUseCases(
             new BomOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
-            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
         services.AddScoped<ProductionOrderUseCases>(provider => new ProductionOrderUseCases(
-            new SqlProductionOrderOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
+            new SqlProductionOrderOperationsStore(
+                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+                provider.GetService<IErrorLogRecorder>(),
+                provider.GetService<IOperationContextAccessor>()),
             new BomOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
-            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
         services.AddScoped<InventoryUseCases>(provider => new InventoryUseCases(
-            new SqlInventoryOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
-            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
+            new SqlInventoryOperationsStore(
+                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+                provider.GetService<IErrorLogRecorder>(),
+                provider.GetService<IOperationContextAccessor>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
         services.AddScoped<ReportingUseCases>(provider => new ReportingUseCases(
-            new SqlReportingQueryStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
-            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
+            new SqlReportingQueryStore(
+                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+                provider.GetService<IErrorLogRecorder>(),
+                provider.GetService<IOperationContextAccessor>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
         return services;
     }
 }

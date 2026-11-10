@@ -83,6 +83,7 @@
             productionOrderScopes = await ReadScopes.LoadProductionOrderScopesAsync();
             inventoryScopes = await ReadScopes.LoadInventoryScopesAsync();
             reportScopes = await ReadScopes.LoadReportScopesAsync();
+            diagnosticScopes = await ReadScopes.LoadDiagnosticScopesAsync();
         }
         catch
         {
@@ -97,6 +98,7 @@
             productionOrderScopes = [];
             inventoryScopes = [];
             reportScopes = [];
+            diagnosticScopes = [];
         }
         StateHasChanged();
     }
@@ -136,6 +138,7 @@
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> productionOrderScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> inventoryScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> reportScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> diagnosticScopes = [];
 
     // The framework stylesheet ships only a few glyphs, so the shell uses its own CSS-mask icons (app.css, .ff-icon--*).
     private static BitIconInfo Icon(string name) => BitIconInfo.Css("ff-icon ff-icon--" + name);
@@ -241,6 +244,8 @@
                 items.Add(new() { Text = Text["Roles"], Icon = Icon("role"), Url = "/roles", Match = BitNavMatch.Exact });
             if (auditScopes.Count > 0)
                 items.Add(new() { Text = Text["Audit"], Icon = Icon("audit"), Url = "/audit", Match = BitNavMatch.Exact });
+            if (diagnosticScopes.Count > 0)
+                items.Add(new() { Text = Text["ErrorLogs"], Icon = Icon("errors"), Url = "/errors", Match = BitNavMatch.Exact });
             return items;
         }
     }

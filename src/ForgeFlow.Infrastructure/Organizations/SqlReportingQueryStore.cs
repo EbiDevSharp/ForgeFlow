@@ -1,12 +1,17 @@
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Reporting;
 using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.ProductionOrders;
+using ForgeFlow.Infrastructure.Diagnostics;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace ForgeFlow.Infrastructure.Organizations;
 
-public sealed class SqlReportingQueryStore(Func<IDbContextFactory<OrganizationDbContext>> getFactory)
+public sealed class SqlReportingQueryStore(
+    Func<IDbContextFactory<OrganizationDbContext>> getFactory,
+    IErrorLogRecorder? errorRecorder = null,
+    IOperationContextAccessor? opContext = null)
     : IReportingQueryStore
 {
     private const int MaxVarianceOrders = 2000;
@@ -252,6 +257,7 @@ public sealed class SqlReportingQueryStore(Func<IDbContextFactory<OrganizationDb
         }
         catch (Exception ex) when (Unavailable(ex))
         {
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlReportingQueryStore));
             throw new ReportingStoreUnavailableException(ex);
         }
     }

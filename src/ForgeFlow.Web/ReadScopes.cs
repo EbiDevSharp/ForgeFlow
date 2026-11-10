@@ -65,6 +65,22 @@ public sealed class ReadScopes(IServiceScopeFactory scopes, ITrustedActorAccesso
     public Task<IReadOnlyList<OrganizationScope>> LoadReportScopesAsync() =>
         LoadOrganizationOrSitePermissionScopesAsync(ForgeFlow.Application.Reporting.ReportingPermissions.ReportsRead);
 
+    public async Task<IReadOnlyList<OrganizationScope>> LoadDiagnosticScopesAsync()
+    {
+        var actor = await actors.ResolveAsync(default);
+        if (actor is null) return [];
+        await using var operation = scopes.CreateAsyncScope();
+        var db = operation.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var hasPlatform = await db.ScopedRoleAssignments.AsNoTracking()
+            .AnyAsync(x => x.UserId == actor.ActorId && x.IsActive && x.ScopeKind == 0);
+        if (!hasPlatform) return [];
+
+        var platform = new OrganizationScope.Platform();
+        return (await permissions.EvaluateAsync(actor, platform, ForgeFlow.Application.Diagnostics.DiagnosticPermissions.ErrorLogsRead, default)).IsAllowed
+            ? [platform]
+            : [];
+    }
+
     public async Task<IReadOnlyList<OrganizationScope>> LoadAuditScopesAsync()
     {
         var actor = await actors.ResolveAsync(default);

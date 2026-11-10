@@ -34,7 +34,7 @@ public sealed class ResourceContractTests
             ["SampleModeInvalid"] = 0, ["ChooseMode"] = 0, ["CanonicalValuesTitle"] = 0,
             ["SubmittedDate"] = 0, ["SubmittedAmount"] = 0, ["SubmittedCurrency"] = 0, ["SubmittedMode"] = 0
         },
-        [nameof(SharedResources)] = new()
+        [nameof(SharedResources)] = new Dictionary<string, int>()
         {
             ["Navigation"] = 0, ["Home"] = 0,
             ["AppTitle"] = 0, ["OpenNavigation"] = 0, ["CloseNavigation"] = 0, ["CollapseNavigation"] = 0,
@@ -243,8 +243,28 @@ public sealed class ResourceContractTests
             ["RptColConsumptionPct"] = 0, ["RptColReceivedQty"] = 0, ["RptColAchievementPct"] = 0, ["RptColPostedReceipt"] = 0,
             ["RptShortageBreakdownBtn"] = 0, ["RptShortageBreakdownTitle"] = 0, ["RptVarianceDetailTitle"] = 0,
             ["RptOrderInputsTitle"] = 0, ["RptOrderOutputsTitle"] = 0, ["RptNoShortageOrders"] = 0,
-            ["RptCsvHeaderDemandOrders"] = 0, ["RptShortageFileName"] = 0, ["RptVarianceFileName"] = 0, ["RptExportSuccessNotice"] = 0
-        }
+            ["RptCsvHeaderDemandOrders"] = 0, ["RptShortageFileName"] = 0, ["RptVarianceFileName"] = 0, ["RptExportSuccessNotice"] = 0,
+            ["ErrorReferenceLabel"] = 0, ["ErrorCorrelationLabel"] = 0,
+            ["PermPageDiagnostics"] = 0, ["PermOpExportAudit"] = 0,
+            ["PermOpReadErrorLogs"] = 0, ["PermOpManageErrorLogs"] = 0,
+            ["DiagErrorRetentionInvalid"] = 0,
+            ["AuditCategoryOperations"] = 0, ["AuditActorFilterLabel"] = 0, ["AuditAllActorsOption"] = 0,
+            ["AuditOutcomeFilterLabel"] = 0, ["AuditFromDateLabel"] = 0, ["AuditToDateLabel"] = 0,
+            ["AuditExportCsvBtn"] = 0, ["AuditExportFileName"] = 0, ["AuditExportSuccessNotice"] = 0,
+            ["AuditColSite"] = 0, ["AuditColCorrelation"] = 0,
+            ["ErrorLogs"] = 0, ["ErrorLogsCaption"] = 0,
+            ["ErrorLogsKpi24h"] = 0, ["ErrorLogsKpiCritical"] = 0, ["ErrorLogsKpiSql"] = 0, ["ErrorLogsKpiPipeline"] = 0,
+            ["ErrorLogsSeverityLabel"] = 0, ["ErrorLogsSourceLabel"] = 0,
+            ["ErrorLogsRefColumn"] = 0, ["ErrorLogsTypeColumn"] = 0, ["ErrorLogsMessageColumn"] = 0,
+            ["ErrorLogsSqlColumn"] = 0, ["ErrorLogsPathColumn"] = 0, ["ErrorLogsDetailsTitle"] = 0,
+            ["ErrorLogsStackTraceLabel"] = 0, ["ErrorLogsUserAgentLabel"] = 0,
+            ["ErrorLogsSevWarning"] = 0, ["ErrorLogsSevError"] = 0, ["ErrorLogsSevCritical"] = 0,
+            ["ErrorLogsSrcHttp"] = 0, ["ErrorLogsSrcCircuit"] = 0, ["ErrorLogsSrcComponent"] = 0,
+            ["ErrorLogsSrcStore"] = 0, ["ErrorLogsSrcHost"] = 0,
+            ["ErrorLogsPurgeBtn"] = 0, ["ErrorLogsPurgeDaysLabel"] = 0, ["ErrorLogsPurgeSuccess"] = 1,
+            ["UserMenuLastLoginTitle"] = 0, ["UserMenuFirstLoginNotice"] = 0
+        }.Concat(ForgeFlow.Application.Audit.AuditEventCatalog.All.ToDictionary(d => d.ResourceKey, _ => 0))
+         .ToDictionary(kv => kv.Key, kv => kv.Value)
     };
 
     [Fact]
@@ -338,7 +358,10 @@ public sealed class ResourceContractTests
              "InvErrorLinesRequired", "InvErrorQuantityInvalid", "InvErrorLotCodeInvalid",
              "InvErrorDestWarehouseInvalid", "InvErrorTransferSameWarehouse", "InvErrorOrderInvalid",
              "InvErrorOrderStateInvalid", "InvErrorInsufficientStock", "InvErrorIdempotencyInvalid",
-             "PermPageReports", "PermOpExportReports", "RptErrorOrderNotFound", "RptErrorExportInvalid"]);
+             "PermPageReports", "PermOpExportReports", "RptErrorOrderNotFound", "RptErrorExportInvalid",
+             "PermPageDiagnostics", "PermOpExportAudit", "PermOpReadErrorLogs", "PermOpManageErrorLogs",
+             "DiagErrorRetentionInvalid"]);
+        used[nameof(SharedResources)].UnionWith(ForgeFlow.Application.Audit.AuditEventCatalog.All.Select(d => d.ResourceKey));
         Assert.Equal(Contracts[nameof(SharedResources)].Keys.Order(), used[nameof(SharedResources)].Order());
     }
 

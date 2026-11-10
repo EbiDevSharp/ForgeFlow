@@ -1,3 +1,6 @@
+using System.Globalization;
+using ForgeFlow.Application.Common;
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.Roles;
@@ -8,18 +11,33 @@ namespace ForgeFlow.Application.Roles;
 public sealed class RoleUseCases(
     IRoleOperationsStore store,
     ITrustedActorAccessor? actors = null,
-    IOrganizationPermissionEvaluator? permissions = null)
+    IOrganizationPermissionEvaluator? permissions = null,
+    IUserOperationRecorder? operationRecorder = null,
+    IOperationContextAccessor? opContext = null)
 {
     private async ValueTask<(TrustedActor? Actor, string? Error)> Authorize(OrganizationScope? scope, string permission, CancellationToken ct)
     {
         if (actors is null) return (null, RolePermissionErrors.ActorRequired);
         var actor = await actors.ResolveAsync(ct);
         if (actor is null) return (null, RolePermissionErrors.ActorRequired);
-        if (scope is null) return (null, RolePermissionErrors.ScopeRequired);
+        if (scope is null) return (actor, RolePermissionErrors.ScopeRequired);
         if (permissions is null || !(await permissions.EvaluateAsync(actor, scope, permission, ct)).IsAllowed)
-            return (null, RolePermissionErrors.AccessDenied);
+            return (actor, RolePermissionErrors.AccessDenied);
         return (actor, null);
     }
+
+    private Task<OrganizationResult<T>> RecordRejected<T>(
+        OrganizationResult<T> result,
+        TrustedActor? actor,
+        OrganizationScope? scope,
+        long organizationId,
+        long? siteId,
+        string entityType,
+        string? entityRef,
+        string action)
+        => OperationAuditHelper.RecordIfRejectedAsync(
+            result, operationRecorder, opContext, UserOperationCatalog.RoleActionRejected,
+            actor, scope, organizationId, siteId, entityType, entityRef, new { Action = action });
 
     private OrganizationWriteAccess Access(TrustedActor actor, OrganizationScope scope, string permission) => new(actor, async ct =>
     {
@@ -134,27 +152,27 @@ public sealed class RoleUseCases(
     {
         const string permission = RolePermissions.RolesManage;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<RoleDetails>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, request.OrganizationId))
-            return OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.NotFound);
-
-        if (!Enum.IsDefined(request.TargetScope))
-            return OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.PermissionScopeInvalid, new Dictionary<string, object> { ["field"] = "TargetScope" });
-
-        RoleDefinitionName canonicalName;
-        IReadOnlyList<string> permissionCodes;
-        try
+        OrganizationResult<RoleDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<RoleDetails>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, request.OrganizationId))
+            res = OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.NotFound);
+        else if (!Enum.IsDefined(request.TargetScope))
+            res = OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.PermissionScopeInvalid, new Dictionary<string, object> { ["field"] = "TargetScope" });
+        else
         {
-            canonicalName = RoleDefinitionName.Parse(request.Name);
-            permissionCodes = PermissionCatalog.ValidateTenantPermissions((byte)request.TargetScope, request.PermissionCodes);
+            try
+            {
+                var canonicalName = RoleDefinitionName.Parse(request.Name);
+                var permissionCodes = PermissionCatalog.ValidateTenantPermissions((byte)request.TargetScope, request.PermissionCodes);
+                if (!await CallerHoldsAllAsync(auth.Actor!, scope!, permissionCodes, ct))
+                    res = OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.EscalationForbidden);
+                else
+                    res = await Execute(() => store.CreateOrganizationRole(
+                        request.OrganizationId, canonicalName, request.TargetScope, permissionCodes, Access(auth.Actor!, scope!, permission), ct));
+            }
+            catch (RoleRuleException ex) { res = FailFromRule<RoleDetails>(ex); }
         }
-        catch (RoleRuleException ex) { return FailFromRule<RoleDetails>(ex); }
-
-        if (!await CallerHoldsAllAsync(auth.Actor!, scope!, permissionCodes, ct))
-            return OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.EscalationForbidden);
-
-        return await Execute(() => store.CreateOrganizationRole(
-            request.OrganizationId, canonicalName, request.TargetScope, permissionCodes, Access(auth.Actor!, scope!, permission), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, null, "Role", request.Name, "CreateOrganizationRole");
     }
 
     public async Task<OrganizationResult<RoleDetails>> UpdateOrganizationRole(
@@ -164,29 +182,29 @@ public sealed class RoleUseCases(
     {
         const string permission = RolePermissions.RolesManage;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<RoleDetails>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, request.OrganizationId) || request.RoleId <= 0)
-            return OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.NotFound);
-
-        RoleDefinitionName canonicalName;
-        IReadOnlyList<string> permissionCodes;
-        try
+        OrganizationResult<RoleDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<RoleDetails>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, request.OrganizationId) || request.RoleId <= 0)
+            res = OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.NotFound);
+        else
         {
-            PermissionCatalog.EnsureCustomRoleMutable(request.RoleId, isSystem: false);
-            canonicalName = RoleDefinitionName.Parse(request.Name);
-            // Validate as Organization-capable first; store verifies whether role's locked ScopeKind is Site and rejects org-only codes.
-            permissionCodes = PermissionCatalog.ValidateTenantPermissions((byte)RoleScopeTarget.Organization, request.PermissionCodes);
+            try
+            {
+                PermissionCatalog.EnsureCustomRoleMutable(request.RoleId, isSystem: false);
+                var canonicalName = RoleDefinitionName.Parse(request.Name);
+                // Validate as Organization-capable first; store verifies whether role's locked ScopeKind is Site and rejects org-only codes.
+                var permissionCodes = PermissionCatalog.ValidateTenantPermissions((byte)RoleScopeTarget.Organization, request.PermissionCodes);
+                if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+                    res = OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.ConcurrencyConflict);
+                else if (request.IsActive && !await CallerHoldsAllAsync(auth.Actor!, scope!, permissionCodes, ct))
+                    res = OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.EscalationForbidden);
+                else
+                    res = await Execute(() => store.UpdateOrganizationRole(
+                        request.OrganizationId, request.RoleId, canonicalName, request.IsActive, permissionCodes, version, Access(auth.Actor!, scope!, permission), ct));
+            }
+            catch (RoleRuleException ex) { res = FailFromRule<RoleDetails>(ex); }
         }
-        catch (RoleRuleException ex) { return FailFromRule<RoleDetails>(ex); }
-
-        var version = DecodeVersion(request.ExpectedRowVersion);
-        if (version is null) return OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.ConcurrencyConflict);
-
-        if (request.IsActive && !await CallerHoldsAllAsync(auth.Actor!, scope!, permissionCodes, ct))
-            return OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.EscalationForbidden);
-
-        return await Execute(() => store.UpdateOrganizationRole(
-            request.OrganizationId, request.RoleId, canonicalName, request.IsActive, permissionCodes, version, Access(auth.Actor!, scope!, permission), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, null, "Role", request.RoleId.ToString(CultureInfo.InvariantCulture), "UpdateOrganizationRole");
     }
 
     public async Task<OrganizationResult<UserPermissionMatrix>> GetUserPermissions(
@@ -216,21 +234,20 @@ public sealed class RoleUseCases(
     {
         const string permission = RolePermissions.PermissionsAssign;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserPermissionMatrix>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0 || request.RoleId <= 0)
-            return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.NotFound);
-
-        if (!Enum.IsDefined(request.TargetScope))
-            return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.PermissionScopeInvalid, new Dictionary<string, object> { ["field"] = "TargetScope" });
-
-        if (request.RoleId == PermissionCatalog.DeploymentProvisionerRoleId)
-            return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.EscalationForbidden);
-
-        if ((request.TargetScope == RoleScopeTarget.Organization && request.SiteId is not null)
+        OrganizationResult<UserPermissionMatrix> res;
+        if (auth.Error is not null) res = OrganizationResult<UserPermissionMatrix>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0 || request.RoleId <= 0)
+            res = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.NotFound);
+        else if (!Enum.IsDefined(request.TargetScope))
+            res = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.PermissionScopeInvalid, new Dictionary<string, object> { ["field"] = "TargetScope" });
+        else if (request.RoleId == PermissionCatalog.DeploymentProvisionerRoleId)
+            res = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.EscalationForbidden);
+        else if ((request.TargetScope == RoleScopeTarget.Organization && request.SiteId is not null)
             || (request.TargetScope == RoleScopeTarget.Site && request.SiteId is not > 0))
-            return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.PermissionScopeInvalid, new Dictionary<string, object> { ["field"] = "SiteId" });
-
-        return await Execute(() => store.AssignUserRole(request, Access(auth.Actor!, scope!, permission), ct));
+            res = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.PermissionScopeInvalid, new Dictionary<string, object> { ["field"] = "SiteId" });
+        else
+            res = await Execute(() => store.AssignUserRole(request, Access(auth.Actor!, scope!, permission), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, request.SiteId, "ScopedRoleAssignment", $"{request.UserId}:role{request.RoleId}", "AssignUserRole");
     }
 
     public async Task<OrganizationResult<UserPermissionMatrix>> SetUserRoleAssignmentActive(
@@ -240,15 +257,16 @@ public sealed class RoleUseCases(
     {
         const string permission = RolePermissions.PermissionsAssign;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserPermissionMatrix>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0 || request.AssignmentId <= 0)
-            return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.NotFound);
-
-        var version = DecodeVersion(request.ExpectedRowVersion);
-        if (version is null) return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.ConcurrencyConflict);
-
-        return await Execute(() => store.SetUserRoleAssignmentActive(
-            request.OrganizationId, request.UserId, request.AssignmentId, request.IsActive, version, Access(auth.Actor!, scope!, permission), ct));
+        OrganizationResult<UserPermissionMatrix> res;
+        if (auth.Error is not null) res = OrganizationResult<UserPermissionMatrix>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0 || request.AssignmentId <= 0)
+            res = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.ConcurrencyConflict);
+        else
+            res = await Execute(() => store.SetUserRoleAssignmentActive(
+                request.OrganizationId, request.UserId, request.AssignmentId, request.IsActive, version, Access(auth.Actor!, scope!, permission), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, null, "ScopedRoleAssignment", request.AssignmentId.ToString(CultureInfo.InvariantCulture), "SetUserRoleAssignmentActive");
     }
 
     public async Task<OrganizationResult<UserPermissionMatrix>> SaveUserOperationGrants(
@@ -258,61 +276,79 @@ public sealed class RoleUseCases(
     {
         const string permission = RolePermissions.PermissionsAssign;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<UserPermissionMatrix>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0)
-            return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.NotFound);
-
-        if (!Enum.IsDefined(request.TargetScope)
+        OrganizationResult<UserPermissionMatrix> res;
+        if (auth.Error is not null) res = OrganizationResult<UserPermissionMatrix>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, request.OrganizationId) || request.UserId <= 0)
+            res = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.NotFound);
+        else if (!Enum.IsDefined(request.TargetScope)
             || (request.TargetScope == RoleScopeTarget.Organization && request.SiteId is not null)
             || (request.TargetScope == RoleScopeTarget.Site && request.SiteId is not > 0))
-            return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.PermissionScopeInvalid, new Dictionary<string, object> { ["field"] = "TargetScope" });
-
-        if (request.Changes is null || request.Changes.Count == 0)
-            return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.PermissionUnknown, new Dictionary<string, object> { ["field"] = "Changes" });
-
-        IReadOnlyList<string> validCodes;
-        try
+            res = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.PermissionScopeInvalid, new Dictionary<string, object> { ["field"] = "TargetScope" });
+        else if (request.Changes is null || request.Changes.Count == 0)
+            res = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.PermissionUnknown, new Dictionary<string, object> { ["field"] = "Changes" });
+        else
         {
-            validCodes = PermissionCatalog.ValidateTenantPermissions(
-                (byte)request.TargetScope,
-                request.Changes.Select(c => c.PermissionCode ?? string.Empty));
-        }
-        catch (RoleRuleException ex) { return FailFromRule<UserPermissionMatrix>(ex); }
-
-        var normalized = new List<(string PermissionCode, bool IsActive, byte[]? ExpectedVersion)>(request.Changes.Count);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var activeGrantsToCheck = new List<string>();
-
-        foreach (var change in request.Changes)
-        {
-            if (!PermissionCatalog.TryGet(change.PermissionCode, out var desc) || !seen.Add(desc.Code))
-                return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.PermissionUnknown, new Dictionary<string, object> { ["field"] = "Changes" });
-
-            byte[]? expected = null;
-            if (change.ExpectedRowVersion is not null)
+            try
             {
-                expected = DecodeVersion(change.ExpectedRowVersion);
-                if (expected is null)
-                    return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.ConcurrencyConflict);
+                _ = PermissionCatalog.ValidateTenantPermissions(
+                    (byte)request.TargetScope,
+                    request.Changes.Select(c => c.PermissionCode ?? string.Empty));
+
+                var normalized = new List<(string PermissionCode, bool IsActive, byte[]? ExpectedVersion)>(request.Changes.Count);
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                var activeGrantsToCheck = new List<string>();
+                OrganizationResult<UserPermissionMatrix>? invalidChange = null;
+
+                foreach (var change in request.Changes)
+                {
+                    if (!PermissionCatalog.TryGet(change.PermissionCode, out var desc) || !seen.Add(desc.Code))
+                    {
+                        invalidChange = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.PermissionUnknown, new Dictionary<string, object> { ["field"] = "Changes" });
+                        break;
+                    }
+
+                    byte[]? expected = null;
+                    if (change.ExpectedRowVersion is not null)
+                    {
+                        expected = DecodeVersion(change.ExpectedRowVersion);
+                        if (expected is null)
+                        {
+                            invalidChange = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.ConcurrencyConflict);
+                            break;
+                        }
+                    }
+
+                    if (change.IsActive)
+                        activeGrantsToCheck.Add(desc.Code);
+
+                    normalized.Add((desc.Code, change.IsActive, expected));
+                }
+
+                if (invalidChange is not null)
+                {
+                    res = invalidChange;
+                }
+                else
+                {
+                    if (activeGrantsToCheck.Count > 0)
+                    {
+                        OrganizationScope checkScope = request.TargetScope == RoleScopeTarget.Organization
+                            ? scope!
+                            : new OrganizationScope.Site(request.OrganizationId, request.SiteId!.Value);
+
+                        if (!await CallerHoldsAllAsync(auth.Actor!, checkScope, activeGrantsToCheck, ct))
+                        {
+                            res = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.EscalationForbidden);
+                            return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, request.SiteId, "UserPermissionGrant", request.UserId.ToString(CultureInfo.InvariantCulture), "SaveUserOperationGrants");
+                        }
+                    }
+
+                    res = await Execute(() => store.SaveUserOperationGrants(
+                        request.OrganizationId, request.UserId, request.TargetScope, request.SiteId, normalized, Access(auth.Actor!, scope!, permission), ct));
+                }
             }
-
-            if (change.IsActive)
-                activeGrantsToCheck.Add(desc.Code);
-
-            normalized.Add((desc.Code, change.IsActive, expected));
+            catch (RoleRuleException ex) { res = FailFromRule<RoleDetails>(ex) is var r ? OrganizationResult<UserPermissionMatrix>.Failure(r.Error!.Code, r.Error.Parameters) : default!; }
         }
-
-        if (activeGrantsToCheck.Count > 0)
-        {
-            OrganizationScope checkScope = request.TargetScope == RoleScopeTarget.Organization
-                ? scope!
-                : new OrganizationScope.Site(request.OrganizationId, request.SiteId!.Value);
-
-            if (!await CallerHoldsAllAsync(auth.Actor!, checkScope, activeGrantsToCheck, ct))
-                return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.EscalationForbidden);
-        }
-
-        return await Execute(() => store.SaveUserOperationGrants(
-            request.OrganizationId, request.UserId, request.TargetScope, request.SiteId, normalized, Access(auth.Actor!, scope!, permission), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, request.SiteId, "UserPermissionGrant", request.UserId.ToString(CultureInfo.InvariantCulture), "SaveUserOperationGrants");
     }
 }

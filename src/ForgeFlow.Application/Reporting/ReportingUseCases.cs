@@ -1,7 +1,10 @@
 using System.Globalization;
 using System.Text;
+using ForgeFlow.Application.Common;
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Boms;
+using ForgeFlow.Domain.Diagnostics;
 using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Reporting;
@@ -16,10 +19,11 @@ namespace ForgeFlow.Application.Reporting;
 public sealed class ReportingUseCases(
     IReportingQueryStore store,
     ITrustedActorAccessor? actors = null,
-    IOrganizationPermissionEvaluator? permissions = null)
+    IOrganizationPermissionEvaluator? permissions = null,
+    IUserOperationRecorder? operationRecorder = null,
+    IOperationContextAccessor? opContext = null)
 {
     private const int Scale = 6;
-    private static readonly byte[] Utf8Bom = Encoding.UTF8.GetPreamble();
 
     private async ValueTask<(TrustedActor? Actor, string? Error)> Authorize(
         OrganizationScope? scope,
@@ -156,7 +160,13 @@ public sealed class ReportingUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ReportingPermissions.ReportsExport, ct);
-        if (auth.Error is not null) return OrganizationResult<CsvExportFile>.Failure(auth.Error);
+        if (auth.Error is not null)
+        {
+            await OperationAuditHelper.RecordAsync(operationRecorder, opContext, UserOperationCatalog.ReportingActionRejected,
+                OperationAuditHelper.MapFailureOutcome(auth.Error), auth.Actor, scope, organizationId, query.SiteId,
+                "MaterialShortage", null, auth.Error);
+            return OrganizationResult<CsvExportFile>.Failure(auth.Error);
+        }
         if (!TryResolveScope(scope, organizationId, query.SiteId, out var forcedSiteId))
             return OrganizationResult<CsvExportFile>.Failure(ReportingErrors.AccessDenied);
         if (columns.Headers.Count != 10 || string.IsNullOrWhiteSpace(columns.FileName))
@@ -180,7 +190,12 @@ public sealed class ReportingUseCases(
                 string.Join(" | ", i.Orders.Select(o => $"{o.OrderNumber}({o.SiteCode})"))
             ]);
 
-            return OrganizationResult<CsvExportFile>.Success(BuildCsvFile(columns.FileName, columns.Headers, rows));
+            var file = BuildCsvFile(columns.FileName, columns.Headers, rows);
+            await OperationAuditHelper.RecordAsync(operationRecorder, opContext, UserOperationCatalog.ReportsShortageExported,
+                UserOperationOutcome.Succeeded, auth.Actor, scope, organizationId, forcedSiteId,
+                "MaterialShortage", file.FileName, null,
+                new { MaterialCount = report.Items.Count, ShortageCount = report.ShortageMaterialCount });
+            return OrganizationResult<CsvExportFile>.Success(file);
         }
         catch (ReportingStoreUnavailableException)
         {
@@ -196,7 +211,13 @@ public sealed class ReportingUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ReportingPermissions.ReportsExport, ct);
-        if (auth.Error is not null) return OrganizationResult<CsvExportFile>.Failure(auth.Error);
+        if (auth.Error is not null)
+        {
+            await OperationAuditHelper.RecordAsync(operationRecorder, opContext, UserOperationCatalog.ReportingActionRejected,
+                OperationAuditHelper.MapFailureOutcome(auth.Error), auth.Actor, scope, organizationId, query.SiteId,
+                "ProductionVariance", null, auth.Error);
+            return OrganizationResult<CsvExportFile>.Failure(auth.Error);
+        }
         if (!TryResolveScope(scope, organizationId, query.SiteId, out var forcedSiteId))
             return OrganizationResult<CsvExportFile>.Failure(ReportingErrors.AccessDenied);
         if (columns.Headers.Count != 12 || string.IsNullOrWhiteSpace(columns.FileName))
@@ -223,7 +244,12 @@ public sealed class ReportingUseCases(
                 FormatCsvDecimal(o.TotalIssuedInputBaseQuantity)
             ]);
 
-            return OrganizationResult<CsvExportFile>.Success(BuildCsvFile(columns.FileName, columns.Headers, rows));
+            var file = BuildCsvFile(columns.FileName, columns.Headers, rows);
+            await OperationAuditHelper.RecordAsync(operationRecorder, opContext, UserOperationCatalog.ReportsVarianceExported,
+                UserOperationOutcome.Succeeded, auth.Actor, scope, organizationId, forcedSiteId,
+                "ProductionVariance", file.FileName, null,
+                new { OrderCount = report.Orders.Count });
+            return OrganizationResult<CsvExportFile>.Success(file);
         }
         catch (ReportingStoreUnavailableException)
         {
@@ -534,65 +560,11 @@ public sealed class ReportingUseCases(
     public static CsvExportFile BuildCsvFile(
         string fileName,
         IReadOnlyList<string> headers,
-        IEnumerable<IReadOnlyList<string>> rows)
-    {
-        var sb = new StringBuilder();
-        AppendCsvRow(sb, headers);
-        foreach (var row in rows)
-            AppendCsvRow(sb, row);
+        IEnumerable<IReadOnlyList<string>> rows) =>
+        CsvExportBuilder.Build(fileName, headers, rows);
 
-        var textBytes = Encoding.UTF8.GetBytes(sb.ToString());
-        var withBom = new byte[Utf8Bom.Length + textBytes.Length];
-        Buffer.BlockCopy(Utf8Bom, 0, withBom, 0, Utf8Bom.Length);
-        Buffer.BlockCopy(textBytes, 0, withBom, Utf8Bom.Length, textBytes.Length);
-
-        var safeName = SanitizeFileName(fileName);
-        return new CsvExportFile(safeName, "text/csv; charset=utf-8", withBom);
-    }
-
-    public static string EscapeCsvCell(string? raw)
-    {
-        var value = raw ?? string.Empty;
-        if (value.Length > 0 && IsFormulaTrigger(value[0]))
-            value = "'" + value;
-
-        var needsQuotes = value.IndexOfAny([',', '"', '\r', '\n']) >= 0;
-        if (!needsQuotes) return value;
-
-        return "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
-    }
-
-    private static bool IsFormulaTrigger(char ch) =>
-        ch is '=' or '+' or '-' or '@' or '\t' or '\r';
-
-    private static void AppendCsvRow(StringBuilder sb, IReadOnlyList<string> cells)
-    {
-        for (var i = 0; i < cells.Count; i++)
-        {
-            if (i > 0) sb.Append(',');
-            sb.Append(EscapeCsvCell(cells[i]));
-        }
-        sb.Append("\r\n");
-    }
-
-    private static string SanitizeFileName(string fileName)
-    {
-        var trimmed = fileName.Trim();
-        var sb = new StringBuilder(trimmed.Length);
-        foreach (var ch in trimmed)
-        {
-            if (char.IsLetterOrDigit(ch) || ch is '-' or '_' or '.')
-                sb.Append(ch);
-            else
-                sb.Append('_');
-        }
-        var clean = sb.ToString();
-        while (clean.Contains("..", StringComparison.Ordinal))
-            clean = clean.Replace("..", "_", StringComparison.Ordinal);
-        if (!clean.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
-            clean += ".csv";
-        return clean;
-    }
+    public static string EscapeCsvCell(string? raw) =>
+        CsvExportBuilder.EscapeCell(raw);
 
     private static string FormatCsvDecimal(decimal value) =>
         value.ToString("0.######", CultureInfo.InvariantCulture);

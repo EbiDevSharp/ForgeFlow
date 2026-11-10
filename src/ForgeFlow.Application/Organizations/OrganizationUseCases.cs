@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using ForgeFlow.Application.Common;
+using ForgeFlow.Application.Diagnostics;
 
 namespace ForgeFlow.Application.Organizations;
 
@@ -44,16 +47,17 @@ public interface IOrganizationOperationsStore
 
 /// <summary>No trusted adapters means denial before any store access. AUTH-01 supplies real adapters later.</summary>
 public sealed class OrganizationUseCases(IOrganizationOperationsStore store,
-    ITrustedActorAccessor? actors = null, IOrganizationPermissionEvaluator? permissions = null)
+    ITrustedActorAccessor? actors = null, IOrganizationPermissionEvaluator? permissions = null,
+    IUserOperationRecorder? operationRecorder = null, IOperationContextAccessor? opContext = null)
 {
     private async ValueTask<(TrustedActor? Actor, string? Error)> Authorize(OrganizationScope? scope, string permission, CancellationToken ct)
     {
         if (actors is null) return (null, OrganizationAccessErrors.ActorRequired);
         var actor = await actors.ResolveAsync(ct);
         if (actor is null) return (null, OrganizationAccessErrors.ActorRequired);
-        if (scope is null) return (null, OrganizationAccessErrors.ScopeRequired);
+        if (scope is null) return (actor, OrganizationAccessErrors.ScopeRequired);
         if (permissions is null || !(await permissions.EvaluateAsync(actor, scope, permission, ct)).IsAllowed)
-            return (null, OrganizationAccessErrors.AccessDenied);
+            return (actor, OrganizationAccessErrors.AccessDenied);
         return (actor, null);
     }
 
@@ -124,17 +128,23 @@ public sealed class OrganizationUseCases(IOrganizationOperationsStore store,
     {
         var permission = OrganizationPermissions.OrganizationsCreate;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<OrganizationDetails>.Failure(auth.Error);
-        if (scope is not OrganizationScope.Platform) return OrganizationResult<OrganizationDetails>.Failure(OrganizationAccessErrors.AccessDenied);
-        return await store.CreateOrganization(request, Access(auth.Actor!, scope, permission), ct);
+        OrganizationResult<OrganizationDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<OrganizationDetails>.Failure(auth.Error);
+        else if (scope is not OrganizationScope.Platform) res = OrganizationResult<OrganizationDetails>.Failure(OrganizationAccessErrors.AccessDenied);
+        else res = await store.CreateOrganization(request, Access(auth.Actor!, scope, permission), ct);
+        return await OperationAuditHelper.RecordIfRejectedAsync(res, operationRecorder, opContext,
+            UserOperationCatalog.OrganizationActionRejected, auth.Actor, scope, null, null, "Organization", request.Code, new { Action = "CreateOrganization" });
     }
     public async Task<OrganizationResult<SiteDetails>> CreateSite(OrganizationScope? scope, CreateSite request, CancellationToken ct = default)
     {
         var permission = OrganizationPermissions.SitesCreate;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<SiteDetails>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, request.OrganizationId)) return OrganizationResult<SiteDetails>.Failure("Site.NotFound");
-        return await store.CreateSite(request, Access(auth.Actor!, scope!, permission), ct);
+        OrganizationResult<SiteDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<SiteDetails>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, request.OrganizationId)) res = OrganizationResult<SiteDetails>.Failure("Site.NotFound");
+        else res = await store.CreateSite(request, Access(auth.Actor!, scope!, permission), ct);
+        return await OperationAuditHelper.RecordIfRejectedAsync(res, operationRecorder, opContext,
+            UserOperationCatalog.SiteActionRejected, auth.Actor, scope, request.OrganizationId, null, "Site", request.Code, new { Action = "CreateSite" });
     }
     public Task<OrganizationResult<OrganizationDetails>> RenameOrganization(OrganizationScope? scope, RenameOrganization request, CancellationToken ct = default)
         => ChangeOrganization(scope, request.Id, request.ExpectedRowVersion, OrganizationMutation.Rename, request.Name, ct);
@@ -149,20 +159,26 @@ public sealed class OrganizationUseCases(IOrganizationOperationsStore store,
     {
         var permission = mutation == OrganizationMutation.Rename ? OrganizationPermissions.OrganizationsUpdate : OrganizationPermissions.OrganizationsSetActive;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<OrganizationDetails>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, id)) return OrganizationResult<OrganizationDetails>.Failure("Organization.NotFound");
-        var version = Version(expected);
-        if (version is null) return OrganizationResult<OrganizationDetails>.Failure(OrganizationAccessErrors.ConcurrencyConflict);
-        return await store.UpdateOrganization(id, version, mutation, name, Access(auth.Actor!, scope!, permission), ct);
+        OrganizationResult<OrganizationDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<OrganizationDetails>.Failure(auth.Error);
+        else if (!OrganizationMatches(scope, id)) res = OrganizationResult<OrganizationDetails>.Failure("Organization.NotFound");
+        else if (Version(expected) is not byte[] version) res = OrganizationResult<OrganizationDetails>.Failure(OrganizationAccessErrors.ConcurrencyConflict);
+        else res = await store.UpdateOrganization(id, version, mutation, name, Access(auth.Actor!, scope!, permission), ct);
+        return await OperationAuditHelper.RecordIfRejectedAsync(res, operationRecorder, opContext,
+            UserOperationCatalog.OrganizationActionRejected, auth.Actor, scope, id, null, "Organization",
+            id.ToString(CultureInfo.InvariantCulture), new { Action = mutation.ToString() });
     }
     private async Task<OrganizationResult<SiteDetails>> ChangeSite(OrganizationScope? scope, long orgId, long id, string? expected, OrganizationMutation mutation, string? name, CancellationToken ct)
     {
         var permission = mutation == OrganizationMutation.Rename ? OrganizationPermissions.SitesUpdate : OrganizationPermissions.SitesSetActive;
         var auth = await Authorize(scope, permission, ct);
-        if (auth.Error is not null) return OrganizationResult<SiteDetails>.Failure(auth.Error);
-        if (!SiteMatches(scope, orgId, id)) return OrganizationResult<SiteDetails>.Failure("Site.NotFound");
-        var version = Version(expected);
-        if (version is null) return OrganizationResult<SiteDetails>.Failure(OrganizationAccessErrors.ConcurrencyConflict);
-        return await store.UpdateSite(orgId, id, version, mutation, name, Access(auth.Actor!, scope!, permission), ct);
+        OrganizationResult<SiteDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<SiteDetails>.Failure(auth.Error);
+        else if (!SiteMatches(scope, orgId, id)) res = OrganizationResult<SiteDetails>.Failure("Site.NotFound");
+        else if (Version(expected) is not byte[] version) res = OrganizationResult<SiteDetails>.Failure(OrganizationAccessErrors.ConcurrencyConflict);
+        else res = await store.UpdateSite(orgId, id, version, mutation, name, Access(auth.Actor!, scope!, permission), ct);
+        return await OperationAuditHelper.RecordIfRejectedAsync(res, operationRecorder, opContext,
+            UserOperationCatalog.SiteActionRejected, auth.Actor, scope, orgId, id > 0 ? id : null, "Site",
+            id.ToString(CultureInfo.InvariantCulture), new { Action = mutation.ToString() });
     }
 }

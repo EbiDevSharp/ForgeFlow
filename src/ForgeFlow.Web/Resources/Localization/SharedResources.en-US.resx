@@ -685,7 +685,7 @@
     <value>Audit &amp; Events</value>
   </data>
   <data name="AuditCaption" xml:space="preserve">
-    <value>Audit and security event records</value>
+    <value>Business changes, security events, exports, and rejected actions</value>
   </data>
   <data name="AuditCategoryLabel" xml:space="preserve">
     <value>Category</value>
@@ -1941,4 +1941,229 @@
   <data name="RptExportSuccessNotice" xml:space="preserve">
     <value>CSV report exported.</value>
   </data>
+  <data name="ErrorReferenceLabel" xml:space="preserve">
+    <value>Tracking Reference</value>
+  </data>
+  <data name="ErrorCorrelationLabel" xml:space="preserve">
+    <value>Correlation ID</value>
+  </data>
+  <data name="PermPageDiagnostics" xml:space="preserve">
+    <value>System Error Logs</value>
+  </data>
+  <data name="PermOpExportAudit" xml:space="preserve">
+    <value>Export Audit CSV</value>
+  </data>
+  <data name="PermOpReadErrorLogs" xml:space="preserve">
+    <value>View Error Logs</value>
+  </data>
+  <data name="PermOpManageErrorLogs" xml:space="preserve">
+    <value>Purge Old Error Logs</value>
+  </data>
+  <data name="DiagErrorRetentionInvalid" xml:space="preserve">
+    <value>Retention period must be between 7 and 3650 days.</value>
+  </data>
+  <data name="AuditCategoryOperations" xml:space="preserve">
+    <value>Exports &amp; Rejected Actions</value>
+  </data>
+  <data name="AuditActorFilterLabel" xml:space="preserve">
+    <value>User</value>
+  </data>
+  <data name="AuditAllActorsOption" xml:space="preserve">
+    <value>All users</value>
+  </data>
+  <data name="AuditOutcomeFilterLabel" xml:space="preserve">
+    <value>Outcome</value>
+  </data>
+  <data name="AuditFromDateLabel" xml:space="preserve">
+    <value>From Date</value>
+  </data>
+  <data name="AuditToDateLabel" xml:space="preserve">
+    <value>To Date</value>
+  </data>
+  <data name="AuditExportCsvBtn" xml:space="preserve">
+    <value>Export CSV</value>
+  </data>
+  <data name="AuditExportFileName" xml:space="preserve">
+    <value>audit-operations-log</value>
+  </data>
+  <data name="AuditExportSuccessNotice" xml:space="preserve">
+    <value>Audit log CSV exported.</value>
+  </data>
+  <data name="AuditColSite" xml:space="preserve">
+    <value>Site</value>
+  </data>
+  <data name="AuditColCorrelation" xml:space="preserve">
+    <value>Correlation</value>
+  </data>
+  <data name="ErrorLogs" xml:space="preserve">
+    <value>Error Logs</value>
+  </data>
+  <data name="ErrorLogsCaption" xml:space="preserve">
+    <value>Redacted runtime, HTTP, Blazor circuit, and SQL infrastructure exceptions.</value>
+  </data>
+  <data name="ErrorLogsKpi24h" xml:space="preserve">
+    <value>Errors (Last 24h)</value>
+  </data>
+  <data name="ErrorLogsKpiCritical" xml:space="preserve">
+    <value>Critical (24h)</value>
+  </data>
+  <data name="ErrorLogsKpiSql" xml:space="preserve">
+    <value>SQL Failures (24h)</value>
+  </data>
+  <data name="ErrorLogsKpiPipeline" xml:space="preserve">
+    <value>HTTP / Circuit (24h)</value>
+  </data>
+  <data name="ErrorLogsSeverityLabel" xml:space="preserve">
+    <value>Severity</value>
+  </data>
+  <data name="ErrorLogsSourceLabel" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="ErrorLogsRefColumn" xml:space="preserve">
+    <value>Reference</value>
+  </data>
+  <data name="ErrorLogsTypeColumn" xml:space="preserve">
+    <value>Exception Type</value>
+  </data>
+  <data name="ErrorLogsMessageColumn" xml:space="preserve">
+    <value>Redacted Message</value>
+  </data>
+  <data name="ErrorLogsSqlColumn" xml:space="preserve">
+    <value>SQL Error</value>
+  </data>
+  <data name="ErrorLogsPathColumn" xml:space="preserve">
+    <value>Request Path</value>
+  </data>
+  <data name="ErrorLogsDetailsTitle" xml:space="preserve">
+    <value>Error Log Details</value>
+  </data>
+  <data name="ErrorLogsStackTraceLabel" xml:space="preserve">
+    <value>Redacted Stack Trace</value>
+  </data>
+  <data name="ErrorLogsUserAgentLabel" xml:space="preserve">
+    <value>User Agent</value>
+  </data>
+  <data name="ErrorLogsSevWarning" xml:space="preserve">
+    <value>Warning</value>
+  </data>
+  <data name="ErrorLogsSevError" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="ErrorLogsSevCritical" xml:space="preserve">
+    <value>Critical</value>
+  </data>
+  <data name="ErrorLogsSrcHttp" xml:space="preserve">
+    <value>HTTP Pipeline</value>
+  </data>
+  <data name="ErrorLogsSrcCircuit" xml:space="preserve">
+    <value>Blazor Circuit</value>
+  </data>
+  <data name="ErrorLogsSrcComponent" xml:space="preserve">
+    <value>UI Component</value>
+  </data>
+  <data name="ErrorLogsSrcStore" xml:space="preserve">
+    <value>SQL Store</value>
+  </data>
+  <data name="ErrorLogsSrcHost" xml:space="preserve">
+    <value>Host Service</value>
+  </data>
+  <data name="ErrorLogsPurgeBtn" xml:space="preserve">
+    <value>Purge Older Errors</value>
+  </data>
+  <data name="ErrorLogsPurgeDaysLabel" xml:space="preserve">
+    <value>Retain Days</value>
+  </data>
+  <data name="ErrorLogsPurgeSuccess" xml:space="preserve">
+    <value>Purged {0} older error log entries.</value>
+  </data>
+  <data name="AuditEv_OrganizationCreated" xml:space="preserve"><value>Organization Created</value></data>
+  <data name="AuditEv_OrganizationRenamed" xml:space="preserve"><value>Organization Renamed</value></data>
+  <data name="AuditEv_OrganizationActivated" xml:space="preserve"><value>Organization Activated</value></data>
+  <data name="AuditEv_OrganizationDeactivated" xml:space="preserve"><value>Organization Deactivated</value></data>
+  <data name="AuditEv_SiteCreated" xml:space="preserve"><value>Site Created</value></data>
+  <data name="AuditEv_SiteRenamed" xml:space="preserve"><value>Site Renamed</value></data>
+  <data name="AuditEv_SiteActivated" xml:space="preserve"><value>Site Activated</value></data>
+  <data name="AuditEv_SiteDeactivated" xml:space="preserve"><value>Site Deactivated</value></data>
+  <data name="AuditEv_UnitCreated" xml:space="preserve"><value>Unit Created</value></data>
+  <data name="AuditEv_UnitUpdated" xml:space="preserve"><value>Unit Updated</value></data>
+  <data name="AuditEv_UnitActivated" xml:space="preserve"><value>Unit Activated</value></data>
+  <data name="AuditEv_UnitDeactivated" xml:space="preserve"><value>Unit Deactivated</value></data>
+  <data name="AuditEv_UnitConversionCreated" xml:space="preserve"><value>Unit Conversion Created</value></data>
+  <data name="AuditEv_UnitConversionUpdated" xml:space="preserve"><value>Unit Conversion Updated</value></data>
+  <data name="AuditEv_UnitConversionActivated" xml:space="preserve"><value>Unit Conversion Activated</value></data>
+  <data name="AuditEv_UnitConversionDeactivated" xml:space="preserve"><value>Unit Conversion Deactivated</value></data>
+  <data name="AuditEv_ItemCreated" xml:space="preserve"><value>Item Created</value></data>
+  <data name="AuditEv_ItemUpdated" xml:space="preserve"><value>Item Updated</value></data>
+  <data name="AuditEv_ItemActivated" xml:space="preserve"><value>Item Activated</value></data>
+  <data name="AuditEv_ItemDeactivated" xml:space="preserve"><value>Item Deactivated</value></data>
+  <data name="AuditEv_ClassificationSetCreated" xml:space="preserve"><value>Classification Set Created</value></data>
+  <data name="AuditEv_ClassificationCreated" xml:space="preserve"><value>Classification Created</value></data>
+  <data name="AuditEv_ClassificationUpdated" xml:space="preserve"><value>Classification Updated</value></data>
+  <data name="AuditEv_ClassificationActivated" xml:space="preserve"><value>Classification Activated</value></data>
+  <data name="AuditEv_ClassificationDeactivated" xml:space="preserve"><value>Classification Deactivated</value></data>
+  <data name="AuditEv_ItemClassificationUpdated" xml:space="preserve"><value>Item Classification Updated</value></data>
+  <data name="AuditEv_ItemUnitConversionCreated" xml:space="preserve"><value>Item Conversion Created</value></data>
+  <data name="AuditEv_ItemUnitConversionUpdated" xml:space="preserve"><value>Item Conversion Updated</value></data>
+  <data name="AuditEv_ItemUnitConversionActivated" xml:space="preserve"><value>Item Conversion Activated</value></data>
+  <data name="AuditEv_ItemUnitConversionDeactivated" xml:space="preserve"><value>Item Conversion Deactivated</value></data>
+  <data name="AuditEv_AttributeDefinitionCreated" xml:space="preserve"><value>Attribute Definition Created</value></data>
+  <data name="AuditEv_AttributeDefinitionUpdated" xml:space="preserve"><value>Attribute Definition Updated</value></data>
+  <data name="AuditEv_AttributeDefinitionActivated" xml:space="preserve"><value>Attribute Definition Activated</value></data>
+  <data name="AuditEv_AttributeDefinitionDeactivated" xml:space="preserve"><value>Attribute Definition Deactivated</value></data>
+  <data name="AuditEv_ItemAttributeValueUpdated" xml:space="preserve"><value>Item Attribute Updated</value></data>
+  <data name="AuditEv_ContextDimensionCreated" xml:space="preserve"><value>Context Dimension Created</value></data>
+  <data name="AuditEv_ContextDimensionUpdated" xml:space="preserve"><value>Context Dimension Updated</value></data>
+  <data name="AuditEv_ContextDimensionActivated" xml:space="preserve"><value>Context Dimension Activated</value></data>
+  <data name="AuditEv_ContextDimensionDeactivated" xml:space="preserve"><value>Context Dimension Deactivated</value></data>
+  <data name="AuditEv_BomCreated" xml:space="preserve"><value>BOM Created</value></data>
+  <data name="AuditEv_BomRenamed" xml:space="preserve"><value>BOM Renamed</value></data>
+  <data name="AuditEv_BomActivated" xml:space="preserve"><value>BOM Activated</value></data>
+  <data name="AuditEv_BomDeactivated" xml:space="preserve"><value>BOM Deactivated</value></data>
+  <data name="AuditEv_BomVersionCreated" xml:space="preserve"><value>BOM Version Created</value></data>
+  <data name="AuditEv_BomVersionUpdated" xml:space="preserve"><value>BOM Version Updated</value></data>
+  <data name="AuditEv_BomVersionStatusChanged" xml:space="preserve"><value>BOM Version Status Changed</value></data>
+  <data name="AuditEv_BomVersionLinesSaved" xml:space="preserve"><value>BOM Version Lines Saved</value></data>
+  <data name="AuditEv_BomVersionApplicabilitySaved" xml:space="preserve"><value>BOM Applicability Saved</value></data>
+  <data name="AuditEv_ProductionOrderCreated" xml:space="preserve"><value>Production Order Created</value></data>
+  <data name="AuditEv_ProductionOrderUpdated" xml:space="preserve"><value>Production Order Updated</value></data>
+  <data name="AuditEv_ProductionOrderRefreshed" xml:space="preserve"><value>Production Order BOM Refreshed</value></data>
+  <data name="AuditEv_ProductionOrderReleased" xml:space="preserve"><value>Production Order Released</value></data>
+  <data name="AuditEv_ProductionOrderStarted" xml:space="preserve"><value>Production Order Started</value></data>
+  <data name="AuditEv_ProductionOrderCompleted" xml:space="preserve"><value>Production Order Completed</value></data>
+  <data name="AuditEv_ProductionOrderCancelled" xml:space="preserve"><value>Production Order Cancelled</value></data>
+  <data name="AuditEv_WarehouseCreated" xml:space="preserve"><value>Warehouse Created</value></data>
+  <data name="AuditEv_WarehouseUpdated" xml:space="preserve"><value>Warehouse Updated</value></data>
+  <data name="AuditEv_WarehouseActivated" xml:space="preserve"><value>Warehouse Activated</value></data>
+  <data name="AuditEv_WarehouseDeactivated" xml:space="preserve"><value>Warehouse Deactivated</value></data>
+  <data name="AuditEv_InventoryTransactionPosted" xml:space="preserve"><value>Inventory Transaction Posted</value></data>
+  <data name="AuditEv_InventoryTransactionReversed" xml:space="preserve"><value>Inventory Transaction Reversed</value></data>
+  <data name="AuditEv_BootstrapCompleted" xml:space="preserve"><value>Platform Bootstrap Completed</value></data>
+  <data name="AuditEv_AccountCreated" xml:space="preserve"><value>User Account Created</value></data>
+  <data name="AuditEv_SignInFailed" xml:space="preserve"><value>Sign-In Failed</value></data>
+  <data name="AuditEv_AccountLocked" xml:space="preserve"><value>Account Locked Out</value></data>
+  <data name="AuditEv_SessionIssued" xml:space="preserve"><value>Session Issued (Sign-In)</value></data>
+  <data name="AuditEv_SessionRevoked" xml:space="preserve"><value>Session Revoked (Sign-Out)</value></data>
+  <data name="AuditEv_AccessDenied" xml:space="preserve"><value>Access Denied</value></data>
+  <data name="AuditEv_PasswordResetCompleted" xml:space="preserve"><value>Password Reset / Changed</value></data>
+  <data name="AuditEv_AccountEligibilityChanged" xml:space="preserve"><value>Account Status / Eligibility Changed</value></data>
+  <data name="AuditEv_MembershipChanged" xml:space="preserve"><value>Organization / Site Membership Changed</value></data>
+  <data name="AuditEv_ScopedRoleChanged" xml:space="preserve"><value>User Role Assignment Changed</value></data>
+  <data name="AuditEv_RoleDefinitionChanged" xml:space="preserve"><value>Role Definition Changed</value></data>
+  <data name="AuditEv_DirectPermissionChanged" xml:space="preserve"><value>Direct Permission Grant Changed</value></data>
+  <data name="AuditEv_CulturePreferenceChanged" xml:space="preserve"><value>Language Preference Changed</value></data>
+  <data name="AuditEv_ReportsShortageExported" xml:space="preserve"><value>Material Shortage Report Exported</value></data>
+  <data name="AuditEv_ReportsVarianceExported" xml:space="preserve"><value>Production Variance Report Exported</value></data>
+  <data name="AuditEv_AuditExported" xml:space="preserve"><value>Audit Log Exported</value></data>
+  <data name="AuditEv_OrganizationActionRejected" xml:space="preserve"><value>Organization Action Rejected</value></data>
+  <data name="AuditEv_SiteActionRejected" xml:space="preserve"><value>Site Action Rejected</value></data>
+  <data name="AuditEv_UnitActionRejected" xml:space="preserve"><value>Unit of Measure Action Rejected</value></data>
+  <data name="AuditEv_ItemActionRejected" xml:space="preserve"><value>Item Catalog Action Rejected</value></data>
+  <data name="AuditEv_BomActionRejected" xml:space="preserve"><value>BOM Action Rejected</value></data>
+  <data name="AuditEv_ProductionOrderActionRejected" xml:space="preserve"><value>Production Order Action Rejected</value></data>
+  <data name="AuditEv_InventoryActionRejected" xml:space="preserve"><value>Inventory Action Rejected</value></data>
+  <data name="AuditEv_UserActionRejected" xml:space="preserve"><value>User Management Action Rejected</value></data>
+  <data name="AuditEv_RoleActionRejected" xml:space="preserve"><value>Role &amp; Permission Action Rejected</value></data>
+  <data name="AuditEv_ReportingActionRejected" xml:space="preserve"><value>Report Export Rejected</value></data>
+  <data name="UserMenuLastLoginTitle" xml:space="preserve"><value>Last sign-in</value></data>
+  <data name="UserMenuFirstLoginNotice" xml:space="preserve"><value>This is your first sign-in</value></data>
 </root>

@@ -12,7 +12,8 @@ public enum PermissionModule : byte
     Boms = 8,
     ProductionOrders = 9,
     Inventory = 10,
-    Reports = 11
+    Reports = 11,
+    Diagnostics = 12
 }
 
 public enum PermissionScopeApplicability : byte
@@ -62,6 +63,9 @@ public static class PermissionCatalog
         new("Permissions.Assign", PermissionModule.Roles, "AssignPermissions", PermissionScopeApplicability.OrganizationOnly),
 
         new("Audit.Read", PermissionModule.Audit, "Read", PermissionScopeApplicability.OrganizationOrSite),
+        new("Audit.Export", PermissionModule.Audit, "ExportAudit", PermissionScopeApplicability.OrganizationOrSite),
+        new("Diagnostics.ErrorLogsRead", PermissionModule.Diagnostics, "ReadErrorLogs", PermissionScopeApplicability.PlatformOnly),
+        new("Diagnostics.ErrorLogsManage", PermissionModule.Diagnostics, "ManageErrorLogs", PermissionScopeApplicability.PlatformOnly),
 
         new("Units.Read", PermissionModule.Units, "Read", PermissionScopeApplicability.OrganizationOrSite),
         new("Units.Manage", PermissionModule.Units, "ManageUnits", PermissionScopeApplicability.OrganizationOnly),

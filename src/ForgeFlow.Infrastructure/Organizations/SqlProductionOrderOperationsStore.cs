@@ -1,14 +1,19 @@
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.ProductionOrders;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.ProductionOrders;
+using ForgeFlow.Infrastructure.Diagnostics;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ForgeFlow.Infrastructure.Organizations;
 
-public sealed class SqlProductionOrderOperationsStore(Func<IDbContextFactory<OrganizationDbContext>> getFactory)
+public sealed class SqlProductionOrderOperationsStore(
+    Func<IDbContextFactory<OrganizationDbContext>> getFactory,
+    IErrorLogRecorder? errorRecorder = null,
+    IOperationContextAccessor? opContext = null)
     : IProductionOrderOperationsStore
 {
     private IDbContextFactory<OrganizationDbContext> Factory => getFactory();
@@ -448,6 +453,7 @@ public sealed class SqlProductionOrderOperationsStore(Func<IDbContextFactory<Org
         }
         catch (Exception ex) when (Unavailable(ex))
         {
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlProductionOrderOperationsStore));
             throw new ProductionOrderStoreUnavailableException(ex);
         }
     }
@@ -495,7 +501,10 @@ public sealed class SqlProductionOrderOperationsStore(Func<IDbContextFactory<Org
         catch (InvalidOperationException ex) when (ex.Message == OrganizationSiteErrors.OrganizationNotFound)
         { return OrganizationResult<T>.Failure(ProductionOrderErrors.NotFound); }
         catch (Exception ex) when (Unavailable(ex))
-        { return OrganizationResult<T>.Failure(ProductionOrderErrors.PersistenceUnavailable); }
+        {
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlProductionOrderOperationsStore), access.Actor.ActorId);
+            return OrganizationResult<T>.Failure(ProductionOrderErrors.PersistenceUnavailable);
+        }
     }
 
     private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)

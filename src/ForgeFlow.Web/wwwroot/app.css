@@ -257,6 +257,12 @@ dd { margin-inline-start: 0; margin-block-start: .4rem; }
 .user-menu-backdrop { position:fixed; inset:0; z-index:90; }
 .user-menu-panel { position:absolute; inset-inline-end:0; inset-block-start:calc(100% + 8px); z-index:100; inline-size:min(288px, calc(100vw - 24px)); border:1px solid #dce5ed; border-radius:12px; background:#ffffff; box-shadow:0 12px 32px rgba(24,44,58,.14); overflow:hidden; display:flex; flex-direction:column; }
 .user-menu-header { padding:14px 16px; border-block-end:1px solid #e5edf3; background:#ffffff; }
+.user-menu-last-login { margin:10px 10px 4px; padding:10px 12px; border-radius:8px; background:#f3f6f9; display:flex; flex-direction:column; gap:6px; }
+.user-menu-last-login-title { font-size:.78rem; font-weight:600; color:#64748b; }
+.user-menu-last-login-row { display:flex; align-items:center; gap:8px; font-size:.82rem; color:#1e293b; }
+.user-menu-last-login-row .ff-icon { width:15px; height:15px; color:#64748b; flex-shrink:0; }
+.user-menu-last-login-ip { font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:.82rem; color:#1e293b; unicode-bidi:isolate; }
+.user-menu-first-login { margin:10px 10px 4px; padding:9px 12px; border-radius:8px; background:#f8fafc; font-size:.8rem; color:#64748b; }
 .user-menu-actions { padding:6px; display:flex; flex-direction:column; gap:2px; }
 .user-menu-divider { height:1px; background:#e5edf3; margin-inline:10px; }
 .user-menu-item { inline-size:100%; justify-content:flex-start !important; border-radius:8px !important; --bit-Button-min-height:40px; min-height:40px; padding-inline:12px !important; color:#182c3a !important; font-weight:500 !important; gap:10px; text-decoration:none; }
@@ -297,6 +303,7 @@ dd { margin-inline-start: 0; margin-block-start: .4rem; }
 .ff-icon--chevron-down { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); }
 .ff-icon--chevron-up { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m18 15-6-6-6 6'/%3E%3C/svg%3E"); }
 .ff-icon--key { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='7.5' cy='15.5' r='4.5'/%3E%3Cpath d='m21 2-9.6 9.6M15.5 7.5 18 10M18 5l2.5 2.5'/%3E%3C/svg%3E"); }
+.ff-icon--clock { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3 2'/%3E%3C/svg%3E"); }
 .ff-icon--logout { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/%3E%3Cpolyline points='16 17 21 12 16 7'/%3E%3Cline x1='21' y1='12' x2='9' y2='12'/%3E%3C/svg%3E"); }
 .ff-icon--menu { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 7h16M4 12h16M4 17h16'/%3E%3C/svg%3E"); }
 
@@ -412,4 +419,8 @@ dd { margin-inline-start: 0; margin-block-start: .4rem; }
 .rpt-kpi-value { font-size:1.35rem; font-weight:700; color:#182c3a; }
 .rpt-shortage-badge { background:#fdecea; color:#8f2027; }
 .rpt-ok-badge { background:#dcfce7; color:#166534; }
+.ff-icon--errors { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E"); }
+.diag-sev-warn { background:#fef3c7; color:#92400e; }
+.diag-sev-err { background:#fdecea; color:#991b1b; }
+.diag-sev-crit { background:#7f1d1d; color:#ffffff; }
 

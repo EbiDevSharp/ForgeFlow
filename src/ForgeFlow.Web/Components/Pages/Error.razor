@@ -1,6 +1,39 @@
 @page "/error"
+@using ForgeFlow.Web.Diagnostics
 @inject IStringLocalizer<SharedResources> Text
+
 <PageTitle>@Text["ErrorTitle"]</PageTitle>
-<h1>@Text["ErrorTitle"]</h1>
-<p role="alert">@Text["UnexpectedError"]</p>
-<a href="/">@Text["Reload"]</a>
+
+<section class="organization-reader" role="alert">
+    <h1>@Text["ErrorTitle"]</h1>
+    <p>@Text["UnexpectedError"]</p>
+    @if (!string.IsNullOrWhiteSpace(ErrorReference) || !string.IsNullOrWhiteSpace(CorrelationId))
+    {
+        <div class="audit-meta">
+            @if (!string.IsNullOrWhiteSpace(ErrorReference))
+            {
+                <div>
+                    <span class="audit-meta-label">@Text["ErrorReferenceLabel"]</span>
+                    <span class="audit-meta-val"><bdi dir="ltr">@ErrorReference</bdi></span>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(CorrelationId))
+            {
+                <div>
+                    <span class="audit-meta-label">@Text["ErrorCorrelationLabel"]</span>
+                    <span class="audit-meta-val"><bdi dir="ltr">@CorrelationId</bdi></span>
+                </div>
+            }
+        </div>
+    }
+    <p><a href="/">@Text["Reload"]</a></p>
+</section>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private string? ErrorReference => HttpContext?.Items[HttpOperationContextAccessor.ErrorRefItemKey] as string;
+    private string? CorrelationId => HttpContext?.Items[HttpOperationContextAccessor.CorrelationItemKey] is Guid g
+        ? g.ToString("N")
+        : HttpContext?.TraceIdentifier;
+}

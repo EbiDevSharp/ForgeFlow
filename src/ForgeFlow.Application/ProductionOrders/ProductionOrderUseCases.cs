@@ -1,6 +1,9 @@
 using ForgeFlow.Application.Boms;
+using ForgeFlow.Application.Common;
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Boms;
+using ForgeFlow.Domain.Diagnostics;
 using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Units;
 
@@ -13,7 +16,9 @@ public sealed class ProductionOrderUseCases(
     IProductionOrderOperationsStore store,
     IBomOperationsStore bomStore,
     ITrustedActorAccessor? actors = null,
-    IOrganizationPermissionEvaluator? permissions = null)
+    IOrganizationPermissionEvaluator? permissions = null,
+    IUserOperationRecorder? operationRecorder = null,
+    IOperationContextAccessor? opContext = null)
 {
     private readonly BomUseCases bomEngine = new(bomStore, actors, permissions);
 
@@ -171,43 +176,48 @@ public sealed class ProductionOrderUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ProductionOrderPermissions.ProductionOrdersManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ProductionOrderDetails>.Failure(auth.Error);
-        if (request.SiteId <= 0)
-            return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.SiteInvalid);
-        if (!TryResolveScope(scope, request.OrganizationId, request.SiteId, out _))
-            return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.AccessDenied);
+        OrganizationResult<ProductionOrderDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<ProductionOrderDetails>.Failure(auth.Error);
+        else if (request.SiteId <= 0)
+            res = OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.SiteInvalid);
+        else if (!TryResolveScope(scope, request.OrganizationId, request.SiteId, out _))
+            res = OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.AccessDenied);
+        else
+            res = await ExecuteStore(async () =>
+            {
+                if (request.PlannedDueDate < request.PlannedStartDate)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.DatesInvalid);
 
-        return await ExecuteStore(async () =>
-        {
-            if (request.PlannedDueDate < request.PlannedStartDate)
-                return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.DatesInvalid);
+                _ = ProductionOrderText.OrderNumber(request.OrderNumber);
+                _ = ProductionOrderText.ValidatePositiveQuantity(request.RequestedQuantity);
+                _ = ProductionOrderText.OptionalText(request.Notes, ProductionOrderErrors.NotesInvalid);
 
-            _ = ProductionOrderText.OrderNumber(request.OrderNumber);
-            _ = ProductionOrderText.ValidatePositiveQuantity(request.RequestedQuantity);
-            _ = ProductionOrderText.OptionalText(request.Notes, ProductionOrderErrors.NotesInvalid);
+                var siteInfo = await store.GetSiteInfo(request.OrganizationId, request.SiteId, ct);
+                if (siteInfo is null)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.SiteInvalid);
+                if (!siteInfo.OrganizationIsActive)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ParentOrganizationInactive);
+                if (!siteInfo.IsActive)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.SiteInactive);
 
-            var siteInfo = await store.GetSiteInfo(request.OrganizationId, request.SiteId, ct);
-            if (siteInfo is null)
-                return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.SiteInvalid);
-            if (!siteInfo.OrganizationIsActive)
-                return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ParentOrganizationInactive);
-            if (!siteInfo.IsActive)
-                return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.SiteInactive);
+                var snapshotRes = await BuildSnapshotAsync(
+                    request.OrganizationId,
+                    siteInfo.Code,
+                    request.ItemId,
+                    request.PlannedStartDate,
+                    request.RequestedQuantity,
+                    request.RequestedUnitId,
+                    request.ContextValues,
+                    ct);
+                if (!snapshotRes.Succeeded)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(snapshotRes.Error!.Code, snapshotRes.Error.Parameters);
 
-            var snapshotRes = await BuildSnapshotAsync(
-                request.OrganizationId,
-                siteInfo.Code,
-                request.ItemId,
-                request.PlannedStartDate,
-                request.RequestedQuantity,
-                request.RequestedUnitId,
-                request.ContextValues,
-                ct);
-            if (!snapshotRes.Succeeded)
-                return OrganizationResult<ProductionOrderDetails>.Failure(snapshotRes.Error!.Code, snapshotRes.Error.Parameters);
-
-            return await store.CreateDraft(request, snapshotRes.Value!, Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct);
-        });
+                return await store.CreateDraft(request, snapshotRes.Value!, Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct);
+            });
+        await OperationAuditHelper.RecordIfRejectedAsync(res, operationRecorder, opContext,
+            UserOperationCatalog.ProductionOrderActionRejected, auth.Actor, scope, request.OrganizationId,
+            request.SiteId > 0 ? request.SiteId : null, "ProductionOrder", request.OrderNumber, new { Action = "CreateDraft" });
+        return res;
     }
 
     public async Task<OrganizationResult<ProductionOrderDetails>> UpdateDraftOrder(
@@ -216,43 +226,46 @@ public sealed class ProductionOrderUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ProductionOrderPermissions.ProductionOrdersManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ProductionOrderDetails>.Failure(auth.Error);
-        if (!TryResolveScope(scope, request.OrganizationId, null, out var forcedSiteId) || request.Id <= 0)
-            return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict);
+        OrganizationResult<ProductionOrderDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<ProductionOrderDetails>.Failure(auth.Error);
+        else if (!TryResolveScope(scope, request.OrganizationId, null, out var forcedSiteId) || request.Id <= 0)
+            res = OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(async () =>
+            {
+                if (request.PlannedDueDate < request.PlannedStartDate)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.DatesInvalid);
 
-        return await ExecuteStore(async () =>
-        {
-            if (request.PlannedDueDate < request.PlannedStartDate)
-                return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.DatesInvalid);
+                _ = ProductionOrderText.ValidatePositiveQuantity(request.RequestedQuantity);
+                _ = ProductionOrderText.OptionalText(request.Notes, ProductionOrderErrors.NotesInvalid);
 
-            _ = ProductionOrderText.ValidatePositiveQuantity(request.RequestedQuantity);
-            _ = ProductionOrderText.OptionalText(request.Notes, ProductionOrderErrors.NotesInvalid);
+                var existing = await store.GetOrder(request.OrganizationId, request.Id, ct);
+                if (existing is null)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
+                if (forcedSiteId.HasValue && existing.Summary.SiteId != forcedSiteId.Value)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.AccessDenied);
+                if (existing.Summary.Status != ProductionOrderStatus.Draft)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.OrderImmutable);
 
-            var existing = await store.GetOrder(request.OrganizationId, request.Id, ct);
-            if (existing is null)
-                return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
-            if (forcedSiteId.HasValue && existing.Summary.SiteId != forcedSiteId.Value)
-                return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.AccessDenied);
-            if (existing.Summary.Status != ProductionOrderStatus.Draft)
-                return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.OrderImmutable);
+                var snapshotRes = await BuildSnapshotAsync(
+                    request.OrganizationId,
+                    existing.Summary.SiteCode,
+                    existing.Summary.ItemId,
+                    request.PlannedStartDate,
+                    request.RequestedQuantity,
+                    request.RequestedUnitId,
+                    request.ContextValues,
+                    ct);
+                if (!snapshotRes.Succeeded)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(snapshotRes.Error!.Code, snapshotRes.Error.Parameters);
 
-            var snapshotRes = await BuildSnapshotAsync(
-                request.OrganizationId,
-                existing.Summary.SiteCode,
-                existing.Summary.ItemId,
-                request.PlannedStartDate,
-                request.RequestedQuantity,
-                request.RequestedUnitId,
-                request.ContextValues,
-                ct);
-            if (!snapshotRes.Succeeded)
-                return OrganizationResult<ProductionOrderDetails>.Failure(snapshotRes.Error!.Code, snapshotRes.Error.Parameters);
-
-            return await store.UpdateDraft(request.OrganizationId, request.Id, version, request, snapshotRes.Value!,
-                Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct);
-        });
+                return await store.UpdateDraft(request.OrganizationId, request.Id, version, request, snapshotRes.Value!,
+                    Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct);
+            });
+        await RecordIfRejectedAsync(res, auth.Actor, scope, request.OrganizationId, null, request.Id, "UpdateDraft");
+        return res;
     }
 
     public async Task<OrganizationResult<ProductionOrderDetails>> RefreshDraftSnapshot(
@@ -261,38 +274,41 @@ public sealed class ProductionOrderUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ProductionOrderPermissions.ProductionOrdersManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ProductionOrderDetails>.Failure(auth.Error);
-        if (!TryResolveScope(scope, request.OrganizationId, null, out var forcedSiteId) || request.Id <= 0)
-            return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict);
+        OrganizationResult<ProductionOrderDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<ProductionOrderDetails>.Failure(auth.Error);
+        else if (!TryResolveScope(scope, request.OrganizationId, null, out var forcedSiteId) || request.Id <= 0)
+            res = OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(async () =>
+            {
+                var existing = await store.GetOrder(request.OrganizationId, request.Id, ct);
+                if (existing is null)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
+                if (forcedSiteId.HasValue && existing.Summary.SiteId != forcedSiteId.Value)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.AccessDenied);
+                if (existing.Summary.Status != ProductionOrderStatus.Draft)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.OrderImmutable);
 
-        return await ExecuteStore(async () =>
-        {
-            var existing = await store.GetOrder(request.OrganizationId, request.Id, ct);
-            if (existing is null)
-                return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
-            if (forcedSiteId.HasValue && existing.Summary.SiteId != forcedSiteId.Value)
-                return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.AccessDenied);
-            if (existing.Summary.Status != ProductionOrderStatus.Draft)
-                return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.OrderImmutable);
+                var ctx = existing.Contexts.ToDictionary(c => c.DimensionCode, c => c.DimensionValue, StringComparer.OrdinalIgnoreCase);
+                var snapshotRes = await BuildSnapshotAsync(
+                    request.OrganizationId,
+                    existing.Summary.SiteCode,
+                    existing.Summary.ItemId,
+                    existing.Summary.PlannedStartDate,
+                    existing.Summary.RequestedQuantity,
+                    existing.Summary.RequestedUnitId,
+                    ctx,
+                    ct);
+                if (!snapshotRes.Succeeded)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(snapshotRes.Error!.Code, snapshotRes.Error.Parameters);
 
-            var ctx = existing.Contexts.ToDictionary(c => c.DimensionCode, c => c.DimensionValue, StringComparer.OrdinalIgnoreCase);
-            var snapshotRes = await BuildSnapshotAsync(
-                request.OrganizationId,
-                existing.Summary.SiteCode,
-                existing.Summary.ItemId,
-                existing.Summary.PlannedStartDate,
-                existing.Summary.RequestedQuantity,
-                existing.Summary.RequestedUnitId,
-                ctx,
-                ct);
-            if (!snapshotRes.Succeeded)
-                return OrganizationResult<ProductionOrderDetails>.Failure(snapshotRes.Error!.Code, snapshotRes.Error.Parameters);
-
-            return await store.RefreshDraftSnapshot(request.OrganizationId, request.Id, version, snapshotRes.Value!,
-                Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct);
-        });
+                return await store.RefreshDraftSnapshot(request.OrganizationId, request.Id, version, snapshotRes.Value!,
+                    Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct);
+            });
+        await RecordIfRejectedAsync(res, auth.Actor, scope, request.OrganizationId, null, request.Id, "RefreshSnapshot");
+        return res;
     }
 
     public async Task<OrganizationResult<ProductionOrderDetails>> ReleaseOrder(
@@ -307,7 +323,7 @@ public sealed class ProductionOrderUseCases(
         if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
             return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict);
 
-        return await ExecuteStore(async () =>
+        var res = await ExecuteStore(async () =>
         {
             var existing = await store.GetOrder(request.OrganizationId, request.Id, ct);
             if (existing is null)
@@ -334,6 +350,9 @@ public sealed class ProductionOrderUseCases(
             return await store.ReleaseOrder(request.OrganizationId, request.Id, version, snapshotRes.Value!, DateTime.UtcNow,
                 Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct);
         });
+
+        await RecordIfRejectedAsync(res, auth.Actor!, scope!, request.OrganizationId, forcedSiteId, request.Id, "ReleaseOrder");
+        return res;
     }
 
     public async Task<OrganizationResult<ProductionOrderDetails>> StartOrder(
@@ -445,6 +464,27 @@ public sealed class ProductionOrderUseCases(
                 Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct);
         });
     }
+
+    private Task RecordIfRejectedAsync<T>(
+        OrganizationResult<T> result,
+        TrustedActor? actor,
+        OrganizationScope? scope,
+        long organizationId,
+        long? siteId,
+        long orderId,
+        string action)
+        => OperationAuditHelper.RecordIfRejectedAsync(
+            result,
+            operationRecorder,
+            opContext,
+            UserOperationCatalog.ProductionOrderActionRejected,
+            actor,
+            scope,
+            organizationId,
+            siteId,
+            "ProductionOrder",
+            orderId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            new { Action = action });
 
     private async Task<OrganizationResult<ResolvedBomSnapshotWrite>> BuildSnapshotAsync(
         long organizationId,

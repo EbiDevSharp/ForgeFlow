@@ -989,6 +989,82 @@ BEGIN
     VALUES (N'20261110201924_InventoryWarehousesAndStockLedger', N'10.0.14');
 END;
 
+IF SCHEMA_ID(N'diag') IS NULL EXEC(N'CREATE SCHEMA [diag];');
+IF SCHEMA_ID(N'ops') IS NULL EXEC(N'CREATE SCHEMA [ops];');
+
+IF OBJECT_ID(N'diag.ErrorLog', N'U') IS NULL
+BEGIN
+    CREATE TABLE [diag].[ErrorLog] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [ErrorReference] varchar(32) NOT NULL,
+        [CorrelationId] uniqueidentifier NOT NULL,
+        [OccurredAtUtc] datetime2(7) NOT NULL,
+        [Severity] tinyint NOT NULL,
+        [Source] tinyint NOT NULL,
+        [ExceptionType] varchar(256) NOT NULL,
+        [SqlErrorNumber] int NULL,
+        [RedactedMessage] nvarchar(2000) NOT NULL,
+        [RedactedStackTrace] nvarchar(max) NOT NULL,
+        [RequestPath] nvarchar(512) NULL,
+        [ComponentName] varchar(128) NULL,
+        [ActorUserId] bigint NULL,
+        [OrganizationId] bigint NULL,
+        [SiteId] bigint NULL,
+        [UserAgent] nvarchar(256) NULL,
+        CONSTRAINT [PK_ErrorLog] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ErrorLog_Severity] CHECK ([Severity] BETWEEN 1 AND 3),
+        CONSTRAINT [CK_ErrorLog_Source] CHECK ([Source] BETWEEN 1 AND 5),
+        CONSTRAINT [CK_ErrorLog_Ref] CHECK (LEN([ErrorReference]) > 0 AND DATALENGTH([ErrorReference]) = LEN([ErrorReference])),
+        CONSTRAINT [CK_ErrorLog_Scope] CHECK ([SiteId] IS NULL OR [OrganizationId] IS NOT NULL)
+    );
+    CREATE UNIQUE INDEX [UX_ErrorLog_ErrorReference] ON [diag].[ErrorLog] ([ErrorReference]);
+    CREATE INDEX [IX_ErrorLog_OccurredAt_Id] ON [diag].[ErrorLog] ([OccurredAtUtc], [Id]);
+    CREATE INDEX [IX_ErrorLog_CorrelationId] ON [diag].[ErrorLog] ([CorrelationId]);
+    CREATE INDEX [IX_ErrorLog_Severity_Time] ON [diag].[ErrorLog] ([Severity], [OccurredAtUtc]);
+END;
+
+IF OBJECT_ID(N'ops.UserOperationLog', N'U') IS NULL
+BEGIN
+    CREATE TABLE [ops].[UserOperationLog] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OccurredAtUtc] datetime2(7) NOT NULL,
+        [OperationCode] varchar(64) NOT NULL,
+        [Outcome] tinyint NOT NULL,
+        [CorrelationId] uniqueidentifier NOT NULL,
+        [ActorUserId] bigint NULL,
+        [OrganizationId] bigint NULL,
+        [SiteId] bigint NULL,
+        [TargetEntityType] varchar(64) NULL,
+        [TargetEntityRef] nvarchar(128) NULL,
+        [FailureCode] varchar(128) NULL,
+        [MetadataJson] nvarchar(2000) NOT NULL,
+        CONSTRAINT [PK_UserOperationLog] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_UserOperationLog_Code] CHECK (LEN([OperationCode]) > 0 AND DATALENGTH([OperationCode]) = LEN([OperationCode])),
+        CONSTRAINT [CK_UserOperationLog_Outcome] CHECK ([Outcome] BETWEEN 1 AND 5),
+        CONSTRAINT [CK_UserOperationLog_Json] CHECK (ISJSON([MetadataJson]) = 1),
+        CONSTRAINT [CK_UserOperationLog_Scope] CHECK ([SiteId] IS NULL OR [OrganizationId] IS NOT NULL)
+    );
+    CREATE INDEX [IX_UserOperationLog_OccurredAt_Id] ON [ops].[UserOperationLog] ([OccurredAtUtc], [Id]);
+    CREATE INDEX [IX_UserOperationLog_Org_Site_Time] ON [ops].[UserOperationLog] ([OrganizationId], [SiteId], [OccurredAtUtc], [Id]);
+    CREATE INDEX [IX_UserOperationLog_Actor_Time] ON [ops].[UserOperationLog] ([ActorUserId], [OccurredAtUtc], [Id]);
+    CREATE INDEX [IX_UserOperationLog_CorrelationId] ON [ops].[UserOperationLog] ([CorrelationId]);
+END;
+
+IF OBJECT_ID(N'diag.__EFMigrationsHistory', N'U') IS NULL
+BEGIN
+    CREATE TABLE [diag].[__EFMigrationsHistory] (
+        [MigrationId] nvarchar(150) NOT NULL,
+        [ProductVersion] nvarchar(32) NOT NULL,
+        CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
+    );
+END;
+
+IF NOT EXISTS (SELECT 1 FROM [diag].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261110210556_DiagnosticsErrorAndOperationLogs')
+BEGIN
+    INSERT INTO [diag].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261110210556_DiagnosticsErrorAndOperationLogs', N'10.0.14');
+END;
+
 COMMIT;
 "@
 
@@ -998,7 +1074,7 @@ try {
     $cmd = $cn.CreateCommand()
     $cmd.CommandText = $sql
     [void]$cmd.ExecuteNonQuery()
-    Write-Host "testforgflow database upgraded to 20261110201924_InventoryWarehousesAndStockLedger." -ForegroundColor Green
+    Write-Host "testforgflow database upgraded to 20261110210556_DiagnosticsErrorAndOperationLogs." -ForegroundColor Green
 }
 finally {
     $cn.Dispose()

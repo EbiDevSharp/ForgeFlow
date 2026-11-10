@@ -1,4 +1,7 @@
+using ForgeFlow.Application.Common;
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Domain.Diagnostics;
 using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Units;
@@ -12,7 +15,9 @@ namespace ForgeFlow.Application.Inventory;
 public sealed class InventoryUseCases(
     IInventoryOperationsStore store,
     ITrustedActorAccessor? actors = null,
-    IOrganizationPermissionEvaluator? permissions = null)
+    IOrganizationPermissionEvaluator? permissions = null,
+    IUserOperationRecorder? operationRecorder = null,
+    IOperationContextAccessor? opContext = null)
 {
     private async ValueTask<(TrustedActor? Actor, string? Error)> Authorize(
         OrganizationScope? scope,
@@ -114,17 +119,20 @@ public sealed class InventoryUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, InventoryPermissions.InventoryManage, ct);
-        if (auth.Error is not null) return OrganizationResult<WarehouseSummary>.Failure(auth.Error);
-        if (request.SiteId <= 0) return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.SiteInvalid);
-        if (!TryResolveScope(scope, request.OrganizationId, request.SiteId, out _))
-            return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.AccessDenied);
-
-        return await ExecuteStore(() =>
-        {
-            _ = InventoryText.Code(request.Code);
-            _ = InventoryText.Name(request.Name);
-            return store.CreateWarehouse(request, Access(auth.Actor!, scope!, InventoryPermissions.InventoryManage), ct);
-        });
+        OrganizationResult<WarehouseSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<WarehouseSummary>.Failure(auth.Error);
+        else if (request.SiteId <= 0) res = OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.SiteInvalid);
+        else if (!TryResolveScope(scope, request.OrganizationId, request.SiteId, out _))
+            res = OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.AccessDenied);
+        else
+            res = await ExecuteStore(() =>
+            {
+                _ = InventoryText.Code(request.Code);
+                _ = InventoryText.Name(request.Name);
+                return store.CreateWarehouse(request, Access(auth.Actor!, scope!, InventoryPermissions.InventoryManage), ct);
+            });
+        await RecordIfConsequentialRejectionAsync(res, auth.Actor, scope, request.OrganizationId, request.SiteId > 0 ? request.SiteId : null, "Warehouse", request.Code, new { Action = "CreateWarehouse" });
+        return res;
     }
 
     public async Task<OrganizationResult<WarehouseSummary>> UpdateWarehouse(
@@ -133,23 +141,25 @@ public sealed class InventoryUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, InventoryPermissions.InventoryManage, ct);
-        if (auth.Error is not null) return OrganizationResult<WarehouseSummary>.Failure(auth.Error);
-        if (!TryResolveScope(scope, request.OrganizationId, null, out var forcedSiteId) || request.Id <= 0)
-            return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.WarehouseNotFound);
+        OrganizationResult<WarehouseSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<WarehouseSummary>.Failure(auth.Error);
+        else if (!TryResolveScope(scope, request.OrganizationId, null, out var forcedSiteId) || request.Id <= 0)
+            res = OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.WarehouseNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(async () =>
+            {
+                _ = InventoryText.Name(request.Name);
+                var existing = await store.GetWarehouse(request.OrganizationId, request.Id, ct);
+                if (existing is null) return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.WarehouseNotFound);
+                if (forcedSiteId.HasValue && existing.SiteId != forcedSiteId.Value)
+                    return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.AccessDenied);
 
-        var version = DecodeVersion(request.ExpectedRowVersion);
-        if (version is null) return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(async () =>
-        {
-            _ = InventoryText.Name(request.Name);
-            var existing = await store.GetWarehouse(request.OrganizationId, request.Id, ct);
-            if (existing is null) return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.WarehouseNotFound);
-            if (forcedSiteId.HasValue && existing.SiteId != forcedSiteId.Value)
-                return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.AccessDenied);
-
-            return await store.UpdateWarehouse(request.OrganizationId, request.Id, version, request, Access(auth.Actor!, scope!, InventoryPermissions.InventoryManage), ct);
-        });
+                return await store.UpdateWarehouse(request.OrganizationId, request.Id, version, request, Access(auth.Actor!, scope!, InventoryPermissions.InventoryManage), ct);
+            });
+        await RecordIfConsequentialRejectionAsync(res, auth.Actor, scope, request.OrganizationId, null, "Warehouse", request.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), new { Action = "UpdateWarehouse" });
+        return res;
     }
 
     public async Task<OrganizationResult<WarehouseSummary>> SetWarehouseActive(
@@ -158,22 +168,24 @@ public sealed class InventoryUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, InventoryPermissions.InventoryManage, ct);
-        if (auth.Error is not null) return OrganizationResult<WarehouseSummary>.Failure(auth.Error);
-        if (!TryResolveScope(scope, request.OrganizationId, null, out var forcedSiteId) || request.Id <= 0)
-            return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.WarehouseNotFound);
+        OrganizationResult<WarehouseSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<WarehouseSummary>.Failure(auth.Error);
+        else if (!TryResolveScope(scope, request.OrganizationId, null, out var forcedSiteId) || request.Id <= 0)
+            res = OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.WarehouseNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(async () =>
+            {
+                var existing = await store.GetWarehouse(request.OrganizationId, request.Id, ct);
+                if (existing is null) return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.WarehouseNotFound);
+                if (forcedSiteId.HasValue && existing.SiteId != forcedSiteId.Value)
+                    return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.AccessDenied);
 
-        var version = DecodeVersion(request.ExpectedRowVersion);
-        if (version is null) return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(async () =>
-        {
-            var existing = await store.GetWarehouse(request.OrganizationId, request.Id, ct);
-            if (existing is null) return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.WarehouseNotFound);
-            if (forcedSiteId.HasValue && existing.SiteId != forcedSiteId.Value)
-                return OrganizationResult<WarehouseSummary>.Failure(InventoryErrors.AccessDenied);
-
-            return await store.SetWarehouseActive(request.OrganizationId, request.Id, version, request.IsActive, Access(auth.Actor!, scope!, InventoryPermissions.InventoryManage), ct);
-        });
+                return await store.SetWarehouseActive(request.OrganizationId, request.Id, version, request.IsActive, Access(auth.Actor!, scope!, InventoryPermissions.InventoryManage), ct);
+            });
+        await RecordIfConsequentialRejectionAsync(res, auth.Actor, scope, request.OrganizationId, null, "Warehouse", request.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), new { Action = "SetWarehouseActive" });
+        return res;
     }
 
     public async Task<OrganizationResult<OrganizationPage<InventoryBalanceSummary>>> ListBalances(
@@ -261,7 +273,7 @@ public sealed class InventoryUseCases(
         if (request.Lines is null || request.Lines.Count == 0)
             return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.LinesRequired);
 
-        return await ExecuteStore(async () =>
+        var res = await ExecuteStore(async () =>
         {
             _ = InventoryText.Code(request.DocumentNumber, InventoryErrors.DocumentNumberInvalid);
             _ = InventoryText.OptionalNote(request.ReferenceNote);
@@ -369,6 +381,10 @@ public sealed class InventoryUseCases(
                 Access(auth.Actor!, scope!, InventoryPermissions.InventoryManage),
                 ct);
         });
+
+        await RecordIfConsequentialRejectionAsync(res, auth.Actor!, scope!, request.OrganizationId, forcedSiteId,
+            "InventoryTransaction", request.DocumentNumber, new { Action = "PostTransaction", Type = request.TransactionType.ToString() });
+        return res;
     }
 
     public async Task<OrganizationResult<InventoryTransactionDetails>> ReverseTransaction(
@@ -381,7 +397,7 @@ public sealed class InventoryUseCases(
         if (!TryResolveScope(scope, request.OrganizationId, null, out var forcedSiteId) || request.TransactionId <= 0)
             return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.TransactionNotFound);
 
-        return await ExecuteStore(async () =>
+        var res = await ExecuteStore(async () =>
         {
             var reversalDoc = InventoryText.Code(request.ReversalDocumentNumber, InventoryErrors.DocumentNumberInvalid);
             var note = InventoryText.OptionalNote(request.ReferenceNote);
@@ -406,5 +422,31 @@ public sealed class InventoryUseCases(
                 Access(auth.Actor!, scope!, InventoryPermissions.InventoryManage),
                 ct);
         });
+
+        await RecordIfConsequentialRejectionAsync(res, auth.Actor!, scope!, request.OrganizationId, forcedSiteId,
+            "InventoryTransaction", request.ReversalDocumentNumber, new { Action = "ReverseTransaction", request.TransactionId });
+        return res;
     }
+
+    private Task RecordIfConsequentialRejectionAsync<T>(
+        OrganizationResult<T> result,
+        TrustedActor? actor,
+        OrganizationScope? scope,
+        long organizationId,
+        long? siteId,
+        string entityType,
+        string? entityRef,
+        object metadata)
+        => OperationAuditHelper.RecordIfRejectedAsync(
+            result,
+            operationRecorder,
+            opContext,
+            UserOperationCatalog.InventoryActionRejected,
+            actor,
+            scope,
+            organizationId,
+            siteId,
+            entityType,
+            entityRef,
+            metadata);
 }

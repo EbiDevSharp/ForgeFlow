@@ -1,4 +1,7 @@
+@using ForgeFlow.Infrastructure.Identity
+@using Microsoft.Extensions.DependencyInjection
 @inject IStringLocalizer<SharedResources> Text
+@inject IServiceProvider Services
 
 <AuthorizeView>
     <Authorized Context="auth">
@@ -41,6 +44,30 @@
                                 Class="user-menu-persona-hdr" />
                 </div>
 
+                @if (signInLoaded)
+                {
+                    if (previousSignIn is not null)
+                    {
+                        <div class="user-menu-last-login" role="region" aria-label="@Text["UserMenuLastLoginTitle"]">
+                            <div class="user-menu-last-login-title">@Text["UserMenuLastLoginTitle"]</div>
+                            <div class="user-menu-last-login-row">
+                                <span class="ff-icon ff-icon--clock" aria-hidden="true"></span>
+                                <bdi dir="ltr">@FormatLoginTime(previousSignIn.OccurredAtUtc)</bdi>
+                            </div>
+                            <div class="user-menu-last-login-row">
+                                <span class="ff-icon ff-icon--globe" aria-hidden="true"></span>
+                                <span class="user-menu-last-login-ip" dir="ltr">@(previousSignIn.IpAddress ?? "—")</span>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="user-menu-first-login" role="status">
+                            @Text["UserMenuFirstLoginNotice"]
+                        </div>
+                    }
+                }
+
                 <div class="user-menu-actions">
                     <BitButton Variant="BitVariant.Text"
                                Href="/account/change-password"
@@ -74,6 +101,44 @@
     private static readonly BitIconInfo LogoutIcon = BitIconInfo.Css("ff-icon ff-icon--logout");
 
     private bool open;
+    private bool signInLoaded;
+    private PreviousSignInInfo? previousSignIn;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || signInLoaded) return;
+        try
+        {
+            var sessionSource = Services.GetService<ICurrentAuthenticatedSession>();
+            var sessions = Services.GetService<RuntimeSessions>();
+            if (sessionSource is null || sessions is null)
+                return;
+
+            var reference = await sessionSource.GetAsync(CancellationToken.None);
+            if (reference is not null)
+                previousSignIn = await sessions.GetPreviousSignInAsync(reference, CancellationToken.None);
+        }
+        catch
+        {
+            previousSignIn = null;
+        }
+        finally
+        {
+            signInLoaded = Services.GetService<RuntimeSessions>() is not null;
+            if (signInLoaded)
+                StateHasChanged();
+        }
+    }
+
+    private string FormatLoginTime(DateTime utcTime)
+    {
+        var formatter = Services.GetService<DisplayFormatter>();
+        return formatter is not null
+            ? formatter.Timestamp(utcTime, " - ")
+            : TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcTime, DateTimeKind.Utc), TimeZoneInfo.Local)
+                .ToString("yyyy/MM/dd - HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     private void Toggle() => open = !open;
     private void Close() => open = false;
     private void OnKeyDown(KeyboardEventArgs e) { if (e.Key == "Escape") open = false; }

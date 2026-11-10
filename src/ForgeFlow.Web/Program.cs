@@ -1,11 +1,15 @@
 ﻿using Bit.BlazorUI;
+using ForgeFlow.Application.Diagnostics;
+using ForgeFlow.Infrastructure.Diagnostics;
 using ForgeFlow.Web.Components;
+using ForgeFlow.Web.Diagnostics;
 using ForgeFlow.Web.Localization;
 using ForgeFlow.Web.Hosting;
 using ForgeFlow.Web.Drafts;
 using ForgeFlow.Infrastructure.Identity;
 using ForgeFlow.Infrastructure.Organizations;
 using ForgeFlow.Web.Authentication;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 
 var builder = WebApplication.CreateBuilder(args);
 using var localRuntime = LocalRuntimeConfiguration.Configure(builder);
@@ -18,6 +22,12 @@ builder.Services.AddScoped<ForgeFlow.Web.Organizations.ReadScopes>();
 builder.Services.AddScoped<DisplayFormatter>();
 builder.Services.AddScoped<DraftCoordinator>();
 builder.Services.AddOrganizationPersistence(builder.Configuration);
+builder.Services.AddDiagnostics(builder.Configuration);
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IOperationContextAccessor, HttpOperationContextAccessor>();
+builder.Services.AddScoped<CircuitHandler, OperationCircuitHandler>();
+builder.Services.AddScoped<UiErrorReporter>();
+builder.Services.AddExceptionHandler<GlobalExceptionLoggingHandler>();
 builder.Services.AddAuthenticationBackend(builder.Configuration);
 builder.Services.AddUserManagement();
 builder.Services.AddRoleManagement();
@@ -35,6 +45,19 @@ if (authDiagnostics)
 }
 
 var app = builder.Build();
+app.Use(async (context, next) =>
+{
+    var corr = Guid.TryParse(context.Request.Headers[HttpOperationContextAccessor.CorrelationHeader].FirstOrDefault(), out var headerGuid)
+        ? headerGuid
+        : Guid.NewGuid();
+    context.Items[HttpOperationContextAccessor.CorrelationItemKey] = corr;
+    context.Response.OnStarting(() =>
+    {
+        context.Response.Headers.TryAdd(HttpOperationContextAccessor.CorrelationHeader, corr.ToString("N"));
+        return Task.CompletedTask;
+    });
+    await next(context);
+});
 app.UseRequestLocalization();
 app.UseExceptionHandler("/error", createScopeForErrors: true);
 app.UseStatusCodePagesWithReExecute("/not-found");

@@ -79,6 +79,12 @@ public sealed class AuditSqlTests
         var orgAlphaId = initial.OrganizationId!.Value;
         var siteAlpha1Id = initial.SiteId!.Value;
 
+        await using (var auth = AuthSessionSqlTests.Auth(connection))
+        {
+            await auth.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT [auth].[ScopedRoleAssignment] ([UserId],[RoleId],[ScopeKind],[IsActive],[CreatedAtUtc],[CreatedByActorId]) VALUES ({initial.UserId},{FixedAccessRoles.DeploymentProvisioner},{(byte)0},{true},{DateTime.UtcNow},{initial.UserId})");
+        }
+
         var clock = new DeterministicClock();
         var source = new SessionSource();
 
@@ -142,6 +148,7 @@ public sealed class AuditSqlTests
             var securityOnly = await audit.ListAuditEntries(alphaScope, new AuditListQuery(AuditCategory.Security, Page: 1, PageSize: 50));
             Assert.True(securityOnly.Succeeded);
             Assert.All(securityOnly.Value!.Items, item => Assert.Equal(AuditSourceKind.Security, item.Source));
+            Assert.Contains(securityOnly.Value.Items, item => item.EventCode == "SessionIssued" && item.SubjectUserName == "initial.admin");
 
             var filteredByCode = await audit.ListAuditEntries(alphaScope, new AuditListQuery(AuditCategory.Security, EventCode: "DirectPermissionChanged"));
             Assert.True(filteredByCode.Succeeded);

@@ -1,3 +1,6 @@
+using System.Globalization;
+using ForgeFlow.Application.Common;
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Units;
 
@@ -7,7 +10,9 @@ namespace ForgeFlow.Application.Units;
 public sealed class UnitUseCases(
     IUnitOperationsStore store,
     ITrustedActorAccessor? actors = null,
-    IOrganizationPermissionEvaluator? permissions = null)
+    IOrganizationPermissionEvaluator? permissions = null,
+    IUserOperationRecorder? operationRecorder = null,
+    IOperationContextAccessor? opContext = null)
 {
     private async ValueTask<(TrustedActor? Actor, string? Error)> Authorize(
         OrganizationScope? scope,
@@ -17,11 +22,23 @@ public sealed class UnitUseCases(
         if (actors is null) return (null, UnitErrors.ActorRequired);
         var actor = await actors.ResolveAsync(ct);
         if (actor is null) return (null, UnitErrors.ActorRequired);
-        if (scope is null) return (null, UnitErrors.ScopeRequired);
+        if (scope is null) return (actor, UnitErrors.ScopeRequired);
         if (permissions is null || !(await permissions.EvaluateAsync(actor, scope, permission, ct)).IsAllowed)
-            return (null, UnitErrors.AccessDenied);
+            return (actor, UnitErrors.AccessDenied);
         return (actor, null);
     }
+
+    private Task<OrganizationResult<T>> RecordRejected<T>(
+        OrganizationResult<T> result,
+        TrustedActor? actor,
+        OrganizationScope? scope,
+        long organizationId,
+        string entityType,
+        string? entityRef,
+        string action)
+        => OperationAuditHelper.RecordIfRejectedAsync(
+            result, operationRecorder, opContext, UserOperationCatalog.UnitActionRejected,
+            actor, scope, organizationId, null, entityType, entityRef, new { Action = action });
 
     private OrganizationWriteAccess Access(TrustedActor actor, OrganizationScope scope, string permission) => new(actor, async ct =>
     {
@@ -135,20 +152,23 @@ public sealed class UnitUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<UnitSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
-            return OrganizationResult<UnitSummary>.Failure(UnitErrors.NotFound);
-
-        try
+        OrganizationResult<UnitSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<UnitSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
+            res = OrganizationResult<UnitSummary>.Failure(UnitErrors.NotFound);
+        else
         {
-            _ = Unit.Create(request.OrganizationId, request.Code, request.Name, request.Symbol, request.Dimension, request.PrecisionScale);
+            try
+            {
+                _ = Unit.Create(request.OrganizationId, request.Code, request.Name, request.Symbol, request.Dimension, request.PrecisionScale);
+                res = await ExecuteStore(() => store.CreateUnit(request, Access(auth.Actor!, scope!, UnitPermissions.UnitsManage), ct));
+            }
+            catch (UnitRuleException ex)
+            {
+                res = OrganizationResult<UnitSummary>.Failure(ex.Code, ex.Parameters);
+            }
         }
-        catch (UnitRuleException ex)
-        {
-            return OrganizationResult<UnitSummary>.Failure(ex.Code, ex.Parameters);
-        }
-
-        return await ExecuteStore(() => store.CreateUnit(request, Access(auth.Actor!, scope!, UnitPermissions.UnitsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Unit", request.Code, "CreateUnit");
     }
 
     public async Task<OrganizationResult<UnitSummary>> UpdateUnit(
@@ -157,21 +177,23 @@ public sealed class UnitUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<UnitSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<UnitSummary>.Failure(UnitErrors.NotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<UnitSummary>.Failure(UnitErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.UpdateUnit(
-            request.OrganizationId,
-            request.Id,
-            version,
-            request.Name,
-            request.Symbol,
-            request.PrecisionScale,
-            Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
-            ct));
+        OrganizationResult<UnitSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<UnitSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<UnitSummary>.Failure(UnitErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<UnitSummary>.Failure(UnitErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.UpdateUnit(
+                request.OrganizationId,
+                request.Id,
+                version,
+                request.Name,
+                request.Symbol,
+                request.PrecisionScale,
+                Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Unit", request.Id.ToString(CultureInfo.InvariantCulture), "UpdateUnit");
     }
 
     public async Task<OrganizationResult<UnitSummary>> SetUnitActive(
@@ -180,19 +202,21 @@ public sealed class UnitUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<UnitSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<UnitSummary>.Failure(UnitErrors.NotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<UnitSummary>.Failure(UnitErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.SetUnitActive(
-            request.OrganizationId,
-            request.Id,
-            version,
-            request.IsActive,
-            Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
-            ct));
+        OrganizationResult<UnitSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<UnitSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<UnitSummary>.Failure(UnitErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<UnitSummary>.Failure(UnitErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SetUnitActive(
+                request.OrganizationId,
+                request.Id,
+                version,
+                request.IsActive,
+                Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Unit", request.Id.ToString(CultureInfo.InvariantCulture), "SetUnitActive");
     }
 
     public async Task<OrganizationResult<OrganizationPage<UnitConversionSummary>>> ListConversions(
@@ -237,20 +261,23 @@ public sealed class UnitUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<UnitConversionSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
-            return OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.NotFound);
-
-        try
+        OrganizationResult<UnitConversionSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<UnitConversionSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
+            res = OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.NotFound);
+        else
         {
-            _ = UnitConversion.Create(request.OrganizationId, request.FromUnitId, request.ToUnitId, request.Factor);
+            try
+            {
+                _ = UnitConversion.Create(request.OrganizationId, request.FromUnitId, request.ToUnitId, request.Factor);
+                res = await ExecuteStore(() => store.CreateConversion(request, Access(auth.Actor!, scope!, UnitPermissions.UnitsManage), ct));
+            }
+            catch (UnitRuleException ex)
+            {
+                res = OrganizationResult<UnitConversionSummary>.Failure(ex.Code, ex.Parameters);
+            }
         }
-        catch (UnitRuleException ex)
-        {
-            return OrganizationResult<UnitConversionSummary>.Failure(ex.Code, ex.Parameters);
-        }
-
-        return await ExecuteStore(() => store.CreateConversion(request, Access(auth.Actor!, scope!, UnitPermissions.UnitsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "UnitConversion", $"{request.FromUnitId}->{request.ToUnitId}", "CreateConversion");
     }
 
     public async Task<OrganizationResult<UnitConversionSummary>> UpdateConversionFactor(
@@ -259,19 +286,21 @@ public sealed class UnitUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<UnitConversionSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConversionNotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.UpdateConversionFactor(
-            request.OrganizationId,
-            request.Id,
-            version,
-            request.Factor,
-            Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
-            ct));
+        OrganizationResult<UnitConversionSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<UnitConversionSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConversionNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.UpdateConversionFactor(
+                request.OrganizationId,
+                request.Id,
+                version,
+                request.Factor,
+                Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "UnitConversion", request.Id.ToString(CultureInfo.InvariantCulture), "UpdateConversionFactor");
     }
 
     public async Task<OrganizationResult<UnitConversionSummary>> SetConversionActive(
@@ -280,19 +309,21 @@ public sealed class UnitUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<UnitConversionSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConversionNotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.SetConversionActive(
-            request.OrganizationId,
-            request.Id,
-            version,
-            request.IsActive,
-            Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
-            ct));
+        OrganizationResult<UnitConversionSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<UnitConversionSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConversionNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SetConversionActive(
+                request.OrganizationId,
+                request.Id,
+                version,
+                request.IsActive,
+                Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "UnitConversion", request.Id.ToString(CultureInfo.InvariantCulture), "SetConversionActive");
     }
 
     public async Task<OrganizationResult<UnitConversionPreviewResult>> PreviewConversion(
@@ -336,11 +367,13 @@ public sealed class UnitUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<SeedStandardUnitsResult>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, organizationId, allowSite: false, out _))
-            return OrganizationResult<SeedStandardUnitsResult>.Failure(UnitErrors.NotFound);
-
-        return await ExecuteStore(() =>
-            store.SeedStandardUnits(organizationId, Access(auth.Actor!, scope!, UnitPermissions.UnitsManage), ct));
+        OrganizationResult<SeedStandardUnitsResult> res;
+        if (auth.Error is not null) res = OrganizationResult<SeedStandardUnitsResult>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, organizationId, allowSite: false, out _))
+            res = OrganizationResult<SeedStandardUnitsResult>.Failure(UnitErrors.NotFound);
+        else
+            res = await ExecuteStore(() =>
+                store.SeedStandardUnits(organizationId, Access(auth.Actor!, scope!, UnitPermissions.UnitsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, organizationId, "Unit", "SeedStandard", "SeedStandardUnits");
     }
 }

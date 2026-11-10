@@ -609,28 +609,28 @@
                                 {
                                     <div class="audit-meta-row">
                                         <span class="audit-meta-label">@Text["PoReleasedAtLabel"]</span>
-                                        <bdi class="audit-meta-val" dir="ltr">@FormatTimestamp(summary.ReleasedAtUtc.Value)</bdi>
+                                        <bdi class="audit-meta-val" dir="ltr">@Format.Timestamp(summary.ReleasedAtUtc.Value)</bdi>
                                     </div>
                                 }
                                 @if (summary.StartedAtUtc.HasValue)
                                 {
                                     <div class="audit-meta-row">
                                         <span class="audit-meta-label">@Text["PoStartedAtLabel"]</span>
-                                        <bdi class="audit-meta-val" dir="ltr">@FormatTimestamp(summary.StartedAtUtc.Value)</bdi>
+                                        <bdi class="audit-meta-val" dir="ltr">@Format.Timestamp(summary.StartedAtUtc.Value)</bdi>
                                     </div>
                                 }
                                 @if (summary.CompletedAtUtc.HasValue)
                                 {
                                     <div class="audit-meta-row">
                                         <span class="audit-meta-label">@Text["PoCompletedAtLabel"]</span>
-                                        <bdi class="audit-meta-val" dir="ltr">@FormatTimestamp(summary.CompletedAtUtc.Value)</bdi>
+                                        <bdi class="audit-meta-val" dir="ltr">@Format.Timestamp(summary.CompletedAtUtc.Value)</bdi>
                                     </div>
                                 }
                                 @if (summary.CancelledAtUtc.HasValue)
                                 {
                                     <div class="audit-meta-row">
                                         <span class="audit-meta-label">@Text["PoCancelledAtLabel"]</span>
-                                        <bdi class="audit-meta-val" dir="ltr">@FormatTimestamp(summary.CancelledAtUtc.Value)</bdi>
+                                        <bdi class="audit-meta-val" dir="ltr">@Format.Timestamp(summary.CancelledAtUtc.Value)</bdi>
                                     </div>
                                 }
                             </div>
@@ -1256,11 +1256,4 @@
         BomOutputType.Waste => "bom-out-waste",
         _ => "bom-out-main"
     };
-
-    private string FormatTimestamp(DateTime utc)
-    {
-        var dateText = Format.Date(DateOnly.FromDateTime(utc));
-        var timeText = utc.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
-        return $"{dateText} {timeText} UTC";
-    }
 }

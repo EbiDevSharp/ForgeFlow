@@ -3,10 +3,16 @@
 @using System.Globalization
 @using ForgeFlow.Application.Audit
 @using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Reporting
 @using ForgeFlow.Web.Roles
+@implements IAsyncDisposable
 @inject AuditUseCases AuditQueries
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject CulturePolicy Culture
 @inject DisplayFormatter Format
+@inject IJSRuntime JS
 @inject IStringLocalizer<SharedResources> Text
 
 <PageTitle>@Text["Audit"] - @Text["AppTitle"]</PageTitle>
@@ -17,7 +23,20 @@
             <h1 id="audit-title">@Text["Audit"]</h1>
             <p class="write-hint">@Text["AuditCaption"]</p>
         </div>
+        @if (!InitialLoading && FailureKey is null && ScopeCanExport)
+        {
+            <div class="read-head-actions">
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!Exporting)" OnClick="ExportCsvAsync">
+                    @Text["AuditExportCsvBtn"]
+                </BitButton>
+            </div>
+        }
     </div>
+
+    @if (PageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@PageNotice</p>
+    }
 
     @if (InitialLoading)
     {
@@ -51,21 +70,83 @@
                     <option value="0">@Text["AuditCategoryAll"]</option>
                     <option value="1">@Text["AuditCategoryBusiness"]</option>
                     <option value="2">@Text["AuditCategorySecurity"]</option>
+                    <option value="3">@Text["AuditCategoryOperations"]</option>
+                </select>
+            </div>
+            @if (ActorsList.Count > 0)
+            {
+                <div class="read-field">
+                    <label for="audit-actor">@Text["AuditActorFilterLabel"]</label>
+                    <select id="audit-actor" aria-label="@Text["AuditActorFilterLabel"]" value="@ActorFilterValue" @onchange="ChangeActor">
+                        <option value="0">@Text["AuditAllActorsOption"]</option>
+                        @foreach (var actorOption in ActorsList)
+                        {
+                            <option value="@actorOption.UserId">@actorOption.UserName</option>
+                        }
+                    </select>
+                </div>
+            }
+            <div class="read-field">
+                <label for="audit-outcome">@Text["AuditOutcomeFilterLabel"]</label>
+                <select id="audit-outcome" aria-label="@Text["AuditOutcomeFilterLabel"]" value="@((byte)OutcomeFilterValue)" @onchange="ChangeOutcome">
+                    <option value="0">@Text["PoAllStatusesOption"]</option>
+                    <option value="1">@Text["AuditOutcomeSuccess"]</option>
+                    <option value="2">@Text["AuditOutcomeFailure"]</option>
                 </select>
             </div>
             <div class="read-field">
                 <label for="audit-event-code">@Text["AuditEventCodeLabel"]</label>
                 <select id="audit-event-code" aria-label="@Text["AuditEventCodeLabel"]" value="@EventCodeFilter" @onchange="ChangeEventCode">
                     <option value="">@Text["AuditEventCodeAll"]</option>
-                    @foreach (var evCode in KnownEventCodes)
+                    @foreach (var evCode in AvailableEventCodes)
                     {
-                        <option value="@evCode">@evCode</option>
+                        <option value="@evCode">@EventCodeLabel(evCode)</option>
                     }
                 </select>
             </div>
             <div class="read-field">
+                <label>@Text["AuditFromDateLabel"]</label>
+                <BitDatePicker @bind-Value="FromDateOffset"
+                               Class="bom-dtp"
+                               Culture="@Culture.PickerCulture"
+                               DateFormat="@PickerDateFormat"
+                               ShowTimePicker="false"
+                               AllowTextInput="false"
+                               AutoClose="true"
+                               ShowClearButton="true"
+                               ShowGoToToday="true"
+                               GoToTodayTitle="@Text["BomDateToday"]"
+                               GoToTodayIcon="@TodayIcon"
+                               Icon="@CalendarIcon"
+                               NextMonthNavIcon="@NextNavIcon"
+                               PrevMonthNavIcon="@PrevNavIcon"
+                               NextYearNavIcon="@NextYearIcon"
+                               PrevYearNavIcon="@PrevYearIcon"
+                               ClearButtonIcon="@CloseIcon" />
+            </div>
+            <div class="read-field">
+                <label>@Text["AuditToDateLabel"]</label>
+                <BitDatePicker @bind-Value="ToDateOffset"
+                               Class="bom-dtp"
+                               Culture="@Culture.PickerCulture"
+                               DateFormat="@PickerDateFormat"
+                               ShowTimePicker="false"
+                               AllowTextInput="false"
+                               AutoClose="true"
+                               ShowClearButton="true"
+                               ShowGoToToday="true"
+                               GoToTodayTitle="@Text["BomDateToday"]"
+                               GoToTodayIcon="@TodayIcon"
+                               Icon="@CalendarIcon"
+                               NextMonthNavIcon="@NextNavIcon"
+                               PrevMonthNavIcon="@PrevNavIcon"
+                               NextYearNavIcon="@NextYearIcon"
+                               PrevYearNavIcon="@PrevYearIcon"
+                               ClearButtonIcon="@CloseIcon" />
+            </div>
+            <div class="read-field">
                 <label for="audit-search">@Text["ReadSearch"]</label>
-                <input id="audit-search" type="search" @bind="SearchInput" @bind:after="ApplySearchAsync" maxlength="100" placeholder="@Text["ReadSearch"]" />
+                <input id="audit-search" type="search" @bind="SearchInput" @bind:after="ApplySearchAsync" maxlength="100" placeholder="@Text["ReadSearchPlaceholder"]" />
             </div>
         </div>
 
@@ -78,19 +159,19 @@
                     <Columns>
                         <BitDataGridColumn TItem="AuditEntrySummary" Title="@Text["AuditTimeColumn"]">
                             <Template Context="entry">
-                                <bdi dir="ltr">@FormatTimestamp(entry.OccurredAtUtc)</bdi>
+                                <bdi dir="ltr">@Format.Timestamp(entry.OccurredAtUtc)</bdi>
                             </Template>
                         </BitDataGridColumn>
                         <BitDataGridColumn TItem="AuditEntrySummary" Title="@Text["AuditCategoryLabel"]">
                             <Template Context="entry">
-                                <span class="read-badge @(entry.Source == AuditSourceKind.Business ? "active" : "role")">
-                                    @(entry.Source == AuditSourceKind.Business ? Text["AuditCategoryBusiness"] : Text["AuditCategorySecurity"])
+                                <span class="read-badge @SourceBadgeClass(entry.Source)">
+                                    @FormatSource(entry.Source)
                                 </span>
                             </Template>
                         </BitDataGridColumn>
                         <BitDataGridColumn TItem="AuditEntrySummary" Title="@Text["AuditEventColumn"]">
                             <Template Context="entry">
-                                <strong dir="ltr">@entry.EventCode</strong>
+                                <span>@EventCodeLabel(entry.EventCode)</span>
                             </Template>
                         </BitDataGridColumn>
                         <BitDataGridColumn TItem="AuditEntrySummary" Title="@Text["AuditActorColumn"]">
@@ -125,73 +206,51 @@
         </div>
     }
 
-    <BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="DetailsOpen"
+    <BitDialog Width="620px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="DetailsOpen"
                Title="@Text["AuditDetailsTitle"]" AriaLabel="@Text["AuditDetailsTitle"]"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
         <Body>
             @if (SelectedDetails is not null)
             {
-                <div class="audit-modal-body">
-                    <div class="audit-modal-title-row">
-                        <strong class="audit-modal-code" dir="ltr">@SelectedDetails.Summary.EventCode</strong>
-                        <span class="read-badge @OutcomeBadgeClass(SelectedDetails.Summary)">@FormatOutcome(SelectedDetails.Summary)</span>
-                    </div>
-
-                    <div class="audit-meta-card">
-                        <div class="audit-meta-row">
-                            <span class="audit-meta-label">@Text["AuditTimeColumn"]</span>
-                            <bdi class="audit-meta-val" dir="ltr">@FormatTimestamp(SelectedDetails.Summary.OccurredAtUtc)</bdi>
-                        </div>
-                        <div class="audit-meta-row">
-                            <span class="audit-meta-label">@Text["AuditActorColumn"]</span>
-                            <bdi class="audit-meta-val" dir="ltr">@FormatActor(SelectedDetails.Summary)</bdi>
-                        </div>
-                        @if (SelectedDetails.Summary.SubjectUserId is not null || !string.IsNullOrEmpty(SelectedDetails.Summary.SubjectUserName))
-                        {
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["AuditSubjectColumn"]</span>
-                                <bdi class="audit-meta-val" dir="ltr">@FormatSubject(SelectedDetails.Summary)</bdi>
-                            </div>
-                        }
-                        <div class="audit-meta-row">
-                            <span class="audit-meta-label">@Text["AuditCorrelationLabel"]</span>
-                            <bdi class="audit-meta-val audit-mono" dir="ltr">@SelectedDetails.Summary.CorrelationId.ToString("D")</bdi>
-                        </div>
-                    </div>
-
-                    <div class="audit-modal-section">
-                        <h3 class="audit-section-heading">@Text["AuditFieldsSection"]</h3>
-                        @if (SelectedDetails.ParsedFields.Count == 0)
-                        {
-                            <p class="read-empty">@Text["ReadEmpty"]</p>
-                        }
-                        else
-                        {
-                            <div class="audit-fields-box">
-                                <table class="audit-fields-table">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">@Text["AuditFieldKeyColumn"]</th>
-                                            <th scope="col">@Text["AuditFieldValueColumn"]</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var kv in SelectedDetails.ParsedFields)
-                                        {
-                                            <tr>
-                                                <td><bdi class="audit-field-key" dir="ltr">@kv.Key</bdi></td>
-                                                <td><bdi dir="auto">@kv.Value</bdi></td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-                        }
-                    </div>
-
-                    <div class="audit-modal-section">
-                        <h3 class="audit-section-heading">@Text["AuditRawJsonSection"]</h3>
+                <div class="audit-detail">
+                    <dl class="audit-meta">
+                        <dt>@Text["AuditTimeColumn"]</dt>
+                        <dd><bdi dir="ltr">@Format.Timestamp(SelectedDetails.Summary.OccurredAtUtc)</bdi></dd>
+                        <dt>@Text["AuditEventColumn"]</dt>
+                        <dd>@EventCodeLabel(SelectedDetails.Summary.EventCode) (<code dir="ltr">@SelectedDetails.Summary.EventCode</code>)</dd>
+                        <dt>@Text["AuditActorColumn"]</dt>
+                        <dd><bdi dir="ltr">@FormatActor(SelectedDetails.Summary)</bdi></dd>
+                        <dt>@Text["AuditSubjectColumn"]</dt>
+                        <dd><bdi dir="ltr">@FormatSubject(SelectedDetails.Summary)</bdi></dd>
+                        <dt>@Text["AuditOutcomeColumn"]</dt>
+                        <dd>@FormatOutcome(SelectedDetails.Summary)</dd>
+                        <dt>@Text["AuditCorrelationLabel"]</dt>
+                        <dd><code dir="ltr">@SelectedDetails.Summary.CorrelationId.ToString("D")</code></dd>
+                    </dl>
+                    @if (SelectedDetails.ParsedFields.Count > 0)
+                    {
+                        <h4>@Text["AuditFieldsSection"]</h4>
+                        <table class="read-subtable">
+                            <thead>
+                                <tr>
+                                    <th>@Text["AuditFieldKeyColumn"]</th>
+                                    <th>@Text["AuditFieldValueColumn"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var field in SelectedDetails.ParsedFields)
+                                {
+                                    <tr>
+                                        <th><bdi dir="ltr">@field.Key</bdi></th>
+                                        <td><bdi dir="ltr">@field.Value</bdi></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    <div class="write-section">
+                        <h4>@Text["AuditRawJsonSection"]</h4>
                         <pre class="audit-raw-json" dir="ltr">@SelectedDetails.Summary.RawJson</pre>
                     </div>
                 </div>
@@ -213,104 +272,60 @@
         Overlay = "read-dialog-overlay"
     };
 
-    private static readonly string[] KnownEventCodes =
-    [
-        "Organization.Created",
-        "Organization.Renamed",
-        "Organization.Activated",
-        "Organization.Deactivated",
-        "Site.Created",
-        "Site.Renamed",
-        "Site.Activated",
-        "Site.Deactivated",
-        "Unit.Created",
-        "Unit.Updated",
-        "Unit.Activated",
-        "Unit.Deactivated",
-        "UnitConversion.Created",
-        "UnitConversion.Updated",
-        "UnitConversion.Activated",
-        "UnitConversion.Deactivated",
-        "Item.Created",
-        "Item.Updated",
-        "Item.Activated",
-        "Item.Deactivated",
-        "ClassificationSet.Created",
-        "Classification.Created",
-        "Classification.Updated",
-        "Classification.Activated",
-        "Classification.Deactivated",
-        "ItemClassification.Updated",
-        "ItemUnitConversion.Created",
-        "ItemUnitConversion.Updated",
-        "ItemUnitConversion.Activated",
-        "ItemUnitConversion.Deactivated",
-        "AttributeDefinition.Created",
-        "AttributeDefinition.Updated",
-        "AttributeDefinition.Activated",
-        "AttributeDefinition.Deactivated",
-        "ItemAttributeValue.Updated",
-        "ContextDimension.Created",
-        "ContextDimension.Updated",
-        "ContextDimension.Activated",
-        "ContextDimension.Deactivated",
-        "Bom.Created",
-        "Bom.Renamed",
-        "Bom.Activated",
-        "Bom.Deactivated",
-        "BomVersion.Created",
-        "BomVersion.Updated",
-        "BomVersion.StatusChanged",
-        "BomVersion.LinesSaved",
-        "BomVersion.ApplicabilitySaved",
-        "ProductionOrder.Created",
-        "ProductionOrder.Updated",
-        "ProductionOrder.Refreshed",
-        "ProductionOrder.Released",
-        "ProductionOrder.Started",
-        "ProductionOrder.Completed",
-        "ProductionOrder.Cancelled",
-        "Warehouse.Created",
-        "Warehouse.Updated",
-        "Warehouse.Activated",
-        "Warehouse.Deactivated",
-        "InventoryTransaction.Posted",
-        "InventoryTransaction.Reversed",
-        "BootstrapStarted",
-        "BootstrapCompleted",
-        "BootstrapRefused",
-        "LoginSucceeded",
-        "LoginFailed",
-        "AccountLockedOut",
-        "LogoutCompleted",
-        "SessionRevoked",
-        "RateLimited",
-        "PreferredCultureChanged",
-        "AccessDenied",
-        "PasswordResetCompleted",
-        "AccountCreated",
-        "AccountStatusChanged",
-        "AccountUnlocked",
-        "MembershipChanged",
-        "ScopedRoleChanged",
-        "RoleDefinitionChanged",
-        "DirectPermissionChanged"
-    ];
+    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
+    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
+    private static readonly BitIconInfo NextNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-next");
+    private static readonly BitIconInfo PrevNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-prev");
+    private static readonly BitIconInfo NextYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-next");
+    private static readonly BitIconInfo PrevYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-prev");
+    private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
 
+    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
+
+    private IJSObjectReference? downloadJs;
     private BitDataGrid<AuditEntrySummary>? grid;
     private IReadOnlyList<OrganizationScope> ScopesList = [];
     private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> ScopeLabels =
         new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+    private IReadOnlyList<AuditActorOption> ActorsList = [];
+    private IReadOnlyList<string> AvailableEventCodes = [];
     private OrganizationScope? SelectedScope;
     private AuditCategory Category = AuditCategory.All;
+    private long ActorFilterValue;
+    private AuditOutcomeFilter OutcomeFilterValue = AuditOutcomeFilter.All;
     private string EventCodeFilter = string.Empty;
+    private DateOnly? FromDateFilter;
+    private DateOnly? ToDateFilter;
     private string SearchInput = string.Empty;
     private string? AppliedSearch;
     private bool InitialLoading = true;
+    private bool ScopeCanExport;
+    private bool Exporting;
     private string? FailureKey;
+    private string? PageNotice;
 
     private bool DetailsOpen;
     private AuditEntryDetails? SelectedDetails;
+
+    private DateTimeOffset? FromDateOffset
+    {
+        get => FromDateFilter is DateOnly d ? new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero) : null;
+        set
+        {
+            FromDateFilter = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+            _ = ReloadGridFromFirstPage();
+        }
+    }
+
+    private DateTimeOffset? ToDateOffset
+    {
+        get => ToDateFilter is DateOnly d ? new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero) : null;
+        set
+        {
+            ToDateFilter = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+            _ = ReloadGridFromFirstPage();
+        }
+    }
 
     private BitDataGridStrings GridStrings => new()
     {
@@ -333,6 +348,7 @@
     {
         InitialLoading = true;
         FailureKey = null;
+        PageNotice = null;
         DetailsOpen = false;
         SelectedDetails = null;
         try
@@ -359,17 +375,65 @@
             return;
         }
 
+        await InitializeScopeMetadataAsync();
+
         // Probe the first page so unauthorized/missing scopes surface a clean alert state immediately.
-        var probe = await AuditQueries.ListAuditEntries(
-            SelectedScope,
-            new AuditListQuery(Category, string.IsNullOrWhiteSpace(EventCodeFilter) ? null : EventCodeFilter, AppliedSearch, 1, 25));
+        var probe = await AuditQueries.ListAuditEntries(SelectedScope, BuildQuery(1, 25));
         if (!probe.Succeeded)
-        {
             FailureKey = RolePermissionLocalization.FailureKey(probe.Error!.Code);
-        }
 
         InitialLoading = false;
     }
+
+    private async Task InitializeScopeMetadataAsync()
+    {
+        ScopeCanExport = false;
+        ActorsList = [];
+        ActorFilterValue = 0;
+        AvailableEventCodes = [];
+        if (SelectedScope is null) return;
+
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is not null)
+            ScopeCanExport = (await Permissions.EvaluateAsync(actor, SelectedScope, AuditPermissions.AuditExport, default)).IsAllowed;
+
+        var actorsRes = await AuditQueries.ListActors(SelectedScope);
+        if (actorsRes.Succeeded)
+            ActorsList = actorsRes.Value!;
+
+        await RefreshEventCodesAsync();
+    }
+
+    private async Task RefreshEventCodesAsync()
+    {
+        if (SelectedScope is null)
+        {
+            AvailableEventCodes = [];
+            return;
+        }
+        var codesRes = await AuditQueries.ListEventCodes(SelectedScope, Category);
+        AvailableEventCodes = codesRes.Succeeded
+            ? codesRes.Value!
+            : AuditEventCatalog.All
+                .Where(d => Category == AuditCategory.All || d.Category == Category)
+                .Select(d => d.Code)
+                .ToArray();
+
+        if (!string.IsNullOrEmpty(EventCodeFilter) && !AvailableEventCodes.Contains(EventCodeFilter, StringComparer.Ordinal))
+            EventCodeFilter = string.Empty;
+    }
+
+    private AuditListQuery BuildQuery(int page, int pageSize) => new(
+        Category,
+        string.IsNullOrWhiteSpace(EventCodeFilter) ? null : EventCodeFilter,
+        AppliedSearch,
+        page,
+        pageSize,
+        ActorFilterValue > 0 ? ActorFilterValue : null,
+        null,
+        OutcomeFilterValue,
+        FromDateFilter,
+        ToDateFilter);
 
     private OrganizationScope? SelectInitialScope()
     {
@@ -393,12 +457,7 @@
 
         var size = Math.Clamp(request.Take ?? 25, 1, 100);
         var page = (request.Skip / size) + 1;
-        var query = new AuditListQuery(
-            Category,
-            string.IsNullOrWhiteSpace(EventCodeFilter) ? null : EventCodeFilter,
-            AppliedSearch,
-            page,
-            size);
+        var query = BuildQuery(page, size);
 
         try
         {
@@ -435,6 +494,8 @@
         var key = e.Value?.ToString();
         SelectedScope = ScopesList.FirstOrDefault(s => ScopeKey(s) == key);
         FailureKey = null;
+        PageNotice = null;
+        await InitializeScopeMetadataAsync();
         await ReloadGridFromFirstPage();
     }
 
@@ -444,6 +505,22 @@
             Category = (AuditCategory)raw;
         else
             Category = AuditCategory.All;
+        await RefreshEventCodesAsync();
+        await ReloadGridFromFirstPage();
+    }
+
+    private async Task ChangeActor(ChangeEventArgs e)
+    {
+        ActorFilterValue = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        await ReloadGridFromFirstPage();
+    }
+
+    private async Task ChangeOutcome(ChangeEventArgs e)
+    {
+        if (byte.TryParse(e.Value?.ToString(), out var raw) && Enum.IsDefined((AuditOutcomeFilter)raw))
+            OutcomeFilterValue = (AuditOutcomeFilter)raw;
+        else
+            OutcomeFilterValue = AuditOutcomeFilter.All;
         await ReloadGridFromFirstPage();
     }
 
@@ -462,7 +539,47 @@
     private async Task Reload()
     {
         FailureKey = null;
+        PageNotice = null;
         await ReloadGridFromFirstPage();
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        if (SelectedScope is null || !ScopeCanExport) return;
+        Exporting = true;
+        PageNotice = null;
+        FailureKey = null;
+        try
+        {
+            var cols = new CsvExportColumnHeaders(
+                [
+                    Text["AuditTimeColumn"],
+                    Text["AuditCategoryLabel"],
+                    Text["AuditEventColumn"],
+                    Text["AuditActorColumn"],
+                    Text["AuditSubjectColumn"],
+                    Text["AuditOutcomeColumn"],
+                    Text["AuditColSite"],
+                    Text["AuditColCorrelation"]
+                ],
+                $"{Text["AuditExportFileName"]}-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv");
+
+            var res = await AuditQueries.ExportAuditCsv(SelectedScope, BuildQuery(1, 100), cols);
+            if (!res.Succeeded)
+            {
+                FailureKey = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+
+            var file = res.Value!;
+            downloadJs ??= await JS.InvokeAsync<IJSObjectReference>("import", "./report-download.js");
+            await downloadJs.InvokeVoidAsync("downloadBase64File", file.FileName, file.ContentType, Convert.ToBase64String(file.Bytes));
+            PageNotice = Text["AuditExportSuccessNotice"];
+        }
+        finally
+        {
+            Exporting = false;
+        }
     }
 
     private async Task OpenDetails(AuditEntrySummary summary)
@@ -481,12 +598,8 @@
         }
     }
 
-    private string FormatTimestamp(DateTime utc)
-    {
-        var dateText = Format.Date(DateOnly.FromDateTime(utc));
-        var timeText = utc.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
-        return $"{dateText} {timeText} UTC";
-    }
+    private string EventCodeLabel(string code) =>
+        RolePermissionLocalization.AuditEventLabel(code, Text);
 
     private string FormatActor(AuditEntrySummary entry)
     {
@@ -512,21 +625,35 @@
         return "—";
     }
 
+    private string FormatSource(AuditSourceKind source) => source switch
+    {
+        AuditSourceKind.Business => Text["AuditCategoryBusiness"],
+        AuditSourceKind.Security => Text["AuditCategorySecurity"],
+        AuditSourceKind.Operations => Text["AuditCategoryOperations"],
+        _ => Text["AuditCategoryBusiness"]
+    };
+
+    private static string SourceBadgeClass(AuditSourceKind source) => source switch
+    {
+        AuditSourceKind.Business => "active",
+        AuditSourceKind.Security => "role",
+        AuditSourceKind.Operations => "po-status-released",
+        _ => "active"
+    };
+
     private string FormatOutcome(AuditEntrySummary entry)
-        => entry.Outcome switch
-        {
-            1 => Text["AuditOutcomeSuccess"],
-            2 => Text["AuditOutcomeFailure"],
-            _ => Text["AuditOutcomeRecorded"]
-        };
+    {
+        if (entry.Source == AuditSourceKind.Business || !entry.Outcome.HasValue)
+            return Text["AuditOutcomeRecorded"];
+        return entry.Outcome.Value == 0 ? Text["AuditOutcomeSuccess"] : Text["AuditOutcomeFailure"];
+    }
 
     private static string OutcomeBadgeClass(AuditEntrySummary entry)
-        => entry.Outcome switch
-        {
-            1 => "active",
-            2 => "locked",
-            _ => "role"
-        };
+    {
+        if (entry.Source == AuditSourceKind.Business || !entry.Outcome.HasValue)
+            return "role";
+        return entry.Outcome.Value == 0 ? "active" : "locked";
+    }
 
     private static string ScopeKey(OrganizationScope? scope) => scope switch
     {
@@ -547,4 +674,13 @@
         OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
         _ => string.Empty
     };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (downloadJs is not null)
+        {
+            try { await downloadJs.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+        }
+    }
 }

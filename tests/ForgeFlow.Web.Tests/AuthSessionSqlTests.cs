@@ -36,8 +36,13 @@ public sealed class AuthSessionSqlTests
     {
         await using var database=await OrganizationSqlServerTests.DisposableDatabase.Create(); var (connection,password,initial)=await Seed(database);
         var source=new Source(); await using var provider=Provider(connection,source); var sessions=provider.GetRequiredService<RuntimeSessions>();
-        var first=await sessions.LoginAsync("initial.admin",password); var second=await sessions.LoginAsync("initial.admin",password);
-        Assert.Equal("Auth.SignedIn",first.Code); Assert.NotNull(first.Session); source.Current=first.Session;
+        var first=await sessions.LoginAsync("initial.admin",password,clientIp:"192.168.1.24");
+        Assert.Equal("Auth.SignedIn",first.Code); Assert.NotNull(first.Session);
+        Assert.Null(await sessions.GetPreviousSignInAsync(first.Session!));
+        var second=await sessions.LoginAsync("initial.admin",password,clientIp:"10.20.30.40");
+        var previous=await sessions.GetPreviousSignInAsync(second.Session!);
+        Assert.NotNull(previous); Assert.Equal("192.168.1.24",previous!.IpAddress);
+        source.Current=first.Session;
         using(var scope=provider.CreateScope()) {
             var actor=await scope.ServiceProvider.GetRequiredService<ITrustedActorAccessor>().ResolveAsync(default); Assert.Equal(initial.UserId,actor!.ActorId); Assert.Equal(first.Session.SessionId,actor.ProvenanceReference);
             var useCases=scope.ServiceProvider.GetRequiredService<OrganizationUseCases>(); var owner=new OrganizationScope.Organization(initial.OrganizationId!.Value);

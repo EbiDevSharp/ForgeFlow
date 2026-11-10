@@ -1,3 +1,6 @@
+using System.Globalization;
+using ForgeFlow.Application.Common;
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.Units;
 using ForgeFlow.Domain.Items;
@@ -10,7 +13,9 @@ public sealed class ItemUseCases(
     IItemOperationsStore store,
     IUnitOperationsStore? unitsStore = null,
     ITrustedActorAccessor? actors = null,
-    IOrganizationPermissionEvaluator? permissions = null)
+    IOrganizationPermissionEvaluator? permissions = null,
+    IUserOperationRecorder? operationRecorder = null,
+    IOperationContextAccessor? opContext = null)
 {
     private async ValueTask<(TrustedActor? Actor, string? Error)> Authorize(
         OrganizationScope? scope,
@@ -20,11 +25,23 @@ public sealed class ItemUseCases(
         if (actors is null) return (null, ItemErrors.ActorRequired);
         var actor = await actors.ResolveAsync(ct);
         if (actor is null) return (null, ItemErrors.ActorRequired);
-        if (scope is null) return (null, ItemErrors.ScopeRequired);
+        if (scope is null) return (actor, ItemErrors.ScopeRequired);
         if (permissions is null || !(await permissions.EvaluateAsync(actor, scope, permission, ct)).IsAllowed)
-            return (null, ItemErrors.AccessDenied);
+            return (actor, ItemErrors.AccessDenied);
         return (actor, null);
     }
+
+    private Task<OrganizationResult<T>> RecordRejected<T>(
+        OrganizationResult<T> result,
+        TrustedActor? actor,
+        OrganizationScope? scope,
+        long organizationId,
+        string entityType,
+        string? entityRef,
+        string action)
+        => OperationAuditHelper.RecordIfRejectedAsync(
+            result, operationRecorder, opContext, UserOperationCatalog.ItemActionRejected,
+            actor, scope, organizationId, null, entityType, entityRef, new { Action = action });
 
     private OrganizationWriteAccess Access(TrustedActor actor, OrganizationScope scope, string permission) => new(actor, async ct =>
     {
@@ -147,29 +164,32 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ItemDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
-
-        try
+        OrganizationResult<ItemDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<ItemDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
+        else
         {
-            _ = Item.Create(
-                request.OrganizationId,
-                request.Code,
-                request.Name,
-                request.Description,
-                request.BaseUnitId,
-                request.CanBePurchased,
-                request.CanBeManufactured,
-                request.CanBeSold,
-                request.CanBeConsumed);
+            try
+            {
+                _ = Item.Create(
+                    request.OrganizationId,
+                    request.Code,
+                    request.Name,
+                    request.Description,
+                    request.BaseUnitId,
+                    request.CanBePurchased,
+                    request.CanBeManufactured,
+                    request.CanBeSold,
+                    request.CanBeConsumed);
+                res = await ExecuteStore(() => store.CreateItem(request, Access(auth.Actor!, scope!, ItemPermissions.ItemsManage), ct));
+            }
+            catch (ItemRuleException ex)
+            {
+                res = OrganizationResult<ItemDetails>.Failure(ex.Code, ex.Parameters);
+            }
         }
-        catch (ItemRuleException ex)
-        {
-            return OrganizationResult<ItemDetails>.Failure(ex.Code, ex.Parameters);
-        }
-
-        return await ExecuteStore(() => store.CreateItem(request, Access(auth.Actor!, scope!, ItemPermissions.ItemsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Item", request.Code, "CreateItem");
     }
 
     public async Task<OrganizationResult<ItemDetails>> UpdateItem(
@@ -178,19 +198,21 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ItemDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.UpdateItem(
-            request.OrganizationId,
-            request.Id,
-            version,
-            request,
-            Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
-            ct));
+        OrganizationResult<ItemDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<ItemDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.UpdateItem(
+                request.OrganizationId,
+                request.Id,
+                version,
+                request,
+                Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Item", request.Id.ToString(CultureInfo.InvariantCulture), "UpdateItem");
     }
 
     public async Task<OrganizationResult<ItemDetails>> SetItemActive(
@@ -199,19 +221,21 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ItemDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.SetItemActive(
-            request.OrganizationId,
-            request.Id,
-            version,
-            request.IsActive,
-            Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
-            ct));
+        OrganizationResult<ItemDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<ItemDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SetItemActive(
+                request.OrganizationId,
+                request.Id,
+                version,
+                request.IsActive,
+                Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Item", request.Id.ToString(CultureInfo.InvariantCulture), "SetItemActive");
     }
 
     public async Task<OrganizationResult<ItemDetails>> SaveItemClassifications(
@@ -220,19 +244,21 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ItemDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.ItemId <= 0)
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.SaveItemClassifications(
-            request.OrganizationId,
-            request.ItemId,
-            version,
-            request.ClassificationIds,
-            Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
-            ct));
+        OrganizationResult<ItemDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<ItemDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.ItemId <= 0)
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SaveItemClassifications(
+                request.OrganizationId,
+                request.ItemId,
+                version,
+                request.ClassificationIds,
+                Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "ItemClassification", request.ItemId.ToString(CultureInfo.InvariantCulture), "SaveItemClassifications");
     }
 
     public async Task<OrganizationResult<ItemDetails>> CreateItemConversion(
@@ -241,18 +267,21 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ItemDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.ItemId <= 0)
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
-
-        try
+        OrganizationResult<ItemDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<ItemDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.ItemId <= 0)
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
+        else
         {
-            _ = ItemUnitConversion.Create(request.OrganizationId, request.ItemId, request.FromUnitId, request.ToUnitId, request.Factor);
+            try
+            {
+                _ = ItemUnitConversion.Create(request.OrganizationId, request.ItemId, request.FromUnitId, request.ToUnitId, request.Factor);
+                res = await ExecuteStore(() => store.CreateItemConversion(request, Access(auth.Actor!, scope!, ItemPermissions.ItemsManage), ct));
+            }
+            catch (ItemRuleException ex) { res = OrganizationResult<ItemDetails>.Failure(ex.Code, ex.Parameters); }
+            catch (UnitRuleException ex) { res = OrganizationResult<ItemDetails>.Failure(ex.Code, ex.Parameters); }
         }
-        catch (ItemRuleException ex) { return OrganizationResult<ItemDetails>.Failure(ex.Code, ex.Parameters); }
-        catch (UnitRuleException ex) { return OrganizationResult<ItemDetails>.Failure(ex.Code, ex.Parameters); }
-
-        return await ExecuteStore(() => store.CreateItemConversion(request, Access(auth.Actor!, scope!, ItemPermissions.ItemsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "ItemUnitConversion", request.ItemId.ToString(CultureInfo.InvariantCulture), "CreateItemConversion");
     }
 
     public async Task<OrganizationResult<ItemDetails>> UpdateItemConversionFactor(
@@ -261,24 +290,26 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ItemDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _)
+        OrganizationResult<ItemDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<ItemDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _)
             || request.ItemId <= 0
             || request.ConversionId <= 0)
         {
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.ItemUnitConversionNotFound);
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.ItemUnitConversionNotFound);
         }
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.UpdateItemConversionFactor(
-            request.OrganizationId,
-            request.ItemId,
-            request.ConversionId,
-            version,
-            request.Factor,
-            Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
-            ct));
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.UpdateItemConversionFactor(
+                request.OrganizationId,
+                request.ItemId,
+                request.ConversionId,
+                version,
+                request.Factor,
+                Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "ItemUnitConversion", request.ConversionId.ToString(CultureInfo.InvariantCulture), "UpdateItemConversionFactor");
     }
 
     public async Task<OrganizationResult<ItemDetails>> SetItemConversionActive(
@@ -287,24 +318,26 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ItemDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _)
+        OrganizationResult<ItemDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<ItemDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _)
             || request.ItemId <= 0
             || request.ConversionId <= 0)
         {
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.ItemUnitConversionNotFound);
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.ItemUnitConversionNotFound);
         }
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.SetItemConversionActive(
-            request.OrganizationId,
-            request.ItemId,
-            request.ConversionId,
-            version,
-            request.IsActive,
-            Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
-            ct));
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SetItemConversionActive(
+                request.OrganizationId,
+                request.ItemId,
+                request.ConversionId,
+                version,
+                request.IsActive,
+                Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "ItemUnitConversion", request.ConversionId.ToString(CultureInfo.InvariantCulture), "SetItemConversionActive");
     }
 
     /// <summary>A08 hybrid conversion resolver combining item-specific edges and global organization edges.</summary>
@@ -372,20 +405,23 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ClassificationSetSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
-            return OrganizationResult<ClassificationSetSummary>.Failure(ItemErrors.NotFound);
-
-        try
+        OrganizationResult<ClassificationSetSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<ClassificationSetSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
+            res = OrganizationResult<ClassificationSetSummary>.Failure(ItemErrors.NotFound);
+        else
         {
-            _ = ClassificationSet.Create(request.OrganizationId, request.Code, request.Name, request.IsMandatory, request.AllowMultiple);
+            try
+            {
+                _ = ClassificationSet.Create(request.OrganizationId, request.Code, request.Name, request.IsMandatory, request.AllowMultiple);
+                res = await ExecuteStore(() => store.CreateClassificationSet(request, Access(auth.Actor!, scope!, ItemPermissions.ItemsManage), ct));
+            }
+            catch (ItemRuleException ex)
+            {
+                res = OrganizationResult<ClassificationSetSummary>.Failure(ex.Code, ex.Parameters);
+            }
         }
-        catch (ItemRuleException ex)
-        {
-            return OrganizationResult<ClassificationSetSummary>.Failure(ex.Code, ex.Parameters);
-        }
-
-        return await ExecuteStore(() => store.CreateClassificationSet(request, Access(auth.Actor!, scope!, ItemPermissions.ItemsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "ClassificationSet", request.Code, "CreateClassificationSet");
     }
 
     public async Task<OrganizationResult<OrganizationPage<ClassificationSummary>>> ListClassifications(
@@ -445,20 +481,23 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ClassificationSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
-            return OrganizationResult<ClassificationSummary>.Failure(ItemErrors.NotFound);
-
-        try
+        OrganizationResult<ClassificationSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<ClassificationSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
+            res = OrganizationResult<ClassificationSummary>.Failure(ItemErrors.NotFound);
+        else
         {
-            _ = Classification.Create(request.OrganizationId, request.ClassificationSetId, request.ParentClassificationId, request.Code, request.Name);
+            try
+            {
+                _ = Classification.Create(request.OrganizationId, request.ClassificationSetId, request.ParentClassificationId, request.Code, request.Name);
+                res = await ExecuteStore(() => store.CreateClassification(request, Access(auth.Actor!, scope!, ItemPermissions.ItemsManage), ct));
+            }
+            catch (ItemRuleException ex)
+            {
+                res = OrganizationResult<ClassificationSummary>.Failure(ex.Code, ex.Parameters);
+            }
         }
-        catch (ItemRuleException ex)
-        {
-            return OrganizationResult<ClassificationSummary>.Failure(ex.Code, ex.Parameters);
-        }
-
-        return await ExecuteStore(() => store.CreateClassification(request, Access(auth.Actor!, scope!, ItemPermissions.ItemsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Classification", request.Code, "CreateClassification");
     }
 
     public async Task<OrganizationResult<ClassificationSummary>> UpdateClassification(
@@ -467,20 +506,22 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ClassificationSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<ClassificationSummary>.Failure(ItemErrors.ClassificationNotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<ClassificationSummary>.Failure(ItemErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.UpdateClassification(
-            request.OrganizationId,
-            request.Id,
-            version,
-            request.Name,
-            request.ParentClassificationId,
-            Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
-            ct));
+        OrganizationResult<ClassificationSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<ClassificationSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<ClassificationSummary>.Failure(ItemErrors.ClassificationNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<ClassificationSummary>.Failure(ItemErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.UpdateClassification(
+                request.OrganizationId,
+                request.Id,
+                version,
+                request.Name,
+                request.ParentClassificationId,
+                Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Classification", request.Id.ToString(CultureInfo.InvariantCulture), "UpdateClassification");
     }
 
     public async Task<OrganizationResult<ClassificationSummary>> SetClassificationActive(
@@ -489,19 +530,21 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ClassificationSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<ClassificationSummary>.Failure(ItemErrors.ClassificationNotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<ClassificationSummary>.Failure(ItemErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.SetClassificationActive(
-            request.OrganizationId,
-            request.Id,
-            version,
-            request.IsActive,
-            Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
-            ct));
+        OrganizationResult<ClassificationSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<ClassificationSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<ClassificationSummary>.Failure(ItemErrors.ClassificationNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<ClassificationSummary>.Failure(ItemErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SetClassificationActive(
+                request.OrganizationId,
+                request.Id,
+                version,
+                request.IsActive,
+                Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Classification", request.Id.ToString(CultureInfo.InvariantCulture), "SetClassificationActive");
     }
 
     public async Task<OrganizationResult<OrganizationPage<AttributeDefinitionSummary>>> ListAttributeDefinitions(
@@ -561,20 +604,23 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<AttributeDefinitionSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
-            return OrganizationResult<AttributeDefinitionSummary>.Failure(ItemErrors.NotFound);
-
-        try
+        OrganizationResult<AttributeDefinitionSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<AttributeDefinitionSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
+            res = OrganizationResult<AttributeDefinitionSummary>.Failure(ItemErrors.NotFound);
+        else
         {
-            _ = AttributeDefinition.Create(request.OrganizationId, request.Code, request.Name, request.DataType, request.UnitId, request.IsRequired);
+            try
+            {
+                _ = AttributeDefinition.Create(request.OrganizationId, request.Code, request.Name, request.DataType, request.UnitId, request.IsRequired);
+                res = await ExecuteStore(() => store.CreateAttributeDefinition(request, Access(auth.Actor!, scope!, ItemPermissions.ItemsManage), ct));
+            }
+            catch (ItemRuleException ex)
+            {
+                res = OrganizationResult<AttributeDefinitionSummary>.Failure(ex.Code, ex.Parameters);
+            }
         }
-        catch (ItemRuleException ex)
-        {
-            return OrganizationResult<AttributeDefinitionSummary>.Failure(ex.Code, ex.Parameters);
-        }
-
-        return await ExecuteStore(() => store.CreateAttributeDefinition(request, Access(auth.Actor!, scope!, ItemPermissions.ItemsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "AttributeDefinition", request.Code, "CreateAttributeDefinition");
     }
 
     public async Task<OrganizationResult<AttributeDefinitionSummary>> UpdateAttributeDefinition(
@@ -583,21 +629,23 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<AttributeDefinitionSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<AttributeDefinitionSummary>.Failure(ItemErrors.AttributeDefinitionNotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<AttributeDefinitionSummary>.Failure(ItemErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.UpdateAttributeDefinition(
-            request.OrganizationId,
-            request.Id,
-            version,
-            request.Name,
-            request.UnitId,
-            request.IsRequired,
-            Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
-            ct));
+        OrganizationResult<AttributeDefinitionSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<AttributeDefinitionSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<AttributeDefinitionSummary>.Failure(ItemErrors.AttributeDefinitionNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<AttributeDefinitionSummary>.Failure(ItemErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.UpdateAttributeDefinition(
+                request.OrganizationId,
+                request.Id,
+                version,
+                request.Name,
+                request.UnitId,
+                request.IsRequired,
+                Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "AttributeDefinition", request.Id.ToString(CultureInfo.InvariantCulture), "UpdateAttributeDefinition");
     }
 
     public async Task<OrganizationResult<AttributeDefinitionSummary>> SetAttributeDefinitionActive(
@@ -606,19 +654,21 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<AttributeDefinitionSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<AttributeDefinitionSummary>.Failure(ItemErrors.AttributeDefinitionNotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<AttributeDefinitionSummary>.Failure(ItemErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.SetAttributeDefinitionActive(
-            request.OrganizationId,
-            request.Id,
-            version,
-            request.IsActive,
-            Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
-            ct));
+        OrganizationResult<AttributeDefinitionSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<AttributeDefinitionSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<AttributeDefinitionSummary>.Failure(ItemErrors.AttributeDefinitionNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<AttributeDefinitionSummary>.Failure(ItemErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SetAttributeDefinitionActive(
+                request.OrganizationId,
+                request.Id,
+                version,
+                request.IsActive,
+                Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "AttributeDefinition", request.Id.ToString(CultureInfo.InvariantCulture), "SetAttributeDefinitionActive");
     }
 
     public async Task<OrganizationResult<ItemDetails>> SaveItemAttributeValues(
@@ -627,18 +677,20 @@ public sealed class ItemUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, ItemPermissions.ItemsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ItemDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.ItemId <= 0)
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.SaveItemAttributeValues(
-            request.OrganizationId,
-            request.ItemId,
-            version,
-            request.Values,
-            Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
-            ct));
+        OrganizationResult<ItemDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<ItemDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.ItemId <= 0)
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SaveItemAttributeValues(
+                request.OrganizationId,
+                request.ItemId,
+                version,
+                request.Values,
+                Access(auth.Actor!, scope!, ItemPermissions.ItemsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "ItemAttributeValue", request.ItemId.ToString(CultureInfo.InvariantCulture), "SaveItemAttributeValues");
     }
 }

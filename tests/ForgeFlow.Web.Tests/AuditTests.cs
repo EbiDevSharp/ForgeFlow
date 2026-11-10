@@ -258,6 +258,12 @@ public sealed class AuditTests
                 ? null
                 : new AuditEntryDetails(match, AuditPayloadParser.ParseFields(match.RawJson)));
         }
+
+        public Task<IReadOnlyList<AuditActorOption>> ListActors(OrganizationScope scope, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<AuditActorOption>>([new(1, "admin@forgeflow.local")]);
+
+        public Task<IReadOnlyList<string>> ListDistinctEventCodes(OrganizationScope scope, AuditCategory category, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<string>>(["Organization.Created", "RoleDefinitionChanged"]);
     }
 
     private sealed class CatalogLocalizer(IReadOnlyDictionary<string, string> catalog) : IStringLocalizer<SharedResources>

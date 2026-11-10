@@ -1,0 +1,502 @@
+@page "/errors"
+@using System.Globalization
+@using ForgeFlow.Application.Diagnostics
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Domain.Diagnostics
+@using ForgeFlow.Web.Roles
+@inject ErrorLogUseCases ErrorLogs
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject CulturePolicy Culture
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["ErrorLogs"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="errlog-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="errlog-title">@Text["ErrorLogs"]</h1>
+            <p class="write-hint">@Text["ErrorLogsCaption"]</p>
+        </div>
+        @if (!initialLoading && failureKey is null && platformScope is not null && canManage)
+        {
+            <div class="read-head-actions">
+                <select aria-label="@Text["ErrorLogsPurgeDaysLabel"]" @bind="purgeDays">
+                    <option value="30">30</option>
+                    <option value="90">90</option>
+                    <option value="180">180</option>
+                    <option value="365">365</option>
+                </select>
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!purging)" OnClick="PurgeOldAsync">
+                    @Text["ErrorLogsPurgeBtn"]
+                </BitButton>
+            </div>
+        }
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (failureKey is not null)
+    {
+        <div class="read-state" role="alert">
+            <p>@Text[failureKey]</p>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadAllAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else if (platformScope is null)
+    {
+        <p role="status" class="read-empty">@Text["ReadDenied"]</p>
+    }
+    else
+    {
+        @if (stats is not null)
+        {
+            <div class="rpt-kpi-grid" aria-label="@Text["ErrorLogs"]">
+                <article class="rpt-kpi-card">
+                    <span class="rpt-kpi-label">@Text["ErrorLogsKpi24h"]</span>
+                    <strong class="rpt-kpi-value" dir="ltr">@FormatInt(stats.TotalLast24Hours)</strong>
+                </article>
+                <article class="rpt-kpi-card @(stats.CriticalLast24Hours > 0 ? "rpt-kpi-card--warn" : string.Empty)">
+                    <span class="rpt-kpi-label">@Text["ErrorLogsKpiCritical"]</span>
+                    <strong class="rpt-kpi-value" dir="ltr">@FormatInt(stats.CriticalLast24Hours)</strong>
+                </article>
+                <article class="rpt-kpi-card @(stats.SqlErrorsLast24Hours > 0 ? "rpt-kpi-card--warn" : string.Empty)">
+                    <span class="rpt-kpi-label">@Text["ErrorLogsKpiSql"]</span>
+                    <strong class="rpt-kpi-value" dir="ltr">@FormatInt(stats.SqlErrorsLast24Hours)</strong>
+                </article>
+                <article class="rpt-kpi-card">
+                    <span class="rpt-kpi-label">@Text["ErrorLogsKpiPipeline"]</span>
+                    <strong class="rpt-kpi-value" dir="ltr">@FormatInt(stats.HttpOrCircuitLast24Hours)</strong>
+                </article>
+            </div>
+        }
+
+        <div class="read-toolbar-card">
+            <div class="read-field">
+                <label for="err-sev">@Text["ErrorLogsSeverityLabel"]</label>
+                <select id="err-sev" value="@severityFilter" @onchange="ChangeSeverityAsync">
+                    <option value="">@Text["PoAllStatusesOption"]</option>
+                    <option value="@((byte)ErrorSeverity.Warning)">@Text["ErrorLogsSevWarning"]</option>
+                    <option value="@((byte)ErrorSeverity.Error)">@Text["ErrorLogsSevError"]</option>
+                    <option value="@((byte)ErrorSeverity.Critical)">@Text["ErrorLogsSevCritical"]</option>
+                </select>
+            </div>
+            <div class="read-field">
+                <label for="err-src">@Text["ErrorLogsSourceLabel"]</label>
+                <select id="err-src" value="@sourceFilter" @onchange="ChangeSourceAsync">
+                    <option value="">@Text["PoAllStatusesOption"]</option>
+                    <option value="@((byte)ErrorSourceKind.HttpMiddleware)">@Text["ErrorLogsSrcHttp"]</option>
+                    <option value="@((byte)ErrorSourceKind.BlazorCircuit)">@Text["ErrorLogsSrcCircuit"]</option>
+                    <option value="@((byte)ErrorSourceKind.BlazorComponent)">@Text["ErrorLogsSrcComponent"]</option>
+                    <option value="@((byte)ErrorSourceKind.InfrastructureStore)">@Text["ErrorLogsSrcStore"]</option>
+                    <option value="@((byte)ErrorSourceKind.BackgroundHost)">@Text["ErrorLogsSrcHost"]</option>
+                </select>
+            </div>
+            <div class="read-field">
+                <label>@Text["AuditFromDateLabel"]</label>
+                <BitDatePicker @bind-Value="FromDateOffset"
+                               Class="bom-dtp"
+                               Culture="@Culture.PickerCulture"
+                               DateFormat="@PickerDateFormat"
+                               ShowTimePicker="false"
+                               AllowTextInput="false"
+                               AutoClose="true"
+                               ShowClearButton="true"
+                               ShowGoToToday="true"
+                               GoToTodayTitle="@Text["BomDateToday"]"
+                               GoToTodayIcon="@TodayIcon"
+                               Icon="@CalendarIcon"
+                               NextMonthNavIcon="@NextNavIcon"
+                               PrevMonthNavIcon="@PrevNavIcon"
+                               NextYearNavIcon="@NextYearIcon"
+                               PrevYearNavIcon="@PrevYearIcon"
+                               ClearButtonIcon="@CloseIcon" />
+            </div>
+            <div class="read-field">
+                <label>@Text["AuditToDateLabel"]</label>
+                <BitDatePicker @bind-Value="ToDateOffset"
+                               Class="bom-dtp"
+                               Culture="@Culture.PickerCulture"
+                               DateFormat="@PickerDateFormat"
+                               ShowTimePicker="false"
+                               AllowTextInput="false"
+                               AutoClose="true"
+                               ShowClearButton="true"
+                               ShowGoToToday="true"
+                               GoToTodayTitle="@Text["BomDateToday"]"
+                               GoToTodayIcon="@TodayIcon"
+                               Icon="@CalendarIcon"
+                               NextMonthNavIcon="@NextNavIcon"
+                               PrevMonthNavIcon="@PrevNavIcon"
+                               NextYearNavIcon="@NextYearIcon"
+                               PrevYearNavIcon="@PrevYearIcon"
+                               ClearButtonIcon="@CloseIcon" />
+            </div>
+            <div class="read-field">
+                <label for="err-search">@Text["ReadSearch"]</label>
+                <input id="err-search" type="search" @bind="searchInput" @bind:after="ApplySearchAsync" maxlength="100" placeholder="@Text["ReadSearchPlaceholder"]" />
+            </div>
+        </div>
+
+        <div class="read-grid-card">
+            <div class="read-grid">
+                <BitDataGrid @ref="grid" TItem="ErrorLogSummary" OnRead="ReadGridAsync" Pageable="true" PageSize="25"
+                             PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                             AriaLabelledBy="errlog-title" WrapCellText="true">
+                    <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                    <Columns>
+                        <BitDataGridColumn TItem="ErrorLogSummary" Title="@Text["AuditTimeColumn"]">
+                            <Template Context="e">
+                                <bdi dir="ltr">@Format.Timestamp(e.OccurredAtUtc)</bdi>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ErrorLogSummary" Title="@Text["ErrorLogsRefColumn"]">
+                            <Template Context="e">
+                                <div>
+                                    <div class="read-primary-cell"><bdi dir="ltr">@e.ErrorReference</bdi></div>
+                                    <div class="read-sub-cell"><span class="read-badge @SeverityBadgeClass(e.Severity)">@SeverityLabel(e.Severity)</span></div>
+                                </div>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ErrorLogSummary" Title="@Text["ErrorLogsSourceLabel"]">
+                            <Template Context="e">
+                                <div>
+                                    <div class="read-primary-cell">@SourceLabel(e.Source)</div>
+                                    <div class="read-sub-cell"><bdi dir="ltr">@(e.ComponentName ?? e.RequestPath ?? "—")</bdi></div>
+                                </div>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ErrorLogSummary" Title="@Text["ErrorLogsTypeColumn"]">
+                            <Template Context="e">
+                                <div>
+                                    <div class="read-primary-cell"><bdi dir="ltr">@e.ExceptionType</bdi></div>
+                                    @if (e.SqlErrorNumber.HasValue)
+                                    {
+                                        <div class="read-sub-cell"><bdi dir="ltr">SQL #@e.SqlErrorNumber.Value</bdi></div>
+                                    }
+                                </div>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ErrorLogSummary" Title="@Text["ErrorLogsMessageColumn"]">
+                            <Template Context="e">
+                                <bdi dir="ltr">@Truncate(e.RedactedMessage, 140)</bdi>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ErrorLogSummary" Title="@Text["AuditActorColumn"]">
+                            <Template Context="e">
+                                <bdi dir="ltr">@(e.ActorUserName ?? (e.ActorUserId?.ToString(CultureInfo.InvariantCulture) ?? Text["AuditSystemActor"]))</bdi>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ErrorLogSummary" Title="@Text["ReadActions"]">
+                            <Template Context="e">
+                                <div class="read-row-actions">
+                                    <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                   IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                                   OnClick="() => OpenDetailsAsync(e.Id)" />
+                                    </BitTooltip>
+                                </div>
+                            </Template>
+                        </BitDataGridColumn>
+                    </Columns>
+                </BitDataGrid>
+            </div>
+        </div>
+    }
+
+    <BitDialog Width="820px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailsOpen"
+               Title="@Text["ErrorLogsDetailsTitle"]" AriaLabel="@Text["ErrorLogsDetailsTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            @if (selectedDetails is not null)
+            {
+                var s = selectedDetails.Summary;
+                <div class="audit-modal-body audit-modal-body--wide">
+                    <div class="audit-meta">
+                        <div><span class="audit-meta-label">@Text["ErrorReferenceLabel"]</span><span class="audit-meta-val"><bdi dir="ltr">@s.ErrorReference</bdi></span></div>
+                        <div><span class="audit-meta-label">@Text["ErrorCorrelationLabel"]</span><span class="audit-meta-val"><code dir="ltr">@s.CorrelationId.ToString("D")</code></span></div>
+                        <div><span class="audit-meta-label">@Text["AuditTimeColumn"]</span><span class="audit-meta-val"><bdi dir="ltr">@Format.Timestamp(s.OccurredAtUtc)</bdi></span></div>
+                        <div><span class="audit-meta-label">@Text["ErrorLogsSeverityLabel"]</span><span class="audit-meta-val">@SeverityLabel(s.Severity) (@SourceLabel(s.Source))</span></div>
+                        <div><span class="audit-meta-label">@Text["ErrorLogsTypeColumn"]</span><span class="audit-meta-val"><bdi dir="ltr">@s.ExceptionType</bdi></span></div>
+                        @if (s.SqlErrorNumber.HasValue)
+                        {
+                            <div><span class="audit-meta-label">@Text["ErrorLogsSqlColumn"]</span><span class="audit-meta-val"><bdi dir="ltr">#@s.SqlErrorNumber.Value</bdi></span></div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(s.RequestPath))
+                        {
+                            <div><span class="audit-meta-label">@Text["ErrorLogsPathColumn"]</span><span class="audit-meta-val"><bdi dir="ltr">@s.RequestPath</bdi></span></div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(selectedDetails.UserAgent))
+                        {
+                            <div><span class="audit-meta-label">@Text["ErrorLogsUserAgentLabel"]</span><span class="audit-meta-val"><bdi dir="ltr">@selectedDetails.UserAgent</bdi></span></div>
+                        }
+                    </div>
+
+                    <div class="write-section">
+                        <h4>@Text["ErrorLogsMessageColumn"]</h4>
+                        <pre class="audit-raw-json" dir="ltr">@s.RedactedMessage</pre>
+                    </div>
+
+                    <div class="write-section">
+                        <h4>@Text["ErrorLogsStackTraceLabel"]</h4>
+                        <pre class="audit-raw-json" dir="ltr">@selectedDetails.RedactedStackTrace</pre>
+                    </div>
+
+                    <div class="po-dialog-footer">
+                        <BitButton Variant="BitVariant.Outline" OnClick="CloseDetails">@Text["ReadClose"]</BitButton>
+                    </div>
+                </div>
+            }
+        </Body>
+    </BitDialog>
+</section>
+
+@code {
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+
+    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
+    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
+    private static readonly BitIconInfo NextNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-next");
+    private static readonly BitIconInfo PrevNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-prev");
+    private static readonly BitIconInfo NextYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-next");
+    private static readonly BitIconInfo PrevYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-prev");
+    private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
+
+    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["ErrorLogs"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    private BitDataGrid<ErrorLogSummary>? grid;
+    private OrganizationScope.Platform? platformScope;
+    private ErrorLogStats? stats;
+    private bool initialLoading = true;
+    private bool canManage;
+    private bool purging;
+    private int purgeDays = 90;
+    private string? failureKey;
+    private string? pageNotice;
+
+    private string severityFilter = string.Empty;
+    private string sourceFilter = string.Empty;
+    private DateOnly? fromDate;
+    private DateOnly? toDate;
+    private string searchInput = string.Empty;
+    private string? appliedSearch;
+
+    private bool detailsOpen;
+    private ErrorLogDetails? selectedDetails;
+
+    private DateTimeOffset? FromDateOffset
+    {
+        get => fromDate is DateOnly d ? new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero) : null;
+        set
+        {
+            fromDate = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+            _ = ReloadGridFromFirstPageAsync();
+        }
+    }
+
+    private DateTimeOffset? ToDateOffset
+    {
+        get => toDate is DateOnly d ? new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero) : null;
+        set
+        {
+            toDate = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+            _ = ReloadGridFromFirstPageAsync();
+        }
+    }
+
+    protected override async Task OnInitializedAsync() => await ReloadAllAsync();
+
+    private async Task ReloadAllAsync()
+    {
+        initialLoading = true;
+        failureKey = null;
+        pageNotice = null;
+        canManage = false;
+        try
+        {
+            var scopes = await Scopes.LoadDiagnosticScopesAsync();
+            platformScope = scopes.OfType<OrganizationScope.Platform>().FirstOrDefault();
+            if (platformScope is null)
+            {
+                initialLoading = false;
+                return;
+            }
+
+            var actor = await Actors.ResolveAsync(default);
+            if (actor is not null)
+                canManage = (await Permissions.EvaluateAsync(actor, platformScope, DiagnosticPermissions.ErrorLogsManage, default)).IsAllowed;
+
+            var statsRes = await ErrorLogs.GetStats(platformScope);
+            if (statsRes.Succeeded)
+                stats = statsRes.Value;
+            else
+                failureKey = RolePermissionLocalization.FailureKey(statsRes.Error!.Code);
+        }
+        catch
+        {
+            failureKey = "ReadError";
+        }
+        finally
+        {
+            initialLoading = false;
+        }
+    }
+
+    private async Task<BitDataGridReadResult<ErrorLogSummary>> ReadGridAsync(BitDataGridReadRequest request)
+    {
+        if (platformScope is null)
+            return new([], 0);
+
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        ErrorSeverity? sev = byte.TryParse(severityFilter, out var sv) ? (ErrorSeverity)sv : null;
+        ErrorSourceKind? src = byte.TryParse(sourceFilter, out var sr) ? (ErrorSourceKind)sr : null;
+
+        var res = await ErrorLogs.ListErrorLogs(platformScope, new ErrorLogListQuery(
+            sev, src, fromDate, toDate, appliedSearch, page, size), request.CancellationToken);
+
+        if (!res.Succeeded)
+        {
+            failureKey = RolePermissionLocalization.FailureKey(res.Error!.Code);
+            StateHasChanged();
+            return new([], 0);
+        }
+
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private async Task ReloadGridFromFirstPageAsync()
+    {
+        if (grid is null) return;
+        if (grid.CurrentPage <= 1) await grid.RefreshAsync();
+        else await grid.GoToPageAsync(1);
+    }
+
+    private async Task ChangeSeverityAsync(ChangeEventArgs e)
+    {
+        severityFilter = e.Value?.ToString() ?? string.Empty;
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task ChangeSourceAsync(ChangeEventArgs e)
+    {
+        sourceFilter = e.Value?.ToString() ?? string.Empty;
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        appliedSearch = string.IsNullOrWhiteSpace(searchInput) ? null : searchInput.Trim();
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task OpenDetailsAsync(long id)
+    {
+        if (platformScope is null) return;
+        var res = await ErrorLogs.GetErrorLog(platformScope, id);
+        if (!res.Succeeded)
+        {
+            failureKey = RolePermissionLocalization.FailureKey(res.Error!.Code);
+            return;
+        }
+        selectedDetails = res.Value;
+        detailsOpen = true;
+    }
+
+    private void CloseDetails()
+    {
+        detailsOpen = false;
+        selectedDetails = null;
+    }
+
+    private async Task PurgeOldAsync()
+    {
+        if (platformScope is null || !canManage) return;
+        purging = true;
+        pageNotice = null;
+        failureKey = null;
+        try
+        {
+            var res = await ErrorLogs.PurgeOldErrorLogs(platformScope, purgeDays);
+            if (!res.Succeeded)
+            {
+                failureKey = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            pageNotice = Text["ErrorLogsPurgeSuccess", FormatInt(res.Value)];
+            var statsRes = await ErrorLogs.GetStats(platformScope);
+            if (statsRes.Succeeded) stats = statsRes.Value;
+            await ReloadGridFromFirstPageAsync();
+        }
+        finally
+        {
+            purging = false;
+        }
+    }
+
+    private string FormatInt(int value) => value.ToString("N0", Culture.Current);
+
+    private string SeverityLabel(ErrorSeverity severity) => severity switch
+    {
+        ErrorSeverity.Warning => Text["ErrorLogsSevWarning"],
+        ErrorSeverity.Error => Text["ErrorLogsSevError"],
+        ErrorSeverity.Critical => Text["ErrorLogsSevCritical"],
+        _ => severity.ToString()
+    };
+
+    private static string SeverityBadgeClass(ErrorSeverity severity) => severity switch
+    {
+        ErrorSeverity.Warning => "diag-sev-warn",
+        ErrorSeverity.Error => "diag-sev-err",
+        ErrorSeverity.Critical => "diag-sev-crit",
+        _ => "diag-sev-err"
+    };
+
+    private string SourceLabel(ErrorSourceKind source) => source switch
+    {
+        ErrorSourceKind.HttpMiddleware => Text["ErrorLogsSrcHttp"],
+        ErrorSourceKind.BlazorCircuit => Text["ErrorLogsSrcCircuit"],
+        ErrorSourceKind.BlazorComponent => Text["ErrorLogsSrcComponent"],
+        ErrorSourceKind.InfrastructureStore => Text["ErrorLogsSrcStore"],
+        ErrorSourceKind.BackgroundHost => Text["ErrorLogsSrcHost"],
+        _ => source.ToString()
+    };
+
+    private static string Truncate(string text, int max) =>
+        text.Length <= max ? text : text[..max] + "…";
+}

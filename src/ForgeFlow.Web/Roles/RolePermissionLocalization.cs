@@ -1,6 +1,8 @@
+using ForgeFlow.Application.Audit;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Audit;
 using ForgeFlow.Domain.Boms;
+using ForgeFlow.Domain.Diagnostics;
 using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
@@ -54,6 +56,7 @@ public static class RolePermissionLocalization
         PermissionModule.ProductionOrders => "PermPageProductionOrders",
         PermissionModule.Inventory => "PermPageInventory",
         PermissionModule.Reports => "PermPageReports",
+        PermissionModule.Diagnostics => "PermPageDiagnostics",
         _ => "PermPageOrganizations"
     };
 
@@ -75,6 +78,9 @@ public static class RolePermissionLocalization
         "ProductionOrders.Manage" => "PermOpManageProductionOrders",
         "Inventory.Manage" => "PermOpManageInventory",
         "Reports.Export" => "PermOpExportReports",
+        "Audit.Export" => "PermOpExportAudit",
+        "Diagnostics.ErrorLogsRead" => "PermOpReadErrorLogs",
+        "Diagnostics.ErrorLogsManage" => "PermOpManageErrorLogs",
         _ => "PermOpRead"
     };
 
@@ -100,6 +106,14 @@ public static class RolePermissionLocalization
         _ => storedName
     };
 
+    public static string AuditEventLabel(string eventCode, IStringLocalizer<SharedResources> text)
+    {
+        var key = AuditEventCatalog.ResolveResourceKey(eventCode);
+        if (key is null) return eventCode;
+        var localized = text[key];
+        return localized.ResourceNotFound ? eventCode : localized.Value;
+    }
+
     public static string FailureKey(string code) => code switch
     {
         RolePermissionErrors.NameInvalid => "RoleErrorInvalidName",
@@ -122,14 +136,17 @@ public static class RolePermissionLocalization
             or ItemErrors.AccessDenied or ItemErrors.ActorRequired or ItemErrors.ScopeRequired
             or BomErrors.AccessDenied or BomErrors.ActorRequired or BomErrors.ScopeRequired
             or ProductionOrderErrors.AccessDenied or ProductionOrderErrors.ActorRequired or ProductionOrderErrors.ScopeRequired
-            or InventoryErrors.AccessDenied or InventoryErrors.ActorRequired or InventoryErrors.ScopeRequired => "ReadDenied",
+            or InventoryErrors.AccessDenied or InventoryErrors.ActorRequired or InventoryErrors.ScopeRequired
+            or ReportingErrors.AccessDenied or ReportingErrors.ActorRequired or ReportingErrors.ScopeRequired
+            or DiagnosticErrors.AccessDenied or DiagnosticErrors.ActorRequired or DiagnosticErrors.ScopeRequired => "ReadDenied",
         RolePermissionErrors.NotFound or UserManagementErrors.NotFound or OrganizationSiteErrors.OrganizationNotFound or OrganizationSiteErrors.SiteNotFound
             or AuditErrors.NotFound or UnitErrors.NotFound or UnitErrors.ConversionNotFound
             or ItemErrors.NotFound or ItemErrors.ClassificationSetNotFound or ItemErrors.ClassificationNotFound
             or ItemErrors.AttributeDefinitionNotFound or ItemErrors.ItemUnitConversionNotFound
             or BomErrors.NotFound or BomErrors.VersionNotFound or BomErrors.ContextDimensionNotFound
             or ProductionOrderErrors.NotFound
-            or InventoryErrors.WarehouseNotFound or InventoryErrors.TransactionNotFound => "ReadNotFound",
+            or InventoryErrors.WarehouseNotFound or InventoryErrors.TransactionNotFound
+            or DiagnosticErrors.NotFound => "ReadNotFound",
         UnitErrors.CodeInvalid or ItemErrors.CodeInvalid or BomErrors.CodeInvalid or ProductionOrderErrors.OrderNumberInvalid or InventoryErrors.CodeInvalid or InventoryErrors.DocumentNumberInvalid => "CreateCodeInvalid",
         UnitErrors.CodeDuplicate or ItemErrors.CodeDuplicate or ItemErrors.ClassificationSetCodeDuplicate or ItemErrors.ClassificationCodeDuplicate or ItemErrors.AttributeCodeDuplicate
             or BomErrors.CodeDuplicate or BomErrors.VersionDuplicate or BomErrors.ContextDimensionCodeDuplicate
@@ -201,7 +218,8 @@ public static class RolePermissionLocalization
         InventoryErrors.SiteInactive => "PoErrorSiteInactive",
         ReportingErrors.ProductionOrderNotFound => "RptErrorOrderNotFound",
         ReportingErrors.ExportInvalid => "RptErrorExportInvalid",
-        AuditErrors.InvalidQuery => "ReadError",
+        DiagnosticErrors.InvalidRetentionDays => "DiagErrorRetentionInvalid",
+        AuditErrors.InvalidQuery or DiagnosticErrors.InvalidQuery => "ReadError",
         _ => "WriteUnavailable"
     };
 

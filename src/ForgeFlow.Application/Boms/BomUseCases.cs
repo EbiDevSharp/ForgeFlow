@@ -1,3 +1,6 @@
+using System.Globalization;
+using ForgeFlow.Application.Common;
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Boms;
 using ForgeFlow.Domain.Units;
@@ -11,7 +14,9 @@ namespace ForgeFlow.Application.Boms;
 public sealed class BomUseCases(
     IBomOperationsStore store,
     ITrustedActorAccessor? actors = null,
-    IOrganizationPermissionEvaluator? permissions = null)
+    IOrganizationPermissionEvaluator? permissions = null,
+    IUserOperationRecorder? operationRecorder = null,
+    IOperationContextAccessor? opContext = null)
 {
     private const int MaxExplosionDepth = 32;
 
@@ -23,11 +28,23 @@ public sealed class BomUseCases(
         if (actors is null) return (null, BomErrors.ActorRequired);
         var actor = await actors.ResolveAsync(ct);
         if (actor is null) return (null, BomErrors.ActorRequired);
-        if (scope is null) return (null, BomErrors.ScopeRequired);
+        if (scope is null) return (actor, BomErrors.ScopeRequired);
         if (permissions is null || !(await permissions.EvaluateAsync(actor, scope, permission, ct)).IsAllowed)
-            return (null, BomErrors.AccessDenied);
+            return (actor, BomErrors.AccessDenied);
         return (actor, null);
     }
+
+    private Task<OrganizationResult<T>> RecordRejected<T>(
+        OrganizationResult<T> result,
+        TrustedActor? actor,
+        OrganizationScope? scope,
+        long organizationId,
+        string entityType,
+        string? entityRef,
+        string action)
+        => OperationAuditHelper.RecordIfRejectedAsync(
+            result, operationRecorder, opContext, UserOperationCatalog.BomActionRejected,
+            actor, scope, organizationId, null, entityType, entityRef, new { Action = action });
 
     private OrganizationWriteAccess Access(TrustedActor actor, OrganizationScope scope, string permission) => new(actor, async ct =>
     {
@@ -142,20 +159,23 @@ public sealed class BomUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, BomPermissions.BomsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<BomDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
-            return OrganizationResult<BomDetails>.Failure(BomErrors.NotFound);
-
-        try
+        OrganizationResult<BomDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<BomDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
+            res = OrganizationResult<BomDetails>.Failure(BomErrors.NotFound);
+        else
         {
-            _ = Bom.Create(request.OrganizationId, request.Code, request.Name, request.PrimaryOutputItemId);
+            try
+            {
+                _ = Bom.Create(request.OrganizationId, request.Code, request.Name, request.PrimaryOutputItemId);
+                res = await ExecuteStore(() => store.CreateBom(request, Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+            }
+            catch (BomRuleException ex)
+            {
+                res = OrganizationResult<BomDetails>.Failure(ex.Code, ex.Parameters);
+            }
         }
-        catch (BomRuleException ex)
-        {
-            return OrganizationResult<BomDetails>.Failure(ex.Code, ex.Parameters);
-        }
-
-        return await ExecuteStore(() => store.CreateBom(request, Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Bom", request.Code, "CreateBom");
     }
 
     public async Task<OrganizationResult<BomDetails>> UpdateBom(
@@ -164,15 +184,17 @@ public sealed class BomUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, BomPermissions.BomsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<BomDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<BomDetails>.Failure(BomErrors.NotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<BomDetails>.Failure(BomErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.UpdateBom(
-            request.OrganizationId, request.Id, version, request.Name,
-            Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        OrganizationResult<BomDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<BomDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<BomDetails>.Failure(BomErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<BomDetails>.Failure(BomErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.UpdateBom(
+                request.OrganizationId, request.Id, version, request.Name,
+                Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Bom", request.Id.ToString(CultureInfo.InvariantCulture), "UpdateBom");
     }
 
     public async Task<OrganizationResult<BomDetails>> SetBomActive(
@@ -181,15 +203,17 @@ public sealed class BomUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, BomPermissions.BomsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<BomDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<BomDetails>.Failure(BomErrors.NotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<BomDetails>.Failure(BomErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.SetBomActive(
-            request.OrganizationId, request.Id, version, request.IsActive,
-            Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        OrganizationResult<BomDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<BomDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<BomDetails>.Failure(BomErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<BomDetails>.Failure(BomErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SetBomActive(
+                request.OrganizationId, request.Id, version, request.IsActive,
+                Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Bom", request.Id.ToString(CultureInfo.InvariantCulture), "SetBomActive");
     }
 
     public async Task<OrganizationResult<BomVersionDetails>> CreateBomVersion(
@@ -198,23 +222,26 @@ public sealed class BomUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, BomPermissions.BomsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<BomVersionDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.BomId <= 0)
-            return OrganizationResult<BomVersionDetails>.Failure(BomErrors.NotFound);
-
-        try
+        OrganizationResult<BomVersionDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<BomVersionDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.BomId <= 0)
+            res = OrganizationResult<BomVersionDetails>.Failure(BomErrors.NotFound);
+        else
         {
-            _ = BomVersion.CreateDraft(
-                request.OrganizationId, request.BomId, request.VersionNumber,
-                request.BaseOutputQuantity, request.BaseOutputUnitId,
-                request.EffectiveFromDate, request.EffectiveToDate, request.Notes);
+            try
+            {
+                _ = BomVersion.CreateDraft(
+                    request.OrganizationId, request.BomId, request.VersionNumber,
+                    request.BaseOutputQuantity, request.BaseOutputUnitId,
+                    request.EffectiveFromDate, request.EffectiveToDate, request.Notes);
+                res = await ExecuteStore(() => store.CreateBomVersion(request, Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+            }
+            catch (BomRuleException ex)
+            {
+                res = OrganizationResult<BomVersionDetails>.Failure(ex.Code, ex.Parameters);
+            }
         }
-        catch (BomRuleException ex)
-        {
-            return OrganizationResult<BomVersionDetails>.Failure(ex.Code, ex.Parameters);
-        }
-
-        return await ExecuteStore(() => store.CreateBomVersion(request, Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "BomVersion", $"{request.BomId}:v{request.VersionNumber}", "CreateBomVersion");
     }
 
     public async Task<OrganizationResult<BomVersionDetails>> UpdateDraftBomVersion(
@@ -223,15 +250,17 @@ public sealed class BomUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, BomPermissions.BomsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<BomVersionDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.BomVersionId <= 0)
-            return OrganizationResult<BomVersionDetails>.Failure(BomErrors.VersionNotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<BomVersionDetails>.Failure(BomErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.UpdateDraftBomVersion(
-            request.OrganizationId, request.BomVersionId, version, request,
-            Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        OrganizationResult<BomVersionDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<BomVersionDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.BomVersionId <= 0)
+            res = OrganizationResult<BomVersionDetails>.Failure(BomErrors.VersionNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<BomVersionDetails>.Failure(BomErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.UpdateDraftBomVersion(
+                request.OrganizationId, request.BomVersionId, version, request,
+                Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "BomVersion", request.BomVersionId.ToString(CultureInfo.InvariantCulture), "UpdateDraftBomVersion");
     }
 
     public async Task<OrganizationResult<BomVersionDetails>> SaveDraftBomLines(
@@ -240,15 +269,17 @@ public sealed class BomUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, BomPermissions.BomsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<BomVersionDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.BomVersionId <= 0)
-            return OrganizationResult<BomVersionDetails>.Failure(BomErrors.VersionNotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<BomVersionDetails>.Failure(BomErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.SaveDraftBomLines(
-            request.OrganizationId, request.BomVersionId, version, request.Inputs, request.Outputs,
-            Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        OrganizationResult<BomVersionDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<BomVersionDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.BomVersionId <= 0)
+            res = OrganizationResult<BomVersionDetails>.Failure(BomErrors.VersionNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<BomVersionDetails>.Failure(BomErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SaveDraftBomLines(
+                request.OrganizationId, request.BomVersionId, version, request.Inputs, request.Outputs,
+                Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "BomVersion", request.BomVersionId.ToString(CultureInfo.InvariantCulture), "SaveDraftBomLines");
     }
 
     public async Task<OrganizationResult<BomVersionDetails>> SaveDraftBomApplicability(
@@ -257,15 +288,17 @@ public sealed class BomUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, BomPermissions.BomsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<BomVersionDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.BomVersionId <= 0)
-            return OrganizationResult<BomVersionDetails>.Failure(BomErrors.VersionNotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<BomVersionDetails>.Failure(BomErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.SaveDraftBomApplicability(
-            request.OrganizationId, request.BomVersionId, version, request,
-            Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        OrganizationResult<BomVersionDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<BomVersionDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.BomVersionId <= 0)
+            res = OrganizationResult<BomVersionDetails>.Failure(BomErrors.VersionNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<BomVersionDetails>.Failure(BomErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SaveDraftBomApplicability(
+                request.OrganizationId, request.BomVersionId, version, request,
+                Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "BomVersion", request.BomVersionId.ToString(CultureInfo.InvariantCulture), "SaveDraftBomApplicability");
     }
 
     public async Task<OrganizationResult<BomVersionDetails>> TransitionBomVersionStatus(
@@ -274,15 +307,17 @@ public sealed class BomUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, BomPermissions.BomsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<BomVersionDetails>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.BomVersionId <= 0)
-            return OrganizationResult<BomVersionDetails>.Failure(BomErrors.VersionNotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<BomVersionDetails>.Failure(BomErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.TransitionBomVersionStatus(
-            request.OrganizationId, request.BomVersionId, version, request.TargetStatus,
-            Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        OrganizationResult<BomVersionDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<BomVersionDetails>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.BomVersionId <= 0)
+            res = OrganizationResult<BomVersionDetails>.Failure(BomErrors.VersionNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<BomVersionDetails>.Failure(BomErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.TransitionBomVersionStatus(
+                request.OrganizationId, request.BomVersionId, version, request.TargetStatus,
+                Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "BomVersion", request.BomVersionId.ToString(CultureInfo.InvariantCulture), $"TransitionStatus:{request.TargetStatus}");
     }
 
     public async Task<OrganizationResult<OrganizationPage<ContextDimensionSummary>>> ListContextDimensions(
@@ -322,20 +357,23 @@ public sealed class BomUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, BomPermissions.BomsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ContextDimensionSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
-            return OrganizationResult<ContextDimensionSummary>.Failure(BomErrors.NotFound);
-
-        try
+        OrganizationResult<ContextDimensionSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<ContextDimensionSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
+            res = OrganizationResult<ContextDimensionSummary>.Failure(BomErrors.NotFound);
+        else
         {
-            _ = ContextDimension.Create(request.OrganizationId, request.Code, request.Name);
+            try
+            {
+                _ = ContextDimension.Create(request.OrganizationId, request.Code, request.Name);
+                res = await ExecuteStore(() => store.CreateContextDimension(request, Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+            }
+            catch (BomRuleException ex)
+            {
+                res = OrganizationResult<ContextDimensionSummary>.Failure(ex.Code, ex.Parameters);
+            }
         }
-        catch (BomRuleException ex)
-        {
-            return OrganizationResult<ContextDimensionSummary>.Failure(ex.Code, ex.Parameters);
-        }
-
-        return await ExecuteStore(() => store.CreateContextDimension(request, Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "ContextDimension", request.Code, "CreateContextDimension");
     }
 
     public async Task<OrganizationResult<ContextDimensionSummary>> UpdateContextDimension(
@@ -344,15 +382,17 @@ public sealed class BomUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, BomPermissions.BomsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ContextDimensionSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<ContextDimensionSummary>.Failure(BomErrors.ContextDimensionNotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<ContextDimensionSummary>.Failure(BomErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.UpdateContextDimension(
-            request.OrganizationId, request.Id, version, request.Name,
-            Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        OrganizationResult<ContextDimensionSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<ContextDimensionSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<ContextDimensionSummary>.Failure(BomErrors.ContextDimensionNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<ContextDimensionSummary>.Failure(BomErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.UpdateContextDimension(
+                request.OrganizationId, request.Id, version, request.Name,
+                Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "ContextDimension", request.Id.ToString(CultureInfo.InvariantCulture), "UpdateContextDimension");
     }
 
     public async Task<OrganizationResult<ContextDimensionSummary>> SetContextDimensionActive(
@@ -361,15 +401,17 @@ public sealed class BomUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, BomPermissions.BomsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<ContextDimensionSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            return OrganizationResult<ContextDimensionSummary>.Failure(BomErrors.ContextDimensionNotFound);
-        if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            return OrganizationResult<ContextDimensionSummary>.Failure(BomErrors.ConcurrencyConflict);
-
-        return await ExecuteStore(() => store.SetContextDimensionActive(
-            request.OrganizationId, request.Id, version, request.IsActive,
-            Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        OrganizationResult<ContextDimensionSummary> res;
+        if (auth.Error is not null) res = OrganizationResult<ContextDimensionSummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<ContextDimensionSummary>.Failure(BomErrors.ContextDimensionNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<ContextDimensionSummary>.Failure(BomErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SetContextDimensionActive(
+                request.OrganizationId, request.Id, version, request.IsActive,
+                Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "ContextDimension", request.Id.ToString(CultureInfo.InvariantCulture), "SetContextDimensionActive");
     }
 
     public async Task<OrganizationResult<SeedContextDimensionsResult>> SeedStandardContextDimensions(
@@ -378,12 +420,14 @@ public sealed class BomUseCases(
         CancellationToken ct = default)
     {
         var auth = await Authorize(scope, BomPermissions.BomsManage, ct);
-        if (auth.Error is not null) return OrganizationResult<SeedContextDimensionsResult>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, organizationId, allowSite: false, out _))
-            return OrganizationResult<SeedContextDimensionsResult>.Failure(BomErrors.NotFound);
-
-        return await ExecuteStore(() => store.SeedStandardContextDimensions(
-            organizationId, Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        OrganizationResult<SeedContextDimensionsResult> res;
+        if (auth.Error is not null) res = OrganizationResult<SeedContextDimensionsResult>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, organizationId, allowSite: false, out _))
+            res = OrganizationResult<SeedContextDimensionsResult>.Failure(BomErrors.NotFound);
+        else
+            res = await ExecuteStore(() => store.SeedStandardContextDimensions(
+                organizationId, Access(auth.Actor!, scope!, BomPermissions.BomsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, organizationId, "ContextDimension", "SeedStandard", "SeedStandardContextDimensions");
     }
 
     public async Task<OrganizationResult<BomResolutionResultDto>> ResolveBom(
