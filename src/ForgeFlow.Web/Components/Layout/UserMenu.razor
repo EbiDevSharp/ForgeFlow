@@ -16,6 +16,7 @@
             }
             <div id="user-menu-panel" class="user-menu-panel" role="group" aria-label="@Text["UserMenu"]" hidden="@(!open)">
                 <p class="user-menu-name-full" dir="auto">@userName</p>
+                <a class="user-menu-link" href="/account/change-password" @onclick="Close">@Text["ChangePasswordLink"]</a>
                 <form action="/account/logout" method="post" data-auth-logout>
                     <input type="hidden" name="returnUrl" value="/" />
                     <input type="hidden" name="__RequestVerificationToken" value="" />

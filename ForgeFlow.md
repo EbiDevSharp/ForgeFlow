@@ -1,5 +1,228 @@
 # Slice index and shared boundaries — 01 design
 
+## Slice 03 (`03.5` ACCEPTED) & Slice 04 (`04.0`–`04.5` Audit & Security Events Viewer ACCEPTED) (2026-11-10)
+
+### 1. Slice 03 (`03-roles-permissions`) — ACCEPTED (`03.5`)
+- User ran `RoleManagementSqlTests` (`6/6 PASS`, `10.1s`) and `.\scripts\upgrade-local-testdb.ps1` (`testforgflow database upgraded to 20261110134703_RolesAndGranularPermissions and admin full permissions verified.`) and signed off on Slice 03.
+
+### 2. Slice 04 (`04-audit-viewer`, `04.0`–`04.4`) — implemented & verified
+- **Closed decisions (`04.0`, [decisions.md](docs/slices/04-audit-viewer/decisions.md))**:
+  - `Q-A01`: Explicit `Audit.Read` permission (`PermissionModule.Audit = 5`, `OrganizationOrSite` applicability, plus `Platform` for `DeploymentProvisioner`). Granted automatically to built-in `OrganizationAdministrator` (`RoleId = 1`) and `DeploymentProvisioner` (`RoleId = 3`) in `RuntimeSessions.ScopeAllowed`, `FixedRolePolicy.Allows`, and `SqlRoleOperationsStore`, while preserving zero pending EF Core model changes (`HasPendingModelChanges() == false`).
+  - `Q-A02`: Unified `/audit` page (`/audit`, `/organizations/{OrganizationId:long}/audit`) with Category filter (`All`, `Business`, `Security`), event-code filter, and search box.
+  - `Q-A03`: Strict scope isolation (`Organization(orgId)` returns rows with `OrganizationId == orgId`; `Site(orgId, siteId)` returns rows with `OrganizationId == orgId && SiteId == siteId`; `Platform` returns `auth.SecurityEvent` rows with `OrganizationId == null`).
+  - `Q-A04`: Read-only `BitDialog` detail inspector flattening nested JSON keys via `AuditPayloadParser.ParseFields` alongside raw JSON and `CorrelationId`.
+- **Implementation (`04.1`–`04.4`)**:
+  - Domain: `src/ForgeFlow.Domain/Roles/PermissionCatalog.cs` (`PermissionModule.Audit`, `"Audit.Read"`), `src/ForgeFlow.Domain/Audit/AuditErrors.cs` (`AuditErrors`, `AuditPayloadParser`).
+  - Application: `src/ForgeFlow.Application/Audit/AuditContracts.cs`, `src/ForgeFlow.Application/Audit/AuditUseCases.cs`.
+  - Infrastructure: `src/ForgeFlow.Infrastructure/Identity/RuntimeSessions.cs`, `src/ForgeFlow.Infrastructure/Identity/SqlRoleOperationsStore.cs`, `src/ForgeFlow.Infrastructure/Identity/SqlAuditOperationsStore.cs`, `src/ForgeFlow.Infrastructure/Identity/IdentityPersistence.cs` (`AddAuditManagement()`).
+  - Web & Tests: `src/ForgeFlow.Web/Program.cs`, `src/ForgeFlow.Web/ReadScopes.cs` (`LoadAuditScopesAsync()`), `src/ForgeFlow.Web/Components/Layout/MainLayout.razor` (`/audit` in `SettingsItems`), `src/ForgeFlow.Web/Roles/RolePermissionLocalization.cs`, `src/ForgeFlow.Web/Components/Pages/Audit.razor` (refined with `BitDataGrid` server-side pagination, `.read-toolbar-card`, `.read-grid-card`, `انجام‌دهنده` label in `fa-IR`, and clean padded `.audit-modal-body` / `.audit-meta-card` / `.audit-fields-box` without OK/Cancel footer buttons), `SharedResources.en-US.resx`, `SharedResources.fa-IR.resx`, `tests/ForgeFlow.Web.Tests/ResourceContractTests.cs`, `tests/ForgeFlow.Web.Tests/RoleDomainTests.cs`, `tests/ForgeFlow.Web.Tests/AuditTests.cs`, `tests/ForgeFlow.Web.Tests/AuditSqlTests.cs`.
+- **Actual verification (Release, no restore)**:
+  - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS (8 projects, 0 warnings, 0 errors).
+  - `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` — **329 passed, 0 failed, 44 skipped** (SQL suites skipped in agent sandbox).
+  - `node .\scripts\drafts.test.mjs` — **19 passed, 0 failed**.
+  - `node .\verification\slice01-ui\browser-check.cjs` — **4/4 PASS** (`fa-IR` / `en-US` at `1440px` / `320px`).
+  - Development Web (`task-1824`) running at `https://localhost:5001`.
+- **Slice 04 acceptance status (`04.5`)**:
+  - User reviewed and confirmed `/audit` UI (`BitDataGrid` pagination, `انجام‌دهنده` column, and clean `BitDialog` details modal without OK/Cancel footer buttons or horizontal overflow) and authorized committing and pushing Slice 03 & Slice 04 (`AuditSqlTests` disposable SQL suite remains available for execution in normal PowerShell via `FORGEFLOW_TEST_SQLSERVER`).
+
+## Slice 03 (`03.2` SQL `6/6` PASS; `03.3`–`03.4` Web & UI VERIFIED; `testforgflow` upgraded) & Slice 04 (`04.0` Audit Viewer design proposed) (2026-11-10)
+
+### 1. Slice 03 (`03.2`–`03.4`) — SQL & Web UI verification
+- **User-executed disposable SQL suite (`03.2`)**:
+  - `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~RoleManagementSqlTests' --logger 'console;verbosity=normal'` — **6 passed, 0 failed, 0 skipped** (`10.1s`), covering `S01`–`S07` (populated baseline-to-Slice-03 upgrade, custom org role enforcement, site-scoped direct operation grants + membership deactivation revocation, cross-tenant & duplicate-name isolation, SQL trigger audit rollback, stale `RowVersion` / zero-audit no-op, and barrier-synchronized last-admin safeguard).
+- **Web DI, dynamic navigation, `/roles` & per-user permissions matrix (`03.3`–`03.4`)**:
+  - Wired `builder.Services.AddRoleManagement();` in `src/ForgeFlow.Web/Program.cs`.
+  - Updated `src/ForgeFlow.Web/ReadScopes.cs` (`LoadOrganizationScopesAsync`, `Load`, `LoadUserScopesAsync`, `LoadRoleScopesAsync`) to discover candidate scopes from the union of `ScopedRoleAssignments` and `UserPermissionGrants`, and updated `OrganizationReader.razor` to use `LoadOrganizationScopesAsync()` when `!IsSites`.
+  - Updated `src/ForgeFlow.Web/Components/Layout/MainLayout.razor` so `NavigationItems` completely omits the parent `Settings` group when `SettingsItems.Count == 0` (when the signed-in user has no access to any child page under `Settings`), and adds `/roles` when `roleScopes.Count > 0`.
+  - Added `src/ForgeFlow.Web/Roles/RolePermissionLocalization.cs`, `src/ForgeFlow.Web/Components/Pages/Roles.razor` (`/roles`), and the compact per-user **Permissions (`UserPermissionsButton`)** modal in `src/ForgeFlow.Web/Components/Pages/Users.razor` (showing `UserAdminFullAccessNotice` and `RoleGrantedBadge` for active roles, role assignment/activation toggles, and page-by-page operation checkboxes at Organization or Site scope with automatic `Read` checking when any write operation is checked).
+  - Extended `SharedResources.en-US.resx` and `SharedResources.fa-IR.resx` and added `tests/ForgeFlow.Web.Tests/RoleManagementPageTests.cs`.
+- **Actual verification (Release, no restore)**:
+  - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS (8 projects, 0 warnings, 0 errors).
+  - `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` — **323 passed, 0 failed, 43 skipped**.
+  - `node .\scripts\drafts.test.mjs` — **19 passed, 0 failed**.
+  - `node .\verification\slice01-ui\browser-check.cjs` — **4/4 PASS** (`fa-IR` / `en-US` at `1440px` / `320px`).
+  - User executed `.\scripts\upgrade-local-testdb.ps1` on `localhost/testforgflow` -> `testforgflow database upgraded to 20261110134703_RolesAndGranularPermissions and admin full permissions verified.`
+  - Development Web (`task-1511`) running at `https://localhost:5001` (`GET /account/login` -> `HTTP 200`; anonymous `GET /roles` -> `HTTP 302`).
+
+### 2. Slice 04 (`04-audit-viewer`, `04.0`) — design proposed for review
+Created the design-first Slice 04 package under `docs/slices/04-audit-viewer/` per `ForgeFlow.md` `۰۰.۴` row `05`:
+- [README.md](docs/slices/04-audit-viewer/README.md): read-only, scope-isolated `/audit` viewer over `organization.OrganizationChange` and `auth.SecurityEvent`.
+- [decisions.md](docs/slices/04-audit-viewer/decisions.md): open decisions **`Q-A01`–`Q-A04`** (`Audit.Read` permission code, unified `/audit` page with category filter `All / Business Changes / Security Events`, platform-null event visibility, structured JSON detail dialog).
+- [physical-erd.md](docs/slices/04-audit-viewer/physical-erd.md) & [test-plan.md](docs/slices/04-audit-viewer/test-plan.md): index review, additive `Audit.Read` seed, and unit/SQL/browser test plan.
+
+Next small step: confirm Slice 03 UI (`03.5`) on `https://localhost:5001/roles` and `/users`, and approve `Q-A01`–`Q-A04` to implement `04.1`–`04.4`.
+
+## Slice 03 (`03.2` Infrastructure persistence, additive migration & SQL test suite implemented — offline checks PASS, SQL run pending before `03.3`–`03.4` Web UI) (2026-11-10)
+
+Scope:
+- **Entities & EF Core Schema (`src/ForgeFlow.Infrastructure/Identity/`)**:
+  - Updated `IdentityRecords.cs` (`FixedAccessRoles` widened to `long`, `ScopedRoleAssignment.RoleId` widened `byte` -> `long`, added `RoleDefinition`, `RolePermission`, `UserPermissionGrant`).
+  - Updated `AuthDbContext.cs` (`RoleDefinitions`, `RolePermissions`, `UserPermissionGrants`, system seeds `1..3` + `SystemRolePermissionSeeds()`, `FK_ScopedRoleAssignment_RoleDefinition_RoleId`, updated `CK_Role_Scope` for `RoleId >= 100`, updated `CK_SecurityEvent_Code` with `'RoleDefinitionChanged'` and `'DirectPermissionChanged'`, expanded `Guard()` immutability checks).
+  - Generated and fixed non-destructive migration `20261110134703_RolesAndGranularPermissions.cs` + `AuthDbContextModelSnapshot.cs`: drops and recreates the 3 filtered unique indexes on `ScopedRoleAssignment.RoleId` around `AlterColumn<long>`, creates `RoleDefinition` (`IDENTITY(100, 1)`), `RolePermission`, `UserPermissionGrant`, seeds system roles & permissions without touching existing users/business tables, and grants `SELECT` / denies `INSERT, UPDATE, DELETE` to `ForgeFlowAuthRuntime`.
+- **Dynamic evaluation & SQL Store**:
+  - Updated `RuntimeSessions.cs` (`ScopeAllowed` dynamically evaluates `RoleDefinitions` + `RolePermissions` + `ScopedRoleAssignments` + `UserPermissionGrants`, and `FixedRolePolicy` supports `long` role IDs + `RolePermissions.*`).
+  - Added `SqlRoleOperationsStore.cs` (`IRoleOperationsStore` over `Serializable` SQL transactions, `UPDLOCK, HOLDLOCK` lock discipline, cross-organization checks, escalation ceiling, last built-in `OrganizationAdministrator` safeguard, atomic `SecurityEvent` inserts, strict 8-byte Base64 `RowVersion` concurrency, and SQL/audit failure mapping) and `IdentityPersistence.AddRoleManagement()`.
+- **Tests (`tests/ForgeFlow.Web.Tests/`)**:
+  - Updated `AuthBootstrapTests.cs` for 13 `auth` entity types and 2 additive migrations.
+  - Added `RoleManagementSqlTests.cs`: offline `AddRoleManagement_fails_closed_when_trusted_adapters_are_missing` plus disposable SQL tests `S01`–`S07` (populated baseline-to-Slice-03 upgrade, custom org role enforcement, site-scoped direct operation grants + membership deactivation revocation, cross-tenant & duplicate-name isolation, SQL trigger audit rollback, stale `RowVersion` / zero-audit no-op, and barrier-synchronized last-admin safeguard).
+
+Actual agent verification (this session, Release, no restore):
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS (8 projects, 0 warnings, 0 errors).
+- `dotnet ef migrations script 20261108150853_IdentityBootstrapBaseline 20261110134703_RolesAndGranularPermissions --project .\src\ForgeFlow.Infrastructure --startup-project .\src\ForgeFlow.Infrastructure --context AuthDbContext --configuration Release --no-build` — PASS (verified clean index drop/recreate order around `RoleId` `bigint` alter and additive `RoleDefinition`/`RolePermission`/`UserPermissionGrant` DDL).
+- `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` — **315 passed, 0 failed, 43 skipped** (SQL suites skipped in agent sandbox).
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~RoleDomainTests|FullyQualifiedName~RoleUseCaseTests|FullyQualifiedName~RoleManagementSqlTests|FullyQualifiedName~AuthBootstrapTests' --logger 'console;verbosity=minimal'` — **37 passed, 0 failed, 5 skipped** (`S01`–`S07` await disposable SQL run).
+- Development Web (`task-1198`) running at `https://localhost:5001`: `GET https://localhost:5001/account/login` -> `HTTP 200` (`15711 bytes`). No auto-migration or credential reset run on `localhost/testforgflow`.
+
+Remaining for Slice 03 (`03.2` SQL verification + `03.3`–`03.5`):
+- Run disposable SQL suite `S01`–`S07` (`RoleManagementSqlTests`) in normal Windows PowerShell (`FORGEFLOW_TEST_SQLSERVER`), and apply migration `20261110134703_RolesAndGranularPermissions` (`dotnet ef database update ...`) to `localhost/testforgflow` manually before live UI sign-in/navigation tests against the upgraded schema.
+- `03.3`–`03.4` Web DI registration (`AddRoleManagement`), dynamic `ReadScopes` (custom role & direct grant scope discovery), `/roles` + per-user page-operation matrix UI, localized `fa-IR`/`en-US` `.resx`, and `03.5` acceptance.
+
+Next small step: run `RoleManagementSqlTests` in normal PowerShell against disposable SQL Server (`FORGEFLOW_TEST_SQLSERVER`), then implement `03.3`–`03.4` Web DI, dynamic `ReadScopes`, and bilingual `/roles` + user permission UI.
+
+## Slice 03 (`03.0` decisions closed; `03.1` Domain invariants, Application contracts & 20 unit tests VERIFIED) (2026-11-10)
+
+Scope:
+- Closed `03.0` design decisions `Q-R01`–`Q-R05` in `docs/slices/03-roles-permissions/decisions.md` (hybrid custom organization roles + direct per-user operation grants, explicit server permissions + UI auto-Read convenience, escalation ceiling + last built-in admin protection, immutable system roles `1..3`, non-destructive additive EF migration).
+- **Domain (`src/ForgeFlow.Domain/Roles/`)**: added `RolePermissionErrors`, `RoleRuleException`, culture-independent `RoleDefinitionName` (`1..100`), and `PermissionCatalog` (authoritative single catalog covering every declared constant in `OrganizationPermissions`, `UserPermissions`, and `RolePermissions`, with scope applicability and `ValidateTenantPermissions` / `EnsureCustomRoleMutable` / `EnsureNotSelfAdminRevocation`). Zero infrastructure or presentation dependencies.
+- **Application (`src/ForgeFlow.Application/Roles/`)**: added `RolePermissions` (`Roles.Read`, `Roles.Manage`, `Permissions.Assign`), DTOs (`RoleSummary`, `RoleDetails`, `UserPermissionMatrix`, `CreateOrganizationRole`, `UpdateOrganizationRole`, `AssignUserRole`, `SetUserRoleAssignmentActive`, `SaveUserOperationGrants`), `IRoleOperationsStore`, `RoleStoreUnavailableException`, and `RoleUseCases` (fail-closed authorization, cross-org `Roles.NotFound`, escalation ceiling via `CallerHoldsAllAsync`, system-role protection `1..3`, bounded paging `1..100`, strict 8-byte Base64 version decoding).
+- **Unit tests (`tests/ForgeFlow.Web.Tests/`)**: added `RoleDomainTests` and `RoleUseCaseTests` covering `R01`–`R04`.
+
+Actual verification (this session, Release, no restore):
+- Stopped Web `task-1043`; built `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS (8 projects, 0 warnings, 0 errors).
+- `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` — **314 passed, 0 failed, 38 skipped** (SQL suites skipped in agent sandbox).
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~RoleDomainTests|FullyQualifiedName~RoleUseCaseTests' --logger 'console;verbosity=minimal'` — **20 passed, 0 failed, 0 skipped**.
+- `node .\scripts\drafts.test.mjs` — **19 passed, 0 failed**.
+- Relaunched Development Web (`task-1077`) at `https://localhost:5001`.
+
+Remaining for Slice 03 (`03.2`–`03.5`):
+- `03.2` Infrastructure entities/migration (`RoleDefinition`, `RolePermission`, `UserPermissionGrant`, `ScopedRoleAssignment` FK/check update, `CK_SecurityEvent_Code`), `SqlRoleOperationsStore`, dynamic `ScopeAllowed` evaluation, and SQL/upgrade tests (`S01`–`S07`).
+- `03.3`–`03.4` Web DI registration (`AddRoleManagement`), dynamic `ReadScopes`, `/roles` + per-user page-operation matrix UI, bilingual `.resx`, and `03.5` acceptance.
+
+Next small step: implement `03.2` (Infrastructure entities, EF Core non-destructive migration, `SqlRoleOperationsStore`, dynamic `ScopeAllowed` evaluation, and disposable SQL/upgrade tests).
+
+## Slice 02 (`02.5` closure with icon-only nav toggle) & Slice 03 (`03.0` Roles & Permissions) design increment (2026-11-10)
+
+### 1. Mobile nav drawer icon toggle & Slice 02 closure
+- **Mobile navigation toggle (`src/ForgeFlow.Web/Components/Layout/MainLayout.razor`, `src/ForgeFlow.Web/wwwroot/app.css`)**: checked `Bit.BlazorUI` 10.7.0 built-in `bit.blazorui.css` glyphs (`CollapseMenu`/`GlobalNavButton` are not bundled in the base stylesheet), added `.ff-icon--menu` SVG mask icon matching existing `.ff-icon--*` shell icons, and replaced the `< 1280px` text button with an icon-only `36x36` `BitButton` (`Variant="BitVariant.Outline"`, `Size="BitSize.Small"`, `IconOnly="true"`, `Icon="@MenuIcon"`, `aria-label="@Text["OpenNavigation"]"`, `title="@Text["OpenNavigation"]"`).
+- **Build & tests after final UI edit (Release, no restore)**:
+  - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS (8 projects, 0 warnings, 0 errors).
+  - `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` — **294 passed, 0 failed, 38 skipped**.
+  - `node .\scripts\drafts.test.mjs` — **19 passed, 0 failed**.
+  - Development Web (`task-1043`) running at `https://localhost:5001`: `GET /account/login` -> `HTTP 200` (`length=15729`); `node .\verification\slice01-ui\browser-check.cjs` -> **4/4 PASS** (`fa-IR`/`en-US`, `1440px`/`320px`).
+- **Slice 02 status**: user verified UI flows and authorized advancing to Slice 03 ("خوب اوکی هستش... برو کار بعدیت"). Preserving honest attribution: earlier `UserManagementSqlTests` ran `4/4 PASS` prior to `02.4b`; re-running `UserManagementSqlTests` to exercise the newly added `ResetUserPassword` + `ChangeOwnPasswordAsync` SQL assertions remains optional in PowerShell.
+
+### 2. Slice 03 (`03-roles-permissions`, `03.0`) — design proposed for review
+Created the design-first Slice 03 package under `docs/slices/03-roles-permissions/` per roadmap row `04` (`۰۰.۴`) and the 10-section contract (`۰۰.۵`):
+- [README.md](docs/slices/03-roles-permissions/README.md): data-driven per-page/per-operation permissions (`Organizations.*`, `Sites.*`, `Users.*`, `Memberships.*`, `Roles.*`, `Permissions.*`) over custom org roles and/or direct per-user operation grants, live `ScopeAllowed` & `ReadScopes` evaluation, anti-escalation guards, and dynamic page UI gating.
+- [decisions.md](docs/slices/03-roles-permissions/decisions.md): open decisions **`Q-R01`–`Q-R05`** (hybrid custom roles + direct per-user page operation matrix vs single mechanism, `*.Read` UI/server dependency behavior, no-escalation ceiling & last built-in `OrganizationAdministrator` rule, system role immutability, additive non-destructive SQL migration on populated `localhost/testforgflow`).
+- [physical-erd.md](docs/slices/03-roles-permissions/physical-erd.md): proposed `auth.RoleDefinition`, `auth.RolePermission`, `auth.UserPermissionGrant`, `ScopedRoleAssignment` FK/check upgrade, and additive `CK_SecurityEvent_Code` updates (`'RoleDefinitionChanged'`, `'DirectPermissionChanged'`).
+- [test-plan.md](docs/slices/03-roles-permissions/test-plan.md): unit (`R01`–`R05`), disposable SQL + populated-upgrade (`S01`–`S07`), and bilingual mobile/desktop (`B01`–`B04`).
+
+**Design-first gate**: Zero Slice 03 code or EF migrations created yet. Next step: resolve open decisions `Q-R01`–`Q-R05` before implementing `03.1`.
+
+## Slice 02 (`02.4b`) — Modal compact spacing, password visibility toggles, admin password reset & self change password (2026-11-10)
+
+Scope (from user UI feedback on `/users`):
+- **Compact modal input spacing (`src/ForgeFlow.Web/wwwroot/app.css`)**: fixed `.read-field` vertical `flex-basis: 180px` inflation inside column-flex `.write-panel` modals (`.write-panel .read-field { flex: 0 0 auto; gap: 4px; }` and compact `min-height: 38px`), plus `.write-field` styling matching `Login.razor`'s `BitTextField` eye-toggle buttons and `.change-password-card` / `.user-menu-link`.
+- **Password visibility eye toggle & Admin Password Reset (`Users.ResetPassword`)**:
+  - Switched `Users.razor` Create User password field to `BitTextField` (`Type="BitInputType.Password"`, `CanRevealPassword="true"`, `Immediate="true"`).
+  - Added `UserPermissions.UsersResetPassword`, `ResetUserPassword` DTO/use-case (`src/ForgeFlow.Application/Users/`), `FixedRolePolicy` / `ScopeAllowed` grant (`DeploymentProvisioner` at `Platform`, `OrganizationAdministrator` at `Organization`), and `SqlUserOperationsStore.ResetUserPassword` (single-org isolation check, `RowVersion` concurrency guard, Identity `PasswordValidator` check, `SecurityStamp` rotation, atomic session revocation with `RevokeReason = 'PasswordReset'`, and `'PasswordResetCompleted'` `SecurityEvent`), wired into `Users.razor` Edit modal with eye toggle and confirmation dialog.
+- **Self Change Password (`/account/change-password`)**:
+  - Added `RuntimeSessions.ChangeOwnPasswordAsync` (verifies session & current password, validates new password, rotates `SecurityStamp`, revokes open sessions with `'PasswordReset'`, issues a fresh `AccountSession` preserving original fixed expiry, logs `'PasswordResetCompleted'` & `'SessionIssued'`).
+  - Added `POST /account/change-password-submit` in `src/ForgeFlow.Web/Authentication/AuthenticationBackend.cs`, `auth-ui.mjs` `[data-auth-change-password]` handling, localized `AuthenticationResources` (`Auth.PasswordChanged`, `Auth.CurrentPasswordInvalid`, `Auth.PasswordInvalid`, `Auth.PasswordMismatch`), `ChangePassword.razor` (3 `BitTextField` inputs with eye toggles), and menu link in `UserMenu.razor`.
+- **Note on granular per-page/per-operation permissions requested by user**: per `ForgeFlow.md` `۰۰.۴` row `04`, assigning individual page/operation permissions (`Read` / `Create` / `Update` / `SetActive` per feature & user/role) belongs to **Slice 03 (Roles & Permission Assignment)** after Slice 02 UI acceptance closes.
+
+Actual verification (this session, Release, no restore):
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+- `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` — **294 passed, 0 failed, 38 skipped**.
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~UserManagementPageTests|FullyQualifiedName~ResourceContractTests|FullyQualifiedName~HardcodedDisplayTextScannerTests' --logger 'console;verbosity=minimal'` — **31 passed, 0 failed, 0 skipped**.
+- `node .\scripts\drafts.test.mjs` — **19 passed, 0 failed**.
+- Launched Development Web (`task-1010`) at `https://localhost:5001`.
+
+Remaining for Slice 02 (`02.5`):
+- Re-run `UserManagementSqlTests` in normal PowerShell (`4` cases now include admin password reset + self change password), plus manual browser check of compact `/users` modals, eye toggle, `/account/change-password`, and cross-tab session revocation (`fa-IR` / `en-US`, desktop & `320px`).
+
+## Slice 02 (`02.2` SQL PASS; `02.3`–`02.4` Bilingual Users & Memberships UI implemented, browser `02.5` pending) (2026-11-10)
+
+### 1. `02.2` USER-EXECUTED SQL suite — PASS
+User executed in normal Windows PowerShell against disposable SQL Server (`FORGEFLOW_TEST_SQLSERVER`, cleared afterward):
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~UserManagementSqlTests' --logger 'console;verbosity=normal'` — **4 passed, 0 failed, 0 skipped** (`8.5s`), proving atomic creation + SQL trigger audit rollback, cross-tenant duplicate/isolation boundaries, session revocation (`AccountDisabled`) + lockout recovery (`UnlockUser`), barrier-synchronized last-admin protection, immediate revocation denial, stale `RowVersion` conflict, and no-op zero-audit stability. Production code was unchanged for `02.2` (only the `Users.razor` UI & DI were added in `02.3`–`02.4`).
+
+### 2. `02.3`–`02.4` Bilingual Users & Memberships UI
+Scope:
+- **Composition & navigation**: added `builder.Services.AddUserManagement()` in `src/ForgeFlow.Web/Program.cs`; added `ReadScopes.LoadUserScopesAsync()` (verifying `UserPermissions.UsersRead` per authorized `Organization` role grant) in `src/ForgeFlow.Web/ReadScopes.cs`; added `Users` item in `src/ForgeFlow.Web/Components/Layout/MainLayout.razor` (`Settings` section, visible only when `userScopes.Count > 0`, using existing `.ff-icon--user`).
+- **UI page (`src/ForgeFlow.Web/Components/Pages/Users.razor`)**: routes `/users`, `/organizations/{OrganizationId:long}/users`, `/organizations/{OrganizationId:long}/users/{UserId:long}`, and `/users/{UserId:long}`; `BitDataGrid` server-side paging (`10/25/50/100`), explicit organization scope selector (`OrgCode — OrgName`), search & inactive filter, View & Edit modals (`BitDialog`, compact responsive width `420px–440px`), Create User modal (one-time `type="password"` `autocomplete="new-password"` input NEVER stored in `DraftCoordinator` drafts and cleared after submit/discard; optional initial `OrganizationAdministrator`, active site checkboxes & `SiteOperator` toggle), Platform-only Attach Existing User modal, account unlock/disable/enable (enforcing single-org vs multi-org hint & self-protection + confirmation prompt naming username), org membership & `OrganizationAdministrator` role toggles, per-site membership & `SiteOperator` role management + site assignment, and `ConcurrencyConflict` / `OutcomeUnknown` reload flow.
+- **Resources & tests**: added bilingual FA/EN entries in `SharedResources.en-US.resx` and `SharedResources.fa-IR.resx`; added CSS layout helpers in `src/ForgeFlow.Web/wwwroot/app.css`; updated `ResourceContractTests.cs`; added `tests/ForgeFlow.Web.Tests/UserManagementPageTests.cs` (routes, exhaustive error-key mapping across `fa-IR`/`en-US`, `HtmlRenderer` denied-state render, password-draft exclusion, and saving-flag mutation behavior).
+
+Actual agent verification (this session, Release, no restore):
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+- `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` — **292 passed, 0 failed, 38 skipped** (`UserManagementPageTests` + `UserDomainTests` + `UserUseCaseTests` + `ResourceContractTests` + `HardcodedDisplayTextScannerTests` + `AuthHttpTests`, etc.; SQL tests remain skipped in agent sandbox).
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~UserManagementPageTests|FullyQualifiedName~ResourceContractTests|FullyQualifiedName~HardcodedDisplayTextScannerTests' --logger 'console;verbosity=minimal'` — **29 passed, 0 failed, 0 skipped**.
+- `node .\scripts\drafts.test.mjs` — **19 passed, 0 failed**.
+- Launched Development Web (`task-905`) at `https://localhost:5001` (`ConnectionStrings__ForgeFlow` for `localhost/testforgflow`):
+  - `GET /account/login` -> `HTTP 200` (`length=15702`).
+  - `GET /users` (anonymous, no redirect follow) -> `HTTP 302` (`Location: https://localhost:5001/account/login?returnUrl=%2F`).
+  - `node .\verification\slice01-ui\browser-check.cjs` -> **4/4 PASS** (`fa-IR`/`en-US` at `1440px`/`320px`).
+
+Remaining gaps before closing Slice 02 (`02.5` acceptance):
+- Authenticated browser verification (`B01`–`B06`) on `https://localhost:5001` in both `fa-IR` (RTL) and `en-US` (LTR) at desktop and `320px` mobile for `/users` (Create User + verify `sessionStorage` draft excludes password, Edit memberships/roles/account disable + live session invalidation on another tab/browser, Unlock lockout, Conflict reload, cross-org URL isolation). Slice 02 remains NOT ACCEPTED until UI acceptance completes.
+
+Next small step: sign in at `https://localhost:5001/account/login`, test `/users` across `fa-IR` and `en-US` (desktop & `320px`), and verify `B01`–`B06` before closing `02.5`.
+
+## Slice 02 (`02.2`) — UserManagementSqlTests first run (3/4 PASS) & test assertion fix (2026-11-10)
+
+User executed in normal Windows PowerShell (`FORGEFLOW_TEST_SQLSERVER`):
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~UserManagementSqlTests' --logger 'console;verbosity=normal'` — **3 passed, 1 failed, 0 skipped**:
+  - Passed (3): `Cross_tenant_duplicate_and_multi_org_isolation_block_org_admin_from_global_disable`, `Disabling_single_org_user_revokes_sessions_atomically_and_unlock_recovers_lockout`, `Atomic_create_user_with_site_membership_and_role_writes_audit_and_fault_injection_rolls_back`.
+  - Failed (1): `Barrier_synchronized_admins_cannot_leave_active_organization_without_active_admin_and_rowversion_conflicts` — barrier race assertions (`1 succeeded`, loser received `Users.LastOrganizationAdminRequired`) passed, then line 368 failed because `t2` won (deactivating `initial.admin`'s admin grant) and the test unconditionally invoked the subsequent no-op check via `provider1` (`initial.admin`), which was immediately denied (`Users.AccessDenied`).
+- Fix (`tests/ForgeFlow.Web.Tests/UserManagementSqlTests.cs`): explicitly verify the deactivated admin's provider receives `Users.AccessDenied`, then select the surviving admin provider for the no-op and `Users.ConcurrencyConflict` assertions before comparing `SecurityEvents` counts. Production code (`SqlUserOperationsStore.cs`) unchanged.
+- Fresh agent build & checks after test fix:
+  - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+  - `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` — **286 passed, 0 failed, 38 skipped**.
+  - Relaunched Development Web (`task-829`) at `https://localhost:5001`.
+
+Next step: re-run the 4-case `UserManagementSqlTests` filter in normal Windows PowerShell to confirm 4/4 PASS, then start `02.3`/`02.4` Web DI & bilingual UI.
+
+## Slice 02 (`02.2`) — SQL user/membership store & permission evaluator implemented (offline PASS, SQL pending) (2026-11-10)
+
+Scope:
+- **Permission evaluator (`src/ForgeFlow.Infrastructure/Identity/RuntimeSessions.cs`)**: extended `FixedRolePolicy.Allows` and `RuntimeSessions.ScopeAllowed` for `UserPermissions.*` (`Users.AttachOrganization`/`Users.SetActive`/`Users.Unlock` at `Platform` for `DeploymentProvisioner`; `Users.Read`/`Users.Create`/`Users.SetActive`/`Users.Unlock`/`Memberships.Manage`/`Roles.AssignFixed` at `Organization` for `OrganizationAdministrator`; `Users.Read` permitted alongside org/site read on inactive organizations; `SiteOperator` never granted user/membership permissions).
+- **SQL persistence (`src/ForgeFlow.Infrastructure/Identity/SqlUserOperationsStore.cs`)**: implemented `IUserOperationsStore` using operation-scoped `AuthDbContext` + `UserManager<ApplicationAccount>`, `Serializable` transactions, fixed lock order (`Organization` in ascending ID order -> `ApplicationAccount` via `UPDLOCK, HOLDLOCK`), `OrganizationWriteAccess.Revalidate`, atomic `'AccountCreated'`/`'MembershipChanged'`/`'ScopedRoleChanged'`/`'AccountEligibilityChanged'`/`'SessionRevoked'` (`RevokeReason = 'AccountDisabled'` + `SecurityStamp` rotation on disable), self/last-active-admin guards (`TenantAccessPolicy`), single-org isolation on account toggle/unlock, explicit `EF.Property<byte[]>(..., "RowVersion")` projection, and failure mapping (`UserNameDuplicate`, `PasswordInvalid`, `ConcurrencyConflict`, `AuditUnavailable`, `OutcomeUnknown`, `PersistenceUnavailable`).
+- **Registration (`src/ForgeFlow.Infrastructure/Identity/IdentityPersistence.cs`)**: added `AddUserManagement()`.
+- **Tests (`tests/ForgeFlow.Web.Tests/`)**: added offline registration/policy tests in `UserUseCaseTests.cs` and 4 disposable SQL Server tests in `UserManagementSqlTests.cs` (covering atomic create + SQL audit trigger rollback, cross-tenant isolation & Platform attachment, session revocation + brute-force unlock recovery, barrier-synchronized last-admin protection + rowversion/no-op guards).
+
+Actual commands and results (this session, Release, no restore):
+- Stopped workspace Development instance `task-735`; rebuilt `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+- `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` — **PASS: 286 passed, 0 failed, 38 skipped** (SQL suites remain skipped in agent sandbox).
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~UserDomainTests|FullyQualifiedName~UserUseCaseTests|FullyQualifiedName~UserManagementSqlTests' --logger 'console;verbosity=minimal'` — **31 passed, 0 failed, 4 skipped** (`UserManagementSqlTests` requires `FORGEFLOW_TEST_SQLSERVER`).
+
+Prepared SQL verification command for normal Windows PowerShell (`FORGEFLOW_TEST_SQLSERVER` set privately to disposable CREATE/DROP access):
+```powershell
+dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~UserManagementSqlTests' --logger 'console;verbosity=normal'
+```
+
+Next small step: run `UserManagementSqlTests` against disposable SQL Server, or implement `02.3`/`02.4` Web DI registration (`AddUserManagement`) and bilingual `/users` management UI.
+
+## Slice 02 (`02.1`) — Domain invariants, Application contracts & unit tests VERIFIED (2026-11-10)
+
+Scope:
+- **Domain** (`src/ForgeFlow.Domain/Users/`): added `UserManagementErrors`, `UserRuleException`, culture-independent ASCII username canonicalizer `UserAccountName` (`[A-Za-z0-9._@+-]`, `1..128` chars matching `CK_User_Name`), and pure lifecycle/scope/last-admin invariants `TenantAccessPolicy` (`TenantRoleKind.OrganizationAdministrator` / `SiteOperator`, `EnsureNotSelfDeactivation`, `EnsureOrganizationRetainsActiveAdmin`, `EnsurePlatformRetainsActiveProvisioner`, `EnsureSiteMembershipPrerequisites`, `EnsureTenantRolePrerequisites`). No infrastructure or presentation dependencies.
+- **Application** (`src/ForgeFlow.Application/Users/`): added `UserPermissions` (`Users.Read`, `Users.Create`, `Users.SetActive`, `Users.Unlock`, `Users.AttachOrganization`, `Memberships.Manage`, `Roles.AssignFixed`), read/command DTOs, `IUserOperationsStore`, `UserStoreUnavailableException`, and `UserUseCases` (fail-closed `ITrustedActorAccessor` + `IOrganizationPermissionEvaluator`, scope-matching & anti-enumeration `Users.NotFound`, bounded paging `1..100`, strict 8-byte Base64 version decode, initial-password sanity check without secret leakage, self-deactivation prevention, `OrganizationWriteAccess` revalidation callback).
+- **Unit tests** (`tests/ForgeFlow.Web.Tests/`): added `UserDomainTests` and `UserUseCaseTests` covering `U01`, `U03`, `U04`, `U05`.
+
+Actual commands and results (this session, Release, no restore):
+- Stopped workspace Development instance `task-607`; ran `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+- `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` — **PASS: 284 passed, 0 failed, 34 skipped** (SQL suites remain skipped in agent environment).
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~UserDomainTests|FullyQualifiedName~UserUseCaseTests' --logger 'console;verbosity=minimal'` — **PASS: 29 passed, 0 failed, 0 skipped**.
+- Relaunched freshly built Web in Development at `https://localhost:5001` (`task-735`, process-only `ConnectionStrings__ForgeFlow` for `localhost/testforgflow`, no migration/bootstrap/recovery).
+
+Remaining gaps for Slice 02 (NOT YET IMPLEMENTED):
+- `02.2` Infrastructure SQL store (`IUserOperationsStore` over `AuthDbContext` + `UserManager`, `UPDLOCK, HOLDLOCK` lock discipline, atomic `SecurityEvent` & `AccountDisabled` session revocation, `SessionPermissionEvaluator` mappings for `UserPermissions.*`) and disposable SQL tests (`S01`–`S07`).
+- `02.3` DI wiring & `02.4` bilingual UI (`/users`, `/organizations/{orgId}/users`, `BitDataGrid` paging, create/membership/role/unlock dialogs, FA/EN `.resx`, `1440px`/`320px` Chrome checks).
+- Slice 02 remains NOT ACCEPTED until `02.2`–`02.5` pass.
+
+Next small step: implement increment `02.2` (`IUserOperationsStore` + `SessionPermissionEvaluator` updates + disposable SQL integration/concurrency tests).
+
 ## Slice 02 (02.0) design increment & AUTH-01 A5 / Slice 01 (01.5) acceptance closure (2026-11-10)
 
 ### 1. AUTH-01 A5 & Slice 01 (`01.5`) closure
@@ -341,8 +564,10 @@ Current increment: AUTH-01 A4 login/logout UI implemented; basic real sign-in, r
 | 00 | ACCEPTED | 00-R6 and finalized acceptance receipt below; passing evidence preserved |
 | 01 Organization and sites | ACCEPTED (2026-11-10, greenfield scope) | [Slice contract](docs/slices/01-organization-sites/README.md); automated 255/255 non-SQL + 12/12 `01.3` SQL + Chrome/Node + user manual browser sign-off; pre-production deployment gates preserved as operational caveats |
 | AUTH-01 Authentication and Identity | ACCEPTED / HANDOFF COMPLETE (2026-11-10) | [AUTH-01 contract](docs/slices/auth-01/README.md); [test-plan](docs/slices/auth-01/test-plan.md); 22/22 SQL/TLS user-executed pass + user manual browser sign-off; earlier A1 13/13 predated `Guard()` relaxation; operational TLS/CLI caveats preserved |
-| 02 Users and memberships | DESIGN APPROVED (02.0 -> ready for 02.1) | [Slice 02 contract](docs/slices/02-users-memberships/README.md); `Q-U01`–`Q-U05` closed in [decisions.md](docs/slices/02-users-memberships/decisions.md) |
-| Later roles/audit & catalog/units/BOM slices | Not started | Roadmap items `04` (roles/permissions), `05` (audit viewer), and `06` (Item/Unit/BOM) |
+| 02 Users and memberships | ACCEPTED (2026-11-10 greenfield sign-off; optional `02.4b` SQL re-run noted) | [Slice 02 contract](docs/slices/02-users-memberships/README.md); user browser sign-off + `294` non-SQL pass + prior `4/4` user SQL pass (`8.5s`) + Chrome/Node checks |
+| 03 Roles and permissions | `03.1`–`03.4` VERIFIED (`6/6` SQL pass in `10.1s`, `323` non-SQL pass, `19/19` JS draft pass, `4/4` Chrome smoke pass, `testforgflow` upgraded); `03.5` ready for live browser sign-off | [Slice 03 contract](docs/slices/03-roles-permissions/README.md); `/roles`, per-user page/operation matrix in `/users`, dynamic nav hiding empty parent `Settings` menu |
+| 04 Audit and security events viewer | `04.0` DESIGN PROPOSED (`Q-A01`–`Q-A04` in [decisions.md](docs/slices/04-audit-viewer/decisions.md)); `04.1`–`04.5` NOT STARTED | [Slice 04 contract](docs/slices/04-audit-viewer/README.md); read-only scoped `/audit` over `OrganizationChange` & `SecurityEvent` |
+| Later catalog/units/BOM slices | Not started | Roadmap item `06` (Item/Unit/BOM) |
 
 ## Shared architecture decisions and proposals
 

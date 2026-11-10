@@ -8,4 +8,8 @@
   <data name="Auth.RequestRejected" xml:space="preserve"><value>درخواست تأیید نشد. صفحه را دوباره بارگذاری و تلاش کنید.</value></data>
   <data name="Auth.LoginThrottled" xml:space="preserve"><value>تعداد تلاش‌های ورود زیاد است. بعداً دوباره تلاش کنید.</value></data>
   <data name="Culture.ProfileSyncFailed" xml:space="preserve"><value>زبان در این مرورگر تغییر یافت، اما ذخیرهٔ آن در نمایهٔ حساب کاربری انجام نشد.</value></data>
+  <data name="Auth.PasswordChanged" xml:space="preserve"><value>رمز عبور شما تغییر یافت و سایر نشست‌های فعال بسته شدند.</value></data>
+  <data name="Auth.CurrentPasswordInvalid" xml:space="preserve"><value>رمز عبور فعلی نادرست است.</value></data>
+  <data name="Auth.PasswordInvalid" xml:space="preserve"><value>رمز عبور جدید باید بین ۱۲ تا ۱۲۸ نویسه و بدون نویسهٔ کنترلی باشد.</value></data>
+  <data name="Auth.PasswordMismatch" xml:space="preserve"><value>رمز عبور جدید و تکرار آن یکسان نیستند.</value></data>
 </root>

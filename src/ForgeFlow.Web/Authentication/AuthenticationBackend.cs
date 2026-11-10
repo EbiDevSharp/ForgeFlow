@@ -109,6 +109,7 @@ public static class AuthenticationBackend
         app.MapGet("/account/antiforgery",AntiforgeryToken);
         app.MapPost("/account/sign-in",Login).WithName("Auth.Login").RequireRateLimiting("auth-login");
         app.MapPost("/account/logout",Logout).WithName("Auth.Logout");
+        app.MapPost("/account/change-password-submit",ChangePasswordSubmit).WithName("Auth.ChangePassword");
     }
     public static IResult AntiforgeryToken(HttpContext context,IAntiforgery antiforgery)
     {
@@ -198,5 +199,52 @@ public static class AuthenticationBackend
         catch (OperationCanceledException) { code="Auth.LogoutRevocationIncomplete"; }
         finally { await context.SignOutAsync(IdentityConstants.ApplicationScheme); }
         return code=="Auth.SignedOut" ? Results.LocalRedirect(target) : Error(context,"Auth.LogoutRevocationIncomplete",503);
+    }
+
+    public static async Task<IResult> ChangePasswordSubmit(HttpContext context, IAntiforgery antiforgery, RuntimeSessions sessions)
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        var form = await Form(context, antiforgery);
+        if (form is null) return Error(context, "Auth.RequestRejected", 400);
+        if (form["currentPassword"].Count != 1 || form["newPassword"].Count != 1 || form["confirmPassword"].Count != 1)
+            return Error(context, "Auth.RequestRejected", 400);
+
+        var reference = SessionClaims.Read(context.User);
+        if (reference is null) return Error(context, "Auth.SessionInvalid", 401);
+
+        var currentPassword = form["currentPassword"].ToString();
+        var newPassword = form["newPassword"].ToString();
+        var confirmPassword = form["confirmPassword"].ToString();
+        if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
+            return Error(context, "Auth.PasswordMismatch", 400);
+
+        var result = await sessions.ChangeOwnPasswordAsync(reference, currentPassword, newPassword, context.RequestAborted);
+        if (result.Session is null)
+        {
+            if (result.Code == "Auth.SessionInvalid")
+            {
+                await context.SignOutAsync(IdentityConstants.ApplicationScheme);
+                return Error(context, "Auth.SessionInvalid", 401);
+            }
+            return Error(context, result.Code, result.Code == "Auth.ServiceUnavailable" ? 503 : 400);
+        }
+
+        try
+        {
+            await context.SignInAsync(IdentityConstants.ApplicationScheme, SessionClaims.Create(result.Session),
+                new AuthenticationProperties { IsPersistent = false, AllowRefresh = false, IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = result.Expires });
+            var localizer = context.RequestServices.GetRequiredService<IStringLocalizer<AuthenticationResources>>();
+            return Results.Json(new { code = result.Code, message = localizer[result.Code].Value });
+        }
+        catch (Exception)
+        {
+            await sessions.LogoutAsync(result.Session, CancellationToken.None);
+            if (!context.Response.HasStarted)
+            {
+                try { await context.SignOutAsync(IdentityConstants.ApplicationScheme); }
+                catch (Exception) { }
+            }
+            return Error(context, "Auth.ServiceUnavailable", 503);
+        }
     }
 }

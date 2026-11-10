@@ -1,4 +1,7 @@
-﻿using ForgeFlow.Application.Organizations;
+﻿using ForgeFlow.Application.Audit;
+using ForgeFlow.Application.Organizations;
+using ForgeFlow.Application.Roles;
+using ForgeFlow.Application.Users;
 using ForgeFlow.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,16 +17,90 @@ public sealed class ReadScopes(IServiceScopeFactory scopes, ITrustedActorAccesso
         if (actor is null) return [];
         await using var operation = scopes.CreateAsyncScope();
         var db = operation.ServiceProvider.GetRequiredService<AuthDbContext>();
-        var grants = await db.ScopedRoleAssignments.AsNoTracking()
+        var roleGrants = await db.ScopedRoleAssignments.AsNoTracking()
             .Where(x => x.UserId == actor.ActorId && x.IsActive && x.OrganizationId != null)
+            .Select(x => new { OrganizationId = x.OrganizationId!.Value, x.SiteId }).Distinct().ToListAsync();
+        var directGrants = await db.UserPermissionGrants.AsNoTracking()
+            .Where(x => x.UserId == actor.ActorId && x.IsActive)
             .Select(x => new { x.OrganizationId, x.SiteId }).Distinct().ToListAsync();
+        var grants = roleGrants.Concat(directGrants).Distinct().OrderBy(x => x.OrganizationId).ThenBy(x => x.SiteId).ToList();
         var result = new List<OrganizationScope>();
         foreach (var grant in grants)
         {
             OrganizationScope scope = grant.SiteId is long site
-                ? new OrganizationScope.Site(grant.OrganizationId!.Value, site)
-                : new OrganizationScope.Organization(grant.OrganizationId!.Value);
+                ? new OrganizationScope.Site(grant.OrganizationId, site)
+                : new OrganizationScope.Organization(grant.OrganizationId);
             if ((await permissions.EvaluateAsync(actor, scope, OrganizationPermissions.SitesRead, default)).IsAllowed)
+                result.Add(scope);
+        }
+        return result;
+    }
+
+    public Task<IReadOnlyList<OrganizationScope>> LoadOrganizationScopesAsync() =>
+        LoadOrganizationPermissionScopesAsync(OrganizationPermissions.OrganizationsRead);
+
+    public Task<IReadOnlyList<OrganizationScope>> LoadUserScopesAsync() =>
+        LoadOrganizationPermissionScopesAsync(UserPermissions.UsersRead);
+
+    public Task<IReadOnlyList<OrganizationScope>> LoadRoleScopesAsync() =>
+        LoadOrganizationPermissionScopesAsync(RolePermissions.RolesRead);
+
+    public async Task<IReadOnlyList<OrganizationScope>> LoadAuditScopesAsync()
+    {
+        var actor = await actors.ResolveAsync(default);
+        if (actor is null) return [];
+        await using var operation = scopes.CreateAsyncScope();
+        var db = operation.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var result = new List<OrganizationScope>();
+        var hasPlatform = await db.ScopedRoleAssignments.AsNoTracking()
+            .AnyAsync(x => x.UserId == actor.ActorId && x.IsActive && x.ScopeKind == 0);
+        if (hasPlatform)
+        {
+            var platform = new OrganizationScope.Platform();
+            if ((await permissions.EvaluateAsync(actor, platform, AuditPermissions.AuditRead, default)).IsAllowed)
+                result.Add(platform);
+        }
+
+        var roleGrants = await db.ScopedRoleAssignments.AsNoTracking()
+            .Where(x => x.UserId == actor.ActorId && x.IsActive && x.OrganizationId != null)
+            .Select(x => new { OrganizationId = x.OrganizationId!.Value, x.SiteId }).Distinct().ToListAsync();
+        var directGrants = await db.UserPermissionGrants.AsNoTracking()
+            .Where(x => x.UserId == actor.ActorId && x.IsActive)
+            .Select(x => new { x.OrganizationId, x.SiteId }).Distinct().ToListAsync();
+        var grants = roleGrants.Concat(directGrants).Distinct()
+            .OrderBy(x => x.OrganizationId)
+            .ThenBy(x => x.SiteId.HasValue ? 1 : 0)
+            .ThenBy(x => x.SiteId)
+            .ToList();
+        foreach (var grant in grants)
+        {
+            OrganizationScope scope = grant.SiteId is long site
+                ? new OrganizationScope.Site(grant.OrganizationId, site)
+                : new OrganizationScope.Organization(grant.OrganizationId);
+            if ((await permissions.EvaluateAsync(actor, scope, AuditPermissions.AuditRead, default)).IsAllowed)
+                result.Add(scope);
+        }
+        return result;
+    }
+
+    private async Task<IReadOnlyList<OrganizationScope>> LoadOrganizationPermissionScopesAsync(string permission)
+    {
+        var actor = await actors.ResolveAsync(default);
+        if (actor is null) return [];
+        await using var operation = scopes.CreateAsyncScope();
+        var db = operation.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var roleOrgIds = await db.ScopedRoleAssignments.AsNoTracking()
+            .Where(x => x.UserId == actor.ActorId && x.IsActive && x.OrganizationId != null && x.ScopeKind == 1)
+            .Select(x => x.OrganizationId!.Value).Distinct().ToListAsync();
+        var directOrgIds = await db.UserPermissionGrants.AsNoTracking()
+            .Where(x => x.UserId == actor.ActorId && x.IsActive && x.ScopeKind == 1)
+            .Select(x => x.OrganizationId).Distinct().ToListAsync();
+        var orgIds = roleOrgIds.Concat(directOrgIds).Distinct().OrderBy(id => id).ToList();
+        var result = new List<OrganizationScope>();
+        foreach (var orgId in orgIds)
+        {
+            var scope = new OrganizationScope.Organization(orgId);
+            if ((await permissions.EvaluateAsync(actor, scope, permission, default)).IsAllowed)
                 result.Add(scope);
         }
         return result;

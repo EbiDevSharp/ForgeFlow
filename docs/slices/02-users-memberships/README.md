@@ -1,6 +1,6 @@
 # Slice 02 — Users and memberships
 
-Status: **DESIGN APPROVED (`02.0` -> READY FOR `02.1`)** (2026-11-10) — Decisions `Q-U01`–`Q-U05` are locked in [decisions.md](decisions.md). No Slice 02 code or schema change has been written yet; implementation starts at increment `02.1`.
+Status: **SLICE `02` GREENFIELD ACCEPTANCE CLOSED WITH USER SIGN-OFF (`02.5` — conditional SQL re-run noted for `02.4b` password reset)** (2026-11-10) — Decisions `Q-U01`–`Q-U05` are closed in [decisions.md](decisions.md). `02.2` passed `4/4` user SQL tests before `02.4b`; `02.3`–`02.4b` (including compact modals, `BitTextField` password reveal toggles, Admin Reset Password, Self Change Password `/account/change-password`, and icon-only `BitButton` mobile nav toggle) build cleanly (`0` warnings/errors), pass `294` non-SQL tests (`0` failures), `19/19` Node draft checks, and `4/4` Chrome smoke checks, and received user manual browser sign-off ("خوب اوکی هستش... برو کار بعدیت"). Re-running `UserManagementSqlTests` against the expanded password-reset assertions added in `02.4b` remains an optional quick confirmation alongside Slice `03` (`03.0` design-first).
 
 ## 1. Objective, actors, preconditions, outputs, and out-of-scope
 
@@ -115,8 +115,10 @@ See [decisions.md](decisions.md) for inherited boundaries and open questions `Q-
 | Track | Status | Notes |
 |---|---|---|
 | Design (`02.0`) | APPROVED (2026-11-10) | `Q-U01`–`Q-U05` closed in [decisions.md](decisions.md); zero schema migration needed |
-| Implementation (`02.1`–`02.4`) | NOT STARTED | Next: `02.1` Domain & Application user/membership contracts |
-| Verification & Acceptance (`02.5`) | NOT STARTED | Requires Domain/App tests, disposable SQL tests, Chrome FA/EN 1440px/320px checks, and manual sign-off |
+| Implementation (`02.1`) | VERIFIED | Domain invariants (`src/ForgeFlow.Domain/Users/*`), Application contracts/use cases (`src/ForgeFlow.Application/Users/*`), and unit tests |
+| Implementation (`02.2`) | VERIFIED | `SqlUserOperationsStore`, `FixedRolePolicy` / `ScopeAllowed`, `IdentityPersistence.AddUserManagement`; USER-EXECUTED `UserManagementSqlTests` **4/4 PASS** (`8.5s`) |
+| Implementation (`02.3`–`02.4b`) | VERIFIED (offline + user UI sign-off) | `Program.cs` `AddUserManagement()`, `ReadScopes.LoadUserScopesAsync()`, icon-only `BitButton` mobile nav toggle, `Users.razor` (`/users`), `ChangePassword.razor` (`/account/change-password`), password eye toggles, compact `.write-panel` modals, `294` non-SQL pass |
+| Verification & Acceptance (`02.5`) | ACCEPTED (2026-11-10 greenfield sign-off) | User manual browser sign-off + `294` non-SQL + `19/19` Node + `4/4` Chrome + prior `4/4` SQL (`8.5s`). Caveat: re-running `UserManagementSqlTests` specifically for `02.4b`'s new `ResetUserPassword` / `ChangeOwnPasswordAsync` assertions has not yet been run in PowerShell |
 
-- **Blocker**: None for `02.1` (design gate closed).
-- **Next small step**: Implement increment `02.1` (Domain user-account/membership/role invariants + Application `Users`/`Memberships` DTOs, permission constants, and persistence ports + unit tests).
+- **Blocker**: None.
+- **Next small step**: Review open decisions `Q-R01`–`Q-R05` in [Slice 03 — Roles & Permissions](../03-roles-permissions/decisions.md) before starting `03.1`.

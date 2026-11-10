@@ -327,4 +327,430 @@
   <data name="WriteUnavailable" xml:space="preserve">
     <value>The change could not be saved. Try again.</value>
   </data>
+  <data name="Users" xml:space="preserve">
+    <value>Users</value>
+  </data>
+  <data name="UserSearchPlaceholder" xml:space="preserve">
+    <value>Search username</value>
+  </data>
+  <data name="UserUsername" xml:space="preserve">
+    <value>Username</value>
+  </data>
+  <data name="UserAccountStatus" xml:space="preserve">
+    <value>Account</value>
+  </data>
+  <data name="UserMembershipStatus" xml:space="preserve">
+    <value>Org membership</value>
+  </data>
+  <data name="UserRoleColumn" xml:space="preserve">
+    <value>Role</value>
+  </data>
+  <data name="UserSitesColumn" xml:space="preserve">
+    <value>Sites</value>
+  </data>
+  <data name="UserSitesCount" xml:space="preserve">
+    <value>{0} sites</value>
+  </data>
+  <data name="UserAccountDisabled" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="UserLockedBadge" xml:space="preserve">
+    <value>Locked</value>
+  </data>
+  <data name="UserMembershipActive" xml:space="preserve">
+    <value>Member</value>
+  </data>
+  <data name="UserMembershipInactive" xml:space="preserve">
+    <value>Suspended</value>
+  </data>
+  <data name="UserOrgAdminRole" xml:space="preserve">
+    <value>Org admin</value>
+  </data>
+  <data name="UserSiteOperatorRole" xml:space="preserve">
+    <value>Site operator</value>
+  </data>
+  <data name="UserStandardRole" xml:space="preserve">
+    <value>Member</value>
+  </data>
+  <data name="CreateUserButton" xml:space="preserve">
+    <value>New user</value>
+  </data>
+  <data name="CreateUserTitle" xml:space="preserve">
+    <value>Create user</value>
+  </data>
+  <data name="AttachUserButton" xml:space="preserve">
+    <value>Attach existing user</value>
+  </data>
+  <data name="AttachUserTitle" xml:space="preserve">
+    <value>Attach existing user to organization</value>
+  </data>
+  <data name="UserNameHint" xml:space="preserve">
+    <value>1 to 128 ASCII characters: letters, digits, or . _ @ + -</value>
+  </data>
+  <data name="UserPasswordLabel" xml:space="preserve">
+    <value>Initial password</value>
+  </data>
+  <data name="UserPasswordHint" xml:space="preserve">
+    <value>Minimum 12 characters. Never stored in browser drafts.</value>
+  </data>
+  <data name="UserAssignOrgAdmin" xml:space="preserve">
+    <value>Grant organization administrator role</value>
+  </data>
+  <data name="UserAssignSitesLabel" xml:space="preserve">
+    <value>Initial site access</value>
+  </data>
+  <data name="UserAssignSiteOperator" xml:space="preserve">
+    <value>Grant site operator role on selected sites</value>
+  </data>
+  <data name="UserUnlockButton" xml:space="preserve">
+    <value>Unlock account</value>
+  </data>
+  <data name="UserActivateAccount" xml:space="preserve">
+    <value>Enable account</value>
+  </data>
+  <data name="UserDeactivateAccount" xml:space="preserve">
+    <value>Disable account</value>
+  </data>
+  <data name="UserActivateMembership" xml:space="preserve">
+    <value>Activate org membership</value>
+  </data>
+  <data name="UserDeactivateMembership" xml:space="preserve">
+    <value>Deactivate org membership</value>
+  </data>
+  <data name="UserGrantOrgAdmin" xml:space="preserve">
+    <value>Grant org admin</value>
+  </data>
+  <data name="UserRevokeOrgAdmin" xml:space="preserve">
+    <value>Revoke org admin</value>
+  </data>
+  <data name="UserGrantSiteOperator" xml:space="preserve">
+    <value>Grant operator</value>
+  </data>
+  <data name="UserRevokeSiteOperator" xml:space="preserve">
+    <value>Revoke operator</value>
+  </data>
+  <data name="UserAddSiteLabel" xml:space="preserve">
+    <value>Assign site</value>
+  </data>
+  <data name="UserAddSiteButton" xml:space="preserve">
+    <value>Add site</value>
+  </data>
+  <data name="UserMultiOrgAccountHint" xml:space="preserve">
+    <value>This user belongs to multiple organizations or has platform authority. Account-wide deactivation requires platform access; manage their membership in this organization below.</value>
+  </data>
+  <data name="UserConfirmDisableAccount" xml:space="preserve">
+    <value>Disable account “{0}” and sign out all active sessions?</value>
+  </data>
+  <data name="UserConfirmEnableAccount" xml:space="preserve">
+    <value>Enable account “{0}”?</value>
+  </data>
+  <data name="UserConfirmDisableMembership" xml:space="preserve">
+    <value>Deactivate organization membership for “{0}”?</value>
+  </data>
+  <data name="UserConfirmEnableMembership" xml:space="preserve">
+    <value>Activate organization membership for “{0}”?</value>
+  </data>
+  <data name="UserConfirmRevokeOrgAdmin" xml:space="preserve">
+    <value>Revoke organization administrator role from “{0}”?</value>
+  </data>
+  <data name="UserCreatedSucceeded" xml:space="preserve">
+    <value>User “{0}” created.</value>
+  </data>
+  <data name="UserAttachedSucceeded" xml:space="preserve">
+    <value>User “{0}” attached to this organization.</value>
+  </data>
+  <data name="UserErrorInvalidName" xml:space="preserve">
+    <value>Enter a valid username (1 to 128 ASCII letters, digits, or . _ @ + -).</value>
+  </data>
+  <data name="UserErrorDuplicate" xml:space="preserve">
+    <value>This username already exists.</value>
+  </data>
+  <data name="UserErrorPasswordInvalid" xml:space="preserve">
+    <value>Password must be 12 to 128 characters without control characters.</value>
+  </data>
+  <data name="UserErrorSelfDeactivation" xml:space="preserve">
+    <value>You cannot deactivate your own account, membership, or administrator role.</value>
+  </data>
+  <data name="UserErrorLastOrgAdmin" xml:space="preserve">
+    <value>An active organization must keep at least one active organization administrator.</value>
+  </data>
+  <data name="UserErrorLastPlatformAdmin" xml:space="preserve">
+    <value>At least one active platform provisioner must remain.</value>
+  </data>
+  <data name="UserErrorOrgMembershipRequired" xml:space="preserve">
+    <value>Activate the user’s organization membership first.</value>
+  </data>
+  <data name="UserErrorSiteMembershipRequired" xml:space="preserve">
+    <value>Activate the site membership before granting site operator access.</value>
+  </data>
+  <data name="UserErrorParentSiteInactive" xml:space="preserve">
+    <value>The selected site is inactive, so this membership or role change is not allowed.</value>
+  </data>
+  <data name="UserErrorRoleScopeInvalid" xml:space="preserve">
+    <value>The selected role is invalid for this scope.</value>
+  </data>
+  <data name="UserEmptySites" xml:space="preserve">
+    <value>No site memberships assigned.</value>
+  </data>
+  <data name="ChangePasswordLink" xml:space="preserve">
+    <value>Change password</value>
+  </data>
+  <data name="ChangePasswordTitle" xml:space="preserve">
+    <value>Change password</value>
+  </data>
+  <data name="CurrentPasswordLabel" xml:space="preserve">
+    <value>Current password</value>
+  </data>
+  <data name="NewPasswordLabel" xml:space="preserve">
+    <value>New password</value>
+  </data>
+  <data name="ConfirmPasswordLabel" xml:space="preserve">
+    <value>Confirm new password</value>
+  </data>
+  <data name="ChangePasswordSubmit" xml:space="preserve">
+    <value>Update password</value>
+  </data>
+  <data name="ChangePasswordMismatch" xml:space="preserve">
+    <value>The new password and confirmation do not match.</value>
+  </data>
+  <data name="UserResetPasswordTitle" xml:space="preserve">
+    <value>Reset password</value>
+  </data>
+  <data name="UserNewPasswordLabel" xml:space="preserve">
+    <value>New temporary password</value>
+  </data>
+  <data name="UserResetPasswordButton" xml:space="preserve">
+    <value>Reset password</value>
+  </data>
+  <data name="UserConfirmResetPassword" xml:space="preserve">
+    <value>Reset password for “{0}” and sign out all active sessions?</value>
+  </data>
+  <data name="Roles" xml:space="preserve">
+    <value>Roles</value>
+  </data>
+  <data name="RolesCaption" xml:space="preserve">
+    <value>Organization roles and permissions</value>
+  </data>
+  <data name="RoleCreateButton" xml:space="preserve">
+    <value>New role</value>
+  </data>
+  <data name="RoleCreateTitle" xml:space="preserve">
+    <value>New role</value>
+  </data>
+  <data name="RoleCreateSubmit" xml:space="preserve">
+    <value>Create role</value>
+  </data>
+  <data name="RoleEditTitle" xml:space="preserve">
+    <value>Edit role</value>
+  </data>
+  <data name="RoleDetailTitle" xml:space="preserve">
+    <value>Role details</value>
+  </data>
+  <data name="RoleNameLabel" xml:space="preserve">
+    <value>Role name</value>
+  </data>
+  <data name="RoleNameHint" xml:space="preserve">
+    <value>Between 2 and 128 characters.</value>
+  </data>
+  <data name="RoleTypeColumn" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="RoleSystemBadge" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="RoleCustomBadge" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="RolePermissionsColumn" xml:space="preserve">
+    <value>Operations</value>
+  </data>
+  <data name="RoleSystemNotice" xml:space="preserve">
+    <value>Built-in system roles cannot be modified or deactivated.</value>
+  </data>
+  <data name="RoleConfirmDisable" xml:space="preserve">
+    <value>Deactivate role “{0}”? Active sessions with this role will lose its permissions immediately.</value>
+  </data>
+  <data name="RoleConfirmEnable" xml:space="preserve">
+    <value>Activate role “{0}”?</value>
+  </data>
+  <data name="RoleBuiltInOrgAdmin" xml:space="preserve">
+    <value>Organization administrator</value>
+  </data>
+  <data name="RoleBuiltInSiteOperator" xml:space="preserve">
+    <value>Site operator</value>
+  </data>
+  <data name="RoleBuiltInProvisioner" xml:space="preserve">
+    <value>Platform administrator</value>
+  </data>
+  <data name="PermPageOrganizations" xml:space="preserve">
+    <value>Organizations page</value>
+  </data>
+  <data name="PermPageSites" xml:space="preserve">
+    <value>Sites page</value>
+  </data>
+  <data name="PermPageUsers" xml:space="preserve">
+    <value>Users page</value>
+  </data>
+  <data name="PermPageRoles" xml:space="preserve">
+    <value>Roles &amp; permissions page</value>
+  </data>
+  <data name="PermOpRead" xml:space="preserve">
+    <value>View</value>
+  </data>
+  <data name="PermOpCreate" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="PermOpUpdate" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="PermOpSetActive" xml:space="preserve">
+    <value>Activate / Deactivate</value>
+  </data>
+  <data name="PermOpUnlock" xml:space="preserve">
+    <value>Unlock lockout</value>
+  </data>
+  <data name="PermOpResetPassword" xml:space="preserve">
+    <value>Reset password</value>
+  </data>
+  <data name="PermOpManageMemberships" xml:space="preserve">
+    <value>Manage memberships</value>
+  </data>
+  <data name="PermOpAssignFixedRoles" xml:space="preserve">
+    <value>Assign roles</value>
+  </data>
+  <data name="PermOpManageRoles" xml:space="preserve">
+    <value>Create &amp; edit roles</value>
+  </data>
+  <data name="PermOpAssignPermissions" xml:space="preserve">
+    <value>Assign page operations</value>
+  </data>
+  <data name="PermSelectAllPage" xml:space="preserve">
+    <value>All page operations</value>
+  </data>
+  <data name="UserPermissionsButton" xml:space="preserve">
+    <value>Permissions</value>
+  </data>
+  <data name="UserPermissionsTitle" xml:space="preserve">
+    <value>Permissions &amp; roles — {0}</value>
+  </data>
+  <data name="UserRolesSectionTitle" xml:space="preserve">
+    <value>Assigned roles</value>
+  </data>
+  <data name="UserAssignRoleLabel" xml:space="preserve">
+    <value>Role to assign</value>
+  </data>
+  <data name="UserAssignRoleButton" xml:space="preserve">
+    <value>Assign role</value>
+  </data>
+  <data name="UserDirectOpsSectionTitle" xml:space="preserve">
+    <value>Page &amp; operation permissions</value>
+  </data>
+  <data name="UserPermScopeLabel" xml:space="preserve">
+    <value>Permission target scope</value>
+  </data>
+  <data name="UserPermScopeOrg" xml:space="preserve">
+    <value>Entire organization (all pages)</value>
+  </data>
+  <data name="UserPermScopeSite" xml:space="preserve">
+    <value>Site: {0} — {1}</value>
+  </data>
+  <data name="UserPermSaveButton" xml:space="preserve">
+    <value>Save operation permissions</value>
+  </data>
+  <data name="RoleGrantedBadge" xml:space="preserve">
+    <value>Via role</value>
+  </data>
+  <data name="UserAdminFullAccessNotice" xml:space="preserve">
+    <value>Organization administrator has full access to all pages and operations.</value>
+  </data>
+  <data name="RoleErrorInvalidName" xml:space="preserve">
+    <value>Enter a valid role name (2–128 characters, not a reserved system code).</value>
+  </data>
+  <data name="RoleErrorDuplicateName" xml:space="preserve">
+    <value>A role with this name already exists in the organization.</value>
+  </data>
+  <data name="RoleErrorSystemImmutable" xml:space="preserve">
+    <value>Built-in system roles cannot be modified.</value>
+  </data>
+  <data name="RoleErrorPermissionUnknown" xml:space="preserve">
+    <value>One or more selected operations are invalid.</value>
+  </data>
+  <data name="RoleErrorPermissionScopeInvalid" xml:space="preserve">
+    <value>Selected operations are not valid for this scope.</value>
+  </data>
+  <data name="PermPageAudit" xml:space="preserve">
+    <value>Audit &amp; Security Events</value>
+  </data>
+  <data name="Audit" xml:space="preserve">
+    <value>Audit &amp; Events</value>
+  </data>
+  <data name="AuditCaption" xml:space="preserve">
+    <value>Audit and security event records</value>
+  </data>
+  <data name="AuditCategoryLabel" xml:space="preserve">
+    <value>Category</value>
+  </data>
+  <data name="AuditCategoryAll" xml:space="preserve">
+    <value>All events</value>
+  </data>
+  <data name="AuditCategoryBusiness" xml:space="preserve">
+    <value>Business changes</value>
+  </data>
+  <data name="AuditCategorySecurity" xml:space="preserve">
+    <value>Security events</value>
+  </data>
+  <data name="AuditEventCodeLabel" xml:space="preserve">
+    <value>Event code</value>
+  </data>
+  <data name="AuditEventCodeAll" xml:space="preserve">
+    <value>All event codes</value>
+  </data>
+  <data name="AuditTimeColumn" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="AuditEventColumn" xml:space="preserve">
+    <value>Event</value>
+  </data>
+  <data name="AuditActorColumn" xml:space="preserve">
+    <value>Actor</value>
+  </data>
+  <data name="AuditSubjectColumn" xml:space="preserve">
+    <value>Subject</value>
+  </data>
+  <data name="AuditOutcomeColumn" xml:space="preserve">
+    <value>Outcome</value>
+  </data>
+  <data name="AuditOutcomeSuccess" xml:space="preserve">
+    <value>Success</value>
+  </data>
+  <data name="AuditOutcomeFailure" xml:space="preserve">
+    <value>Denied / Failed</value>
+  </data>
+  <data name="AuditOutcomeRecorded" xml:space="preserve">
+    <value>Recorded</value>
+  </data>
+  <data name="AuditDetailsButton" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="AuditDetailsTitle" xml:space="preserve">
+    <value>Event details</value>
+  </data>
+  <data name="AuditCorrelationLabel" xml:space="preserve">
+    <value>Correlation ID</value>
+  </data>
+  <data name="AuditFieldsSection" xml:space="preserve">
+    <value>Structured fields</value>
+  </data>
+  <data name="AuditRawJsonSection" xml:space="preserve">
+    <value>Raw JSON payload</value>
+  </data>
+  <data name="AuditFieldKeyColumn" xml:space="preserve">
+    <value>Field</value>
+  </data>
+  <data name="AuditFieldValueColumn" xml:space="preserve">
+    <value>Value</value>
+  </data>
+  <data name="AuditSystemActor" xml:space="preserve">
+    <value>System / Anonymous</value>
+  </data>
 </root>

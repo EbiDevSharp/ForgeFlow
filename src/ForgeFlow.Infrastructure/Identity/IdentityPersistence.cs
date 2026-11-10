@@ -1,7 +1,11 @@
+using ForgeFlow.Application.Audit;
+using ForgeFlow.Application.Roles;
+using ForgeFlow.Application.Users;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeFlow.Infrastructure.Identity;
@@ -14,6 +18,30 @@ public static class IdentityPersistence
 
     public static IServiceCollection AddRuntimeIdentity(this IServiceCollection services, Action<DbContextOptionsBuilder> options)
         => AddCore(services, options, isolatedHost: false);
+
+    public static IServiceCollection AddUserManagement(this IServiceCollection services)
+    {
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IUserOperationsStore, SqlUserOperationsStore>();
+        services.AddScoped<UserUseCases>();
+        return services;
+    }
+
+    public static IServiceCollection AddRoleManagement(this IServiceCollection services)
+    {
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IRoleOperationsStore, SqlRoleOperationsStore>();
+        services.AddScoped<RoleUseCases>();
+        return services;
+    }
+
+    public static IServiceCollection AddAuditManagement(this IServiceCollection services)
+    {
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddScoped<IAuditOperationsStore, SqlAuditOperationsStore>();
+        services.AddScoped<AuditUseCases>();
+        return services;
+    }
 
     private static IServiceCollection AddCore(IServiceCollection services, Action<DbContextOptionsBuilder> options, bool isolatedHost)
     {

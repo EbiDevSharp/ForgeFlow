@@ -12,9 +12,38 @@ public sealed class ApplicationAccount : IdentityUser<long>
 
 public static class FixedAccessRoles
 {
-    public const byte OrganizationAdministrator = 1;
-    public const byte SiteOperator = 2;
-    public const byte DeploymentProvisioner = 3;
+    public const long OrganizationAdministrator = 1;
+    public const long SiteOperator = 2;
+    public const long DeploymentProvisioner = 3;
+}
+
+public sealed class RoleDefinition
+{
+    public long Id { get; internal set; }
+    public string Name { get; internal set; } = null!;
+    public string NormalizedName { get; internal set; } = null!;
+    public bool IsSystem { get; internal set; }
+    public byte ScopeKind { get; internal set; }
+    public long? OrganizationId { get; internal set; }
+    public bool IsActive { get; internal set; }
+}
+
+public sealed class RolePermission
+{
+    public long RoleId { get; internal set; }
+    public string PermissionCode { get; internal set; } = null!;
+    public bool IsActive { get; internal set; }
+}
+
+public sealed class UserPermissionGrant
+{
+    public long Id { get; internal set; }
+    public long UserId { get; internal set; }
+    public byte ScopeKind { get; internal set; }
+    public long OrganizationId { get; internal set; }
+    public long? SiteId { get; internal set; }
+    public string PermissionCode { get; internal set; } = null!;
+    public bool IsActive { get; internal set; }
 }
 
 public sealed class OrganizationMembership
@@ -34,7 +63,7 @@ public sealed class ScopedRoleAssignment
 {
     public long Id { get; internal set; }
     public long UserId { get; internal set; }
-    public byte RoleId { get; internal set; }
+    public long RoleId { get; internal set; }
     public byte ScopeKind { get; internal set; }
     public long? OrganizationId { get; internal set; }
     public long? SiteId { get; internal set; }

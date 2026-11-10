@@ -1,0 +1,739 @@
+@page "/roles"
+@page "/organizations/{OrganizationId:long}/roles"
+@page "/organizations/{OrganizationId:long}/roles/{RoleId:long}"
+@page "/roles/{RoleId:long}"
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Roles
+@using ForgeFlow.Domain.Organizations
+@using ForgeFlow.Domain.Roles
+@using ForgeFlow.Web.Drafts
+@using ForgeFlow.Web.Roles
+@implements IDisposable
+@inject RoleUseCases RolesService
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject IStringLocalizer<SharedResources> Text
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject DraftCoordinator Drafts
+
+<PageTitle>@Text["Roles"]</PageTitle>
+<section class="organization-reader">
+<div class="read-page-head">
+    <div>
+        <h1 id="roles-title">@Text["Roles"]</h1>
+        <p class="write-hint">@Text["RolesCaption"]</p>
+    </div>
+    @if (!initialLoading && error is null && available.Count > 0 && scopeCanManageRoles)
+    {
+        <div class="read-head-actions">
+            <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreate">
+                @Text["RoleCreateButton"]
+            </BitButton>
+        </div>
+    }
+</div>
+@if (pageNotice is not null)
+{
+    <p role="status" class="write-saved">@pageNotice</p>
+}
+@if (initialLoading)
+{
+    <p role="status">@Text["ReadLoading"]</p>
+}
+else if (error is not null)
+{
+    <p role="alert">@Text[error]</p>
+}
+else
+{
+    <div class="read-toolbar-card">
+        @if (available.Count > 1)
+        {
+            <div class="read-field">
+                <label for="read-scope">@Text["ReadScope"]</label>
+                <select id="read-scope" value="@scopeIndex" @onchange="ChangeScope">
+                    @for (var i = 0; i < available.Count; i++)
+                    {
+                        <option value="@i">@ScopeLabel(available[i])</option>
+                    }
+                </select>
+            </div>
+        }
+        <div class="read-field">
+            <label for="read-search">@Text["ReadSearch"]</label>
+            <input id="read-search" @bind="search" @bind:after="Search" maxlength="100" placeholder="@Text["RoleNameLabel"]" />
+        </div>
+        <label class="read-inactive">
+            <input type="checkbox" @bind="inactive" @bind:after="Search" /> @Text["ReadInactive"]
+        </label>
+    </div>
+
+    <div class="read-grid-card">
+        <div class="read-grid">
+            <BitDataGrid @ref="grid" TItem="RoleSummary" OnRead="ReadGridAsync" Pageable="true" PageSize="25"
+                         PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                         AriaLabelledBy="roles-title" WrapCellText="true">
+                <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                <Columns>
+                    <BitDataGridColumn TItem="RoleSummary" Title="@Text["RoleNameLabel"]">
+                        <Template Context="row">
+                            <span>@RolePermissionLocalization.RoleDisplayName(row.Name, row.IsSystem, Text)</span>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="RoleSummary" Title="@Text["RoleTypeColumn"]">
+                        <Template Context="row">
+                            <span class="read-badge @(row.IsSystem ? "system" : "role")">
+                                @Text[row.IsSystem ? "RoleSystemBadge" : "RoleCustomBadge"]
+                            </span>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="RoleSummary" Title="@Text["ReadStatus"]">
+                        <Template Context="row">
+                            <span class="read-badge @(row.IsActive ? "active" : "inactive")">
+                                @Text[row.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                            </span>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="RoleSummary" Title="@Text["RolePermissionsColumn"]">
+                        <Template Context="row">@row.PermissionCount</Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="RoleSummary" Title="@Text["ReadActions"]">
+                        <Template Context="row">
+                            <div class="read-row-actions">
+                                <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                               IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                               OnClick="() => Detail(row.Id)" />
+                                </BitTooltip>
+                                @if (scopeCanManageRoles && !row.IsSystem)
+                                {
+                                    <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                   Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                                   OnClick="() => Edit(row.Id)" />
+                                    </BitTooltip>
+                                }
+                            </div>
+                        </Template>
+                    </BitDataGridColumn>
+                </Columns>
+            </BitDataGrid>
+        </div>
+    </div>
+}
+</section>
+
+<BitDialog Width="560px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailOpen"
+           Title="@Text[editMode ? "RoleEditTitle" : "RoleDetailTitle"]"
+           AriaLabel="@Text[editMode ? "RoleEditTitle" : "RoleDetailTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+@if (selected is not null)
+{
+    <div class="write-panel">
+        @if (selected.IsSystem)
+        {
+            <p class="write-hint">@Text["RoleSystemNotice"]</p>
+        }
+
+        @if (!editMode || selected.IsSystem)
+        {
+            <dl class="read-detail">
+                <dt>@Text["RoleNameLabel"]</dt>
+                <dd>@RolePermissionLocalization.RoleDisplayName(selected.Name, selected.IsSystem, Text)</dd>
+                <dt>@Text["RoleTypeColumn"]</dt>
+                <dd>
+                    <span class="read-badge @(selected.IsSystem ? "system" : "role")">
+                        @Text[selected.IsSystem ? "RoleSystemBadge" : "RoleCustomBadge"]
+                    </span>
+                </dd>
+                <dt>@Text["ReadStatus"]</dt>
+                <dd>
+                    <span class="read-badge @(selected.IsActive ? "active" : "inactive")">
+                        @Text[selected.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                    </span>
+                </dd>
+            </dl>
+        }
+        else
+        {
+            <div class="read-field">
+                <label for="edit-role-name">@Text["RoleNameLabel"]</label>
+                <input id="edit-role-name" @bind="editName" @bind:event="oninput" maxlength="128"
+                       disabled="@(!selected.IsActive || saving)" aria-describedby="edit-role-name-hint" />
+                <span id="edit-role-name-hint" class="write-hint">@Text["RoleNameHint"]</span>
+            </div>
+        }
+
+        <div class="write-section">
+            <p class="write-section-title">@Text["RolePermissionsColumn"]</p>
+            @foreach (var module in RolePermissionLocalization.TenantModules)
+            {
+                var moduleOps = RolePermissionLocalization.OrganizationScopePermissions.Where(x => x.Module == module).ToList();
+                var canEditOps = editMode && !selected.IsSystem && selected.IsActive && scopeCanManageRoles;
+                var allChecked = moduleOps.All(x => editSelectedPerms.Contains(x.Code));
+                <div class="perm-group">
+                    <div class="perm-group-header">
+                        <span>@Text[RolePermissionLocalization.PageTitleKey(module)]</span>
+                        @if (canEditOps)
+                        {
+                            <label class="perm-check">
+                                <input type="checkbox" checked="@allChecked" disabled="@saving"
+                                       @onchange="e => ToggleEditModuleAll(module, e.Value is bool b && b)" />
+                                <span>@Text["PermSelectAllPage"]</span>
+                            </label>
+                        }
+                    </div>
+                    <div class="perm-grid">
+                        @foreach (var op in moduleOps)
+                        {
+                            var isChecked = editSelectedPerms.Contains(op.Code);
+                            <label class="perm-check">
+                                <input type="checkbox" checked="@isChecked"
+                                       disabled="@(!canEditOps || saving)"
+                                       @onchange="e => ToggleEditOperation(op, e.Value is bool b && b)" />
+                                <span>@Text[RolePermissionLocalization.OperationLabelKey(op.Code)]</span>
+                            </label>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (editMode && !selected.IsSystem && scopeCanManageRoles)
+        {
+            <div class="write-actions">
+                @if (selected.IsActive)
+                {
+                    <BitButton Size="BitSize.Small" IsEnabled="@(!saving && !string.IsNullOrWhiteSpace(editName))"
+                               OnClick="SubmitUpdateRole">@Text["WriteSave"]</BitButton>
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                               OnClick="() => confirmToggleActive = false">@Text["WriteDeactivate"]</BitButton>
+                }
+                else
+                {
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                               OnClick="() => confirmToggleActive = true">@Text["WriteActivate"]</BitButton>
+                }
+            </div>
+
+            @if (confirmToggleActive is bool targetActive)
+            {
+                <div class="write-confirm" role="alertdialog" aria-labelledby="role-confirm-text">
+                    <p id="role-confirm-text">@Text[targetActive ? "RoleConfirmEnable" : "RoleConfirmDisable", selected.Name]</p>
+                    <div class="write-actions">
+                        <BitButton Size="BitSize.Small" IsEnabled="@(!saving)" OnClick="ExecuteToggleActive">@Text["WriteConfirm"]</BitButton>
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)" OnClick="() => confirmToggleActive = null">@Text["WriteCancel"]</BitButton>
+                    </div>
+                </div>
+            }
+        }
+
+        @if (saving) { <p role="status">@Text["WriteSaving"]</p> }
+        @if (saved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+        @if (writeError is not null)
+        {
+            <p role="alert" class="write-error">@Text[writeError]</p>
+            @if (writeError is "WriteConflict" or "WriteOutcomeUnknown")
+            {
+                <div class="write-actions">
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadSelected">@Text["WriteReload"]</BitButton>
+                </div>
+            }
+        }
+    </div>
+}
+</Body>
+</BitDialog>
+
+<BitDialog Width="560px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createOpen"
+           OnDismissing="OnCreateDismissing"
+           Title="@Text["RoleCreateTitle"]" AriaLabel="@Text["RoleCreateTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+<form class="write-panel" @onsubmit:preventDefault>
+    <div class="read-field">
+        <label for="create-role-name">@Text["RoleNameLabel"]</label>
+        <input id="create-role-name" value="@createName" @oninput="OnCreateNameInput" maxlength="128"
+               disabled="@creating" aria-describedby="create-role-name-hint" />
+        <span id="create-role-name-hint" class="write-hint">@Text["RoleNameHint"]</span>
+    </div>
+
+    <div class="write-section">
+        <p class="write-section-title">@Text["RolePermissionsColumn"]</p>
+        @foreach (var module in RolePermissionLocalization.TenantModules)
+        {
+            var moduleOps = RolePermissionLocalization.OrganizationScopePermissions.Where(x => x.Module == module).ToList();
+            var allChecked = moduleOps.All(x => createSelectedPerms.Contains(x.Code));
+            <div class="perm-group">
+                <div class="perm-group-header">
+                    <span>@Text[RolePermissionLocalization.PageTitleKey(module)]</span>
+                    <label class="perm-check">
+                        <input type="checkbox" checked="@allChecked" disabled="@creating"
+                               @onchange="e => ToggleCreateModuleAll(module, e.Value is bool b && b)" />
+                        <span>@Text["PermSelectAllPage"]</span>
+                    </label>
+                </div>
+                <div class="perm-grid">
+                    @foreach (var op in moduleOps)
+                    {
+                        var isChecked = createSelectedPerms.Contains(op.Code);
+                        <label class="perm-check">
+                            <input type="checkbox" checked="@isChecked" disabled="@creating"
+                                   @onchange="e => ToggleCreateOperation(op, e.Value is bool b && b)" />
+                            <span>@Text[RolePermissionLocalization.OperationLabelKey(op.Code)]</span>
+                        </label>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="write-actions">
+        <BitButton Size="BitSize.Small" IsEnabled="@(!creating && !string.IsNullOrWhiteSpace(createName))" OnClick="SubmitCreate">
+            @Text["RoleCreateSubmit"]
+        </BitButton>
+    </div>
+
+    @if (createDiscardConfirm)
+    {
+        <div class="write-confirm" role="alertdialog" aria-labelledby="create-role-discard-text">
+            <p id="create-role-discard-text">@Text["WriteDiscardConfirm"]</p>
+            <div class="write-actions">
+                <BitButton Size="BitSize.Small" OnClick="ConfirmCreateDiscard">@Text["WriteDiscard"]</BitButton>
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CancelCreateDiscard">@Text["WriteKeepEditing"]</BitButton>
+            </div>
+        </div>
+    }
+    @if (creating) { <p role="status">@Text["WriteSaving"]</p> }
+    @if (createError is not null) { <p role="alert" class="write-error">@Text[createError]</p> }
+</form>
+</Body>
+</BitDialog>
+
+@code {
+    [Parameter] public long OrganizationId { get; set; }
+    [Parameter] public long RoleId { get; set; }
+
+    private BitDataGrid<RoleSummary>? grid;
+    private int revision;
+    private bool disposed;
+    private bool Current(int value) => !disposed && value == revision;
+
+    public void Dispose()
+    {
+        disposed = true;
+        revision++;
+        selected = null;
+        detailOpen = false;
+        createOpen = false;
+    }
+
+    private IReadOnlyList<OrganizationScope> available = [];
+    private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels = new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+    private int scopeIndex;
+    private long currentActorId;
+    private bool initialLoading = true, inactive, detailOpen, editMode, scopeCanManageRoles;
+    private string? error, pageNotice, search;
+    private RoleDetails? selected;
+    private string? editName, writeError;
+    private bool saving, saved;
+    private bool? confirmToggleActive;
+    private readonly HashSet<string> editSelectedPerms = new(StringComparer.Ordinal);
+
+    private bool createOpen, creating, createDiscardConfirm, draftInitialized;
+    private string? createName, createError;
+    private readonly HashSet<string> createSelectedPerms = new(StringComparer.Ordinal);
+    private DraftDefinition? pendingDraft;
+
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+    private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog", Header = "read-dialog-header", Body = "read-dialog-body",
+        CloseButton = "read-dialog-close", Overlay = "read-dialog-overlay"
+    };
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["Roles"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    private OrganizationScope Scope => available[scopeIndex];
+    private static long Org(OrganizationScope scope) => ((OrganizationScope.Organization)scope).OrganizationId;
+    private bool CreateDirty => !string.IsNullOrWhiteSpace(createName) || createSelectedPerms.Count > 0;
+
+    public static string BuildCreateDraftScope(long actorId, long orgId) => $"actor:{actorId}:org:{orgId}:create-role";
+    public static string FailureKey(string code) => RolePermissionLocalization.FailureKey(code);
+
+    private string ScopeLabel(OrganizationScope scope)
+    {
+        if (scopeLabels.TryGetValue(scope, out var info) && !string.IsNullOrEmpty(info.OrgCode))
+            return $"{info.OrgCode} — {info.OrgName}";
+        return Text["ReadOrganizationScope", Org(scope)];
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var request = ++revision;
+        initialLoading = true;
+        selected = null; detailOpen = false; createOpen = false; editMode = false;
+        error = null; pageNotice = null;
+        scopeLabels = new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+        try
+        {
+            var scopes = await Scopes.LoadRoleScopesAsync();
+            if (!Current(request)) return;
+            available = scopes.Where(s => OrganizationId == 0 || Org(s) == OrganizationId).ToList();
+            scopeIndex = 0;
+
+            if (available.Count == 0)
+            {
+                error = OrganizationId > 0 || RoleId > 0 ? "ReadNotFound" : "ReadDenied";
+                return;
+            }
+
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+            if (!Current(request)) return;
+
+            scopeCanManageRoles = await Can(RolePermissions.RolesManage, Scope);
+            if (!Current(request)) return;
+
+            if (RoleId > 0)
+                await OpenRoleDialog(RoleId, edit: false);
+        }
+        catch
+        {
+            if (Current(request)) error = "ReadError";
+        }
+        finally
+        {
+            if (Current(request)) initialLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed || pendingDraft is null || Drafts is null) return;
+        var def = pendingDraft;
+        pendingDraft = null;
+        try
+        {
+            var result = await Drafts.InitializeAsync(def);
+            draftInitialized = true;
+            if (!disposed && result.Snapshot is not null && createOpen
+                && result.Snapshot.Fields.TryGetValue("Name", out var n))
+            {
+                createName = n.Raw;
+                StateHasChanged();
+            }
+        }
+        catch { draftInitialized = false; }
+    }
+
+    private async Task ClearActiveDraftAsync()
+    {
+        if (!draftInitialized || Drafts is null) return;
+        draftInitialized = false;
+        try { await Drafts.ClearAsync(); } catch { }
+    }
+
+    private async Task<bool> Can(string permission, OrganizationScope scope)
+    {
+        if (Actors is null || Permissions is null) return false;
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is null) return false;
+        currentActorId = actor.ActorId;
+        return (await Permissions.EvaluateAsync(actor, scope, permission, default)).IsAllowed;
+    }
+
+    private async Task Search() => await ReloadGridFromFirstPage();
+
+    private async Task ChangeScope(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var i) && i >= 0 && i < available.Count)
+        {
+            scopeIndex = i;
+            var request = ++revision;
+            scopeCanManageRoles = await Can(RolePermissions.RolesManage, Scope);
+            if (!Current(request)) return;
+            await ReloadGridFromFirstPage();
+        }
+    }
+
+    private async Task ReloadGridFromFirstPage()
+    {
+        if (grid is null) return;
+        if (grid.CurrentPage <= 1) await grid.RefreshAsync();
+        else await grid.GoToPageAsync(1);
+    }
+
+    private async Task<BitDataGridReadResult<RoleSummary>> ReadGridAsync(BitDataGridReadRequest request)
+    {
+        if (disposed || available.Count == 0) return new([], 0);
+        var token = ++revision;
+        var scope = Scope;
+        error = null;
+        var pageSize = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / pageSize) + 1;
+        try
+        {
+            var result = await RolesService.ListOrganizationRoles(
+                scope, Org(scope), new RoleListQuery(search, inactive, IncludeSystem: true, page, pageSize), request.CancellationToken);
+            if (!Current(token)) return new([], 0);
+            if (!result.Succeeded)
+            {
+                error = FailureKey(result.Error!.Code);
+                StateHasChanged();
+                return new([], 0);
+            }
+            return new(result.Value!.Items.ToList(), result.Value.Total);
+        }
+        catch (OperationCanceledException) { return new([], 0); }
+        catch
+        {
+            if (Current(token)) { error = "ReadError"; StateHasChanged(); }
+            return new([], 0);
+        }
+    }
+
+    private Task Detail(long roleId) => OpenRoleDialog(roleId, edit: false);
+    private Task Edit(long roleId) => OpenRoleDialog(roleId, edit: true);
+
+    private async Task OpenRoleDialog(long roleId, bool edit)
+    {
+        var token = revision;
+        editMode = edit;
+        confirmToggleActive = null;
+        writeError = null;
+        saved = false;
+        try
+        {
+            var result = await RolesService.GetOrganizationRole(Scope, Org(Scope), roleId);
+            if (!Current(token)) return;
+            if (!result.Succeeded)
+            {
+                error = FailureKey(result.Error!.Code);
+                return;
+            }
+            ApplySelectedRole(result.Value!);
+            createOpen = false;
+            detailOpen = true;
+        }
+        catch
+        {
+            if (Current(token)) error = "ReadError";
+        }
+    }
+
+    private void ApplySelectedRole(RoleDetails details)
+    {
+        selected = details;
+        editName = details.Name;
+        editSelectedPerms.Clear();
+        foreach (var code in details.Permissions)
+            editSelectedPerms.Add(code);
+    }
+
+    private async Task ReloadSelected()
+    {
+        if (selected is null) return;
+        await OpenRoleDialog(selected.Id, editMode);
+    }
+
+    private void ToggleEditOperation(PermissionDescriptor descriptor, bool isChecked)
+    {
+        saved = false;
+        RolePermissionLocalization.ToggleOperationWithAutoRead(
+            editSelectedPerms, descriptor, isChecked, RolePermissionLocalization.OrganizationScopePermissions);
+    }
+
+    private void ToggleEditModuleAll(PermissionModule module, bool isChecked)
+    {
+        saved = false;
+        RolePermissionLocalization.ToggleModuleAll(
+            editSelectedPerms, module, isChecked, RolePermissionLocalization.OrganizationScopePermissions);
+    }
+
+    private async Task SubmitUpdateRole()
+    {
+        if (saving || selected is null || selected.IsSystem || !scopeCanManageRoles) return;
+        var token = revision;
+        saving = true; saved = false; writeError = null;
+        try
+        {
+            var result = await RolesService.UpdateOrganizationRole(
+                Scope,
+                new UpdateOrganizationRole(
+                    Org(Scope),
+                    selected.Id,
+                    editName,
+                    selected.IsActive,
+                    editSelectedPerms.OrderBy(x => x, StringComparer.Ordinal).ToArray(),
+                    selected.RowVersion));
+            if (!Current(token)) return;
+            if (!result.Succeeded)
+            {
+                writeError = FailureKey(result.Error!.Code);
+                return;
+            }
+            ApplySelectedRole(result.Value!);
+            saved = true;
+            saving = false;
+            await ReloadGridFromFirstPage();
+        }
+        catch
+        {
+            if (Current(token)) writeError = "WriteUnavailable";
+        }
+        finally
+        {
+            if (!disposed) saving = false;
+        }
+    }
+
+    private async Task ExecuteToggleActive()
+    {
+        if (saving || selected is null || confirmToggleActive is not bool targetActive || !scopeCanManageRoles) return;
+        var token = revision;
+        saving = true; saved = false; writeError = null;
+        try
+        {
+            var result = await RolesService.UpdateOrganizationRole(
+                Scope,
+                new UpdateOrganizationRole(
+                    Org(Scope),
+                    selected.Id,
+                    selected.Name,
+                    targetActive,
+                    selected.Permissions,
+                    selected.RowVersion));
+            if (!Current(token)) return;
+            if (!result.Succeeded)
+            {
+                writeError = FailureKey(result.Error!.Code);
+                confirmToggleActive = null;
+                return;
+            }
+            confirmToggleActive = null;
+            ApplySelectedRole(result.Value!);
+            saved = true;
+            saving = false;
+            await ReloadGridFromFirstPage();
+        }
+        catch
+        {
+            if (Current(token)) writeError = "WriteUnavailable";
+        }
+        finally
+        {
+            if (!disposed) saving = false;
+        }
+    }
+
+    private async Task OpenCreate()
+    {
+        if (!scopeCanManageRoles || available.Count == 0) return;
+        await ClearActiveDraftAsync();
+        createName = string.Empty;
+        createError = null;
+        createDiscardConfirm = false;
+        createSelectedPerms.Clear();
+        detailOpen = false;
+        createOpen = true;
+        if (currentActorId > 0)
+        {
+            pendingDraft = new("role-create-form", BuildCreateDraftScope(currentActorId, Org(Scope)),
+                1, [new("Name", "create-role-name", 128)], CulturePolicy.Supported);
+        }
+    }
+
+    private void OnCreateNameInput(ChangeEventArgs e)
+    {
+        createName = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private void ToggleCreateOperation(PermissionDescriptor descriptor, bool isChecked)
+    {
+        RolePermissionLocalization.ToggleOperationWithAutoRead(
+            createSelectedPerms, descriptor, isChecked, RolePermissionLocalization.OrganizationScopePermissions);
+    }
+
+    private void ToggleCreateModuleAll(PermissionModule module, bool isChecked)
+    {
+        RolePermissionLocalization.ToggleModuleAll(
+            createSelectedPerms, module, isChecked, RolePermissionLocalization.OrganizationScopePermissions);
+    }
+
+    private void OnCreateDismissing(BitDialogDismissArgs args)
+    {
+        if (creating || CreateDirty)
+        {
+            args.Cancel = true;
+            if (!creating) createDiscardConfirm = true;
+        }
+    }
+
+    private async Task ConfirmCreateDiscard()
+    {
+        createDiscardConfirm = false;
+        createName = string.Empty;
+        createSelectedPerms.Clear();
+        createOpen = false;
+        await ClearActiveDraftAsync();
+    }
+
+    private void CancelCreateDiscard() => createDiscardConfirm = false;
+
+    private async Task SubmitCreate()
+    {
+        if (creating || !scopeCanManageRoles || available.Count == 0) return;
+        var token = revision;
+        creating = true; createError = null; pageNotice = null;
+        try
+        {
+            var result = await RolesService.CreateOrganizationRole(
+                Scope,
+                new CreateOrganizationRole(
+                    Org(Scope),
+                    createName,
+                    RoleScopeTarget.Organization,
+                    createSelectedPerms.OrderBy(x => x, StringComparer.Ordinal).ToArray()));
+            if (!Current(token)) return;
+            if (!result.Succeeded)
+            {
+                createError = FailureKey(result.Error!.Code);
+                return;
+            }
+            await ClearActiveDraftAsync();
+            createName = string.Empty;
+            createSelectedPerms.Clear();
+            createOpen = false;
+            pageNotice = Text["WriteSaved"];
+            creating = false;
+            await ReloadGridFromFirstPage();
+        }
+        catch
+        {
+            if (Current(token)) createError = "WriteUnavailable";
+        }
+        finally
+        {
+            if (!disposed) creating = false;
+        }
+    }
+}

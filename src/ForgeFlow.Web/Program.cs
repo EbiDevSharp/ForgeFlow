@@ -3,6 +3,7 @@ using ForgeFlow.Web.Components;
 using ForgeFlow.Web.Localization;
 using ForgeFlow.Web.Hosting;
 using ForgeFlow.Web.Drafts;
+using ForgeFlow.Infrastructure.Identity;
 using ForgeFlow.Infrastructure.Organizations;
 using ForgeFlow.Web.Authentication;
 
@@ -18,6 +19,9 @@ builder.Services.AddScoped<DisplayFormatter>();
 builder.Services.AddScoped<DraftCoordinator>();
 builder.Services.AddOrganizationPersistence(builder.Configuration);
 builder.Services.AddAuthenticationBackend(builder.Configuration);
+builder.Services.AddUserManagement();
+builder.Services.AddRoleManagement();
+builder.Services.AddAuditManagement();
 var authDiagnostics = builder.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("ForgeFlow:Auth:Diagnostics");
 builder.Services.AddSingleton(new ForgeFlow.Infrastructure.Identity.AuthDiagnosticsOptions
 {

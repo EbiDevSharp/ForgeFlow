@@ -327,4 +327,430 @@
   <data name="WriteUnavailable" xml:space="preserve">
     <value>ذخیرهٔ تغییر ممکن نشد. دوباره تلاش کنید.</value>
   </data>
+  <data name="Users" xml:space="preserve">
+    <value>کاربران</value>
+  </data>
+  <data name="UserSearchPlaceholder" xml:space="preserve">
+    <value>جست‌وجوی نام کاربری</value>
+  </data>
+  <data name="UserUsername" xml:space="preserve">
+    <value>نام کاربری</value>
+  </data>
+  <data name="UserAccountStatus" xml:space="preserve">
+    <value>وضعیت حساب</value>
+  </data>
+  <data name="UserMembershipStatus" xml:space="preserve">
+    <value>عضویت سازمان</value>
+  </data>
+  <data name="UserRoleColumn" xml:space="preserve">
+    <value>نقش</value>
+  </data>
+  <data name="UserSitesColumn" xml:space="preserve">
+    <value>سایت‌ها</value>
+  </data>
+  <data name="UserSitesCount" xml:space="preserve">
+    <value>{0} سایت</value>
+  </data>
+  <data name="UserAccountDisabled" xml:space="preserve">
+    <value>غیرفعال</value>
+  </data>
+  <data name="UserLockedBadge" xml:space="preserve">
+    <value>قفل‌شده</value>
+  </data>
+  <data name="UserMembershipActive" xml:space="preserve">
+    <value>عضو فعال</value>
+  </data>
+  <data name="UserMembershipInactive" xml:space="preserve">
+    <value>عضویت غیرفعال</value>
+  </data>
+  <data name="UserOrgAdminRole" xml:space="preserve">
+    <value>مدیر سازمان</value>
+  </data>
+  <data name="UserSiteOperatorRole" xml:space="preserve">
+    <value>اپراتور سایت</value>
+  </data>
+  <data name="UserStandardRole" xml:space="preserve">
+    <value>کاربر عادی</value>
+  </data>
+  <data name="CreateUserButton" xml:space="preserve">
+    <value>کاربر جدید</value>
+  </data>
+  <data name="CreateUserTitle" xml:space="preserve">
+    <value>ایجاد کاربر جدید</value>
+  </data>
+  <data name="AttachUserButton" xml:space="preserve">
+    <value>افزودن کاربر موجود</value>
+  </data>
+  <data name="AttachUserTitle" xml:space="preserve">
+    <value>افزودن کاربر موجود به سازمان</value>
+  </data>
+  <data name="UserNameHint" xml:space="preserve">
+    <value>۱ تا ۱۲۸ نویسهٔ انگلیسی: حروف، ارقام یا . _ @ + -</value>
+  </data>
+  <data name="UserPasswordLabel" xml:space="preserve">
+    <value>رمز عبور اولیه</value>
+  </data>
+  <data name="UserPasswordHint" xml:space="preserve">
+    <value>حداقل ۱۲ نویسه؛ در پیش‌نویس مرورگر ذخیره نمی‌شود.</value>
+  </data>
+  <data name="UserAssignOrgAdmin" xml:space="preserve">
+    <value>اعطای نقش مدیر سازمان</value>
+  </data>
+  <data name="UserAssignSitesLabel" xml:space="preserve">
+    <value>دسترسی اولیهٔ سایت‌ها</value>
+  </data>
+  <data name="UserAssignSiteOperator" xml:space="preserve">
+    <value>اعطای نقش اپراتور سایت برای سایت‌های انتخاب‌شده</value>
+  </data>
+  <data name="UserUnlockButton" xml:space="preserve">
+    <value>رفع قفل حساب</value>
+  </data>
+  <data name="UserActivateAccount" xml:space="preserve">
+    <value>فعال‌سازی حساب</value>
+  </data>
+  <data name="UserDeactivateAccount" xml:space="preserve">
+    <value>غیرفعال‌سازی حساب</value>
+  </data>
+  <data name="UserActivateMembership" xml:space="preserve">
+    <value>فعال‌سازی عضویت سازمان</value>
+  </data>
+  <data name="UserDeactivateMembership" xml:space="preserve">
+    <value>غیرفعال‌سازی عضویت سازمان</value>
+  </data>
+  <data name="UserGrantOrgAdmin" xml:space="preserve">
+    <value>اعطای مدیر سازمان</value>
+  </data>
+  <data name="UserRevokeOrgAdmin" xml:space="preserve">
+    <value>لغو نقش مدیر سازمان</value>
+  </data>
+  <data name="UserGrantSiteOperator" xml:space="preserve">
+    <value>اعطای اپراتور</value>
+  </data>
+  <data name="UserRevokeSiteOperator" xml:space="preserve">
+    <value>لغو اپراتور</value>
+  </data>
+  <data name="UserAddSiteLabel" xml:space="preserve">
+    <value>افزودن سایت</value>
+  </data>
+  <data name="UserAddSiteButton" xml:space="preserve">
+    <value>افزودن سایت</value>
+  </data>
+  <data name="UserMultiOrgAccountHint" xml:space="preserve">
+    <value>این کاربر عضو چند سازمان است یا مجوز پلتفرم دارد. غیرفعال‌سازی سراسری حساب نیاز به دسترسی پلتفرم دارد؛ عضویت او در همین سازمان از بخش زیر قابل مدیریت است.</value>
+  </data>
+  <data name="UserConfirmDisableAccount" xml:space="preserve">
+    <value>حساب «{0}» غیرفعال و تمام نشست‌های فعال آن بسته شوند؟</value>
+  </data>
+  <data name="UserConfirmEnableAccount" xml:space="preserve">
+    <value>حساب «{0}» فعال شود؟</value>
+  </data>
+  <data name="UserConfirmDisableMembership" xml:space="preserve">
+    <value>عضویت سازمانی «{0}» غیرفعال شود؟</value>
+  </data>
+  <data name="UserConfirmEnableMembership" xml:space="preserve">
+    <value>عضویت سازمانی «{0}» فعال شود؟</value>
+  </data>
+  <data name="UserConfirmRevokeOrgAdmin" xml:space="preserve">
+    <value>نقش مدیر سازمان از «{0}» گرفته شود؟</value>
+  </data>
+  <data name="UserCreatedSucceeded" xml:space="preserve">
+    <value>کاربر «{0}» ایجاد شد.</value>
+  </data>
+  <data name="UserAttachedSucceeded" xml:space="preserve">
+    <value>کاربر «{0}» به این سازمان اضافه شد.</value>
+  </data>
+  <data name="UserErrorInvalidName" xml:space="preserve">
+    <value>نام کاربری معتبر وارد کنید (۱ تا ۱۲۸ نویسهٔ انگلیسی یا . _ @ + -).</value>
+  </data>
+  <data name="UserErrorDuplicate" xml:space="preserve">
+    <value>این نام کاربری قبلاً ثبت شده است.</value>
+  </data>
+  <data name="UserErrorPasswordInvalid" xml:space="preserve">
+    <value>رمز عبور باید بین ۱۲ تا ۱۲۸ نویسه و بدون نویسهٔ کنترلی باشد.</value>
+  </data>
+  <data name="UserErrorSelfDeactivation" xml:space="preserve">
+    <value>امکان غیرفعال‌کردن حساب، عضویت یا نقش مدیرِ خودتان وجود ندارد.</value>
+  </data>
+  <data name="UserErrorLastOrgAdmin" xml:space="preserve">
+    <value>یک سازمان فعال باید دست‌کم یک مدیر سازمانِ فعال داشته باشد.</value>
+  </data>
+  <data name="UserErrorLastPlatformAdmin" xml:space="preserve">
+    <value>دست‌کم یک مدیر تأمین پلتفرم باید فعال بماند.</value>
+  </data>
+  <data name="UserErrorOrgMembershipRequired" xml:space="preserve">
+    <value>ابتدا عضویت سازمانی کاربر را فعال کنید.</value>
+  </data>
+  <data name="UserErrorSiteMembershipRequired" xml:space="preserve">
+    <value>پیش از اعطای نقش اپراتور سایت، عضویت سایت را فعال کنید.</value>
+  </data>
+  <data name="UserErrorParentSiteInactive" xml:space="preserve">
+    <value>سایت انتخاب‌شده غیرفعال است؛ بنابراین این تغییر مجاز نیست.</value>
+  </data>
+  <data name="UserErrorRoleScopeInvalid" xml:space="preserve">
+    <value>نقش انتخاب‌شده با این محدوده سازگار نیست.</value>
+  </data>
+  <data name="UserEmptySites" xml:space="preserve">
+    <value>هیچ عضویت سایتی ثبت نشده است.</value>
+  </data>
+  <data name="ChangePasswordLink" xml:space="preserve">
+    <value>تغییر رمز عبور</value>
+  </data>
+  <data name="ChangePasswordTitle" xml:space="preserve">
+    <value>تغییر رمز عبور</value>
+  </data>
+  <data name="CurrentPasswordLabel" xml:space="preserve">
+    <value>رمز عبور فعلی</value>
+  </data>
+  <data name="NewPasswordLabel" xml:space="preserve">
+    <value>رمز عبور جدید</value>
+  </data>
+  <data name="ConfirmPasswordLabel" xml:space="preserve">
+    <value>تکرار رمز عبور جدید</value>
+  </data>
+  <data name="ChangePasswordSubmit" xml:space="preserve">
+    <value>ثبت رمز جدید</value>
+  </data>
+  <data name="ChangePasswordMismatch" xml:space="preserve">
+    <value>رمز عبور جدید و تکرار آن یکسان نیستند.</value>
+  </data>
+  <data name="UserResetPasswordTitle" xml:space="preserve">
+    <value>تغییر رمز عبور کاربر</value>
+  </data>
+  <data name="UserNewPasswordLabel" xml:space="preserve">
+    <value>رمز عبور موقت جدید</value>
+  </data>
+  <data name="UserResetPasswordButton" xml:space="preserve">
+    <value>بازنشانی رمز عبور</value>
+  </data>
+  <data name="UserConfirmResetPassword" xml:space="preserve">
+    <value>رمز عبور «{0}» تغییر داده شود و تمام نشست‌های فعال آن بسته شوند؟</value>
+  </data>
+  <data name="Roles" xml:space="preserve">
+    <value>نقش‌ها</value>
+  </data>
+  <data name="RolesCaption" xml:space="preserve">
+    <value>نقش‌ها و مجوزهای سازمان</value>
+  </data>
+  <data name="RoleCreateButton" xml:space="preserve">
+    <value>ایجاد نقش</value>
+  </data>
+  <data name="RoleCreateTitle" xml:space="preserve">
+    <value>ایجاد نقش جدید</value>
+  </data>
+  <data name="RoleCreateSubmit" xml:space="preserve">
+    <value>ثبت نقش</value>
+  </data>
+  <data name="RoleEditTitle" xml:space="preserve">
+    <value>ویرایش نقش</value>
+  </data>
+  <data name="RoleDetailTitle" xml:space="preserve">
+    <value>جزئیات نقش</value>
+  </data>
+  <data name="RoleNameLabel" xml:space="preserve">
+    <value>نام نقش</value>
+  </data>
+  <data name="RoleNameHint" xml:space="preserve">
+    <value>بین ۲ تا ۱۲۸ نویسه.</value>
+  </data>
+  <data name="RoleTypeColumn" xml:space="preserve">
+    <value>نوع</value>
+  </data>
+  <data name="RoleSystemBadge" xml:space="preserve">
+    <value>سیستمی</value>
+  </data>
+  <data name="RoleCustomBadge" xml:space="preserve">
+    <value>سفارشی</value>
+  </data>
+  <data name="RolePermissionsColumn" xml:space="preserve">
+    <value>عملیات‌ها</value>
+  </data>
+  <data name="RoleSystemNotice" xml:space="preserve">
+    <value>نقش‌های پیش‌فرض سیستمی قابل ویرایش یا غیرفعال‌سازی نیستند.</value>
+  </data>
+  <data name="RoleConfirmDisable" xml:space="preserve">
+    <value>نقش «{0}» غیرفعال شود؟ دسترسی نشست‌های فعال دارای این نقش فوراً لغو می‌شود.</value>
+  </data>
+  <data name="RoleConfirmEnable" xml:space="preserve">
+    <value>نقش «{0}» فعال شود؟</value>
+  </data>
+  <data name="RoleBuiltInOrgAdmin" xml:space="preserve">
+    <value>مدیر سازمان</value>
+  </data>
+  <data name="RoleBuiltInSiteOperator" xml:space="preserve">
+    <value>اپراتور سایت</value>
+  </data>
+  <data name="RoleBuiltInProvisioner" xml:space="preserve">
+    <value>مدیر پلتفرم</value>
+  </data>
+  <data name="PermPageOrganizations" xml:space="preserve">
+    <value>صفحه سازمان‌ها</value>
+  </data>
+  <data name="PermPageSites" xml:space="preserve">
+    <value>صفحه سایت‌ها</value>
+  </data>
+  <data name="PermPageUsers" xml:space="preserve">
+    <value>صفحه کاربران</value>
+  </data>
+  <data name="PermPageRoles" xml:space="preserve">
+    <value>صفحه نقش‌ها و دسترسی‌ها</value>
+  </data>
+  <data name="PermOpRead" xml:space="preserve">
+    <value>نمایش</value>
+  </data>
+  <data name="PermOpCreate" xml:space="preserve">
+    <value>ایجاد</value>
+  </data>
+  <data name="PermOpUpdate" xml:space="preserve">
+    <value>ویرایش</value>
+  </data>
+  <data name="PermOpSetActive" xml:space="preserve">
+    <value>فعال / غیرفعال‌سازی</value>
+  </data>
+  <data name="PermOpUnlock" xml:space="preserve">
+    <value>رفع قفل حساب</value>
+  </data>
+  <data name="PermOpResetPassword" xml:space="preserve">
+    <value>بازنشانی رمز عبور</value>
+  </data>
+  <data name="PermOpManageMemberships" xml:space="preserve">
+    <value>مدیریت عضویت‌ها</value>
+  </data>
+  <data name="PermOpAssignFixedRoles" xml:space="preserve">
+    <value>تخصیص نقش</value>
+  </data>
+  <data name="PermOpManageRoles" xml:space="preserve">
+    <value>ایجاد و ویرایش نقش</value>
+  </data>
+  <data name="PermOpAssignPermissions" xml:space="preserve">
+    <value>تخصیص عملیات صفحات</value>
+  </data>
+  <data name="PermSelectAllPage" xml:space="preserve">
+    <value>همه عملیات‌های صفحه</value>
+  </data>
+  <data name="UserPermissionsButton" xml:space="preserve">
+    <value>دسترسی‌ها</value>
+  </data>
+  <data name="UserPermissionsTitle" xml:space="preserve">
+    <value>نقش‌ها و دسترسی‌های عملیات — {0}</value>
+  </data>
+  <data name="UserRolesSectionTitle" xml:space="preserve">
+    <value>نقش‌های تخصیص‌یافته</value>
+  </data>
+  <data name="UserAssignRoleLabel" xml:space="preserve">
+    <value>انتخاب نقش</value>
+  </data>
+  <data name="UserAssignRoleButton" xml:space="preserve">
+    <value>افزودن نقش</value>
+  </data>
+  <data name="UserDirectOpsSectionTitle" xml:space="preserve">
+    <value>دسترسی عملیات صفحات</value>
+  </data>
+  <data name="UserPermScopeLabel" xml:space="preserve">
+    <value>محدوده اعمال دسترسی</value>
+  </data>
+  <data name="UserPermScopeOrg" xml:space="preserve">
+    <value>کل سازمان (همه صفحات)</value>
+  </data>
+  <data name="UserPermScopeSite" xml:space="preserve">
+    <value>سایت: {0} — {1}</value>
+  </data>
+  <data name="UserPermSaveButton" xml:space="preserve">
+    <value>ذخیره دسترسی‌های عملیات</value>
+  </data>
+  <data name="RoleGrantedBadge" xml:space="preserve">
+    <value>از طریق نقش</value>
+  </data>
+  <data name="UserAdminFullAccessNotice" xml:space="preserve">
+    <value>کاربر مدیر سازمان به تمام صفحات و عملیات‌ها دسترسی کامل دارد.</value>
+  </data>
+  <data name="RoleErrorInvalidName" xml:space="preserve">
+    <value>نام نقش معتبر وارد کنید (۲ تا ۱۲۸ نویسه و غیر از کدهای رزروشده سیستمی).</value>
+  </data>
+  <data name="RoleErrorDuplicateName" xml:space="preserve">
+    <value>نقشی با این نام در این سازمان وجود دارد.</value>
+  </data>
+  <data name="RoleErrorSystemImmutable" xml:space="preserve">
+    <value>نقش‌های پیش‌فرض سیستمی قابل تغییر نیستند.</value>
+  </data>
+  <data name="RoleErrorPermissionUnknown" xml:space="preserve">
+    <value>یک یا چند عملیات انتخاب‌شده معتبر نیستند.</value>
+  </data>
+  <data name="RoleErrorPermissionScopeInvalid" xml:space="preserve">
+    <value>عملیات انتخاب‌شده با این محدوده سازگار نیست.</value>
+  </data>
+  <data name="PermPageAudit" xml:space="preserve">
+    <value>رویدادهای ممیزی و امنیتی</value>
+  </data>
+  <data name="Audit" xml:space="preserve">
+    <value>ممیزی و رویدادها</value>
+  </data>
+  <data name="AuditCaption" xml:space="preserve">
+    <value>سوابق رویدادهای ممیزی و امنیتی</value>
+  </data>
+  <data name="AuditCategoryLabel" xml:space="preserve">
+    <value>دسته‌بندی</value>
+  </data>
+  <data name="AuditCategoryAll" xml:space="preserve">
+    <value>همه رویدادها</value>
+  </data>
+  <data name="AuditCategoryBusiness" xml:space="preserve">
+    <value>تغییرات کسب‌وکار</value>
+  </data>
+  <data name="AuditCategorySecurity" xml:space="preserve">
+    <value>رویدادهای امنیتی</value>
+  </data>
+  <data name="AuditEventCodeLabel" xml:space="preserve">
+    <value>کد رویداد</value>
+  </data>
+  <data name="AuditEventCodeAll" xml:space="preserve">
+    <value>همه کدهای رویداد</value>
+  </data>
+  <data name="AuditTimeColumn" xml:space="preserve">
+    <value>زمان</value>
+  </data>
+  <data name="AuditEventColumn" xml:space="preserve">
+    <value>رویداد</value>
+  </data>
+  <data name="AuditActorColumn" xml:space="preserve">
+    <value>انجام‌دهنده</value>
+  </data>
+  <data name="AuditSubjectColumn" xml:space="preserve">
+    <value>موضوع</value>
+  </data>
+  <data name="AuditOutcomeColumn" xml:space="preserve">
+    <value>نتیجه</value>
+  </data>
+  <data name="AuditOutcomeSuccess" xml:space="preserve">
+    <value>موفق</value>
+  </data>
+  <data name="AuditOutcomeFailure" xml:space="preserve">
+    <value>ناموفق / ردشده</value>
+  </data>
+  <data name="AuditOutcomeRecorded" xml:space="preserve">
+    <value>ثبت‌شده</value>
+  </data>
+  <data name="AuditDetailsButton" xml:space="preserve">
+    <value>جزئیات</value>
+  </data>
+  <data name="AuditDetailsTitle" xml:space="preserve">
+    <value>جزئیات رویداد</value>
+  </data>
+  <data name="AuditCorrelationLabel" xml:space="preserve">
+    <value>شناسه همبستگی</value>
+  </data>
+  <data name="AuditFieldsSection" xml:space="preserve">
+    <value>فیلدهای ساخت‌یافته</value>
+  </data>
+  <data name="AuditRawJsonSection" xml:space="preserve">
+    <value>محتوای خام JSON</value>
+  </data>
+  <data name="AuditFieldKeyColumn" xml:space="preserve">
+    <value>فیلد</value>
+  </data>
+  <data name="AuditFieldValueColumn" xml:space="preserve">
+    <value>مقدار</value>
+  </data>
+  <data name="AuditSystemActor" xml:space="preserve">
+    <value>سیستم / ناشناس</value>
+  </data>
 </root>

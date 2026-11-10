@@ -69,6 +69,7 @@ function setBusy(form, busy) {
 function bind() {
     const login = document.querySelector('[data-auth-login]');
     const logout = document.querySelector('[data-auth-logout]');
+    const changePassword = document.querySelector('[data-auth-change-password]');
     const notice = document.querySelector('#auth-ui-notice');
     if (notice) {
         const message = sessionStorage.getItem('auth-ui-notice');
@@ -138,6 +139,57 @@ function bind() {
                     sessionStorage.setItem('auth-ui-notice', message);
                     location.assign('/');
                 }
+            } else if (form.matches('[data-auth-change-password]')) {
+                event.preventDefault();
+                const currentPwd = form.elements.namedItem('currentPassword');
+                const newPwd = form.elements.namedItem('newPassword');
+                const confirmPwd = form.elements.namedItem('confirmPassword');
+                const error = document.querySelector('#change-pwd-error');
+                const errorText = error?.querySelector('[data-auth-error-message]');
+                const success = document.querySelector('#change-pwd-success');
+                const fail = message => {
+                    if (success) success.hidden = true;
+                    if (errorText) errorText.textContent = message;
+                    if (error) error.hidden = false;
+                    setBusy(form, false);
+                };
+                if (!currentPwd?.value || !newPwd?.value || !confirmPwd?.value) {
+                    fail(form.dataset.requiredMessage || form.dataset.unavailableMessage || '');
+                    return;
+                }
+                if (newPwd.value !== confirmPwd.value) {
+                    fail(form.dataset.mismatchMessage || form.dataset.unavailableMessage || '');
+                    return;
+                }
+                if (error) error.hidden = true;
+                if (success) success.hidden = true;
+                setBusy(form, true);
+                try {
+                    await getRequestToken();
+                    const response = await fetch(form.action, {
+                        method: 'POST', body: new FormData(form), credentials: 'same-origin', cache: 'no-store'
+                    });
+                    if (response.status === 401) {
+                        location.assign('/account/login');
+                        return;
+                    }
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (currentPwd) currentPwd.value = '';
+                        if (newPwd) newPwd.value = '';
+                        if (confirmPwd) confirmPwd.value = '';
+                        if (success && typeof data.message === 'string' && data.message) {
+                            success.textContent = data.message;
+                            success.hidden = false;
+                        }
+                        await getRequestToken();
+                        setBusy(form, false);
+                        return;
+                    }
+                    fail(await responseMessage(response, form.dataset.unavailableMessage || ''));
+                } catch {
+                    fail(form.dataset.unavailableMessage || '');
+                }
             }
         }, true);
 
@@ -198,7 +250,7 @@ function bind() {
         }, true);
     }
 
-    const activeForm = login || logout;
+    const activeForm = login || logout || changePassword;
     if (activeForm && !activeForm.dataset.antiforgeryReady) {
         getRequestToken().then(() => activeForm.dataset.antiforgeryReady = 'true').catch(() => {
             const fallback = login?.dataset.unavailableMessage || document.documentElement.dataset.authLogoutUnavailable || '';

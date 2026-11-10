@@ -50,7 +50,7 @@ public sealed class AuthBootstrapTests
     public void Model_contains_only_approved_auth_tables_and_excludes_existing_business_tables()
     {
         using var db = Offline(); var model = db.GetService<IDesignTimeModel>().Model;
-        Assert.Equal(10, model.GetEntityTypes().Count(e => e.GetSchema() == "auth"));
+        Assert.Equal(13, model.GetEntityTypes().Count(e => e.GetSchema() == "auth"));
         Assert.True(model.FindEntityType(typeof(Organization))!.IsTableExcludedFromMigrations());
         Assert.True(model.FindEntityType(typeof(Site))!.IsTableExcludedFromMigrations());
         Assert.All(model.GetEntityTypes().SelectMany(e => e.GetForeignKeys()), fk => Assert.Equal(DeleteBehavior.NoAction, fk.DeleteBehavior));
@@ -78,16 +78,22 @@ public sealed class AuthBootstrapTests
         using var db = Offline();
         Assert.False(db.Database.HasPendingModelChanges());
         var migrations = db.GetService<IMigrationsAssembly>();
-        var migration = migrations.CreateMigration(Assert.Single(migrations.Migrations).Value, db.Database.ProviderName!);
-        Assert.Equal(10, migration.UpOperations.OfType<CreateTableOperation>().Count());
-        Assert.All(migration.UpOperations.OfType<CreateTableOperation>(), table => Assert.Equal("auth", table.Schema));
-        Assert.DoesNotContain(migration.UpOperations, o => o is DropTableOperation or AlterColumnOperation or DropColumnOperation);
+        Assert.Equal(2, migrations.Migrations.Count);
+        var baseline = migrations.CreateMigration(migrations.Migrations.ElementAt(0).Value, db.Database.ProviderName!);
+        Assert.Equal(10, baseline.UpOperations.OfType<CreateTableOperation>().Count());
+        Assert.All(baseline.UpOperations.OfType<CreateTableOperation>(), table => Assert.Equal("auth", table.Schema));
+        Assert.DoesNotContain(baseline.UpOperations, o => o is DropTableOperation or AlterColumnOperation or DropColumnOperation);
+        var slice03 = migrations.CreateMigration(migrations.Migrations.ElementAt(1).Value, db.Database.ProviderName!);
+        Assert.Equal(3, slice03.UpOperations.OfType<CreateTableOperation>().Count());
+        Assert.All(slice03.UpOperations.OfType<CreateTableOperation>(), table => Assert.Equal("auth", table.Schema));
+        Assert.DoesNotContain(slice03.UpOperations, o => o is DropTableOperation or DropColumnOperation);
         var script = db.GetService<IMigrator>().GenerateScript();
         Assert.DoesNotContain("CREATE TABLE [organization]", script);
         Assert.DoesNotContain("ALTER TABLE [organization]", script);
         Assert.DoesNotContain("INSERT INTO [auth].[User]", script);
         Assert.Contains("DENY INSERT, UPDATE, DELETE ON OBJECT::[auth].[BootstrapState]", script);
         Assert.Contains("DENY UPDATE, DELETE ON OBJECT::[auth].[SecurityEvent]", script);
+        Assert.Contains("DENY INSERT, UPDATE, DELETE ON OBJECT::[auth].[RoleDefinition]", script);
         Assert.Contains("Auth.NonEmptyRollbackDenied", db.GetService<IMigrator>().GenerateScript("IdentityBootstrapBaseline", "0"));
     }
 

@@ -261,7 +261,7 @@ protected override async Task OnParametersSetAsync()
  error = null; pageNotice = null; scopeCanRename = false; scopeCanSetActive = false; canCreate = false;
  scopeLabels = new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
  try {
- var scopes = await Scopes.Load();
+ var scopes = IsSites ? await Scopes.Load() : await Scopes.LoadOrganizationScopesAsync();
  if (!Current(request)) return;
  available = scopes.Where(s => (IsSites || s is OrganizationScope.Organization) && (OrganizationId == 0 || Org(s) == OrganizationId)).ToList();
  scopeIndex = 0;

@@ -1,0 +1,1579 @@
+@page "/users"
+@page "/organizations/{OrganizationId:long}/users"
+@page "/organizations/{OrganizationId:long}/users/{UserId:long}"
+@page "/users/{UserId:long}"
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Roles
+@using ForgeFlow.Application.Users
+@using ForgeFlow.Domain.Organizations
+@using ForgeFlow.Domain.Roles
+@using ForgeFlow.Domain.Users
+@using ForgeFlow.Web.Drafts
+@using ForgeFlow.Web.Roles
+@implements IDisposable
+@inject UserUseCases UsersService
+@inject RoleUseCases RolesService
+@inject OrganizationUseCases OrganizationQueries
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject IStringLocalizer<SharedResources> Text
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject DraftCoordinator Drafts
+
+<PageTitle>@Text["Users"]</PageTitle>
+<section class="organization-reader">
+<div class="read-page-head">
+    <h1 id="users-title">@Text["Users"]</h1>
+    @if (!initialLoading && error is null && available.Count > 0)
+    {
+        <div class="read-head-actions">
+            @if (scopeCanCreate)
+            {
+                <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreate">
+                    @Text["CreateUserButton"]
+                </BitButton>
+            }
+            @if (canPlatformAttach)
+            {
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-create-btn" OnClick="OpenAttach">
+                    @Text["AttachUserButton"]
+                </BitButton>
+            }
+        </div>
+    }
+</div>
+
+@if (pageNotice is not null)
+{
+    <p role="status" class="write-saved read-page-notice">@pageNotice</p>
+}
+@if (initialLoading)
+{
+    <p role="status">@Text["ReadLoading"]</p>
+}
+else if (error is not null)
+{
+    <p role="alert">@Text[error]</p>
+    @if (OrganizationId > 0 || UserId > 0)
+    {
+        <p><a href="/users">@Text["Users"]</a></p>
+    }
+}
+else if (available.Count == 0)
+{
+    <p role="status" class="read-empty">@Text["ReadDenied"]</p>
+}
+else
+{
+    <div class="read-toolbar-card">
+        <div class="read-field">
+            <label for="users-scope">@Text["ReadScope"]</label>
+            <select id="users-scope" value="@scopeIndex" @onchange="ChangeScope">
+                @for (var i = 0; i < available.Count; i++)
+                {
+                    <option value="@i">@ScopeLabel(available[i])</option>
+                }
+            </select>
+        </div>
+        <div class="read-field">
+            <label for="users-search">@Text["ReadSearch"]</label>
+            <input id="users-search" @bind="search" @bind:after="Search" maxlength="100" placeholder="@Text["UserSearchPlaceholder"]" />
+        </div>
+        <label class="read-inactive">
+            <input type="checkbox" @bind="inactive" @bind:after="Search" /> @Text["ReadInactive"]
+        </label>
+    </div>
+
+    <div class="read-grid-card">
+        <div class="read-grid">
+            <BitDataGrid @ref="grid" TItem="UserSummary" OnRead="ReadGridAsync" Pageable="true" PageSize="25" PageSizeOptions="@PageSizeOptions"
+                         Strings="@GridStrings" SelectionMode="BitSelectionMode.Single" AriaLabelledBy="users-title" WrapCellText="true">
+                <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                <Columns>
+                    <BitDataGridColumn TItem="UserSummary" Field="UserName" Title="@Text["UserUsername"]" />
+                    <BitDataGridColumn TItem="UserSummary" Title="@Text["UserAccountStatus"]">
+                        <Template Context="row">
+                            <span class="read-badge @(row.AccountIsActive ? "active" : "inactive")">@Text[row.AccountIsActive ? "ReadActive" : "UserAccountDisabled"]</span>
+                            @if (row.IsLockedOut)
+                            {
+                                <span class="read-badge locked">@Text["UserLockedBadge"]</span>
+                            }
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="UserSummary" Title="@Text["UserMembershipStatus"]">
+                        <Template Context="row">
+                            <span class="read-badge @(row.MembershipIsActive ? "active" : "inactive")">@Text[row.MembershipIsActive ? "UserMembershipActive" : "UserMembershipInactive"]</span>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="UserSummary" Title="@Text["UserRoleColumn"]">
+                        <Template Context="row">
+                            <span class="read-badge @(row.IsOrganizationAdmin ? "role" : "inactive")">@Text[row.IsOrganizationAdmin ? "UserOrgAdminRole" : "UserStandardRole"]</span>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="UserSummary" Title="@Text["UserSitesColumn"]">
+                        <Template Context="row">@Text["UserSitesCount", row.ActiveSiteMembershipCount]</Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="UserSummary" Title="@Text["ReadActions"]">
+                        <Template Context="row">
+                            <div class="read-row-actions">
+                                <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action" IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]" OnClick="() => Detail(row.UserId)" />
+                                </BitTooltip>
+                                @if (ScopeCanEdit)
+                                {
+                                    <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action" Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]" OnClick="() => Edit(row.UserId)" />
+                                    </BitTooltip>
+                                }
+                                @if (ScopeCanManagePermissions)
+                                {
+                                    <BitTooltip Text="@Text["UserPermissionsButton"]" ShowOnFocus="true">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action" Icon="@RoleIcon" IconOnly="true" aria-label="@Text["UserPermissionsButton"]" OnClick="() => OpenPermissionsDialog(row.UserId)" />
+                                    </BitTooltip>
+                                }
+                            </div>
+                        </Template>
+                    </BitDataGridColumn>
+                </Columns>
+            </BitDataGrid>
+        </div>
+    </div>
+}
+</section>
+
+<BitDialog Width="440px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailOpen"
+           Title="@Text[editMode ? "ReadEdit" : "ReadDetails"]" AriaLabel="@Text[editMode ? "ReadEdit" : "ReadDetails"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+@if (selected is not null)
+{
+    @if (!editMode)
+    {
+        <dl class="read-detail">
+            <dt>@Text["UserUsername"]</dt>
+            <dd dir="ltr">@selected.UserName</dd>
+            <dt>@Text["UserAccountStatus"]</dt>
+            <dd>
+                <span class="read-badge @(selected.AccountIsActive ? "active" : "inactive")">@Text[selected.AccountIsActive ? "ReadActive" : "UserAccountDisabled"]</span>
+                @if (selected.IsLockedOut)
+                {
+                    <span class="read-badge locked">@Text["UserLockedBadge"]</span>
+                }
+            </dd>
+            <dt>@Text["UserMembershipStatus"]</dt>
+            <dd><span class="read-badge @(selected.MembershipIsActive ? "active" : "inactive")">@Text[selected.MembershipIsActive ? "UserMembershipActive" : "UserMembershipInactive"]</span></dd>
+            <dt>@Text["UserRoleColumn"]</dt>
+            <dd><span class="read-badge @(selected.IsOrganizationAdmin ? "role" : "inactive")">@Text[selected.IsOrganizationAdmin ? "UserOrgAdminRole" : "UserStandardRole"]</span></dd>
+            <dt>@Text["UserSitesColumn"]</dt>
+            <dd>
+                @if (selected.Sites.Count == 0)
+                {
+                    @Text["UserEmptySites"]
+                }
+                else
+                {
+                    <div class="user-site-list">
+                        @foreach (var s in selected.Sites)
+                        {
+                            <div class="user-site-info">
+                                <span dir="ltr">@s.SiteCode</span>
+                                <span>— @s.SiteName</span>
+                                <span class="read-badge @(s.MembershipIsActive ? "active" : "inactive")">@Text[s.MembershipIsActive ? "ReadActive" : "ReadInactiveStatus"]</span>
+                                @if (s.IsSiteOperator)
+                                {
+                                    <span class="read-badge role">@Text["UserSiteOperatorRole"]</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </dd>
+        </dl>
+    }
+    else
+    {
+        <div class="write-panel">
+            <div class="write-meta">
+                <span class="write-code" dir="ltr">@selected.UserName</span>
+                <div class="user-site-info">
+                    <span class="read-badge @(selected.AccountIsActive ? "active" : "inactive")">@Text[selected.AccountIsActive ? "ReadActive" : "UserAccountDisabled"]</span>
+                    @if (selected.IsLockedOut)
+                    {
+                        <span class="read-badge locked">@Text["UserLockedBadge"]</span>
+                    }
+                </div>
+            </div>
+
+            @if ((scopeCanUnlock && selected.IsLockedOut) || scopeCanSetAccountActive || canPlatformSetActive)
+            {
+                <div class="write-section">
+                    <p class="write-section-title">@Text["UserAccountStatus"]</p>
+                    @if (!selected.BelongsToSingleOrganization && !canPlatformSetActive)
+                    {
+                        <p class="write-hint">@Text["UserMultiOrgAccountHint"]</p>
+                    }
+                    <div class="write-actions">
+                        @if (scopeCanUnlock && selected.IsLockedOut)
+                        {
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)" OnClick="SubmitUnlock">@Text["UserUnlockButton"]</BitButton>
+                        }
+                        @if ((selected.BelongsToSingleOrganization && scopeCanSetAccountActive) || canPlatformSetActive)
+                        {
+                            @if (selected.AccountIsActive)
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving && selected.UserId != currentActorId)"
+                                           OnClick="@(() => AskConfirm(ConfirmActionKind.DisableAccount))">@Text["UserDeactivateAccount"]</BitButton>
+                            }
+                            else
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                                           OnClick="@(() => AskConfirm(ConfirmActionKind.EnableAccount))">@Text["UserActivateAccount"]</BitButton>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+
+            @if ((selected.BelongsToSingleOrganization && scopeCanResetPassword) || canPlatformResetPassword)
+            {
+                <div class="write-section">
+                    <p class="write-section-title">@Text["UserResetPasswordTitle"]</p>
+                    <BitTextField @bind-Value="resetPasswordValue" Immediate="true" Type="BitInputType.Password"
+                                  Label="@Text["UserNewPasswordLabel"]" Classes="@WriteFieldClasses"
+                                  CanRevealPassword="true" RevealPasswordAriaLabel="@Text["PasswordVisibilityToggle"]"
+                                  IsEnabled="@(!saving)" InputHtmlAttributes="@ResetPasswordAttributes" />
+                    <span id="reset-password-hint" class="write-hint">@Text["UserPasswordHint"]</span>
+                    <div class="write-actions">
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                                   IsEnabled="@(!saving && !string.IsNullOrEmpty(resetPasswordValue))"
+                                   OnClick="@(() => AskConfirm(ConfirmActionKind.ResetPassword))">@Text["UserResetPasswordButton"]</BitButton>
+                    </div>
+                </div>
+            }
+
+            @if (scopeCanManageMemberships || scopeCanAssignRoles)
+            {
+                <div class="write-section">
+                    <p class="write-section-title">@Text["UserMembershipStatus"]</p>
+                    <div class="write-actions">
+                        @if (scopeCanManageMemberships)
+                        {
+                            @if (selected.MembershipIsActive)
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving && selected.UserId != currentActorId)"
+                                           OnClick="@(() => AskConfirm(ConfirmActionKind.DisableOrgMembership))">@Text["UserDeactivateMembership"]</BitButton>
+                            }
+                            else
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                                           OnClick="@(() => AskConfirm(ConfirmActionKind.EnableOrgMembership))">@Text["UserActivateMembership"]</BitButton>
+                            }
+                        }
+                        @if (scopeCanAssignRoles)
+                        {
+                            @if (selected.IsOrganizationAdmin)
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving && selected.UserId != currentActorId)"
+                                           OnClick="@(() => AskConfirm(ConfirmActionKind.RevokeOrgAdmin))">@Text["UserRevokeOrgAdmin"]</BitButton>
+                            }
+                            else
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving && selected.MembershipIsActive)"
+                                           OnClick="GrantOrRestoreOrgAdmin">@Text["UserGrantOrgAdmin"]</BitButton>
+                            }
+                        }
+                        @if (ScopeCanManagePermissions)
+                        {
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                                       OnClick="() => OpenPermissionsDialog(selected.UserId)">@Text["UserPermissionsButton"]</BitButton>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (confirmAction is not null)
+            {
+                <div class="write-confirm" role="alertdialog" aria-labelledby="user-confirm-text">
+                    <p id="user-confirm-text">@ConfirmMessage()</p>
+                    <div class="write-actions">
+                        <BitButton Size="BitSize.Small" IsEnabled="@(!saving)" OnClick="ExecuteConfirm">@Text["WriteConfirm"]</BitButton>
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)" OnClick="CancelConfirm">@Text["WriteCancel"]</BitButton>
+                    </div>
+                </div>
+            }
+
+            <div class="write-section">
+                <p class="write-section-title">@Text["UserSitesColumn"]</p>
+                @if (selected.Sites.Count == 0)
+                {
+                    <p class="write-hint">@Text["UserEmptySites"]</p>
+                }
+                else
+                {
+                    <div class="user-site-list">
+                        @foreach (var s in selected.Sites)
+                        {
+                            <div class="user-site-row">
+                                <div class="user-site-info">
+                                    <span dir="ltr">@s.SiteCode</span>
+                                    <span>— @s.SiteName</span>
+                                    <span class="read-badge @(s.MembershipIsActive ? "active" : "inactive")">@Text[s.MembershipIsActive ? "ReadActive" : "ReadInactiveStatus"]</span>
+                                    @if (s.IsSiteOperator)
+                                    {
+                                        <span class="read-badge role">@Text["UserSiteOperatorRole"]</span>
+                                    }
+                                </div>
+                                <div class="write-actions">
+                                    @if (scopeCanManageMemberships)
+                                    {
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                                                   OnClick="() => ToggleSiteMembership(s)">
+                                            @Text[s.MembershipIsActive ? "WriteDeactivate" : "WriteActivate"]
+                                        </BitButton>
+                                    }
+                                    @if (scopeCanAssignRoles)
+                                    {
+                                        @if (s.IsSiteOperator)
+                                        {
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                                                       OnClick="() => ToggleSiteOperator(s, false)">@Text["UserRevokeSiteOperator"]</BitButton>
+                                        }
+                                        else
+                                        {
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving && s.MembershipIsActive && s.SiteIsActive)"
+                                                       OnClick="() => ToggleSiteOperator(s, true)">@Text["UserGrantSiteOperator"]</BitButton>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (scopeCanManageMemberships && UnassignedSites.Count > 0)
+                {
+                    <div class="user-site-add">
+                        <label class="visually-hidden" for="user-add-site">@Text["UserAddSiteLabel"]</label>
+                        <select id="user-add-site" @bind="addSiteId" disabled="@saving">
+                            @foreach (var site in UnassignedSites)
+                            {
+                                <option value="@site.Id">@($"{site.Code} — {site.Name}")</option>
+                            }
+                        </select>
+                        <BitButton Size="BitSize.Small" IsEnabled="@(!saving && addSiteId > 0)" OnClick="SubmitAddSite">@Text["UserAddSiteButton"]</BitButton>
+                    </div>
+                    @if (scopeCanAssignRoles)
+                    {
+                        <label class="write-check">
+                            <input type="checkbox" @bind="addSiteOperator" disabled="@saving" />
+                            <span>@Text["UserGrantSiteOperator"]</span>
+                        </label>
+                    }
+                }
+            </div>
+
+            @if (saving) { <p role="status">@Text["WriteSaving"]</p> }
+            @if (saved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+            @if (writeError is not null)
+            {
+                <p role="alert" class="write-error">@Text[writeError]</p>
+                @if (writeError is "WriteConflict" or "WriteOutcomeUnknown")
+                {
+                    <div class="write-actions">
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadSelected">@Text["WriteReload"]</BitButton>
+                    </div>
+                }
+            }
+        </div>
+    }
+}
+</Body>
+</BitDialog>
+
+<BitDialog Width="420px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createOpen"
+           OnDismissing="OnCreateDismissing"
+           Title="@Text["CreateUserTitle"]" AriaLabel="@Text["CreateUserTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+<form id="user-create-form" class="write-panel" @onsubmit:preventDefault>
+    <div class="read-field">
+        <label for="create-user-name">@Text["UserUsername"]</label>
+        <input id="create-user-name" dir="ltr" @bind="createUserName" @bind:event="oninput" maxlength="128" disabled="@creating" aria-describedby="create-username-hint" />
+        <span id="create-username-hint" class="write-hint">@Text["UserNameHint"]</span>
+    </div>
+    <BitTextField @bind-Value="createPassword" Immediate="true" Type="BitInputType.Password"
+                  Label="@Text["UserPasswordLabel"]" Classes="@WriteFieldClasses"
+                  CanRevealPassword="true" RevealPasswordAriaLabel="@Text["PasswordVisibilityToggle"]"
+                  IsEnabled="@(!creating)" InputHtmlAttributes="@CreatePasswordAttributes" />
+    <span id="create-password-hint" class="write-hint">@Text["UserPasswordHint"]</span>
+    @if (scopeCanAssignRoles)
+    {
+        <label class="write-check">
+            <input type="checkbox" @bind="createAssignAdmin" disabled="@creating" />
+            <span>@Text["UserAssignOrgAdmin"]</span>
+        </label>
+    }
+    @if (orgSites.Count > 0)
+    {
+        <div class="write-section">
+            <p class="write-section-title">@Text["UserAssignSitesLabel"]</p>
+            <div class="user-site-checks">
+                @foreach (var site in orgSites)
+                {
+                    var checkedSite = createSelectedSiteIds.Contains(site.Id);
+                    <label class="write-check">
+                        <input type="checkbox" checked="@checkedSite" disabled="@creating" @onchange="e => ToggleCreateSite(site.Id, e.Value is bool b && b)" />
+                        <span>@($"{site.Code} — {site.Name}")</span>
+                    </label>
+                }
+            </div>
+            @if (scopeCanAssignRoles && createSelectedSiteIds.Count > 0)
+            {
+                <label class="write-check">
+                    <input type="checkbox" @bind="createAssignSiteOperator" disabled="@creating" />
+                    <span>@Text["UserAssignSiteOperator"]</span>
+                </label>
+            }
+        </div>
+    }
+    <div class="write-actions">
+        <BitButton Size="BitSize.Small" IsEnabled="@(!creating && !string.IsNullOrWhiteSpace(createUserName) && !string.IsNullOrEmpty(createPassword))" OnClick="SubmitCreate">
+            @Text["CreateSubmit"]
+        </BitButton>
+    </div>
+    @if (creating) { <p role="status">@Text["WriteSaving"]</p> }
+    @if (createError is not null) { <p role="alert" class="write-error">@Text[createError]</p> }
+    @if (createDiscardConfirm)
+    {
+        <div class="write-confirm" role="alertdialog" aria-labelledby="user-create-discard-text">
+            <p id="user-create-discard-text">@Text["WriteDiscardConfirm"]</p>
+            <div class="write-actions">
+                <BitButton Size="BitSize.Small" OnClick="DiscardCreate">@Text["WriteDiscard"]</BitButton>
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CancelDiscardCreate">@Text["WriteKeepEditing"]</BitButton>
+            </div>
+        </div>
+    }
+</form>
+</Body>
+</BitDialog>
+
+<BitDialog Width="420px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="attachOpen"
+           Title="@Text["AttachUserTitle"]" AriaLabel="@Text["AttachUserTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+<form class="write-panel" @onsubmit:preventDefault>
+    <div class="read-field">
+        <label for="attach-user-name">@Text["UserUsername"]</label>
+        <input id="attach-user-name" dir="ltr" @bind="attachUserName" @bind:event="oninput" maxlength="128" disabled="@attaching" aria-describedby="attach-username-hint" />
+        <span id="attach-username-hint" class="write-hint">@Text["UserNameHint"]</span>
+    </div>
+    <label class="write-check">
+        <input type="checkbox" @bind="attachAssignAdmin" disabled="@attaching" />
+        <span>@Text["UserAssignOrgAdmin"]</span>
+    </label>
+    @if (orgSites.Count > 0)
+    {
+        <div class="write-section">
+            <p class="write-section-title">@Text["UserAssignSitesLabel"]</p>
+            <div class="user-site-checks">
+                @foreach (var site in orgSites)
+                {
+                    var checkedSite = attachSelectedSiteIds.Contains(site.Id);
+                    <label class="write-check">
+                        <input type="checkbox" checked="@checkedSite" disabled="@attaching" @onchange="e => ToggleAttachSite(site.Id, e.Value is bool b && b)" />
+                        <span>@($"{site.Code} — {site.Name}")</span>
+                    </label>
+                }
+            </div>
+            @if (attachSelectedSiteIds.Count > 0)
+            {
+                <label class="write-check">
+                    <input type="checkbox" @bind="attachAssignSiteOperator" disabled="@attaching" />
+                    <span>@Text["UserAssignSiteOperator"]</span>
+                </label>
+            }
+        </div>
+    }
+    <div class="write-actions">
+        <BitButton Size="BitSize.Small" IsEnabled="@(!attaching && !string.IsNullOrWhiteSpace(attachUserName))" OnClick="SubmitAttach">
+            @Text["AttachUserButton"]
+        </BitButton>
+    </div>
+    @if (attaching) { <p role="status">@Text["WriteSaving"]</p> }
+    @if (attachError is not null) { <p role="alert" class="write-error">@Text[attachError]</p> }
+</form>
+</Body>
+</BitDialog>
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="permOpen"
+           Title="@(permSnapshot is null ? Text["UserPermissionsButton"] : Text["UserPermissionsTitle", permSnapshot.UserName])"
+           AriaLabel="@(permSnapshot is null ? Text["UserPermissionsButton"] : Text["UserPermissionsTitle", permSnapshot.UserName])"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+@if (permSnapshot is not null)
+{
+    <div class="write-panel">
+        @if (IsTargetOrgAdmin)
+        {
+            <p role="status" class="write-saved">@Text["UserAdminFullAccessNotice"]</p>
+        }
+
+        <div class="write-section">
+            <div class="read-field">
+                <label for="user-perm-scope">@Text["UserPermScopeLabel"]</label>
+                <select id="user-perm-scope" value="@permSiteId" @onchange="ChangePermTargetScope" disabled="@permSaving">
+                    <option value="0">@Text["UserPermScopeOrg"]</option>
+                    @foreach (var s in permUserSites)
+                    {
+                        <option value="@s.SiteId">@Text["UserPermScopeSite", s.SiteCode, s.SiteName]</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <div class="write-section">
+            <p class="write-section-title">@Text["UserRolesSectionTitle"]</p>
+            @if (ScopedRoleAssignmentsForTarget.Count > 0)
+            {
+                <div class="user-site-list">
+                    @foreach (var ra in ScopedRoleAssignmentsForTarget)
+                    {
+                        <div class="user-site-row">
+                            <div class="user-site-info">
+                                <span>@RolePermissionLocalization.RoleDisplayName(ra.RoleName, ra.IsSystem, Text)</span>
+                                <span class="read-badge @(ra.IsSystem ? "system" : "role")">@Text[ra.IsSystem ? "RoleSystemBadge" : "RoleCustomBadge"]</span>
+                                <span class="read-badge @(ra.IsActive ? "active" : "inactive")">@Text[ra.IsActive ? "ReadActive" : "ReadInactiveStatus"]</span>
+                            </div>
+                            @if (scopeCanAssignRoles)
+                            {
+                                <div class="write-actions">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                                               IsEnabled="@(!permSaving && !(ra.RoleId == PermissionCatalog.OrganizationAdministratorRoleId && ra.IsActive && permSnapshot.UserId == currentActorId))"
+                                               OnClick="() => ToggleRoleAssignment(ra)">
+                                        @Text[ra.IsActive ? "WriteDeactivate" : "WriteActivate"]
+                                    </BitButton>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            @if (scopeCanAssignRoles && AssignableRolesForTarget.Count > 0)
+            {
+                <div class="user-site-add">
+                    <label class="visually-hidden" for="user-assign-role">@Text["UserAssignRoleLabel"]</label>
+                    <select id="user-assign-role" @bind="selectedRoleIdToAssign" disabled="@permSaving">
+                        @foreach (var r in AssignableRolesForTarget)
+                        {
+                            <option value="@r.Id">@RolePermissionLocalization.RoleDisplayName(r.Name, r.IsSystem, Text)</option>
+                        }
+                    </select>
+                    <BitButton Size="BitSize.Small" IsEnabled="@(!permSaving && selectedRoleIdToAssign > 0)" OnClick="SubmitAssignRole">
+                        @Text["UserAssignRoleButton"]
+                    </BitButton>
+                </div>
+            }
+        </div>
+
+        <div class="write-section">
+            <p class="write-section-title">@Text["UserDirectOpsSectionTitle"]</p>
+            @foreach (var module in TargetModules)
+            {
+                var moduleOps = TargetDescriptors.Where(x => x.Module == module).ToList();
+                var allSelected = moduleOps.All(x => roleGrantedPerms.Contains(x.Code) || directSelectedPerms.Contains(x.Code));
+                var allViaRole = moduleOps.All(x => roleGrantedPerms.Contains(x.Code));
+                <div class="perm-group">
+                    <div class="perm-group-header">
+                        <span>@Text[RolePermissionLocalization.PageTitleKey(module)]</span>
+                        @if (scopeCanAssignPermissions && !allViaRole)
+                        {
+                            <label class="perm-check">
+                                <input type="checkbox" checked="@allSelected" disabled="@permSaving"
+                                       @onchange="e => ToggleDirectModuleAll(module, e.Value is bool b && b)" />
+                                <span>@Text["PermSelectAllPage"]</span>
+                            </label>
+                        }
+                    </div>
+                    <div class="perm-grid">
+                        @foreach (var op in moduleOps)
+                        {
+                            var viaRole = roleGrantedPerms.Contains(op.Code);
+                            var isChecked = viaRole || directSelectedPerms.Contains(op.Code);
+                            <label class="perm-check">
+                                <input type="checkbox" checked="@isChecked"
+                                       disabled="@(permSaving || viaRole || !scopeCanAssignPermissions)"
+                                       @onchange="e => ToggleDirectOperation(op, e.Value is bool b && b)" />
+                                <span>@Text[RolePermissionLocalization.OperationLabelKey(op.Code)]</span>
+                                @if (viaRole)
+                                {
+                                    <span class="perm-chip">@Text["RoleGrantedBadge"]</span>
+                                }
+                            </label>
+                        }
+                    </div>
+                </div>
+            }
+            @if (scopeCanAssignPermissions)
+            {
+                <div class="write-actions">
+                    <BitButton Size="BitSize.Small" IsEnabled="@(!permSaving)" OnClick="SubmitDirectPermissions">
+                        @Text["UserPermSaveButton"]
+                    </BitButton>
+                </div>
+            }
+        </div>
+
+        @if (permSaving) { <p role="status">@Text["WriteSaving"]</p> }
+        @if (permSaved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+        @if (permError is not null)
+        {
+            <p role="alert" class="write-error">@Text[permError]</p>
+            @if (permError is "WriteConflict" or "WriteOutcomeUnknown")
+            {
+                <div class="write-actions">
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadPermissionsDialog">@Text["WriteReload"]</BitButton>
+                </div>
+            }
+        }
+    </div>
+}
+</Body>
+</BitDialog>
+
+@code {
+    [Parameter] public long OrganizationId { get; set; }
+    [Parameter] public long UserId { get; set; }
+
+    private enum ConfirmActionKind { DisableAccount, EnableAccount, DisableOrgMembership, EnableOrgMembership, RevokeOrgAdmin, ResetPassword }
+
+    private BitDataGrid<UserSummary>? grid;
+    private int revision;
+    private bool disposed;
+    private bool Current(int value) => !disposed && value == revision;
+
+    public void Dispose()
+    {
+        disposed = true;
+        revision++;
+        selected = null;
+        detailOpen = false;
+        createOpen = false;
+        attachOpen = false;
+        createPassword = string.Empty;
+        resetPasswordValue = string.Empty;
+    }
+
+    private IReadOnlyList<OrganizationScope> available = [];
+    private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels = new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+    private List<SiteDetails> orgSites = [];
+    private int scopeIndex;
+    private long currentActorId;
+    private bool initialLoading = true, inactive, detailOpen, editMode;
+    private bool scopeCanCreate, scopeCanSetAccountActive, scopeCanUnlock, scopeCanResetPassword, scopeCanManageMemberships, scopeCanAssignRoles;
+    private bool canPlatformAttach, canPlatformSetActive, canPlatformUnlock, canPlatformResetPassword;
+    private string? error, pageNotice, search, resetPasswordValue;
+    private UserDetails? selected;
+    private ConfirmActionKind? confirmAction;
+    private bool saving, saved;
+    private string? writeError;
+    private long addSiteId;
+    private bool addSiteOperator;
+
+    private bool createOpen, creating, createDiscardConfirm, draftInitialized;
+    private string? createUserName, createPassword, createError;
+    private bool createAssignAdmin, createAssignSiteOperator;
+    private readonly HashSet<long> createSelectedSiteIds = [];
+    private DraftDefinition? pendingDraft;
+
+    private bool attachOpen, attaching, attachAssignAdmin, attachAssignSiteOperator;
+    private string? attachUserName, attachError;
+    private readonly HashSet<long> attachSelectedSiteIds = [];
+
+    private bool permOpen, permSaving, permSaved;
+    private bool scopeCanReadRoles, scopeCanAssignPermissions;
+    private long permSiteId, selectedRoleIdToAssign;
+    private string? permError;
+    private UserPermissionMatrix? permSnapshot;
+    private List<UserSiteMembershipDetails> permUserSites = [];
+    private List<RoleDetails> orgRoleDetails = [];
+    private readonly HashSet<string> directSelectedPerms = new(StringComparer.Ordinal);
+    private readonly HashSet<string> roleGrantedPerms = new(StringComparer.Ordinal);
+
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+    private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
+    private static readonly BitIconInfo RoleIcon = BitIconInfo.Css("ff-icon ff-icon--role");
+    private static readonly BitTextFieldClassStyles WriteFieldClasses = new()
+    {
+        Root = "write-field",
+        Label = "write-field-label",
+        InputWrapper = "write-field-wrapper",
+        FieldGroup = "write-field-group",
+        Input = "write-field-input",
+        RevealPassword = "write-field-reveal"
+    };
+    private static readonly Dictionary<string, object> CreatePasswordAttributes = new()
+    {
+        ["id"] = "create-user-password",
+        ["autocomplete"] = "new-password",
+        ["dir"] = "ltr",
+        ["maxlength"] = "128",
+        ["aria-describedby"] = "create-password-hint"
+    };
+    private static readonly Dictionary<string, object> ResetPasswordAttributes = new()
+    {
+        ["id"] = "reset-user-password",
+        ["autocomplete"] = "new-password",
+        ["dir"] = "ltr",
+        ["maxlength"] = "128",
+        ["aria-describedby"] = "reset-password-hint"
+    };
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog", Header = "read-dialog-header", Body = "read-dialog-body",
+        CloseButton = "read-dialog-close", Overlay = "read-dialog-overlay"
+    };
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["Users"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    private bool ScopeCanEdit => scopeCanSetAccountActive || scopeCanUnlock || scopeCanResetPassword || scopeCanManageMemberships || scopeCanAssignRoles || canPlatformSetActive || canPlatformUnlock || canPlatformResetPassword;
+    private bool ScopeCanManagePermissions => scopeCanReadRoles || scopeCanAssignRoles || scopeCanAssignPermissions;
+    private OrganizationScope Scope => available[scopeIndex];
+    private static long Org(OrganizationScope scope) => ((OrganizationScope.Organization)scope).OrganizationId;
+    private bool CreateDirty => !string.IsNullOrWhiteSpace(createUserName) || !string.IsNullOrEmpty(createPassword);
+
+    private IReadOnlyList<SiteDetails> UnassignedSites => selected is null
+        ? []
+        : orgSites.Where(s => selected.Sites.All(existing => existing.SiteId != s.Id)).ToList();
+
+    private string ScopeLabel(OrganizationScope scope)
+    {
+        if (scopeLabels.TryGetValue(scope, out var info) && !string.IsNullOrEmpty(info.OrgCode))
+            return $"{info.OrgCode} — {info.OrgName}";
+        return Text["ReadOrganizationScope", Org(scope)];
+    }
+
+    public static string BuildCreateDraftScope(long actorId, long orgId) => $"actor:{actorId}:org:{orgId}:create-user";
+
+    public static string FailureKey(string code) => code switch
+    {
+        UserManagementErrors.UserNameInvalid => "UserErrorInvalidName",
+        UserManagementErrors.UserNameDuplicate => "UserErrorDuplicate",
+        UserManagementErrors.PasswordInvalid => "UserErrorPasswordInvalid",
+        UserManagementErrors.SelfDeactivationForbidden => "UserErrorSelfDeactivation",
+        UserManagementErrors.LastOrganizationAdminRequired => "UserErrorLastOrgAdmin",
+        UserManagementErrors.LastPlatformAdminRequired => "UserErrorLastPlatformAdmin",
+        UserManagementErrors.OrganizationMembershipRequired => "UserErrorOrgMembershipRequired",
+        UserManagementErrors.SiteMembershipRequired => "UserErrorSiteMembershipRequired",
+        UserManagementErrors.ParentOrganizationInactive or OrganizationSiteErrors.OrganizationInactive => "WriteParentInactive",
+        UserManagementErrors.ParentSiteInactive => "UserErrorParentSiteInactive",
+        UserManagementErrors.RoleScopeInvalid => "UserErrorRoleScopeInvalid",
+        UserManagementErrors.ConcurrencyConflict or OrganizationAccessErrors.ConcurrencyConflict => "WriteConflict",
+        UserManagementErrors.OutcomeUnknown or OrganizationAccessErrors.OutcomeUnknown => "WriteOutcomeUnknown",
+        UserManagementErrors.AccessDenied or UserManagementErrors.ActorRequired or UserManagementErrors.ScopeRequired => "ReadDenied",
+        UserManagementErrors.NotFound or OrganizationSiteErrors.OrganizationNotFound or OrganizationSiteErrors.SiteNotFound => "ReadNotFound",
+        _ => "WriteUnavailable"
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var request = ++revision;
+        initialLoading = true;
+        selected = null; detailOpen = false; createOpen = false; attachOpen = false; editMode = false;
+        error = null; pageNotice = null; orgSites = [];
+        scopeLabels = new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+        try
+        {
+            var scopes = await Scopes.LoadUserScopesAsync();
+            if (!Current(request)) return;
+            available = scopes.Where(s => OrganizationId == 0 || Org(s) == OrganizationId).ToList();
+            scopeIndex = 0;
+
+            var platform = new OrganizationScope.Platform();
+            canPlatformAttach = await Can(UserPermissions.UsersAttachOrganization, platform);
+            canPlatformSetActive = await Can(UserPermissions.UsersSetActive, platform);
+            canPlatformUnlock = await Can(UserPermissions.UsersUnlock, platform);
+            canPlatformResetPassword = await Can(UserPermissions.UsersResetPassword, platform);
+            if (!Current(request)) return;
+
+            if (available.Count == 0)
+            {
+                error = OrganizationId > 0 || UserId > 0 ? "ReadNotFound" : "ReadDenied";
+                return;
+            }
+
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+            if (!Current(request)) return;
+
+            await RefreshScopeStateAsync(request);
+            if (!Current(request)) return;
+
+            if (UserId > 0)
+                await OpenUserDialog(UserId, edit: false);
+        }
+        catch
+        {
+            if (Current(request)) error = "ReadError";
+        }
+        finally
+        {
+            if (Current(request)) initialLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed || pendingDraft is null || Drafts is null) return;
+        var def = pendingDraft;
+        pendingDraft = null;
+        try
+        {
+            var result = await Drafts.InitializeAsync(def);
+            draftInitialized = true;
+            if (!disposed && result.Snapshot is not null && createOpen
+                && result.Snapshot.Fields.TryGetValue("UserName", out var u))
+            {
+                createUserName = u.Raw;
+                StateHasChanged();
+            }
+        }
+        catch { draftInitialized = false; }
+    }
+
+    private async Task ClearActiveDraftAsync()
+    {
+        if (!draftInitialized || Drafts is null) return;
+        draftInitialized = false;
+        try { await Drafts.ClearAsync(); } catch { }
+    }
+
+    private async Task RefreshScopeStateAsync(int request)
+    {
+        var scope = Scope;
+        var create = await Can(UserPermissions.UsersCreate, scope);
+        var setActive = await Can(UserPermissions.UsersSetActive, scope);
+        var unlock = await Can(UserPermissions.UsersUnlock, scope);
+        var resetPwd = await Can(UserPermissions.UsersResetPassword, scope);
+        var memberships = await Can(UserPermissions.MembershipsManage, scope);
+        var roles = await Can(UserPermissions.RolesAssignFixed, scope);
+        var readRoles = await Can(RolePermissions.RolesRead, scope);
+        var assignPerms = await Can(RolePermissions.PermissionsAssign, scope);
+        List<SiteDetails> sites = [];
+        try
+        {
+            var sitesResult = await OrganizationQueries.ListSites(scope, Org(scope), new OrganizationListQuery(IncludeInactive: false, PageSize: 100));
+            if (sitesResult.Succeeded && sitesResult.Value is not null)
+                sites = sitesResult.Value.Items.ToList();
+        }
+        catch { }
+
+        if (!Current(request)) return;
+        scopeCanCreate = create;
+        scopeCanSetAccountActive = setActive;
+        scopeCanUnlock = unlock;
+        scopeCanResetPassword = resetPwd;
+        scopeCanManageMemberships = memberships;
+        scopeCanAssignRoles = roles;
+        scopeCanReadRoles = readRoles;
+        scopeCanAssignPermissions = assignPerms;
+        orgSites = sites;
+        addSiteId = sites.FirstOrDefault()?.Id ?? 0;
+    }
+
+    private async Task<bool> Can(string permission, OrganizationScope scope)
+    {
+        if (Actors is null || Permissions is null) return false;
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is null) return false;
+        currentActorId = actor.ActorId;
+        return (await Permissions.EvaluateAsync(actor, scope, permission, default)).IsAllowed;
+    }
+
+    private async Task Search() => await ReloadGridFromFirstPage();
+
+    private async Task ChangeScope(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var i) && i >= 0 && i < available.Count)
+        {
+            scopeIndex = i;
+            var request = ++revision;
+            await RefreshScopeStateAsync(request);
+            if (!Current(request)) return;
+            await ReloadGridFromFirstPage();
+        }
+    }
+
+    private async Task ReloadGridFromFirstPage()
+    {
+        if (grid is null) return;
+        if (grid.CurrentPage <= 1) await grid.RefreshAsync();
+        else await grid.GoToPageAsync(1);
+    }
+
+    private async Task<BitDataGridReadResult<UserSummary>> ReadGridAsync(BitDataGridReadRequest request)
+    {
+        if (disposed || available.Count == 0) return new([], 0);
+        var token = ++revision;
+        var scope = Scope;
+        error = null;
+        var pageSize = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / pageSize) + 1;
+        try
+        {
+            var result = await UsersService.ListOrganizationUsers(
+                scope, Org(scope), new UserListQuery(search, inactive, page, pageSize), request.CancellationToken);
+            if (!Current(token)) return new([], 0);
+            if (!result.Succeeded)
+            {
+                error = FailureKey(result.Error!.Code);
+                StateHasChanged();
+                return new([], 0);
+            }
+            return new(result.Value!.Items.ToList(), result.Value.Total);
+        }
+        catch (OperationCanceledException) { return new([], 0); }
+        catch
+        {
+            if (Current(token)) { error = "ReadError"; StateHasChanged(); }
+            return new([], 0);
+        }
+    }
+
+    private Task Detail(long userId) => OpenUserDialog(userId, edit: false);
+    private Task Edit(long userId) => OpenUserDialog(userId, edit: true);
+
+    private async Task OpenUserDialog(long userId, bool edit)
+    {
+        var token = revision;
+        editMode = edit;
+        confirmAction = null;
+        resetPasswordValue = string.Empty;
+        saving = false; saved = false; writeError = null;
+        addSiteOperator = false;
+        try
+        {
+            var result = await UsersService.GetOrganizationUser(Scope, Org(Scope), userId);
+            if (!Current(token)) return;
+            if (!result.Succeeded)
+            {
+                error = FailureKey(result.Error!.Code);
+                detailOpen = false;
+                return;
+            }
+            selected = result.Value!;
+            addSiteId = UnassignedSites.FirstOrDefault()?.Id ?? 0;
+            detailOpen = true;
+        }
+        catch
+        {
+            if (Current(token)) error = "ReadError";
+        }
+    }
+
+    private Task ReloadSelected() => selected is null ? Task.CompletedTask : OpenUserDialog(selected.UserId, edit: true);
+
+    private void AskConfirm(ConfirmActionKind kind)
+    {
+        confirmAction = kind;
+        saved = false;
+        writeError = null;
+    }
+
+    private void CancelConfirm() => confirmAction = null;
+
+    private string ConfirmMessage() => selected is null ? string.Empty : confirmAction switch
+    {
+        ConfirmActionKind.DisableAccount => Text["UserConfirmDisableAccount", selected.UserName],
+        ConfirmActionKind.EnableAccount => Text["UserConfirmEnableAccount", selected.UserName],
+        ConfirmActionKind.DisableOrgMembership => Text["UserConfirmDisableMembership", selected.UserName],
+        ConfirmActionKind.EnableOrgMembership => Text["UserConfirmEnableMembership", selected.UserName],
+        ConfirmActionKind.RevokeOrgAdmin => Text["UserConfirmRevokeOrgAdmin", selected.UserName],
+        ConfirmActionKind.ResetPassword => Text["UserConfirmResetPassword", selected.UserName],
+        _ => string.Empty
+    };
+
+    private async Task ExecuteConfirm()
+    {
+        if (selected is null || confirmAction is null) return;
+        var action = confirmAction.Value;
+        confirmAction = null;
+        var current = selected;
+        switch (action)
+        {
+            case ConfirmActionKind.DisableAccount:
+            case ConfirmActionKind.EnableAccount:
+                var accountScope = !current.BelongsToSingleOrganization && canPlatformSetActive
+                    ? (OrganizationScope)new OrganizationScope.Platform()
+                    : Scope;
+                long? accountOrgId = accountScope is OrganizationScope.Organization o ? o.OrganizationId : null;
+                await RunMutationAsync(() => UsersService.SetUserActive(
+                    accountScope,
+                    new SetUserActive(accountOrgId, current.UserId, action == ConfirmActionKind.EnableAccount, current.AccountRowVersion)));
+                break;
+            case ConfirmActionKind.DisableOrgMembership:
+            case ConfirmActionKind.EnableOrgMembership:
+                await RunMutationAsync(() => UsersService.SetOrganizationMembershipActive(
+                    Scope,
+                    new SetOrganizationMembershipActive(Org(Scope), current.UserId, action == ConfirmActionKind.EnableOrgMembership, current.MembershipRowVersion)));
+                break;
+            case ConfirmActionKind.RevokeOrgAdmin:
+                await RunMutationAsync(() => UsersService.SetTenantRoleActive(
+                    Scope,
+                    new SetTenantRoleActive(Org(Scope), current.UserId, TenantRoleKind.OrganizationAdministrator, null, false, current.OrganizationAdminRoleRowVersion)));
+                break;
+            case ConfirmActionKind.ResetPassword:
+                var pwdScope = !current.BelongsToSingleOrganization && canPlatformResetPassword
+                    ? (OrganizationScope)new OrganizationScope.Platform()
+                    : Scope;
+                long? pwdOrgId = pwdScope is OrganizationScope.Organization org ? org.OrganizationId : null;
+                var newPassword = resetPasswordValue;
+                resetPasswordValue = string.Empty;
+                await RunMutationAsync(() => UsersService.ResetUserPassword(
+                    pwdScope,
+                    new ResetUserPassword(pwdOrgId, current.UserId, newPassword, current.AccountRowVersion)));
+                break;
+        }
+    }
+
+    private Task SubmitUnlock()
+    {
+        if (selected is null) return Task.CompletedTask;
+        var scope = !selected.BelongsToSingleOrganization && canPlatformUnlock
+            ? (OrganizationScope)new OrganizationScope.Platform()
+            : Scope;
+        long? orgId = scope is OrganizationScope.Organization o ? o.OrganizationId : null;
+        return RunMutationAsync(() => UsersService.UnlockUser(
+            scope, new UnlockUser(orgId, selected.UserId, selected.AccountRowVersion)));
+    }
+
+    private Task GrantOrRestoreOrgAdmin()
+    {
+        if (selected is null) return Task.CompletedTask;
+        if (selected.OrganizationAdminRoleRowVersion is null)
+        {
+            return RunMutationAsync(() => UsersService.AssignTenantRole(
+                Scope, new AssignTenantRole(Org(Scope), selected.UserId, TenantRoleKind.OrganizationAdministrator)));
+        }
+        return RunMutationAsync(() => UsersService.SetTenantRoleActive(
+            Scope, new SetTenantRoleActive(Org(Scope), selected.UserId, TenantRoleKind.OrganizationAdministrator, null, true, selected.OrganizationAdminRoleRowVersion)));
+    }
+
+    private Task ToggleSiteMembership(UserSiteMembershipDetails site)
+        => selected is null
+            ? Task.CompletedTask
+            : RunMutationAsync(() => UsersService.SetSiteMembershipActive(
+                Scope, new SetSiteMembershipActive(Org(Scope), selected.UserId, site.SiteId, !site.MembershipIsActive, site.MembershipRowVersion)));
+
+    private Task ToggleSiteOperator(UserSiteMembershipDetails site, bool active)
+    {
+        if (selected is null) return Task.CompletedTask;
+        if (active && site.SiteOperatorRoleRowVersion is null)
+        {
+            return RunMutationAsync(() => UsersService.AssignTenantRole(
+                Scope, new AssignTenantRole(Org(Scope), selected.UserId, TenantRoleKind.SiteOperator, site.SiteId)));
+        }
+        return RunMutationAsync(() => UsersService.SetTenantRoleActive(
+            Scope, new SetTenantRoleActive(Org(Scope), selected.UserId, TenantRoleKind.SiteOperator, site.SiteId, active, site.SiteOperatorRoleRowVersion)));
+    }
+
+    private Task SubmitAddSite()
+        => selected is null || addSiteId <= 0
+            ? Task.CompletedTask
+            : RunMutationAsync(() => UsersService.AssignSiteMembership(
+                Scope, new AssignSiteMembership(Org(Scope), selected.UserId, addSiteId, scopeCanAssignRoles && addSiteOperator)));
+
+    private async Task RunMutationAsync(Func<Task<OrganizationResult<UserDetails>>> mutation)
+    {
+        if (selected is null || saving) return;
+        var token = revision;
+        var wasPlatformScope = selected.OrganizationId == 0;
+        var orgId = Org(Scope);
+        var userId = selected.UserId;
+        saving = true; saved = false; writeError = null;
+        try
+        {
+            var result = await mutation();
+            if (!Current(token)) return;
+            if (!result.Succeeded)
+            {
+                writeError = FailureKey(result.Error!.Code);
+                return;
+            }
+            if (result.Value!.OrganizationId == 0 || wasPlatformScope)
+            {
+                var refreshed = await UsersService.GetOrganizationUser(Scope, orgId, userId);
+                if (!Current(token)) return;
+                if (refreshed.Succeeded && refreshed.Value is not null)
+                    selected = refreshed.Value;
+            }
+            else
+            {
+                selected = result.Value;
+            }
+            addSiteId = UnassignedSites.FirstOrDefault()?.Id ?? 0;
+            saved = true;
+            saving = false;
+            if (grid is not null) await grid.RefreshAsync();
+        }
+        catch
+        {
+            if (Current(token)) writeError = "WriteUnavailable";
+        }
+        finally
+        {
+            if (!disposed) saving = false;
+        }
+    }
+
+    private void OpenCreate()
+    {
+        if (!scopeCanCreate) return;
+        createUserName = string.Empty;
+        createPassword = string.Empty;
+        createError = null;
+        createAssignAdmin = false;
+        createAssignSiteOperator = false;
+        createSelectedSiteIds.Clear();
+        createDiscardConfirm = false;
+        detailOpen = false;
+        attachOpen = false;
+        createOpen = true;
+        if (currentActorId > 0)
+        {
+            // Never persist InitialPassword in drafts (test-plan B06); only capture UserName.
+            pendingDraft = new("user-create-form", BuildCreateDraftScope(currentActorId, Org(Scope)),
+                1, [new("UserName", "create-user-name", 128)], CulturePolicy.Supported);
+        }
+    }
+
+    private void OnCreateDismissing(BitDialogDismissArgs args)
+    {
+        if (CreateDirty && !creating)
+        {
+            args.Cancel = true;
+            createDiscardConfirm = true;
+        }
+        else
+        {
+            createPassword = string.Empty;
+        }
+    }
+
+    private async Task DiscardCreate()
+    {
+        createDiscardConfirm = false;
+        createUserName = string.Empty;
+        createPassword = string.Empty;
+        createOpen = false;
+        await ClearActiveDraftAsync();
+    }
+
+    private void CancelDiscardCreate() => createDiscardConfirm = false;
+
+    private void ToggleCreateSite(long siteId, bool isChecked)
+    {
+        if (isChecked) createSelectedSiteIds.Add(siteId);
+        else createSelectedSiteIds.Remove(siteId);
+    }
+
+    private async Task SubmitCreate()
+    {
+        if (creating || !scopeCanCreate) return;
+        var token = revision;
+        var scope = Scope;
+        creating = true; createError = null; pageNotice = null;
+        var password = createPassword;
+        try
+        {
+            var result = await UsersService.CreateOrganizationUser(
+                scope,
+                new CreateOrganizationUser(
+                    Org(scope),
+                    createUserName,
+                    password,
+                    scopeCanAssignRoles && createAssignAdmin,
+                    createSelectedSiteIds.ToArray(),
+                    scopeCanAssignRoles && createAssignSiteOperator));
+            if (!Current(token)) return;
+            if (!result.Succeeded)
+            {
+                createError = FailureKey(result.Error!.Code);
+                return;
+            }
+            createPassword = string.Empty;
+            createUserName = string.Empty;
+            createDiscardConfirm = false;
+            createOpen = false;
+            await ClearActiveDraftAsync();
+            pageNotice = Text["UserCreatedSucceeded", result.Value!.UserName];
+            creating = false;
+            await ReloadGridFromFirstPage();
+        }
+        catch
+        {
+            if (Current(token)) createError = "WriteUnavailable";
+        }
+        finally
+        {
+            if (!disposed) creating = false;
+        }
+    }
+
+    private void OpenAttach()
+    {
+        if (!canPlatformAttach || available.Count == 0) return;
+        attachUserName = string.Empty;
+        attachError = null;
+        attachAssignAdmin = false;
+        attachAssignSiteOperator = false;
+        attachSelectedSiteIds.Clear();
+        detailOpen = false;
+        createOpen = false;
+        attachOpen = true;
+    }
+
+    private void ToggleAttachSite(long siteId, bool isChecked)
+    {
+        if (isChecked) attachSelectedSiteIds.Add(siteId);
+        else attachSelectedSiteIds.Remove(siteId);
+    }
+
+    private async Task SubmitAttach()
+    {
+        if (attaching || !canPlatformAttach || available.Count == 0) return;
+        var token = revision;
+        attaching = true; attachError = null; pageNotice = null;
+        try
+        {
+            var result = await UsersService.AttachExistingUserToOrganization(
+                new OrganizationScope.Platform(),
+                new AttachExistingUserToOrganization(
+                    Org(Scope),
+                    attachUserName,
+                    attachAssignAdmin,
+                    attachSelectedSiteIds.ToArray(),
+                    attachAssignSiteOperator));
+            if (!Current(token)) return;
+            if (!result.Succeeded)
+            {
+                attachError = FailureKey(result.Error!.Code);
+                return;
+            }
+            attachUserName = string.Empty;
+            attachOpen = false;
+            pageNotice = Text["UserAttachedSucceeded", result.Value!.UserName];
+            attaching = false;
+            await ReloadGridFromFirstPage();
+        }
+        catch
+        {
+            if (Current(token)) attachError = "WriteUnavailable";
+        }
+        finally
+        {
+            if (!disposed) attaching = false;
+        }
+    }
+
+    private IReadOnlyList<PermissionModule> TargetModules => permSiteId == 0
+        ? RolePermissionLocalization.TenantModules
+        : [PermissionModule.Sites];
+
+    private IReadOnlyList<PermissionDescriptor> TargetDescriptors => permSiteId == 0
+        ? RolePermissionLocalization.OrganizationScopePermissions
+        : RolePermissionLocalization.SiteScopePermissions;
+
+    private bool IsTargetOrgAdmin => permSnapshot is not null && permSnapshot.AssignedRoles.Any(
+        x => x.RoleId == PermissionCatalog.OrganizationAdministratorRoleId && x.IsActive && x.ScopeTarget == RoleScopeTarget.Organization);
+
+    private IReadOnlyList<UserAssignedRoleDetails> ScopedRoleAssignmentsForTarget => permSnapshot is null
+        ? []
+        : permSnapshot.AssignedRoles
+            .Where(x => permSiteId == 0
+                ? x.ScopeTarget == RoleScopeTarget.Organization
+                : (x.ScopeTarget == RoleScopeTarget.Site && x.SiteId == permSiteId))
+            .ToList();
+
+    private IReadOnlyList<RoleDetails> AssignableRolesForTarget
+    {
+        get
+        {
+            if (permSnapshot is null) return [];
+            var targetScope = permSiteId == 0 ? RoleScopeTarget.Organization : RoleScopeTarget.Site;
+            var existingRoleIds = ScopedRoleAssignmentsForTarget.Select(x => x.RoleId).ToHashSet();
+            return orgRoleDetails
+                .Where(r => r.IsActive && r.ScopeTarget == targetScope && !existingRoleIds.Contains(r.Id))
+                .ToList();
+        }
+    }
+
+    private async Task OpenPermissionsDialog(long userId)
+    {
+        if (RolesService is null || available.Count == 0) return;
+        var token = revision;
+        permSaving = false; permSaved = false; permError = null; permSiteId = 0;
+        try
+        {
+            var userRes = await UsersService.GetOrganizationUser(Scope, Org(Scope), userId);
+            var snapRes = await RolesService.GetUserPermissions(Scope, Org(Scope), userId);
+            if (!Current(token)) return;
+            if (!userRes.Succeeded || !snapRes.Succeeded)
+            {
+                error = RolePermissionLocalization.FailureKey((snapRes.Error ?? userRes.Error)!.Code);
+                return;
+            }
+            permUserSites = userRes.Value!.Sites.Where(s => s.MembershipIsActive && s.SiteIsActive).ToList();
+            permSnapshot = snapRes.Value;
+            await LoadOrganizationRoleDetailsAsync(token);
+            if (!Current(token)) return;
+            SyncTargetScopePermissions();
+            detailOpen = false;
+            createOpen = false;
+            attachOpen = false;
+            permOpen = true;
+        }
+        catch
+        {
+            if (Current(token)) error = "ReadError";
+        }
+    }
+
+    private async Task ReloadPermissionsDialog()
+    {
+        if (permSnapshot is null) return;
+        await OpenPermissionsDialog(permSnapshot.UserId);
+    }
+
+    private async Task LoadOrganizationRoleDetailsAsync(int token)
+    {
+        var details = new List<RoleDetails>();
+        if (RolesService is not null)
+        {
+            var listRes = await RolesService.ListOrganizationRoles(Scope, Org(Scope), new RoleListQuery(IncludeInactive: false, IncludeSystem: true, Page: 1, PageSize: 100));
+            if (listRes.Succeeded && listRes.Value is not null)
+            {
+                foreach (var item in listRes.Value.Items)
+                {
+                    var d = await RolesService.GetOrganizationRole(Scope, Org(Scope), item.Id);
+                    if (d.Succeeded && d.Value is not null)
+                        details.Add(d.Value);
+                }
+            }
+        }
+        if (Current(token)) orgRoleDetails = details;
+    }
+
+    private void ChangePermTargetScope(ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), out var siteId))
+        {
+            permSiteId = siteId;
+            permError = null;
+            permSaved = false;
+            SyncTargetScopePermissions();
+        }
+    }
+
+    private void SyncTargetScopePermissions()
+    {
+        directSelectedPerms.Clear();
+        roleGrantedPerms.Clear();
+        if (permSnapshot is null) return;
+
+        foreach (var grant in permSnapshot.DirectGrants)
+        {
+            if (!grant.IsActive) continue;
+            if (permSiteId == 0 && grant.ScopeTarget == RoleScopeTarget.Organization)
+                directSelectedPerms.Add(grant.PermissionCode);
+            else if (permSiteId > 0 && grant.ScopeTarget == RoleScopeTarget.Site && grant.SiteId == permSiteId)
+                directSelectedPerms.Add(grant.PermissionCode);
+        }
+
+        var roleMap = orgRoleDetails.ToDictionary(x => x.Id, x => x.Permissions);
+        foreach (var ra in permSnapshot.AssignedRoles.Where(x => x.IsActive))
+        {
+            var applies = ra.ScopeTarget == RoleScopeTarget.Organization
+                || (permSiteId > 0 && ra.ScopeTarget == RoleScopeTarget.Site && ra.SiteId == permSiteId);
+            if (!applies) continue;
+
+            if (ra.RoleId == PermissionCatalog.OrganizationAdministratorRoleId)
+            {
+                foreach (var p in TargetDescriptors)
+                    roleGrantedPerms.Add(p.Code);
+            }
+            else if (ra.RoleId == PermissionCatalog.SiteOperatorRoleId && permSiteId > 0)
+            {
+                roleGrantedPerms.Add("Sites.Read");
+                roleGrantedPerms.Add("Sites.Update");
+            }
+            else if (roleMap.TryGetValue(ra.RoleId, out var codes))
+            {
+                foreach (var code in codes)
+                {
+                    if (TargetDescriptors.Any(d => d.Code == code))
+                        roleGrantedPerms.Add(code);
+                }
+            }
+        }
+
+        selectedRoleIdToAssign = AssignableRolesForTarget.FirstOrDefault()?.Id ?? 0;
+    }
+
+    private void ToggleDirectOperation(PermissionDescriptor descriptor, bool isChecked)
+    {
+        permSaved = false;
+        RolePermissionLocalization.ToggleOperationWithAutoRead(directSelectedPerms, descriptor, isChecked, TargetDescriptors);
+    }
+
+    private void ToggleDirectModuleAll(PermissionModule module, bool isChecked)
+    {
+        permSaved = false;
+        RolePermissionLocalization.ToggleModuleAll(directSelectedPerms, module, isChecked, TargetDescriptors);
+    }
+
+    private async Task SubmitAssignRole()
+    {
+        if (permSaving || permSnapshot is null || RolesService is null || selectedRoleIdToAssign <= 0) return;
+        var token = revision;
+        permSaving = true; permSaved = false; permError = null;
+        try
+        {
+            var targetScope = permSiteId == 0 ? RoleScopeTarget.Organization : RoleScopeTarget.Site;
+            long? siteId = permSiteId == 0 ? null : permSiteId;
+            var res = await RolesService.AssignUserRole(
+                Scope,
+                new AssignUserRole(Org(Scope), permSnapshot.UserId, selectedRoleIdToAssign, targetScope, siteId));
+            if (!Current(token)) return;
+            if (!res.Succeeded)
+            {
+                permError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            permSnapshot = res.Value;
+            permSaved = true;
+            SyncTargetScopePermissions();
+            await ReloadGridFromFirstPage();
+        }
+        catch
+        {
+            if (Current(token)) permError = "WriteUnavailable";
+        }
+        finally
+        {
+            if (!disposed) permSaving = false;
+        }
+    }
+
+    private async Task ToggleRoleAssignment(UserAssignedRoleDetails ra)
+    {
+        if (permSaving || permSnapshot is null || RolesService is null) return;
+        var token = revision;
+        permSaving = true; permSaved = false; permError = null;
+        try
+        {
+            var res = await RolesService.SetUserRoleAssignmentActive(
+                Scope,
+                new SetUserRoleAssignmentActive(Org(Scope), permSnapshot.UserId, ra.AssignmentId, !ra.IsActive, ra.RowVersion));
+            if (!Current(token)) return;
+            if (!res.Succeeded)
+            {
+                permError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            permSnapshot = res.Value;
+            permSaved = true;
+            SyncTargetScopePermissions();
+            await ReloadGridFromFirstPage();
+        }
+        catch
+        {
+            if (Current(token)) permError = "WriteUnavailable";
+        }
+        finally
+        {
+            if (!disposed) permSaving = false;
+        }
+    }
+
+    private async Task SubmitDirectPermissions()
+    {
+        if (permSaving || permSnapshot is null || RolesService is null) return;
+        var token = revision;
+        permSaving = true; permSaved = false; permError = null;
+        try
+        {
+            var targetScope = permSiteId == 0 ? RoleScopeTarget.Organization : RoleScopeTarget.Site;
+            long? siteId = permSiteId == 0 ? null : permSiteId;
+            var existingByCode = permSnapshot.DirectGrants
+                .Where(g => permSiteId == 0
+                    ? g.ScopeTarget == RoleScopeTarget.Organization
+                    : (g.ScopeTarget == RoleScopeTarget.Site && g.SiteId == permSiteId))
+                .ToDictionary(g => g.PermissionCode, StringComparer.Ordinal);
+
+            var changes = new List<OperationGrantChange>();
+            foreach (var d in TargetDescriptors)
+            {
+                var desiredActive = directSelectedPerms.Contains(d.Code);
+                if (existingByCode.TryGetValue(d.Code, out var existing))
+                {
+                    if (existing.IsActive != desiredActive)
+                        changes.Add(new OperationGrantChange(d.Code, desiredActive, existing.RowVersion));
+                }
+                else if (desiredActive)
+                {
+                    changes.Add(new OperationGrantChange(d.Code, true, null));
+                }
+            }
+
+            if (changes.Count == 0)
+            {
+                permSaved = true;
+                return;
+            }
+
+            var res = await RolesService.SaveUserOperationGrants(
+                Scope,
+                new SaveUserOperationGrants(
+                    Org(Scope),
+                    permSnapshot.UserId,
+                    targetScope,
+                    siteId,
+                    changes));
+            if (!Current(token)) return;
+            if (!res.Succeeded)
+            {
+                permError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            permSnapshot = res.Value;
+            permSaved = true;
+            SyncTargetScopePermissions();
+        }
+        catch
+        {
+            if (Current(token)) permError = "WriteUnavailable";
+        }
+        finally
+        {
+            if (!disposed) permSaving = false;
+        }
+    }
+}

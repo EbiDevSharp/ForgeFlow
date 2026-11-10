@@ -1,6 +1,10 @@
 using System.Data;
 using System.Data.Common;
+using ForgeFlow.Application.Audit;
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Application.Roles;
+using ForgeFlow.Application.Users;
+using ForgeFlow.Domain.Roles;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -148,6 +152,90 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
         }
         catch (Exception e) when (AvailableFailure(e)) { Unavailable(); return "Auth.LogoutRevocationIncomplete"; }
     }
+
+    public async Task<SessionLoginResult> ChangeOwnPasswordAsync(SessionReference reference, string currentPassword, string newPassword, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(currentPassword) || currentPassword.Length > 128)
+            return new("Auth.CurrentPasswordInvalid");
+        if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length is < 12 or > 128 || newPassword.Any(char.IsControl))
+            return new("Auth.PasswordInvalid");
+
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationAccount>>();
+            await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+            var correlation = Guid.NewGuid();
+            if (!await Eligible(db, reference, correlation, ct))
+            {
+                await db.SaveChangesAsync(ct);
+                await Commit(tx, ct, [currentPassword, newPassword]);
+                return new("Auth.SessionInvalid");
+            }
+
+            var user = await LockUser(db, reference.UserId, ct);
+            var currentSession = await db.Sessions.SingleOrDefaultAsync(s => s.Id == reference.SessionId && s.UserId == reference.UserId, ct);
+            if (user is null || currentSession is null)
+                return new("Auth.SessionInvalid");
+
+            if (!await manager.CheckPasswordAsync(user, currentPassword))
+                return new("Auth.CurrentPasswordInvalid");
+
+            foreach (var validator in manager.PasswordValidators)
+            {
+                var check = await validator.ValidateAsync(manager, user, newPassword);
+                if (!check.Succeeded)
+                    return new("Auth.PasswordInvalid");
+            }
+
+            var now = Now;
+            user.PasswordHash = manager.PasswordHasher.HashPassword(user, newPassword);
+            user.UpdatedAtUtc = now >= user.CreatedAtUtc ? now : user.CreatedAtUtc;
+            var stampResult = await manager.UpdateSecurityStampAsync(user);
+            if (!stampResult.Succeeded)
+                return new("Auth.ServiceUnavailable");
+
+            await Revoke(db, user.Id, "PasswordReset", now, correlation, ct);
+
+            var expires = currentSession.ExpiresAtUtc > now ? currentSession.ExpiresAtUtc : now.Add(Lifetime);
+            var freshSession = new AccountSession
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                SecurityStampSnapshot = user.SecurityStamp!,
+                IssuedAtUtc = now,
+                ExpiresAtUtc = expires
+            };
+            db.Sessions.Add(freshSession);
+            db.SecurityEvents.Add(new SecurityEvent
+            {
+                EventCode = "PasswordResetCompleted",
+                OccurredAtUtc = now,
+                CorrelationId = correlation,
+                ActorKind = 1,
+                ActorUserId = user.Id,
+                SubjectUserId = user.Id,
+                SessionId = freshSession.Id,
+                Outcome = 0,
+                DataJson = "{\"action\":\"SelfPasswordChanged\"}"
+            });
+            Event(db, "SessionIssued", now, correlation, user.Id, freshSession.Id, true);
+
+            await db.SaveChangesAsync(ct);
+            if (!await Commit(tx, ct, [currentPassword, newPassword]))
+                return new("Auth.ServiceUnavailable");
+
+            return new("Auth.PasswordChanged", new(user.Id, freshSession.Id, user.SecurityStamp!, user.UserName), new DateTimeOffset(freshSession.ExpiresAtUtc));
+        }
+        catch (Exception e) when (AvailableFailure(e))
+        {
+            Failure("change-own-password", e, currentPassword, newPassword, reference.SecurityStamp);
+            Unavailable();
+            return new("Auth.ServiceUnavailable");
+        }
+    }
     public async Task<string> SetPreferredCultureAsync(SessionReference reference, string culture, CancellationToken ct = default)
     {
         if (culture is not ("fa-IR" or "en-US")) return "Culture.ProfileSyncFailed";
@@ -214,38 +302,123 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
         }
         catch (Exception e) when (AvailableFailure(e)) { Unavailable(); return false; }
     }
-    private static async Task<bool> ScopeAllowed(AuthDbContext db,long userId,OrganizationScope scope,string permission,CancellationToken ct)
+    private static async Task<bool> ScopeAllowed(AuthDbContext db, long userId, OrganizationScope scope, string permission, CancellationToken ct)
     {
+        if (!PermissionCatalog.TryGet(permission, out var descriptor))
+            return false;
+
         if (scope is OrganizationScope.Platform)
-            return permission==OrganizationPermissions.OrganizationsCreate && await db.ScopedRoleAssignments.AnyAsync(r=>r.UserId==userId && r.IsActive && r.RoleId==FixedAccessRoles.DeploymentProvisioner && r.ScopeKind==0 && r.OrganizationId==null && r.SiteId==null,ct);
+        {
+            if (descriptor.Applicability != PermissionScopeApplicability.PlatformOnly
+                && permission is not (UserPermissions.UsersSetActive or UserPermissions.UsersUnlock or UserPermissions.UsersResetPassword or AuditPermissions.AuditRead))
+                return false;
+
+            return await (from r in db.ScopedRoleAssignments.AsNoTracking()
+                          join rd in db.RoleDefinitions.AsNoTracking() on r.RoleId equals rd.Id
+                          join rp in db.RolePermissions.AsNoTracking() on rd.Id equals rp.RoleId
+                          where r.UserId == userId
+                                && r.IsActive
+                                && r.ScopeKind == 0
+                                && r.OrganizationId == null
+                                && r.SiteId == null
+                                && rd.IsActive
+                                && rd.ScopeKind == 0
+                                && rp.IsActive
+                                && (rp.PermissionCode == permission || (r.RoleId == FixedAccessRoles.DeploymentProvisioner && permission == AuditPermissions.AuditRead))
+                          select r.Id).AnyAsync(ct);
+        }
+
+        if (descriptor.Applicability == PermissionScopeApplicability.PlatformOnly)
+            return false;
+
         var orgId = scope is OrganizationScope.Organization org ? org.OrganizationId : ((OrganizationScope.Site)scope).OrganizationId;
-        if (!await db.OrganizationMemberships.AnyAsync(m=>m.UserId==userId && m.OrganizationId==orgId && m.IsActive,ct)) return false;
-        var company = await db.Set<ForgeFlow.Domain.Organizations.Organization>().AsNoTracking().SingleOrDefaultAsync(o=>o.Id==orgId,ct);
-        if (company is null) return false;
-        var read = permission is OrganizationPermissions.OrganizationsRead or OrganizationPermissions.SitesRead;
-        if (!company.IsActive && !read && permission!=OrganizationPermissions.OrganizationsSetActive) return false;
+        if (!await db.OrganizationMemberships.AsNoTracking().AnyAsync(m => m.UserId == userId && m.OrganizationId == orgId && m.IsActive, ct))
+            return false;
+
+        var company = await db.Set<ForgeFlow.Domain.Organizations.Organization>().AsNoTracking().SingleOrDefaultAsync(o => o.Id == orgId, ct);
+        if (company is null)
+            return false;
+
+        var read = permission is OrganizationPermissions.OrganizationsRead or OrganizationPermissions.SitesRead or UserPermissions.UsersRead or RolePermissions.RolesRead or AuditPermissions.AuditRead;
+        if (!company.IsActive && !read && permission != OrganizationPermissions.OrganizationsSetActive)
+            return false;
+
         if (scope is OrganizationScope.Site site)
         {
-            var target = await db.Set<ForgeFlow.Domain.Organizations.Site>().AsNoTracking().SingleOrDefaultAsync(s=>s.Id==site.SiteId && s.OrganizationId==orgId,ct);
-            if (target is null || (!target.IsActive && !read && permission!=OrganizationPermissions.SitesSetActive)) return false;
+            if (descriptor.Applicability != PermissionScopeApplicability.OrganizationOrSite)
+                return false;
+
+            var target = await db.Set<ForgeFlow.Domain.Organizations.Site>().AsNoTracking().SingleOrDefaultAsync(s => s.Id == site.SiteId && s.OrganizationId == orgId, ct);
+            if (target is null || (!target.IsActive && !read && permission != OrganizationPermissions.SitesSetActive))
+                return false;
         }
-        var admin = FixedRolePolicy.Allows(FixedAccessRoles.OrganizationAdministrator,scope,permission)
-            && await db.ScopedRoleAssignments.AnyAsync(r=>r.UserId==userId && r.IsActive && r.RoleId==FixedAccessRoles.OrganizationAdministrator && r.ScopeKind==1 && r.OrganizationId==orgId,ct);
-        if (admin) return true;
-        if (scope is not OrganizationScope.Site requested || !FixedRolePolicy.Allows(FixedAccessRoles.SiteOperator,scope,permission)) return false;
-        return await db.SiteMemberships.AnyAsync(m=>m.UserId==userId && m.OrganizationId==orgId && m.SiteId==requested.SiteId && m.IsActive,ct)
-            && await db.ScopedRoleAssignments.AnyAsync(r=>r.UserId==userId && r.IsActive && r.RoleId==FixedAccessRoles.SiteOperator && r.ScopeKind==2 && r.OrganizationId==orgId && r.SiteId==requested.SiteId,ct);
+
+        var orgRoleAllowed = await (from r in db.ScopedRoleAssignments.AsNoTracking()
+                                    join rd in db.RoleDefinitions.AsNoTracking() on r.RoleId equals rd.Id
+                                    join rp in db.RolePermissions.AsNoTracking() on rd.Id equals rp.RoleId
+                                    where r.UserId == userId
+                                          && r.IsActive
+                                          && r.ScopeKind == 1
+                                          && r.OrganizationId == orgId
+                                          && rd.IsActive
+                                          && (rd.OrganizationId == null || rd.OrganizationId == orgId)
+                                          && rp.IsActive
+                                          && (rp.PermissionCode == permission || (r.RoleId == FixedAccessRoles.OrganizationAdministrator && permission == AuditPermissions.AuditRead))
+                                    select r.Id).AnyAsync(ct);
+        if (orgRoleAllowed)
+            return true;
+
+        var orgDirectAllowed = await db.UserPermissionGrants.AsNoTracking()
+            .AnyAsync(g => g.UserId == userId
+                           && g.IsActive
+                           && g.ScopeKind == 1
+                           && g.OrganizationId == orgId
+                           && g.SiteId == null
+                           && g.PermissionCode == permission, ct);
+        if (orgDirectAllowed)
+            return true;
+
+        if (scope is not OrganizationScope.Site requested)
+            return false;
+
+        if (!await db.SiteMemberships.AsNoTracking().AnyAsync(m => m.UserId == userId && m.OrganizationId == orgId && m.SiteId == requested.SiteId && m.IsActive, ct))
+            return false;
+
+        var siteRoleAllowed = await (from r in db.ScopedRoleAssignments.AsNoTracking()
+                                     join rd in db.RoleDefinitions.AsNoTracking() on r.RoleId equals rd.Id
+                                     join rp in db.RolePermissions.AsNoTracking() on rd.Id equals rp.RoleId
+                                     where r.UserId == userId
+                                           && r.IsActive
+                                           && r.ScopeKind == 2
+                                           && r.OrganizationId == orgId
+                                           && r.SiteId == requested.SiteId
+                                           && rd.IsActive
+                                           && (rd.OrganizationId == null || rd.OrganizationId == orgId)
+                                           && rp.IsActive
+                                           && rp.PermissionCode == permission
+                                     select r.Id).AnyAsync(ct);
+        if (siteRoleAllowed)
+            return true;
+
+        return await db.UserPermissionGrants.AsNoTracking()
+            .AnyAsync(g => g.UserId == userId
+                           && g.IsActive
+                           && g.ScopeKind == 2
+                           && g.OrganizationId == orgId
+                           && g.SiteId == requested.SiteId
+                           && g.PermissionCode == permission, ct);
     }
 }
 
 public static class FixedRolePolicy
 {
-    public static bool Allows(byte role, OrganizationScope scope, string permission) => role switch
+    public static bool Allows(long role, OrganizationScope scope, string permission) => role switch
     {
-        FixedAccessRoles.DeploymentProvisioner => scope is OrganizationScope.Platform && permission==OrganizationPermissions.OrganizationsCreate,
+        FixedAccessRoles.DeploymentProvisioner => scope is OrganizationScope.Platform
+            && permission is OrganizationPermissions.OrganizationsCreate or UserPermissions.UsersAttachOrganization or UserPermissions.UsersSetActive or UserPermissions.UsersUnlock or UserPermissions.UsersResetPassword or AuditPermissions.AuditRead,
         FixedAccessRoles.OrganizationAdministrator => scope switch {
-            OrganizationScope.Organization => permission is OrganizationPermissions.OrganizationsRead or OrganizationPermissions.OrganizationsUpdate or OrganizationPermissions.OrganizationsSetActive or OrganizationPermissions.SitesRead or OrganizationPermissions.SitesCreate or OrganizationPermissions.SitesUpdate or OrganizationPermissions.SitesSetActive,
-            OrganizationScope.Site => permission is OrganizationPermissions.SitesRead or OrganizationPermissions.SitesUpdate or OrganizationPermissions.SitesSetActive, _=>false },
+            OrganizationScope.Organization => permission is OrganizationPermissions.OrganizationsRead or OrganizationPermissions.OrganizationsUpdate or OrganizationPermissions.OrganizationsSetActive or OrganizationPermissions.SitesRead or OrganizationPermissions.SitesCreate or OrganizationPermissions.SitesUpdate or OrganizationPermissions.SitesSetActive or UserPermissions.UsersRead or UserPermissions.UsersCreate or UserPermissions.UsersSetActive or UserPermissions.UsersUnlock or UserPermissions.UsersResetPassword or UserPermissions.MembershipsManage or UserPermissions.RolesAssignFixed or RolePermissions.RolesRead or RolePermissions.RolesManage or RolePermissions.PermissionsAssign or AuditPermissions.AuditRead,
+            OrganizationScope.Site => permission is OrganizationPermissions.SitesRead or OrganizationPermissions.SitesUpdate or OrganizationPermissions.SitesSetActive or AuditPermissions.AuditRead, _=>false },
         FixedAccessRoles.SiteOperator => scope is OrganizationScope.Site && permission is OrganizationPermissions.SitesRead or OrganizationPermissions.SitesUpdate or OrganizationPermissions.SitesSetActive,
         _=>false
     };

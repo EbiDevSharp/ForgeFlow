@@ -30,10 +30,11 @@
         <div id="auth-ui-notice" class="auth-ui-notice" role="status" hidden></div>
         <header class="app-header">
             <div class="app-header-start">
-                <button class="nav-drawer-toggle" type="button" aria-expanded="@drawerOpen.ToString().ToLowerInvariant()"
-                        aria-controls="primary-navigation" @onclick="ToggleDrawer">
-                    @Text["OpenNavigation"]
-                </button>
+                <BitButton Class="nav-drawer-toggle" Variant="BitVariant.Outline" Size="BitSize.Small"
+                           Icon="@MenuIcon" IconOnly="true"
+                           aria-label="@Text["OpenNavigation"]" title="@Text["OpenNavigation"]"
+                           aria-expanded="@drawerOpen.ToString().ToLowerInvariant()"
+                           aria-controls="primary-navigation" OnClick="ToggleDrawer" />
                 @{
                     var targetCulture = Culture.Language == CulturePolicy.Persian ? CulturePolicy.English : CulturePolicy.Persian;
                     var targetLabel = Culture.Language == CulturePolicy.Persian ? Text["LanguageEnglish"] : Text["LanguagePersian"];
@@ -69,7 +70,22 @@
         authUi = await JS.InvokeAsync<Microsoft.JSInterop.IJSObjectReference>("import", "./auth-ui.mjs");
         var state = await AuthProvider.GetAuthenticationStateAsync();
         wasAuthenticated = state.User.Identity?.IsAuthenticated == true;
-        try { readScopes = await ReadScopes.Load(); } catch { readScopes = []; }
+        try
+        {
+            orgScopes = await ReadScopes.LoadOrganizationScopesAsync();
+            readScopes = await ReadScopes.Load();
+            userScopes = await ReadScopes.LoadUserScopesAsync();
+            roleScopes = await ReadScopes.LoadRoleScopesAsync();
+            auditScopes = await ReadScopes.LoadAuditScopesAsync();
+        }
+        catch
+        {
+            orgScopes = [];
+            readScopes = [];
+            userScopes = [];
+            roleScopes = [];
+            auditScopes = [];
+        }
         StateHasChanged();
     }
 
@@ -97,21 +113,51 @@
         }
     }
 
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> orgScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> readScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> userScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> roleScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> auditScopes = [];
 
     // The framework stylesheet ships only a few glyphs, so the shell uses its own CSS-mask icons (app.css, .ff-icon--*).
     private static BitIconInfo Icon(string name) => BitIconInfo.Css("ff-icon ff-icon--" + name);
+    private static readonly BitIconInfo MenuIcon = Icon("menu");
 
-    private IList<BitNavItem> NavigationItems =>
-    [
-        new() { Text = Text["Home"], AriaLabel = Text["Home"], Icon = Icon("home"), Url = "/", Match = BitNavMatch.Exact },
-        new() { Text = Text["Settings"], Icon = Icon("settings"), IsExpanded = true, IsDisabled = readScopes.Count == 0, ChildItems = SettingsItems }
-    ];
+    private IList<BitNavItem> NavigationItems
+    {
+        get
+        {
+            var items = new List<BitNavItem>
+            {
+                new() { Text = Text["Home"], AriaLabel = Text["Home"], Icon = Icon("home"), Url = "/", Match = BitNavMatch.Exact }
+            };
+            var settings = SettingsItems;
+            if (settings.Count > 0)
+            {
+                items.Add(new() { Text = Text["Settings"], Icon = Icon("settings"), IsExpanded = true, ChildItems = settings });
+            }
+            return items;
+        }
+    }
 
-    private List<BitNavItem> SettingsItems => readScopes.Count == 0 ? [] :
-        readScopes.Any(x => x is ForgeFlow.Application.Organizations.OrganizationScope.Organization)
-        ? [new() { Text = Text["Organizations"], Icon = Icon("org"), Url = "/organizations", Match = BitNavMatch.Exact }, new() { Text = Text["Sites"], Icon = Icon("site"), Url = "/sites", Match = BitNavMatch.Exact }]
-        : [new() { Text = Text["Sites"], Icon = Icon("site"), Url = "/sites", Match = BitNavMatch.Exact }];
+    private List<BitNavItem> SettingsItems
+    {
+        get
+        {
+            var items = new List<BitNavItem>();
+            if (orgScopes.Count > 0)
+                items.Add(new() { Text = Text["Organizations"], Icon = Icon("org"), Url = "/organizations", Match = BitNavMatch.Exact });
+            if (readScopes.Count > 0)
+                items.Add(new() { Text = Text["Sites"], Icon = Icon("site"), Url = "/sites", Match = BitNavMatch.Exact });
+            if (userScopes.Count > 0)
+                items.Add(new() { Text = Text["Users"], Icon = Icon("user"), Url = "/users", Match = BitNavMatch.Exact });
+            if (roleScopes.Count > 0)
+                items.Add(new() { Text = Text["Roles"], Icon = Icon("role"), Url = "/roles", Match = BitNavMatch.Exact });
+            if (auditScopes.Count > 0)
+                items.Add(new() { Text = Text["Audit"], Icon = Icon("audit"), Url = "/audit", Match = BitNavMatch.Exact });
+            return items;
+        }
+    }
 
     private void ToggleDrawer() => drawerOpen = !drawerOpen;
 }
