@@ -62,6 +62,9 @@ public sealed class ReadScopes(IServiceScopeFactory scopes, ITrustedActorAccesso
     public Task<IReadOnlyList<OrganizationScope>> LoadInventoryScopesAsync() =>
         LoadOrganizationOrSitePermissionScopesAsync(ForgeFlow.Application.Inventory.InventoryPermissions.InventoryRead);
 
+    public Task<IReadOnlyList<OrganizationScope>> LoadReportScopesAsync() =>
+        LoadOrganizationOrSitePermissionScopesAsync(ForgeFlow.Application.Reporting.ReportingPermissions.ReportsRead);
+
     public async Task<IReadOnlyList<OrganizationScope>> LoadAuditScopesAsync()
     {
         var actor = await actors.ResolveAsync(default);

@@ -404,4 +404,12 @@ dd { margin-inline-start: 0; margin-block-start: .4rem; }
 .po-status-inprogress { background:#fef3c7; color:#92400e; }
 .po-status-completed { background:#dcfce7; color:#166534; }
 .po-status-cancelled { background:#fdecea; color:#8f2027; }
+.ff-icon--reports { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v18h18'/%3E%3Cpath d='M7 16v-5M12 16V7M17 16v-3'/%3E%3C/svg%3E"); }
+.rpt-kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; }
+.rpt-kpi-card { display:flex; flex-direction:column; gap:6px; padding:14px 16px; background:#ffffff; border:1px solid #dce5ed; border-radius:12px; }
+.rpt-kpi-card--warn { border-color:#f3c6c9; background:#fff7f8; }
+.rpt-kpi-label { font-size:.82rem; color:#5d7284; font-weight:600; }
+.rpt-kpi-value { font-size:1.35rem; font-weight:700; color:#182c3a; }
+.rpt-shortage-badge { background:#fdecea; color:#8f2027; }
+.rpt-ok-badge { background:#dcfce7; color:#166534; }
 

@@ -7,6 +7,7 @@ using ForgeFlow.Application.Inventory;
 using ForgeFlow.Application.Items;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.ProductionOrders;
+using ForgeFlow.Application.Reporting;
 using ForgeFlow.Application.Units;
 
 namespace ForgeFlow.Infrastructure.Organizations;
@@ -45,6 +46,9 @@ public static class OrganizationPersistenceRegistration
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
         services.AddScoped<InventoryUseCases>(provider => new InventoryUseCases(
             new SqlInventoryOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
+        services.AddScoped<ReportingUseCases>(provider => new ReportingUseCases(
+            new SqlReportingQueryStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
         return services;
     }

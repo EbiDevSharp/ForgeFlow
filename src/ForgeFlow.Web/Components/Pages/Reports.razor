@@ -1,0 +1,909 @@
+@page "/reports"
+@page "/organizations/{OrganizationId:long}/reports"
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Reporting
+@using ForgeFlow.Domain.Boms
+@using ForgeFlow.Domain.ProductionOrders
+@using ForgeFlow.Web.Roles
+@implements IAsyncDisposable
+@inject ReportingUseCases ReportService
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject CulturePolicy Culture
+@inject DisplayFormatter Format
+@inject IJSRuntime JS
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["Reports"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="rpt-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="rpt-title">@Text["Reports"]</h1>
+            <p class="write-hint">@Text["ReportsCaption"]</p>
+        </div>
+        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanExport)
+        {
+            <div class="read-head-actions">
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!exporting && !gridLoading)" OnClick="ExportActiveCsvAsync">
+                    @Text["RptExportCsvBtn"]
+                </BitButton>
+            </div>
+        }
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div class="read-state" role="alert">
+            <p>@Text[pageError]</p>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else if (available.Count == 0)
+    {
+        <p role="status" class="read-empty">@Text["ReadDenied"]</p>
+    }
+    else
+    {
+        <div class="read-tab-bar" role="tablist" aria-label="@Text["Reports"]">
+            <button type="button" role="tab" aria-selected="@(activeTab == TabShortage)"
+                    class="read-tab-btn @(activeTab == TabShortage ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabShortage)">@Text["RptTabShortage"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabVariance)"
+                    class="read-tab-btn @(activeTab == TabVariance ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabVariance)">@Text["RptTabVariance"]</button>
+        </div>
+
+        <div class="read-toolbar-card">
+            @if (available.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="rpt-scope">@Text["ReadScope"]</label>
+                    <select id="rpt-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                        @for (var i = 0; i < available.Count; i++)
+                        {
+                            <option value="@i">@ScopeLabel(available[i])</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (CurrentScope is OrganizationScope.Organization && authorizedSites.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="rpt-site">@Text["PoSiteColumn"]</label>
+                    <select id="rpt-site" value="@siteFilter" @onchange="ChangeSiteFilterAsync">
+                        <option value="0">@Text["PoAllSitesOption"]</option>
+                        @foreach (var s in authorizedSites)
+                        {
+                            <option value="@s.SiteId">@s.SiteCode — @s.SiteName</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (activeTab == TabVariance)
+            {
+                <div class="read-field">
+                    <label for="rpt-status">@Text["PoStatusColumn"]</label>
+                    <select id="rpt-status" value="@statusFilter" @onchange="ChangeStatusFilterAsync">
+                        <option value="">@Text["PoAllStatusesOption"]</option>
+                        <option value="@((int)ProductionOrderStatus.Draft)">@Text["PoStatusDraft"]</option>
+                        <option value="@((int)ProductionOrderStatus.Released)">@Text["PoStatusReleased"]</option>
+                        <option value="@((int)ProductionOrderStatus.InProgress)">@Text["PoStatusInProgress"]</option>
+                        <option value="@((int)ProductionOrderStatus.Completed)">@Text["PoStatusCompleted"]</option>
+                        <option value="@((int)ProductionOrderStatus.Cancelled)">@Text["PoStatusCancelled"]</option>
+                    </select>
+                </div>
+            }
+
+            <div class="read-field">
+                <label>@Text["RptDueFromLabel"]</label>
+                <BitDatePicker @bind-Value="DueFromOffset"
+                               Class="bom-dtp"
+                               Culture="@Culture.PickerCulture"
+                               DateFormat="@PickerDateFormat"
+                               ShowTimePicker="false"
+                               AllowTextInput="false"
+                               AutoClose="true"
+                               ShowClearButton="true"
+                               ShowGoToToday="true"
+                               GoToTodayTitle="@Text["BomDateToday"]"
+                               GoToTodayIcon="@TodayIcon"
+                               Icon="@CalendarIcon"
+                               NextMonthNavIcon="@NextNavIcon"
+                               PrevMonthNavIcon="@PrevNavIcon"
+                               NextYearNavIcon="@NextYearIcon"
+                               PrevYearNavIcon="@PrevYearIcon"
+                               ClearButtonIcon="@CloseIcon" />
+            </div>
+
+            <div class="read-field">
+                <label>@Text["RptDueToLabel"]</label>
+                <BitDatePicker @bind-Value="DueToOffset"
+                               Class="bom-dtp"
+                               Culture="@Culture.PickerCulture"
+                               DateFormat="@PickerDateFormat"
+                               ShowTimePicker="false"
+                               AllowTextInput="false"
+                               AutoClose="true"
+                               ShowClearButton="true"
+                               ShowGoToToday="true"
+                               GoToTodayTitle="@Text["BomDateToday"]"
+                               GoToTodayIcon="@TodayIcon"
+                               Icon="@CalendarIcon"
+                               NextMonthNavIcon="@NextNavIcon"
+                               PrevMonthNavIcon="@PrevNavIcon"
+                               NextYearNavIcon="@NextYearIcon"
+                               PrevYearNavIcon="@PrevYearIcon"
+                               ClearButtonIcon="@CloseIcon" />
+            </div>
+
+            <div class="read-field">
+                <label for="rpt-search">@Text["ReadSearch"]</label>
+                <input id="rpt-search" type="search" value="@searchText" @oninput="OnSearchInput" placeholder="@Text["ReadSearchPlaceholder"]" maxlength="64" />
+            </div>
+
+            @if (activeTab == TabShortage)
+            {
+                <label class="read-checkbox">
+                    <input type="checkbox" checked="@onlyShortages" @onchange="ToggleOnlyShortagesAsync" />
+                    <span>@Text["RptOnlyShortagesLabel"]</span>
+                </label>
+            }
+
+            <div class="read-toolbar-actions">
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!gridLoading)" OnClick="ReloadActiveDataAsync">
+                    @Text["WriteReload"]
+                </BitButton>
+            </div>
+        </div>
+
+        @if (activeTab == TabShortage && shortageReport is not null)
+        {
+            <div class="rpt-kpi-grid" aria-label="@Text["RptTabShortage"]">
+                <article class="rpt-kpi-card">
+                    <span class="rpt-kpi-label">@Text["RptKpiOpenOrders"]</span>
+                    <strong class="rpt-kpi-value" dir="ltr">@FormatInt(shortageReport.OpenOrderCount)</strong>
+                </article>
+                <article class="rpt-kpi-card">
+                    <span class="rpt-kpi-label">@Text["RptKpiMaterialsEvaluated"]</span>
+                    <strong class="rpt-kpi-value" dir="ltr">@FormatInt(shortageReport.TotalMaterialCount)</strong>
+                </article>
+                <article class="rpt-kpi-card @(shortageReport.ShortageMaterialCount > 0 ? "rpt-kpi-card--warn" : string.Empty)">
+                    <span class="rpt-kpi-label">@Text["RptKpiShortageItems"]</span>
+                    <strong class="rpt-kpi-value" dir="ltr">@FormatInt(shortageReport.ShortageMaterialCount)</strong>
+                </article>
+                <article class="rpt-kpi-card @(shortageReport.TotalShortageBaseQuantity > 0m ? "rpt-kpi-card--warn" : string.Empty)">
+                    <span class="rpt-kpi-label">@Text["RptKpiTotalShortage"]</span>
+                    <strong class="rpt-kpi-value" dir="ltr">@FormatQty(shortageReport.TotalShortageBaseQuantity)</strong>
+                </article>
+            </div>
+
+            <div class="read-grid-card">
+                <div class="read-grid @(gridLoading ? "read-grid-loading" : string.Empty)">
+                    <BitDataGrid @ref="shortageGrid" TItem="MaterialShortageItemSummary" OnRead="ReadShortagesAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="rpt-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="MaterialShortageItemSummary" Title="@Text["RptColMaterial"]">
+                                <Template Context="m">
+                                    <div>
+                                        <div class="read-primary-cell">@m.ItemName</div>
+                                        <div class="read-sub-cell"><bdi dir="ltr">@m.ItemCode · @m.BaseUnitSymbol</bdi></div>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="MaterialShortageItemSummary" Title="@Text["RptColRequiredQty"]">
+                                <Template Context="m">
+                                    <bdi dir="ltr">@FormatQty(m.RequiredBaseQuantity) @m.BaseUnitSymbol</bdi>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="MaterialShortageItemSummary" Title="@Text["RptColOnHandQty"]">
+                                <Template Context="m">
+                                    <bdi dir="ltr">@FormatQty(m.OnHandBaseQuantity) @m.BaseUnitSymbol</bdi>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="MaterialShortageItemSummary" Title="@Text["RptColShortageQty"]">
+                                <Template Context="m">
+                                    @if (m.ShortageBaseQuantity > 0m)
+                                    {
+                                        <span class="read-badge rpt-shortage-badge"><bdi dir="ltr">@FormatQty(m.ShortageBaseQuantity) @m.BaseUnitSymbol</bdi></span>
+                                    }
+                                    else
+                                    {
+                                        <span class="read-badge rpt-ok-badge"><bdi dir="ltr">@FormatQty(0m)</bdi></span>
+                                    }
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="MaterialShortageItemSummary" Title="@Text["RptColExcessQty"]">
+                                <Template Context="m">
+                                    <bdi dir="ltr">@FormatQty(m.ExcessBaseQuantity) @m.BaseUnitSymbol</bdi>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="MaterialShortageItemSummary" Title="@Text["RptColCoveragePct"]">
+                                <Template Context="m">
+                                    <bdi dir="ltr">@FormatPct(m.CoveragePercent)</bdi>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="MaterialShortageItemSummary" Title="@Text["RptColOpenOrdersCount"]">
+                                <Template Context="m">
+                                    @if (m.Orders.Count > 0)
+                                    {
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OpenShortageOrdersModal(m)">
+                                            @m.OpenOrderCount — @Text["RptShortageBreakdownBtn"]
+                                        </BitButton>
+                                    }
+                                    else
+                                    {
+                                        <bdi dir="ltr">0</bdi>
+                                    }
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else if (activeTab == TabVariance && varianceReport is not null)
+        {
+            <div class="rpt-kpi-grid" aria-label="@Text["RptTabVariance"]">
+                <article class="rpt-kpi-card">
+                    <span class="rpt-kpi-label">@Text["RptKpiEvaluatedOrders"]</span>
+                    <strong class="rpt-kpi-value" dir="ltr">@FormatInt(varianceReport.TotalOrderCount)</strong>
+                </article>
+                <article class="rpt-kpi-card">
+                    <span class="rpt-kpi-label">@Text["RptKpiAvgYield"]</span>
+                    <strong class="rpt-kpi-value" dir="ltr">@FormatPct(varianceReport.AverageYieldPercent)</strong>
+                </article>
+                <article class="rpt-kpi-card @(varianceReport.OverConsumedOrderCount > 0 ? "rpt-kpi-card--warn" : string.Empty)">
+                    <span class="rpt-kpi-label">@Text["RptKpiOverConsumed"]</span>
+                    <strong class="rpt-kpi-value" dir="ltr">@FormatInt(varianceReport.OverConsumedOrderCount)</strong>
+                </article>
+                <article class="rpt-kpi-card @(varianceReport.UnderYieldOrderCount > 0 ? "rpt-kpi-card--warn" : string.Empty)">
+                    <span class="rpt-kpi-label">@Text["RptKpiUnderYield"]</span>
+                    <strong class="rpt-kpi-value" dir="ltr">@FormatInt(varianceReport.UnderYieldOrderCount)</strong>
+                </article>
+            </div>
+
+            <div class="read-grid-card">
+                <div class="read-grid @(gridLoading ? "read-grid-loading" : string.Empty)">
+                    <BitDataGrid @ref="varianceGrid" TItem="ProductionVarianceSummary" OnRead="ReadVariancesAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="rpt-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="ProductionVarianceSummary" Title="@Text["PoOrderNumberColumn"]">
+                                <Template Context="v">
+                                    <div>
+                                        <div class="read-primary-cell"><bdi dir="ltr">@v.OrderNumber</bdi></div>
+                                        <div class="read-sub-cell"><bdi dir="ltr">@v.SiteCode</bdi> · <span class="read-badge @StatusBadgeClass(v.Status)">@StatusLabel(v.Status)</span></div>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="ProductionVarianceSummary" Title="@Text["PoItemColumn"]">
+                                <Template Context="v">
+                                    <div>
+                                        <div class="read-primary-cell">@v.ItemName</div>
+                                        <div class="read-sub-cell"><bdi dir="ltr">@v.ItemCode · @v.BaseUnitSymbol</bdi></div>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="ProductionVarianceSummary" Title="@Text["RptColPlannedVsActual"]">
+                                <Template Context="v">
+                                    <div>
+                                        <div dir="ltr">@FormatQty(v.PlannedBaseQuantity) / @FormatQty(v.ActualProducedBaseQuantity) @v.BaseUnitSymbol</div>
+                                        <div class="read-sub-cell"><span>@Text["RptColScrapQty"]:</span> <bdi dir="ltr">@FormatQty(v.ActualScrapBaseQuantity)</bdi></div>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="ProductionVarianceSummary" Title="@Text["RptColYieldPct"]">
+                                <Template Context="v">
+                                    <span class="read-badge @(v.YieldPercent >= 100m ? "rpt-ok-badge" : "po-status-inprogress")" dir="ltr">@FormatPct(v.YieldPercent)</span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="ProductionVarianceSummary" Title="@Text["RptColInputsPlannedVsIssued"]">
+                                <Template Context="v">
+                                    <div>
+                                        <div dir="ltr">@FormatQty(v.TotalPlannedInputBaseQuantity) / @FormatQty(v.TotalIssuedInputBaseQuantity)</div>
+                                        <div class="read-sub-cell @(v.TotalInputVarianceBaseQuantity > 0m ? "inv-delta-out" : string.Empty)" dir="ltr">
+                                            @(v.TotalInputVarianceBaseQuantity > 0m ? "+" : string.Empty)@FormatQty(v.TotalInputVarianceBaseQuantity)
+                                        </div>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="ProductionVarianceSummary" Title="@Text["ReadActions"]">
+                                <Template Context="v">
+                                    <div class="read-row-actions">
+                                        <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                       IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                                       OnClick="() => OpenVarianceDetailAsync(v)" />
+                                        </BitTooltip>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+    }
+
+    <BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="shortageModalOpen"
+               Title="@Text["RptShortageBreakdownTitle"]" AriaLabel="@Text["RptShortageBreakdownTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="audit-modal-body audit-modal-body--wide">
+                @if (selectedShortageItem is not null)
+                {
+                    <div class="audit-meta">
+                        <div><span class="audit-meta-label">@Text["RptColMaterial"]</span><span class="audit-meta-val">@selectedShortageItem.ItemName (<bdi dir="ltr">@selectedShortageItem.ItemCode</bdi>)</span></div>
+                        <div><span class="audit-meta-label">@Text["RptColRequiredQty"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.RequiredBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
+                        <div><span class="audit-meta-label">@Text["RptColOnHandQty"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.OnHandBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
+                        <div><span class="audit-meta-label">@Text["RptColShortageQty"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.ShortageBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
+                    </div>
+
+                    @if (selectedShortageItem.Orders.Count == 0)
+                    {
+                        <p class="read-empty">@Text["RptNoShortageOrders"]</p>
+                    }
+                    else
+                    {
+                        <table class="read-subtable">
+                            <thead>
+                                <tr>
+                                    <th>@Text["PoOrderNumberColumn"]</th>
+                                    <th>@Text["PoSiteColumn"]</th>
+                                    <th>@Text["PoStatusColumn"]</th>
+                                    <th>@Text["PoDatesColumn"]</th>
+                                    <th>@Text["RptColRequiredQty"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var o in selectedShortageItem.Orders)
+                                {
+                                    <tr>
+                                        <td><bdi dir="ltr">@o.OrderNumber</bdi></td>
+                                        <td><bdi dir="ltr">@o.SiteCode</bdi></td>
+                                        <td><span class="read-badge @StatusBadgeClass(o.Status)">@StatusLabel(o.Status)</span></td>
+                                        <td dir="ltr">@(o.PlannedDueDate is DateOnly d ? Format.Date(d) : "—")</td>
+                                        <td dir="ltr">@FormatQty(o.RequiredBaseQuantity) @selectedShortageItem.BaseUnitSymbol</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+
+                    <div class="po-dialog-footer">
+                        <BitButton Variant="BitVariant.Outline" OnClick="CloseShortageModal">@Text["WriteCancel"]</BitButton>
+                    </div>
+                }
+            </div>
+        </Body>
+    </BitDialog>
+
+    <BitDialog Width="840px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="varianceModalOpen"
+               Title="@Text["RptVarianceDetailTitle"]" AriaLabel="@Text["RptVarianceDetailTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="audit-modal-body audit-modal-body--wide">
+                @if (modalError is not null)
+                {
+                    <p class="write-error" role="alert">@Text[modalError]</p>
+                }
+                else if (selectedVarianceDetail is not null)
+                {
+                    var s = selectedVarianceDetail.Summary;
+                    <div class="audit-meta">
+                        <div><span class="audit-meta-label">@Text["PoOrderNumberColumn"]</span><span class="audit-meta-val"><bdi dir="ltr">@s.OrderNumber (@s.SiteCode)</bdi></span></div>
+                        <div><span class="audit-meta-label">@Text["PoItemColumn"]</span><span class="audit-meta-val">@s.ItemName (<bdi dir="ltr">@s.ItemCode</bdi>)</span></div>
+                        <div><span class="audit-meta-label">@Text["RptColPlannedVsActual"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(s.PlannedBaseQuantity) / @FormatQty(s.ActualProducedBaseQuantity) @s.BaseUnitSymbol</span></div>
+                        <div><span class="audit-meta-label">@Text["RptColPostedReceipt"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(s.PostedReceivedBaseQuantity) @s.BaseUnitSymbol</span></div>
+                        <div><span class="audit-meta-label">@Text["RptColYieldPct"]</span><span class="audit-meta-val" dir="ltr">@FormatPct(s.YieldPercent)</span></div>
+                    </div>
+
+                    <div class="write-section">
+                        <h3>@Text["RptOrderInputsTitle"]</h3>
+                        <table class="read-subtable">
+                            <thead>
+                                <tr>
+                                    <th>@Text["RptColMaterial"]</th>
+                                    <th>@Text["RptColPlannedQty"]</th>
+                                    <th>@Text["RptColIssuedQty"]</th>
+                                    <th>@Text["RptColVariance"]</th>
+                                    <th>@Text["RptColRemainingToIssue"]</th>
+                                    <th>@Text["RptColConsumptionPct"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var line in selectedVarianceDetail.Inputs)
+                                {
+                                    <tr>
+                                        <td>@line.ItemName (<bdi dir="ltr">@line.ItemCode</bdi>)</td>
+                                        <td dir="ltr">@FormatQty(line.PlannedBaseQuantity) @line.BaseUnitSymbol</td>
+                                        <td dir="ltr">@FormatQty(line.IssuedBaseQuantity) @line.BaseUnitSymbol</td>
+                                        <td class="@(line.VarianceBaseQuantity > 0m ? "inv-delta-out" : string.Empty)" dir="ltr">
+                                            @(line.VarianceBaseQuantity > 0m ? "+" : string.Empty)@FormatQty(line.VarianceBaseQuantity) @line.BaseUnitSymbol
+                                        </td>
+                                        <td dir="ltr">@FormatQty(line.RemainingToIssueBaseQuantity) @line.BaseUnitSymbol</td>
+                                        <td dir="ltr">@FormatPct(line.ConsumptionPercent)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="write-section">
+                        <h3>@Text["RptOrderOutputsTitle"]</h3>
+                        <table class="read-subtable">
+                            <thead>
+                                <tr>
+                                    <th>@Text["RptColMaterial"]</th>
+                                    <th>@Text["BomOutputTypeColumn"]</th>
+                                    <th>@Text["RptColPlannedQty"]</th>
+                                    <th>@Text["RptColReceivedQty"]</th>
+                                    <th>@Text["RptColVariance"]</th>
+                                    <th>@Text["RptColAchievementPct"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var line in selectedVarianceDetail.Outputs)
+                                {
+                                    <tr>
+                                        <td>@line.ItemName (<bdi dir="ltr">@line.ItemCode</bdi>)</td>
+                                        <td>@OutputTypeLabel(line.OutputType)</td>
+                                        <td dir="ltr">@FormatQty(line.PlannedBaseQuantity) @line.BaseUnitSymbol</td>
+                                        <td dir="ltr">@FormatQty(line.ReceivedBaseQuantity) @line.BaseUnitSymbol</td>
+                                        <td dir="ltr">@(line.VarianceBaseQuantity > 0m ? "+" : string.Empty)@FormatQty(line.VarianceBaseQuantity) @line.BaseUnitSymbol</td>
+                                        <td dir="ltr">@FormatPct(line.AchievementPercent)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="po-dialog-footer">
+                        <BitButton Variant="BitVariant.Outline" OnClick="CloseVarianceModal">@Text["WriteCancel"]</BitButton>
+                    </div>
+                }
+            </div>
+        </Body>
+    </BitDialog>
+</section>
+
+@code {
+    [Parameter] public long? OrganizationId { get; set; }
+
+    private const int TabShortage = 0;
+    private const int TabVariance = 1;
+
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+    };
+
+    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
+    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
+    private static readonly BitIconInfo NextNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-next");
+    private static readonly BitIconInfo PrevNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-prev");
+    private static readonly BitIconInfo NextYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-next");
+    private static readonly BitIconInfo PrevYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-prev");
+    private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
+
+    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["Reports"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    private IJSObjectReference? downloadJs;
+    private BitDataGrid<MaterialShortageItemSummary>? shortageGrid;
+    private BitDataGrid<ProductionVarianceSummary>? varianceGrid;
+
+    private IReadOnlyList<OrganizationScope> available = [];
+    private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
+        new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+    private IReadOnlyList<ReportSiteInfo> authorizedSites = [];
+    private int scopeIndex;
+    private int activeTab = TabShortage;
+    private long siteFilter;
+    private string statusFilter = string.Empty;
+    private DateOnly? dueFromFilter;
+    private DateOnly? dueToFilter;
+    private bool onlyShortages = true;
+    private string searchText = string.Empty;
+
+    private bool initialLoading = true;
+    private bool gridLoading;
+    private bool exporting;
+    private bool scopeCanExport;
+    private string? pageError;
+    private string? pageNotice;
+
+    private MaterialShortageReport? shortageReport;
+    private ProductionVarianceReport? varianceReport;
+
+    private bool shortageModalOpen;
+    private MaterialShortageItemSummary? selectedShortageItem;
+
+    private bool varianceModalOpen;
+    private ProductionVarianceDetail? selectedVarianceDetail;
+    private string? modalError;
+
+    private DateTimeOffset? DueFromOffset
+    {
+        get => dueFromFilter is DateOnly d ? new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero) : null;
+        set
+        {
+            dueFromFilter = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+            _ = ReloadActiveDataAsync();
+        }
+    }
+
+    private DateTimeOffset? DueToOffset
+    {
+        get => dueToFilter is DateOnly d ? new DateTimeOffset(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero) : null;
+        set
+        {
+            dueToFilter = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+            _ = ReloadActiveDataAsync();
+        }
+    }
+
+    private OrganizationScope? CurrentScope =>
+        scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await ReloadScopeAsync();
+    }
+
+    private async Task ReloadScopeAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        pageNotice = null;
+        try
+        {
+            var loaded = await Scopes.LoadReportScopesAsync();
+            available = OrganizationId is long orgId
+                ? loaded.Where(s => ScopeOrgId(s) == orgId).ToList()
+                : loaded.ToList();
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+            if (available.Count == 0 && OrganizationId is long fallbackOrgId)
+                available = [new OrganizationScope.Organization(fallbackOrgId)];
+            if (available.Count == 0)
+            {
+                authorizedSites = [];
+                shortageReport = null;
+                varianceReport = null;
+                return;
+            }
+
+            scopeIndex = 0;
+            await InitializeCurrentScopeAsync();
+        }
+        catch
+        {
+            pageError = "ReadError";
+        }
+        finally
+        {
+            initialLoading = false;
+        }
+    }
+
+    private async Task InitializeCurrentScopeAsync()
+    {
+        scopeCanExport = false;
+        authorizedSites = [];
+        siteFilter = 0;
+        var scope = CurrentScope;
+        if (scope is null) return;
+
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is not null)
+            scopeCanExport = (await Permissions.EvaluateAsync(actor, scope, ReportingPermissions.ReportsExport, default)).IsAllowed;
+
+        var orgId = ScopeOrgId(scope);
+        var sitesRes = await ReportService.ListAuthorizedSites(scope, orgId);
+        if (sitesRes.Succeeded)
+            authorizedSites = sitesRes.Value!;
+        if (scope is OrganizationScope.Site siteScope)
+            siteFilter = siteScope.SiteId;
+
+        await LoadActiveTabAsync();
+    }
+
+    private async Task ReloadActiveDataAsync()
+    {
+        await LoadActiveTabAsync();
+        if (activeTab == TabShortage && shortageGrid is not null)
+            await shortageGrid.RefreshAsync();
+        else if (activeTab == TabVariance && varianceGrid is not null)
+            await varianceGrid.RefreshAsync();
+    }
+
+    private async Task LoadActiveTabAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        gridLoading = true;
+        pageError = null;
+        try
+        {
+            var orgId = ScopeOrgId(scope);
+            long? siteArg = siteFilter > 0 ? siteFilter : null;
+
+            if (activeTab == TabShortage)
+            {
+                var query = new MaterialShortageQuery(siteArg, dueFromFilter, dueToFilter, onlyShortages, searchText);
+                var res = await ReportService.GetMaterialShortageReport(scope, orgId, query);
+                if (!res.Succeeded)
+                {
+                    pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                    return;
+                }
+                shortageReport = res.Value!;
+            }
+            else
+            {
+                ProductionOrderStatus? parsedStatus = int.TryParse(statusFilter, out var st) ? (ProductionOrderStatus)st : null;
+                var query = new ProductionVarianceQuery(siteArg, parsedStatus, dueFromFilter, dueToFilter, searchText);
+                var res = await ReportService.GetProductionVarianceReport(scope, orgId, query);
+                if (!res.Succeeded)
+                {
+                    pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                    return;
+                }
+                varianceReport = res.Value!;
+            }
+        }
+        finally
+        {
+            gridLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private Task<BitDataGridReadResult<MaterialShortageItemSummary>> ReadShortagesAsync(BitDataGridReadRequest request)
+    {
+        var items = shortageReport?.Items ?? [];
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var slice = items.Skip(request.Skip).Take(size).ToArray();
+        return Task.FromResult(new BitDataGridReadResult<MaterialShortageItemSummary>(slice, items.Count));
+    }
+
+    private Task<BitDataGridReadResult<ProductionVarianceSummary>> ReadVariancesAsync(BitDataGridReadRequest request)
+    {
+        var items = varianceReport?.Orders ?? [];
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var slice = items.Skip(request.Skip).Take(size).ToArray();
+        return Task.FromResult(new BitDataGridReadResult<ProductionVarianceSummary>(slice, items.Count));
+    }
+
+    private async Task SwitchTabAsync(int tab)
+    {
+        if (activeTab == tab) return;
+        activeTab = tab;
+        pageNotice = null;
+        await ReloadActiveDataAsync();
+    }
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var idx) && idx >= 0 && idx < available.Count)
+        {
+            scopeIndex = idx;
+            await InitializeCurrentScopeAsync();
+        }
+    }
+
+    private async Task ChangeSiteFilterAsync(ChangeEventArgs e)
+    {
+        siteFilter = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        await ReloadActiveDataAsync();
+    }
+
+    private async Task ChangeStatusFilterAsync(ChangeEventArgs e)
+    {
+        statusFilter = e.Value?.ToString() ?? string.Empty;
+        await ReloadActiveDataAsync();
+    }
+
+    private async Task ToggleOnlyShortagesAsync(ChangeEventArgs e)
+    {
+        onlyShortages = e.Value is bool b ? b : string.Equals(e.Value?.ToString(), "true", StringComparison.OrdinalIgnoreCase);
+        await ReloadActiveDataAsync();
+    }
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        searchText = e.Value?.ToString() ?? string.Empty;
+        await ReloadActiveDataAsync();
+    }
+
+    private void OpenShortageOrdersModal(MaterialShortageItemSummary item)
+    {
+        selectedShortageItem = item;
+        shortageModalOpen = true;
+    }
+
+    private void CloseShortageModal()
+    {
+        shortageModalOpen = false;
+        selectedShortageItem = null;
+    }
+
+    private async Task OpenVarianceDetailAsync(ProductionVarianceSummary summary)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalError = null;
+        selectedVarianceDetail = null;
+        varianceModalOpen = true;
+
+        var res = await ReportService.GetProductionVarianceDetail(scope, summary.OrganizationId, summary.ProductionOrderId);
+        if (!res.Succeeded)
+        {
+            modalError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+            return;
+        }
+        selectedVarianceDetail = res.Value!;
+    }
+
+    private void CloseVarianceModal()
+    {
+        varianceModalOpen = false;
+        selectedVarianceDetail = null;
+        modalError = null;
+    }
+
+    private async Task ExportActiveCsvAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || !scopeCanExport) return;
+        exporting = true;
+        pageNotice = null;
+        pageError = null;
+        try
+        {
+            var orgId = ScopeOrgId(scope);
+            long? siteArg = siteFilter > 0 ? siteFilter : null;
+            OrganizationResult<CsvExportFile> res;
+
+            if (activeTab == TabShortage)
+            {
+                var query = new MaterialShortageQuery(siteArg, dueFromFilter, dueToFilter, onlyShortages, searchText);
+                var cols = new CsvExportColumnHeaders(
+                    [
+                        Text["RptColMaterial"], Text["RptColItemName"], Text["RptColBaseUnit"],
+                        Text["RptColRequiredQty"], Text["RptColOnHandQty"], Text["RptColShortageQty"],
+                        Text["RptColExcessQty"], Text["RptColCoveragePct"], Text["RptColOpenOrdersCount"],
+                        Text["RptCsvHeaderDemandOrders"]
+                    ],
+                    $"{Text["RptShortageFileName"]}-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv");
+                res = await ReportService.ExportMaterialShortageCsv(scope, orgId, query, cols);
+            }
+            else
+            {
+                ProductionOrderStatus? parsedStatus = int.TryParse(statusFilter, out var st) ? (ProductionOrderStatus)st : null;
+                var query = new ProductionVarianceQuery(siteArg, parsedStatus, dueFromFilter, dueToFilter, searchText);
+                var cols = new CsvExportColumnHeaders(
+                    [
+                        Text["PoOrderNumberColumn"], Text["PoSiteColumn"], Text["PoStatusColumn"],
+                        Text["PoItemColumn"], Text["RptColItemName"], Text["RptColBaseUnit"],
+                        Text["RptColPlannedQty"], Text["RptColReceivedQty"], Text["RptColScrapQty"],
+                        Text["RptColYieldPct"], Text["RptColPlannedInput"], Text["RptColIssuedQty"]
+                    ],
+                    $"{Text["RptVarianceFileName"]}-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv");
+                res = await ReportService.ExportProductionVarianceCsv(scope, orgId, query, cols);
+            }
+
+            if (!res.Succeeded)
+            {
+                pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+
+            var file = res.Value!;
+            downloadJs ??= await JS.InvokeAsync<IJSObjectReference>("import", "./report-download.js");
+            await downloadJs.InvokeVoidAsync("downloadBase64File", file.FileName, file.ContentType, Convert.ToBase64String(file.Bytes));
+            pageNotice = Text["RptExportSuccessNotice"];
+        }
+        finally
+        {
+            exporting = false;
+        }
+    }
+
+    private string ScopeLabel(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o when scopeLabels.TryGetValue(scope, out var info) && info.OrgCode is not null
+            => $"{info.OrgCode} — {info.OrgName}",
+        OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId],
+        OrganizationScope.Site s when scopeLabels.TryGetValue(scope, out var info) && info.SiteCode is not null
+            => $"{info.OrgCode} / {info.SiteCode} — {info.SiteName}",
+        OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
+        _ => string.Empty
+    };
+
+    private static long ScopeOrgId(OrganizationScope s) => s switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site st => st.OrganizationId,
+        _ => 0
+    };
+
+    private string StatusLabel(ProductionOrderStatus status) => status switch
+    {
+        ProductionOrderStatus.Draft => Text["PoStatusDraft"],
+        ProductionOrderStatus.Released => Text["PoStatusReleased"],
+        ProductionOrderStatus.InProgress => Text["PoStatusInProgress"],
+        ProductionOrderStatus.Completed => Text["PoStatusCompleted"],
+        ProductionOrderStatus.Cancelled => Text["PoStatusCancelled"],
+        _ => status.ToString()
+    };
+
+    private static string StatusBadgeClass(ProductionOrderStatus status) => status switch
+    {
+        ProductionOrderStatus.Draft => "po-status-draft",
+        ProductionOrderStatus.Released => "po-status-released",
+        ProductionOrderStatus.InProgress => "po-status-inprogress",
+        ProductionOrderStatus.Completed => "po-status-completed",
+        ProductionOrderStatus.Cancelled => "po-status-cancelled",
+        _ => "po-status-draft"
+    };
+
+    private string OutputTypeLabel(BomOutputType type) => type switch
+    {
+        BomOutputType.MainProduct => Text["BomOutMainProduct"],
+        BomOutputType.CoProduct => Text["BomOutCoProduct"],
+        BomOutputType.ByProduct => Text["BomOutByProduct"],
+        BomOutputType.Waste => Text["BomOutWaste"],
+        _ => type.ToString()
+    };
+
+    private string FormatInt(int value) => value.ToString("N0", Culture.Current);
+    private string FormatQty(decimal value) => Format.Number(value);
+    private string FormatPct(decimal value) => $"{Format.Number(value)}%";
+
+    public async ValueTask DisposeAsync()
+    {
+        if (downloadJs is not null)
+        {
+            try { await downloadJs.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+        }
+    }
+}

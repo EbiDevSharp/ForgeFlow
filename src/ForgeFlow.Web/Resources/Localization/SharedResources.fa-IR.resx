@@ -1782,4 +1782,163 @@
   <data name="InvErrorIdempotencyInvalid" xml:space="preserve">
     <value>کلید یکتای جلوگیری از ثبت تکراری نامعتبر است.</value>
   </data>
+  <data name="Reports" xml:space="preserve">
+    <value>گزارش‌ها</value>
+  </data>
+  <data name="ReportsNavGroup" xml:space="preserve">
+    <value>گزارش‌ها</value>
+  </data>
+  <data name="ReportsCaption" xml:space="preserve">
+    <value>گزارش کسری مواد اولیه و مغایرت مصرف و بازده تولید.</value>
+  </data>
+  <data name="PermPageReports" xml:space="preserve">
+    <value>گزارش‌های عملیاتی</value>
+  </data>
+  <data name="PermOpExportReports" xml:space="preserve">
+    <value>خروجی CSV</value>
+  </data>
+  <data name="RptErrorOrderNotFound" xml:space="preserve">
+    <value>سفارش تولید انتخاب‌شده در این محدوده یافت نشد.</value>
+  </data>
+  <data name="RptErrorExportInvalid" xml:space="preserve">
+    <value>پیکربندی خروجی گزارش نامعتبر است.</value>
+  </data>
+  <data name="RptTabShortage" xml:space="preserve">
+    <value>کسری مواد اولیه</value>
+  </data>
+  <data name="RptTabVariance" xml:space="preserve">
+    <value>مغایرت مصرف و بازده</value>
+  </data>
+  <data name="RptExportCsvBtn" xml:space="preserve">
+    <value>خروجی CSV</value>
+  </data>
+  <data name="RptDueFromLabel" xml:space="preserve">
+    <value>سررسید از</value>
+  </data>
+  <data name="RptDueToLabel" xml:space="preserve">
+    <value>سررسید تا</value>
+  </data>
+  <data name="RptOnlyShortagesLabel" xml:space="preserve">
+    <value>فقط اقلام دارای کسری</value>
+  </data>
+  <data name="RptKpiOpenOrders" xml:space="preserve">
+    <value>سفارش‌های باز</value>
+  </data>
+  <data name="RptKpiMaterialsEvaluated" xml:space="preserve">
+    <value>اقلام بررسی‌شده</value>
+  </data>
+  <data name="RptKpiShortageItems" xml:space="preserve">
+    <value>اقلام دارای کسری</value>
+  </data>
+  <data name="RptKpiTotalShortage" xml:space="preserve">
+    <value>مجموع کسری خالص</value>
+  </data>
+  <data name="RptKpiEvaluatedOrders" xml:space="preserve">
+    <value>سفارش‌های بررسی‌شده</value>
+  </data>
+  <data name="RptKpiAvgYield" xml:space="preserve">
+    <value>میانگین بازده</value>
+  </data>
+  <data name="RptKpiOverConsumed" xml:space="preserve">
+    <value>سفارش‌های پرمصرف</value>
+  </data>
+  <data name="RptKpiUnderYield" xml:space="preserve">
+    <value>سفارش‌های کم‌بازده</value>
+  </data>
+  <data name="RptColMaterial" xml:space="preserve">
+    <value>ماده اولیه / کالا</value>
+  </data>
+  <data name="RptColItemName" xml:space="preserve">
+    <value>نام کالا</value>
+  </data>
+  <data name="RptColBaseUnit" xml:space="preserve">
+    <value>واحد پایه</value>
+  </data>
+  <data name="RptColRequiredQty" xml:space="preserve">
+    <value>مقدار مورد نیاز</value>
+  </data>
+  <data name="RptColOnHandQty" xml:space="preserve">
+    <value>موجودی انبار</value>
+  </data>
+  <data name="RptColShortageQty" xml:space="preserve">
+    <value>مقدار کسری</value>
+  </data>
+  <data name="RptColExcessQty" xml:space="preserve">
+    <value>مقدار مازاد</value>
+  </data>
+  <data name="RptColCoveragePct" xml:space="preserve">
+    <value>درصد پوشش</value>
+  </data>
+  <data name="RptColOpenOrdersCount" xml:space="preserve">
+    <value>سفارش‌های متقاضی</value>
+  </data>
+  <data name="RptColPlannedVsActual" xml:space="preserve">
+    <value>برنامه‌ریزی / تولید واقعی</value>
+  </data>
+  <data name="RptColPlannedQty" xml:space="preserve">
+    <value>مقدار برنامه‌ریزی‌شده</value>
+  </data>
+  <data name="RptColScrapQty" xml:space="preserve">
+    <value>ضایعات</value>
+  </data>
+  <data name="RptColYieldPct" xml:space="preserve">
+    <value>بازده</value>
+  </data>
+  <data name="RptColInputsPlannedVsIssued" xml:space="preserve">
+    <value>مواد (برنامه / مصرفی)</value>
+  </data>
+  <data name="RptColPlannedInput" xml:space="preserve">
+    <value>مصرف برنامه‌ریزی‌شده</value>
+  </data>
+  <data name="RptColIssuedQty" xml:space="preserve">
+    <value>مقدار مصرف‌شده</value>
+  </data>
+  <data name="RptColVariance" xml:space="preserve">
+    <value>انحراف / مغایرت</value>
+  </data>
+  <data name="RptColRemainingToIssue" xml:space="preserve">
+    <value>باقیمانده جهت خروج</value>
+  </data>
+  <data name="RptColConsumptionPct" xml:space="preserve">
+    <value>درصد مصرف</value>
+  </data>
+  <data name="RptColReceivedQty" xml:space="preserve">
+    <value>مقدار رسیدشده</value>
+  </data>
+  <data name="RptColAchievementPct" xml:space="preserve">
+    <value>درصد تحقق</value>
+  </data>
+  <data name="RptColPostedReceipt" xml:space="preserve">
+    <value>رسید ثبت‌شده انبار</value>
+  </data>
+  <data name="RptShortageBreakdownBtn" xml:space="preserve">
+    <value>سفارش‌ها</value>
+  </data>
+  <data name="RptShortageBreakdownTitle" xml:space="preserve">
+    <value>تفکیک نیاز بر اساس سفارش تولید</value>
+  </data>
+  <data name="RptVarianceDetailTitle" xml:space="preserve">
+    <value>جزئیات مغایرت مصرف و بازده سفارش تولید</value>
+  </data>
+  <data name="RptOrderInputsTitle" xml:space="preserve">
+    <value>مغایرت مصرف مواد اولیه</value>
+  </data>
+  <data name="RptOrderOutputsTitle" xml:space="preserve">
+    <value>خروجی برنامه‌ریزی‌شده در برابر رسیدشده</value>
+  </data>
+  <data name="RptNoShortageOrders" xml:space="preserve">
+    <value>هیچ سفارش تولید بازی نیازمند این کالا نیست.</value>
+  </data>
+  <data name="RptCsvHeaderDemandOrders" xml:space="preserve">
+    <value>سفارش‌های متقاضی</value>
+  </data>
+  <data name="RptShortageFileName" xml:space="preserve">
+    <value>material-shortage-report</value>
+  </data>
+  <data name="RptVarianceFileName" xml:space="preserve">
+    <value>production-variance-report</value>
+  </data>
+  <data name="RptExportSuccessNotice" xml:space="preserve">
+    <value>فایل گزارش CSV آماده و ذخیره شد.</value>
+  </data>
 </root>

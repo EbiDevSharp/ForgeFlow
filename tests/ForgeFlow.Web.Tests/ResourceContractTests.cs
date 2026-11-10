@@ -226,7 +226,24 @@ public sealed class ResourceContractTests
             ["InvErrorWarehouseInactive"] = 0, ["InvErrorAlreadyReversed"] = 0, ["InvErrorCannotReverseReversal"] = 0,
             ["InvErrorLinesRequired"] = 0, ["InvErrorQuantityInvalid"] = 0, ["InvErrorLotCodeInvalid"] = 0,
             ["InvErrorDestWarehouseInvalid"] = 0, ["InvErrorTransferSameWarehouse"] = 0, ["InvErrorOrderInvalid"] = 0,
-            ["InvErrorOrderStateInvalid"] = 0, ["InvErrorInsufficientStock"] = 0, ["InvErrorIdempotencyInvalid"] = 0
+            ["InvErrorOrderStateInvalid"] = 0, ["InvErrorInsufficientStock"] = 0, ["InvErrorIdempotencyInvalid"] = 0,
+            ["Reports"] = 0, ["ReportsNavGroup"] = 0, ["ReportsCaption"] = 0,
+            ["PermPageReports"] = 0, ["PermOpExportReports"] = 0,
+            ["RptErrorOrderNotFound"] = 0, ["RptErrorExportInvalid"] = 0,
+            ["RptTabShortage"] = 0, ["RptTabVariance"] = 0, ["RptExportCsvBtn"] = 0,
+            ["RptDueFromLabel"] = 0, ["RptDueToLabel"] = 0, ["RptOnlyShortagesLabel"] = 0,
+            ["RptKpiOpenOrders"] = 0, ["RptKpiMaterialsEvaluated"] = 0, ["RptKpiShortageItems"] = 0, ["RptKpiTotalShortage"] = 0,
+            ["RptKpiEvaluatedOrders"] = 0, ["RptKpiAvgYield"] = 0, ["RptKpiOverConsumed"] = 0, ["RptKpiUnderYield"] = 0,
+            ["RptColMaterial"] = 0, ["RptColItemName"] = 0, ["RptColBaseUnit"] = 0,
+            ["RptColRequiredQty"] = 0, ["RptColOnHandQty"] = 0, ["RptColShortageQty"] = 0,
+            ["RptColExcessQty"] = 0, ["RptColCoveragePct"] = 0, ["RptColOpenOrdersCount"] = 0,
+            ["RptColPlannedVsActual"] = 0, ["RptColPlannedQty"] = 0, ["RptColScrapQty"] = 0,
+            ["RptColYieldPct"] = 0, ["RptColInputsPlannedVsIssued"] = 0, ["RptColPlannedInput"] = 0,
+            ["RptColIssuedQty"] = 0, ["RptColVariance"] = 0, ["RptColRemainingToIssue"] = 0,
+            ["RptColConsumptionPct"] = 0, ["RptColReceivedQty"] = 0, ["RptColAchievementPct"] = 0, ["RptColPostedReceipt"] = 0,
+            ["RptShortageBreakdownBtn"] = 0, ["RptShortageBreakdownTitle"] = 0, ["RptVarianceDetailTitle"] = 0,
+            ["RptOrderInputsTitle"] = 0, ["RptOrderOutputsTitle"] = 0, ["RptNoShortageOrders"] = 0,
+            ["RptCsvHeaderDemandOrders"] = 0, ["RptShortageFileName"] = 0, ["RptVarianceFileName"] = 0, ["RptExportSuccessNotice"] = 0
         }
     };
 
@@ -320,7 +337,8 @@ public sealed class ResourceContractTests
              "InvErrorWarehouseInactive", "InvErrorAlreadyReversed", "InvErrorCannotReverseReversal",
              "InvErrorLinesRequired", "InvErrorQuantityInvalid", "InvErrorLotCodeInvalid",
              "InvErrorDestWarehouseInvalid", "InvErrorTransferSameWarehouse", "InvErrorOrderInvalid",
-             "InvErrorOrderStateInvalid", "InvErrorInsufficientStock", "InvErrorIdempotencyInvalid"]);
+             "InvErrorOrderStateInvalid", "InvErrorInsufficientStock", "InvErrorIdempotencyInvalid",
+             "PermPageReports", "PermOpExportReports", "RptErrorOrderNotFound", "RptErrorExportInvalid"]);
         Assert.Equal(Contracts[nameof(SharedResources)].Keys.Order(), used[nameof(SharedResources)].Order());
     }
 

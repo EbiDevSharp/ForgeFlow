@@ -82,6 +82,7 @@
             bomScopes = await ReadScopes.LoadBomScopesAsync();
             productionOrderScopes = await ReadScopes.LoadProductionOrderScopesAsync();
             inventoryScopes = await ReadScopes.LoadInventoryScopesAsync();
+            reportScopes = await ReadScopes.LoadReportScopesAsync();
         }
         catch
         {
@@ -95,6 +96,7 @@
             bomScopes = [];
             productionOrderScopes = [];
             inventoryScopes = [];
+            reportScopes = [];
         }
         StateHasChanged();
     }
@@ -133,6 +135,7 @@
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> bomScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> productionOrderScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> inventoryScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> reportScopes = [];
 
     // The framework stylesheet ships only a few glyphs, so the shell uses its own CSS-mask icons (app.css, .ff-icon--*).
     private static BitIconInfo Icon(string name) => BitIconInfo.Css("ff-icon ff-icon--" + name);
@@ -161,6 +164,11 @@
             {
                 items.Add(new() { Text = Text["MasterDataNavGroup"], Icon = Icon("catalog"), IsExpanded = true, ChildItems = masterData });
             }
+            var reports = ReportItems;
+            if (reports.Count > 0)
+            {
+                items.Add(new() { Text = Text["ReportsNavGroup"], Icon = Icon("reports"), IsExpanded = true, ChildItems = reports });
+            }
             var settings = SettingsItems;
             if (settings.Count > 0)
             {
@@ -188,6 +196,17 @@
             var items = new List<BitNavItem>();
             if (inventoryScopes.Count > 0)
                 items.Add(new() { Text = Text["Inventory"], Icon = Icon("inventory"), Url = "/inventory", Match = BitNavMatch.Exact });
+            return items;
+        }
+    }
+
+    private List<BitNavItem> ReportItems
+    {
+        get
+        {
+            var items = new List<BitNavItem>();
+            if (reportScopes.Count > 0)
+                items.Add(new() { Text = Text["Reports"], Icon = Icon("reports"), Url = "/reports", Match = BitNavMatch.Exact });
             return items;
         }
     }

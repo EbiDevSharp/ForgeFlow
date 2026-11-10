@@ -1782,4 +1782,163 @@
   <data name="InvErrorIdempotencyInvalid" xml:space="preserve">
     <value>Invalid idempotency reference key.</value>
   </data>
+  <data name="Reports" xml:space="preserve">
+    <value>Reports</value>
+  </data>
+  <data name="ReportsNavGroup" xml:space="preserve">
+    <value>Reports</value>
+  </data>
+  <data name="ReportsCaption" xml:space="preserve">
+    <value>Material shortage net requirements and production consumption vs yield variance.</value>
+  </data>
+  <data name="PermPageReports" xml:space="preserve">
+    <value>Operational Reports</value>
+  </data>
+  <data name="PermOpExportReports" xml:space="preserve">
+    <value>Export CSV</value>
+  </data>
+  <data name="RptErrorOrderNotFound" xml:space="preserve">
+    <value>Selected production order could not be found in this scope.</value>
+  </data>
+  <data name="RptErrorExportInvalid" xml:space="preserve">
+    <value>Export configuration is invalid.</value>
+  </data>
+  <data name="RptTabShortage" xml:space="preserve">
+    <value>Material Shortage</value>
+  </data>
+  <data name="RptTabVariance" xml:space="preserve">
+    <value>Production Variance</value>
+  </data>
+  <data name="RptExportCsvBtn" xml:space="preserve">
+    <value>Export CSV</value>
+  </data>
+  <data name="RptDueFromLabel" xml:space="preserve">
+    <value>Due From</value>
+  </data>
+  <data name="RptDueToLabel" xml:space="preserve">
+    <value>Due To</value>
+  </data>
+  <data name="RptOnlyShortagesLabel" xml:space="preserve">
+    <value>Only Shortages</value>
+  </data>
+  <data name="RptKpiOpenOrders" xml:space="preserve">
+    <value>Open Orders</value>
+  </data>
+  <data name="RptKpiMaterialsEvaluated" xml:space="preserve">
+    <value>Materials Evaluated</value>
+  </data>
+  <data name="RptKpiShortageItems" xml:space="preserve">
+    <value>Items in Shortage</value>
+  </data>
+  <data name="RptKpiTotalShortage" xml:space="preserve">
+    <value>Total Net Shortage</value>
+  </data>
+  <data name="RptKpiEvaluatedOrders" xml:space="preserve">
+    <value>Evaluated Orders</value>
+  </data>
+  <data name="RptKpiAvgYield" xml:space="preserve">
+    <value>Average Yield</value>
+  </data>
+  <data name="RptKpiOverConsumed" xml:space="preserve">
+    <value>Over-Consumed Orders</value>
+  </data>
+  <data name="RptKpiUnderYield" xml:space="preserve">
+    <value>Under-Yield Orders</value>
+  </data>
+  <data name="RptColMaterial" xml:space="preserve">
+    <value>Material</value>
+  </data>
+  <data name="RptColItemName" xml:space="preserve">
+    <value>Item Name</value>
+  </data>
+  <data name="RptColBaseUnit" xml:space="preserve">
+    <value>Base Unit</value>
+  </data>
+  <data name="RptColRequiredQty" xml:space="preserve">
+    <value>Required Qty</value>
+  </data>
+  <data name="RptColOnHandQty" xml:space="preserve">
+    <value>On-Hand Qty</value>
+  </data>
+  <data name="RptColShortageQty" xml:space="preserve">
+    <value>Shortage Qty</value>
+  </data>
+  <data name="RptColExcessQty" xml:space="preserve">
+    <value>Excess Qty</value>
+  </data>
+  <data name="RptColCoveragePct" xml:space="preserve">
+    <value>Coverage</value>
+  </data>
+  <data name="RptColOpenOrdersCount" xml:space="preserve">
+    <value>Demand Orders</value>
+  </data>
+  <data name="RptColPlannedVsActual" xml:space="preserve">
+    <value>Planned / Actual Output</value>
+  </data>
+  <data name="RptColPlannedQty" xml:space="preserve">
+    <value>Planned Qty</value>
+  </data>
+  <data name="RptColScrapQty" xml:space="preserve">
+    <value>Scrap</value>
+  </data>
+  <data name="RptColYieldPct" xml:space="preserve">
+    <value>Yield</value>
+  </data>
+  <data name="RptColInputsPlannedVsIssued" xml:space="preserve">
+    <value>Inputs (Planned / Issued)</value>
+  </data>
+  <data name="RptColPlannedInput" xml:space="preserve">
+    <value>Planned Input</value>
+  </data>
+  <data name="RptColIssuedQty" xml:space="preserve">
+    <value>Issued Qty</value>
+  </data>
+  <data name="RptColVariance" xml:space="preserve">
+    <value>Variance</value>
+  </data>
+  <data name="RptColRemainingToIssue" xml:space="preserve">
+    <value>Remaining to Issue</value>
+  </data>
+  <data name="RptColConsumptionPct" xml:space="preserve">
+    <value>Consumption %</value>
+  </data>
+  <data name="RptColReceivedQty" xml:space="preserve">
+    <value>Received Qty</value>
+  </data>
+  <data name="RptColAchievementPct" xml:space="preserve">
+    <value>Achievement %</value>
+  </data>
+  <data name="RptColPostedReceipt" xml:space="preserve">
+    <value>Posted Stock Receipt</value>
+  </data>
+  <data name="RptShortageBreakdownBtn" xml:space="preserve">
+    <value>Orders</value>
+  </data>
+  <data name="RptShortageBreakdownTitle" xml:space="preserve">
+    <value>Demand Breakdown by Production Order</value>
+  </data>
+  <data name="RptVarianceDetailTitle" xml:space="preserve">
+    <value>Production Order Consumption &amp; Yield Variance</value>
+  </data>
+  <data name="RptOrderInputsTitle" xml:space="preserve">
+    <value>Material Consumption Variance</value>
+  </data>
+  <data name="RptOrderOutputsTitle" xml:space="preserve">
+    <value>Planned vs Received Outputs</value>
+  </data>
+  <data name="RptNoShortageOrders" xml:space="preserve">
+    <value>No open production orders require this material.</value>
+  </data>
+  <data name="RptCsvHeaderDemandOrders" xml:space="preserve">
+    <value>Demand Orders</value>
+  </data>
+  <data name="RptShortageFileName" xml:space="preserve">
+    <value>material-shortage-report</value>
+  </data>
+  <data name="RptVarianceFileName" xml:space="preserve">
+    <value>production-variance-report</value>
+  </data>
+  <data name="RptExportSuccessNotice" xml:space="preserve">
+    <value>CSV report exported.</value>
+  </data>
 </root>

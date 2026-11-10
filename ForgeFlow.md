@@ -3517,4 +3517,25 @@ Verification evidence (executed after all Slice 07 edits):
 - Fresh Development Web running at `https://localhost:5001`: `node .\verification\slice01-ui\browser-check.cjs` -> **`4/4 PASS`**, `GET /account/login` -> `HTTP 200`, anonymous `GET /inventory` -> `HTTP 302`.
 - User reviewed local Slice 07 UI and explicitly authorized committing/pushing Slice 07 and advancing to **Slice 08 (`08-reports-variance` — Material Shortage / Net Requirements & Production Consumption/Yield Variance Reports + CSV Export)** (`2026-11-11`).
 - Note: live SQL Server test run for `InventorySqlTests` (`FORGEFLOW_TEST_SQLSERVER`) was not pasted in chat output and can be run anytime with `$env:FORGEFLOW_TEST_SQLSERVER` set.
-- **Slice 07 (`07-inventory`) Status: ACCEPTED (`07.5`)** (`2026-11-11`).
+- **Slice 07 (`07-inventory`) Status: ACCEPTED (`07.5`)** (`2026-11-11`). Pushed as `[main 13166d9]`.
+
+## Slice 08 (`08.1`–`08.4` Operational Reports: Material Shortage & Production Consumption / Yield Variance + Safe CSV Export) — 2026-11-11
+
+Implemented Slice 08 across Domain, Application, Infrastructure, and Web with `Q-R01`–`Q-R05` approved in [decisions.md](docs/slices/08-reports-variance/decisions.md) (no schema changes; reuses `OrganizationDbContext` `27` entities / `6` migrations):
+- **Domain (`ForgeFlow.Domain`)**: Added `PermissionModule.Reports = 11` (`Reports.Read`, `Reports.Export` as `OrganizationOrSite`, granted to built-in `OrganizationAdministrator` in [PermissionCatalog.cs](src/ForgeFlow.Domain/Roles/PermissionCatalog.cs)) and [ReportingErrors.cs](src/ForgeFlow.Domain/Reporting/ReportingErrors.cs).
+- **Application (`ForgeFlow.Application.Reporting`)**: Implemented [ReportingContracts.cs](src/ForgeFlow.Application/Reporting/ReportingContracts.cs) & [ReportingUseCases.cs](src/ForgeFlow.Application/Reporting/ReportingUseCases.cs) computing:
+  - **Material Shortage / Net Requirements**: aggregates open `Released`/`InProgress` `ProductionOrder` `!IsSubAssembly` input lines converted via `UnitConversionGraph` to each item's `BaseUnitId` vs physical `InventoryBalance` on-hand balances, producing `ShortageBaseQuantity`, `ExcessBaseQuantity`, `CoveragePercent`, and per-order demand breakdown.
+  - **Production Consumption & Yield Variance**: compares frozen planned order inputs/outputs against netted `InventoryLedgerEntry` postings (`ProductionIssue` net of `Reversal`, `ProductionReceipt` net of `Reversal`) and recorded `ActualProducedQuantity`/`ActualScrapQuantity`, including per-order detail drill-down.
+  - **Authorized CSV Export**: `Reports.Export`-gated UTF-8 with BOM (`\uFEFF`) RFC-4180 CSV builder neutralizing spreadsheet formula triggers (`=`, `+`, `-`, `@`, `\t`, `\r`) and sanitizing download filenames.
+- **Infrastructure (`ForgeFlow.Infrastructure`)**: Added read-only `AsNoTracking()` [SqlReportingQueryStore.cs](src/ForgeFlow.Infrastructure/Organizations/SqlReportingQueryStore.cs), updated [RuntimeSessions.cs](src/ForgeFlow.Infrastructure/Identity/RuntimeSessions.cs) for `Reports.Read`/`Reports.Export`, and registered `ReportingUseCases` in [OrganizationPersistenceRegistration.cs](src/ForgeFlow.Infrastructure/Organizations/OrganizationPersistenceRegistration.cs).
+- **Web (`ForgeFlow.Web`)**: Added `LoadReportScopesAsync` in [ReadScopes.cs](src/ForgeFlow.Web/ReadScopes.cs), `ReportsNavGroup` -> `/reports` in [MainLayout.razor](src/ForgeFlow.Web/Components/Layout/MainLayout.razor), [Reports.razor](src/ForgeFlow.Web/Components/Pages/Reports.razor) (KPI cards, Material Shortage & Production Variance tabs, `BitDataGrid` server/sliced paging, `BitDatePicker`, detail `BitDialog`s, CSV download via [report-download.js](src/ForgeFlow.Web/wwwroot/report-download.js)), [RolePermissionLocalization.cs](src/ForgeFlow.Web/Roles/RolePermissionLocalization.cs), `.rpt-*` styles in [app.css](src/ForgeFlow.Web/wwwroot/app.css), and bilingual `fa-IR`/`en-US` `.resx` catalogs.
+
+Verification evidence (executed after all Slice 08 edits):
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (`0 Warning(s), 0 Error(s)`)**.
+- `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'`: **`Passed! - Failed: 0, Passed: 356, Skipped: 50, Total: 406`** (`ReportTests` `R01`–`R06`, `RoleDomainTests`, `ResourceContractTests`, and all prior non-SQL tests passed; `50` `[OrganizationSqlServerFact]` tests including `ReportSqlTests` skipped in sandbox without `FORGEFLOW_TEST_SQLSERVER`).
+- `node .\scripts\drafts.test.mjs`: **`19 pass, 0 fail`**.
+- Fresh Development Web running at `https://localhost:5001`: `GET /account/login` -> `HTTP 200`, anonymous `GET /reports` -> `HTTP 302`, `node .\verification\slice01-ui\browser-check.cjs` -> **`4/4 PASS`** (`fa-IR` 1440px/320px, `en-US` 1440px/320px).
+
+Remaining acceptance notes:
+- Live SQL Server test execution (`ReportSqlTests` + `InventorySqlTests` + `OrganizationSqlServerTests` with `$env:FORGEFLOW_TEST_SQLSERVER` set) and interactive bilingual `/reports` review were deferred by user request (`2026-11-11`, user requested committing and pushing Slice 08 prior to next instruction).
+- **Slice 08 (`08-reports-variance`) Status: IMPLEMENTED & PUSHED (`08.1`–`08.4`)** (`2026-11-11`).

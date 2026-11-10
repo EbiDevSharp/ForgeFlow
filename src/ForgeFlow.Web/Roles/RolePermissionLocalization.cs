@@ -5,6 +5,7 @@ using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.ProductionOrders;
+using ForgeFlow.Domain.Reporting;
 using ForgeFlow.Domain.Roles;
 using ForgeFlow.Domain.Units;
 using ForgeFlow.Domain.Users;
@@ -26,7 +27,8 @@ public static class RolePermissionLocalization
         PermissionModule.Items,
         PermissionModule.Boms,
         PermissionModule.ProductionOrders,
-        PermissionModule.Inventory
+        PermissionModule.Inventory,
+        PermissionModule.Reports
     ];
 
     public static readonly IReadOnlyList<PermissionDescriptor> OrganizationScopePermissions =
@@ -51,12 +53,13 @@ public static class RolePermissionLocalization
         PermissionModule.Boms => "PermPageBoms",
         PermissionModule.ProductionOrders => "PermPageProductionOrders",
         PermissionModule.Inventory => "PermPageInventory",
+        PermissionModule.Reports => "PermPageReports",
         _ => "PermPageOrganizations"
     };
 
     public static string OperationLabelKey(string permissionCode) => permissionCode switch
     {
-        "Organizations.Read" or "Sites.Read" or "Users.Read" or "Roles.Read" or "Audit.Read" or "Units.Read" or "Items.Read" or "Boms.Read" or "ProductionOrders.Read" or "Inventory.Read" => "PermOpRead",
+        "Organizations.Read" or "Sites.Read" or "Users.Read" or "Roles.Read" or "Audit.Read" or "Units.Read" or "Items.Read" or "Boms.Read" or "ProductionOrders.Read" or "Inventory.Read" or "Reports.Read" => "PermOpRead",
         "Organizations.Create" or "Sites.Create" or "Users.Create" => "PermOpCreate",
         "Organizations.Update" or "Sites.Update" => "PermOpUpdate",
         "Organizations.SetActive" or "Sites.SetActive" or "Users.SetActive" => "PermOpSetActive",
@@ -71,6 +74,7 @@ public static class RolePermissionLocalization
         "Boms.Manage" => "PermOpManageBoms",
         "ProductionOrders.Manage" => "PermOpManageProductionOrders",
         "Inventory.Manage" => "PermOpManageInventory",
+        "Reports.Export" => "PermOpExportReports",
         _ => "PermOpRead"
     };
 
@@ -193,8 +197,10 @@ public static class RolePermissionLocalization
         InventoryErrors.ProductionOrderStateInvalid => "InvErrorOrderStateInvalid",
         InventoryErrors.InsufficientStock => "InvErrorInsufficientStock",
         InventoryErrors.IdempotencyKeyInvalid => "InvErrorIdempotencyInvalid",
-        InventoryErrors.SiteInvalid => "PoErrorSiteInvalid",
+        InventoryErrors.SiteInvalid or ReportingErrors.SiteInvalid => "PoErrorSiteInvalid",
         InventoryErrors.SiteInactive => "PoErrorSiteInactive",
+        ReportingErrors.ProductionOrderNotFound => "RptErrorOrderNotFound",
+        ReportingErrors.ExportInvalid => "RptErrorExportInvalid",
         AuditErrors.InvalidQuery => "ReadError",
         _ => "WriteUnavailable"
     };
