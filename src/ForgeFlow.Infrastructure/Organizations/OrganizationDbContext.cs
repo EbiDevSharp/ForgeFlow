@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Encodings.Web;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Boms;
+using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.ProductionOrders;
@@ -45,6 +46,10 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
     public DbSet<ProductionOrderInput> ProductionOrderInputs => Set<ProductionOrderInput>();
     public DbSet<ProductionOrderOutput> ProductionOrderOutputs => Set<ProductionOrderOutput>();
     public DbSet<ProductionOrderContext> ProductionOrderContexts => Set<ProductionOrderContext>();
+    public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+    public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
+    public DbSet<InventoryLedgerEntry> InventoryLedgerEntries => Set<InventoryLedgerEntry>();
+    public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>();
     public DbSet<OrganizationChange> OrganizationChanges => Set<OrganizationChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) => OrganizationModel.Configure(modelBuilder);
@@ -84,7 +89,8 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                 or ItemUnitConversion or AttributeDefinition or ItemAttributeValue
                 or ContextDimension or Bom or BomVersion or BomInput or BomOutput
                 or BomApplicability or BomApplicabilityCondition
-                or ProductionOrder or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext))
+                or ProductionOrder or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext
+                or Warehouse or InventoryTransaction or InventoryLedgerEntry or InventoryBalance))
             {
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             }
@@ -111,6 +117,9 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                         "BomId", "BomCodeSnapshot", "BomVersionId", "BomVersionNumberSnapshot", "BaseOutputQuantitySnapshot", "BaseOutputUnitIdSnapshot",
                         "ActualProducedQuantity", "ActualScrapQuantity", "Notes", "CancellationReason",
                         "ReleasedAtUtc", "StartedAtUtc", "CompletedAtUtc", "CancelledAtUtc" },
+                    Warehouse => new[] { "Name", "IsDefaultForSite", "IsActive" },
+                    InventoryBalance => new[] { "OnHandBaseQuantity", "LastMovedAtUtc" },
+                    InventoryTransaction or InventoryLedgerEntry => Array.Empty<string>(),
                     _ => new[] { "Name", "IsActive" }
                 };
                 if (entry.Properties.Any(p => p.IsModified && !allowedProps.Contains(p.Metadata.Name, StringComparer.Ordinal)))
@@ -194,6 +203,10 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         ProductionOrderInput poi => poi.OrganizationId,
         ProductionOrderOutput poo => poo.OrganizationId,
         ProductionOrderContext poc => poc.OrganizationId,
+        Warehouse wh => wh.OrganizationId,
+        InventoryTransaction txn => txn.OrganizationId,
+        InventoryLedgerEntry ile => ile.OrganizationId,
+        InventoryBalance bal => bal.OrganizationId,
         _ => throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied)
     };
 
@@ -204,6 +217,10 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         ProductionOrderInput poi => ChangeTracker.Entries<ProductionOrder>().FirstOrDefault(p => p.Entity.Id == poi.ProductionOrderId)?.Entity.SiteId,
         ProductionOrderOutput poo => ChangeTracker.Entries<ProductionOrder>().FirstOrDefault(p => p.Entity.Id == poo.ProductionOrderId)?.Entity.SiteId,
         ProductionOrderContext poc => ChangeTracker.Entries<ProductionOrder>().FirstOrDefault(p => p.Entity.Id == poc.ProductionOrderId)?.Entity.SiteId,
+        Warehouse wh => wh.SiteId,
+        InventoryTransaction txn => txn.SiteId,
+        InventoryLedgerEntry ile => ile.SiteId,
+        InventoryBalance bal => bal.SiteId,
         _ => null
     };
 
@@ -257,6 +274,9 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                 continue;
             }
 
+            if (entry.Entity is InventoryLedgerEntry or InventoryBalance)
+                continue;
+
             foreach (var change in CaptureChanges(entry))
                 yield return change;
         }
@@ -264,6 +284,49 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
 
     private static IEnumerable<PendingChange> CaptureChanges(EntityEntry entry)
     {
+        if (entry.Entity is Warehouse wh)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "Warehouse.Created",
+                    JsonSerializer.Serialize(new { wh.Code, wh.Name, wh.SiteId, wh.IsDefaultForSite, wh.IsActive }, AuditJson));
+                yield break;
+            }
+            if (entry.Property("Name").IsModified || entry.Property("IsDefaultForSite").IsModified)
+            {
+                yield return new PendingChange(entry, "Warehouse.Updated",
+                    JsonSerializer.Serialize(new { wh.Code, wh.Name, wh.IsDefaultForSite }, AuditJson));
+            }
+            if (entry.Property("IsActive").IsModified)
+            {
+                yield return new PendingChange(entry, wh.IsActive ? "Warehouse.Activated" : "Warehouse.Deactivated",
+                    JsonSerializer.Serialize(new { wh.Code, wh.IsActive }, AuditJson));
+            }
+            yield break;
+        }
+
+        if (entry.Entity is InventoryTransaction txn)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                var ev = txn.TransactionType == InventoryTransactionType.Reversal
+                    ? "InventoryTransaction.Reversed"
+                    : "InventoryTransaction.Posted";
+                yield return new PendingChange(entry, ev,
+                    JsonSerializer.Serialize(new
+                    {
+                        txn.DocumentNumber,
+                        TransactionType = txn.TransactionType.ToString(),
+                        txn.SiteId,
+                        txn.WarehouseId,
+                        txn.DestinationWarehouseId,
+                        txn.ProductionOrderId,
+                        txn.ReversedTransactionId
+                    }, AuditJson));
+            }
+            yield break;
+        }
+
         if (entry.Entity is ProductionOrder poOrder)
         {
             if (entry.State == EntityState.Added)
@@ -674,6 +737,14 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                 && (e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted));
             if (poChanged && !effectiveActive)
                 throw new InvalidOperationException(ProductionOrderErrors.ParentOrganizationInactive);
+
+            var invChanged = entries.Any(e => e.Entity is Warehouse or InventoryTransaction or InventoryLedgerEntry or InventoryBalance
+                && ResolveEntityOrganizationId(e.Entity) == orgId
+                && (e.State == EntityState.Added
+                    || (e.Entity is Warehouse wh && (wh.IsActive || e.Properties.Any(p => p.IsModified && p.Metadata.Name != "IsActive")))
+                    || e.Entity is InventoryTransaction or InventoryLedgerEntry or InventoryBalance));
+            if (invChanged && !effectiveActive)
+                throw new InvalidOperationException(InventoryErrors.ParentOrganizationInactive);
         }
     }
 }

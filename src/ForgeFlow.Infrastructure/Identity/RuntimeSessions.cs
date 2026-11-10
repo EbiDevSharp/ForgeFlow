@@ -2,6 +2,7 @@ using System.Data;
 using System.Data.Common;
 using ForgeFlow.Application.Audit;
 using ForgeFlow.Application.Boms;
+using ForgeFlow.Application.Inventory;
 using ForgeFlow.Application.Items;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.ProductionOrders;
@@ -351,7 +352,8 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
             or UnitPermissions.UnitsRead
             or ItemPermissions.ItemsRead
             or BomPermissions.BomsRead
-            or ProductionOrderPermissions.ProductionOrdersRead;
+            or ProductionOrderPermissions.ProductionOrdersRead
+            or InventoryPermissions.InventoryRead;
         if (!company.IsActive && !read && permission != OrganizationPermissions.OrganizationsSetActive)
             return false;
 

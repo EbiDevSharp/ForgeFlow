@@ -1,6 +1,12 @@
 # Slice 07 Design Decisions (`Q-I01`–`Q-I04`)
 
-Status: **PROPOSED (`07.0`) — Awaiting User Confirmation**
+Status: **APPROVED (`07.0`, 2026-11-10) — User Authorized**
+
+Confirmed decisions (`Q-I01`–`Q-I04`):
+- `Q-I01`: Site-scoped `PermissionModule.Inventory = 10` (`Inventory.Read`, `Inventory.Manage`) as `OrganizationOrSite`.
+- `Q-I02`: Support `ProductionIssue` & `ProductionReceipt` inside `/inventory` plus optional `/production-orders` shortcuts powered by `InventoryUseCases`.
+- `Q-I03`: Strict non-negative `OnHandBaseQuantity >= 0` under serialized SQL lock + optional `LotCode` (`varchar(32)`, empty string when un-lotted).
+- `Q-I04`: New collapsible `InventoryNavGroup` -> `/inventory` (`Balances`, `Movements / Ledger`, `Warehouses`).
 
 ## Open Questions
 

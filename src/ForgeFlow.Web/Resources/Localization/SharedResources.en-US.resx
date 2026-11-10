@@ -1599,4 +1599,187 @@
   <data name="PoErrorNotesInvalid" xml:space="preserve">
     <value>Notes must not exceed 500 characters or contain control characters.</value>
   </data>
+  <data name="PoPostInventoryBtn" xml:space="preserve">
+    <value>Issue / Receive stock</value>
+  </data>
+  <data name="InventoryNavGroup" xml:space="preserve">
+    <value>Inventory &amp; Warehouses</value>
+  </data>
+  <data name="Inventory" xml:space="preserve">
+    <value>Inventory ledger</value>
+  </data>
+  <data name="InventoryCaption" xml:space="preserve">
+    <value>Site-scoped warehouses, append-only stock ledger, serialized balances &amp; production movements</value>
+  </data>
+  <data name="PermPageInventory" xml:space="preserve">
+    <value>Inventory &amp; warehouses</value>
+  </data>
+  <data name="PermOpManageInventory" xml:space="preserve">
+    <value>Manage warehouses &amp; stock movements</value>
+  </data>
+  <data name="InvWarehouseCreateBtn" xml:space="preserve">
+    <value>New warehouse</value>
+  </data>
+  <data name="InvPostMovementBtn" xml:space="preserve">
+    <value>Post stock movement</value>
+  </data>
+  <data name="InvTabBalances" xml:space="preserve">
+    <value>On-hand balances</value>
+  </data>
+  <data name="InvTabMovements" xml:space="preserve">
+    <value>Stock ledger</value>
+  </data>
+  <data name="InvTabWarehouses" xml:space="preserve">
+    <value>Warehouses</value>
+  </data>
+  <data name="InvWarehouseLabel" xml:space="preserve">
+    <value>Warehouse</value>
+  </data>
+  <data name="InvDestWarehouseLabel" xml:space="preserve">
+    <value>Destination warehouse</value>
+  </data>
+  <data name="InvAllWarehousesOption" xml:space="preserve">
+    <value>All warehouses</value>
+  </data>
+  <data name="InvTxnTypeLabel" xml:space="preserve">
+    <value>Movement type</value>
+  </data>
+  <data name="InvAllTypesOption" xml:space="preserve">
+    <value>All movement types</value>
+  </data>
+  <data name="InvIncludeZeroLabel" xml:space="preserve">
+    <value>Show zero balances</value>
+  </data>
+  <data name="InvLotCodeLabel" xml:space="preserve">
+    <value>Lot / Batch</value>
+  </data>
+  <data name="InvOnHandLabel" xml:space="preserve">
+    <value>On-hand (base unit)</value>
+  </data>
+  <data name="InvLastMovedLabel" xml:space="preserve">
+    <value>Last movement</value>
+  </data>
+  <data name="InvDocNumberLabel" xml:space="preserve">
+    <value>Document no.</value>
+  </data>
+  <data name="InvReversedBadge" xml:space="preserve">
+    <value>Reversed</value>
+  </data>
+  <data name="InvDefaultWarehouseBadge" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="InvDefaultForSiteLabel" xml:space="preserve">
+    <value>Set as default active warehouse for this site</value>
+  </data>
+  <data name="InvWarehouseCreateTitle" xml:space="preserve">
+    <value>Create warehouse</value>
+  </data>
+  <data name="InvWarehouseEditTitle" xml:space="preserve">
+    <value>Edit warehouse</value>
+  </data>
+  <data name="InvSelectWarehouseOption" xml:space="preserve">
+    <value>Select warehouse...</value>
+  </data>
+  <data name="InvSelectOrderOption" xml:space="preserve">
+    <value>Select active production order...</value>
+  </data>
+  <data name="InvSelectItemOption" xml:space="preserve">
+    <value>Select item...</value>
+  </data>
+  <data name="InvLinesSection" xml:space="preserve">
+    <value>Movement lines</value>
+  </data>
+  <data name="InvAddLineBtn" xml:space="preserve">
+    <value>Add line</value>
+  </data>
+  <data name="InvPostSubmitBtn" xml:space="preserve">
+    <value>Post document</value>
+  </data>
+  <data name="InvTxnDetailsTitle" xml:space="preserve">
+    <value>Stock movement document</value>
+  </data>
+  <data name="InvEnteredQtyLabel" xml:space="preserve">
+    <value>Entered qty</value>
+  </data>
+  <data name="InvBaseQtyDeltaLabel" xml:space="preserve">
+    <value>Base qty delta</value>
+  </data>
+  <data name="InvReverseSection" xml:space="preserve">
+    <value>Compensating reversal</value>
+  </data>
+  <data name="InvReverseDocNumLabel" xml:space="preserve">
+    <value>Reversal document no.</value>
+  </data>
+  <data name="InvReverseBtn" xml:space="preserve">
+    <value>Post reversal</value>
+  </data>
+  <data name="InvSavedNotice" xml:space="preserve">
+    <value>Warehouse updated.</value>
+  </data>
+  <data name="InvPostedNotice" xml:space="preserve">
+    <value>Inventory document posted and balances updated.</value>
+  </data>
+  <data name="InvReversedNotice" xml:space="preserve">
+    <value>Reversal document posted successfully.</value>
+  </data>
+  <data name="InvTypeReceipt" xml:space="preserve">
+    <value>Receipt</value>
+  </data>
+  <data name="InvTypeIssue" xml:space="preserve">
+    <value>Issue</value>
+  </data>
+  <data name="InvTypeAdjustment" xml:space="preserve">
+    <value>Adjustment</value>
+  </data>
+  <data name="InvTypeTransferOut" xml:space="preserve">
+    <value>Transfer</value>
+  </data>
+  <data name="InvTypeTransferIn" xml:space="preserve">
+    <value>Transfer in</value>
+  </data>
+  <data name="InvTypeProdIssue" xml:space="preserve">
+    <value>Production issue</value>
+  </data>
+  <data name="InvTypeProdReceipt" xml:space="preserve">
+    <value>Production receipt</value>
+  </data>
+  <data name="InvTypeReversal" xml:space="preserve">
+    <value>Reversal</value>
+  </data>
+  <data name="InvErrorWarehouseInactive" xml:space="preserve">
+    <value>The selected warehouse is inactive.</value>
+  </data>
+  <data name="InvErrorAlreadyReversed" xml:space="preserve">
+    <value>This inventory document has already been reversed.</value>
+  </data>
+  <data name="InvErrorCannotReverseReversal" xml:space="preserve">
+    <value>A reversal document cannot be reversed again.</value>
+  </data>
+  <data name="InvErrorLinesRequired" xml:space="preserve">
+    <value>At least one movement line is required.</value>
+  </data>
+  <data name="InvErrorQuantityInvalid" xml:space="preserve">
+    <value>Enter a valid non-zero quantity matching movement direction rules.</value>
+  </data>
+  <data name="InvErrorLotCodeInvalid" xml:space="preserve">
+    <value>Lot code must start with an ASCII letter or digit and may use A-Z, 0-9, _ or -.</value>
+  </data>
+  <data name="InvErrorDestWarehouseInvalid" xml:space="preserve">
+    <value>Select an active destination warehouse for transfer.</value>
+  </data>
+  <data name="InvErrorTransferSameWarehouse" xml:space="preserve">
+    <value>Source and destination warehouses must be different.</value>
+  </data>
+  <data name="InvErrorOrderInvalid" xml:space="preserve">
+    <value>Select a valid production order belonging to the same site.</value>
+  </data>
+  <data name="InvErrorOrderStateInvalid" xml:space="preserve">
+    <value>Production movements are only allowed for Released or In-Progress orders.</value>
+  </data>
+  <data name="InvErrorInsufficientStock" xml:space="preserve">
+    <value>Insufficient on-hand stock balance to complete this outgoing movement.</value>
+  </data>
+  <data name="InvErrorIdempotencyInvalid" xml:space="preserve">
+    <value>Invalid idempotency reference key.</value>
+  </data>
 </root>

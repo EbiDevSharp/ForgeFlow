@@ -2,6 +2,7 @@ using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.Roles;
 using ForgeFlow.Application.Users;
 using ForgeFlow.Domain.Boms;
+using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.ProductionOrders;
@@ -59,6 +60,10 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         model.Ignore<ProductionOrderInput>();
         model.Ignore<ProductionOrderOutput>();
         model.Ignore<ProductionOrderContext>();
+        model.Ignore<Warehouse>();
+        model.Ignore<InventoryTransaction>();
+        model.Ignore<InventoryLedgerEntry>();
+        model.Ignore<InventoryBalance>();
         model.Entity<Organization>().ToTable("Organization", "organization", t => t.ExcludeFromMigrations());
         model.Entity<Site>().ToTable("Site", "organization", t => t.ExcludeFromMigrations());
 

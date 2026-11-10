@@ -1,0 +1,1115 @@
+@page "/inventory"
+@page "/organizations/{OrganizationId:long}/inventory"
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Inventory
+@using ForgeFlow.Domain.ProductionOrders
+@using ForgeFlow.Web.Roles
+@inject InventoryUseCases InvService
+@inject ProductionOrderUseCases OrderService
+@inject ItemUseCases ItemService
+@inject UnitUseCases UnitService
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["Inventory"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="inv-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="inv-title">@Text["Inventory"]</h1>
+            <p class="write-hint">@Text["InventoryCaption"]</p>
+        </div>
+        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage)
+        {
+            <div class="read-head-actions">
+                @if (activeTab == TabWarehouses)
+                {
+                    <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateWarehouse">
+                        @Text["InvWarehouseCreateBtn"]
+                    </BitButton>
+                }
+                else
+                {
+                    <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" IsEnabled="@(activeWarehouses.Count > 0)" OnClick="() => OpenPostModal(null)">
+                        @Text["InvPostMovementBtn"]
+                    </BitButton>
+                }
+            </div>
+        }
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div class="read-state" role="alert">
+            <p>@Text[pageError]</p>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else if (available.Count == 0)
+    {
+        <p role="status" class="read-empty">@Text["ReadDenied"]</p>
+    }
+    else
+    {
+        <div class="read-tab-bar" role="tablist" aria-label="@Text["Inventory"]">
+            <button type="button" role="tab" aria-selected="@(activeTab == TabBalances)"
+                    class="read-tab-btn @(activeTab == TabBalances ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabBalances)">@Text["InvTabBalances"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabMovements)"
+                    class="read-tab-btn @(activeTab == TabMovements ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabMovements)">@Text["InvTabMovements"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabWarehouses)"
+                    class="read-tab-btn @(activeTab == TabWarehouses ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabWarehouses)">@Text["InvTabWarehouses"]</button>
+        </div>
+
+        <div class="read-toolbar-card">
+            @if (available.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="inv-scope">@Text["ReadScope"]</label>
+                    <select id="inv-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                        @for (var i = 0; i < available.Count; i++)
+                        {
+                            <option value="@i">@ScopeLabel(available[i])</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (CurrentScope is OrganizationScope.Organization && authorizedSites.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="inv-site-filter">@Text["PoSiteColumn"]</label>
+                    <select id="inv-site-filter" value="@siteFilter" @onchange="ChangeSiteFilterAsync">
+                        <option value="0">@Text["PoAllSitesOption"]</option>
+                        @foreach (var s in authorizedSites)
+                        {
+                            <option value="@s.Id">@s.Code — @s.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (activeTab != TabWarehouses && activeWarehouses.Count > 0)
+            {
+                <div class="read-field">
+                    <label for="inv-wh-filter">@Text["InvWarehouseLabel"]</label>
+                    <select id="inv-wh-filter" value="@warehouseFilter" @onchange="ChangeWarehouseFilterAsync">
+                        <option value="0">@Text["InvAllWarehousesOption"]</option>
+                        @foreach (var w in activeWarehouses)
+                        {
+                            <option value="@w.Id">@w.Code — @w.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (activeTab == TabMovements)
+            {
+                <div class="read-field">
+                    <label for="inv-type-filter">@Text["InvTxnTypeLabel"]</label>
+                    <select id="inv-type-filter" value="@typeFilter" @onchange="ChangeTypeFilterAsync">
+                        <option value="">@Text["InvAllTypesOption"]</option>
+                        @foreach (var tt in Enum.GetValues<InventoryTransactionType>())
+                        {
+                            <option value="@((byte)tt)">@TxnTypeLabel(tt)</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (activeTab == TabBalances)
+            {
+                <label class="read-inactive">
+                    <input type="checkbox" checked="@includeZeroBalances" @onchange="ToggleZeroBalancesAsync" />
+                    <span>@Text["InvIncludeZeroLabel"]</span>
+                </label>
+            }
+            else if (activeTab == TabWarehouses)
+            {
+                <label class="read-inactive">
+                    <input type="checkbox" checked="@includeInactiveWarehouses" @onchange="ToggleInactiveWarehousesAsync" />
+                    <span>@Text["ReadInactive"]</span>
+                </label>
+            }
+
+            <div class="read-field">
+                <label for="inv-search">@Text["ReadSearch"]</label>
+                <input id="inv-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="64" placeholder="@Text["ReadSearch"]" />
+            </div>
+        </div>
+
+        @if (activeTab == TabBalances)
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="balGrid" TItem="InventoryBalanceSummary" OnRead="ReadBalancesAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="inv-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvWarehouseLabel"]">
+                                <Template Context="b"><span dir="ltr">@b.WarehouseCode</span> — @b.WarehouseName</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["BomLineItemColumn"]">
+                                <Template Context="b"><span dir="ltr">@b.ItemCode</span> — @b.ItemName</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvLotCodeLabel"]">
+                                <Template Context="b"><bdi dir="ltr">@(string.IsNullOrEmpty(b.LotCode) ? "—" : b.LotCode)</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvOnHandLabel"]">
+                                <Template Context="b"><strong dir="ltr">@Format.Number(b.OnHandBaseQuantity) @b.BaseUnitSymbol</strong></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvLastMovedLabel"]">
+                                <Template Context="b"><bdi dir="ltr">@FormatTimestamp(b.LastMovedAtUtc)</bdi></Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else if (activeTab == TabMovements)
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="txnGrid" TItem="InventoryTransactionSummary" OnRead="ReadTransactionsAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="inv-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["InvDocNumberLabel"]">
+                                <Template Context="t"><strong dir="ltr">@t.DocumentNumber</strong></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["InvTxnTypeLabel"]">
+                                <Template Context="t">
+                                    <span class="read-badge @TxnBadgeClass(t.TransactionType)">@TxnTypeLabel(t.TransactionType)</span>
+                                    @if (t.IsReversed)
+                                    {
+                                        <span class="cap-badge">@Text["InvReversedBadge"]</span>
+                                    }
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["InvWarehouseLabel"]">
+                                <Template Context="t">
+                                    <bdi dir="ltr">@t.WarehouseCode@(t.DestinationWarehouseCode is not null ? $" -> {t.DestinationWarehouseCode}" : string.Empty)</bdi>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["PoOrderNumberColumn"]">
+                                <Template Context="t"><bdi dir="ltr">@(t.ProductionOrderNumber ?? "—")</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["AuditTimeColumn"]">
+                                <Template Context="t"><bdi dir="ltr">@FormatTimestamp(t.PostedAtUtc)</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["ReadActions"]">
+                                <Template Context="t">
+                                    <div class="read-row-actions">
+                                        <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                       IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                                       OnClick="() => OpenTransactionDetailsAsync(t.Id)" />
+                                        </BitTooltip>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="whGrid" TItem="WarehouseSummary" OnRead="ReadWarehousesAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="inv-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["ReadCode"]">
+                                <Template Context="w"><strong dir="ltr">@w.Code</strong></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["ReadName"]">
+                                <Template Context="w">@w.Name</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["PoSiteColumn"]">
+                                <Template Context="w"><span dir="ltr">@w.SiteCode</span> — @w.SiteName</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["InvDefaultWarehouseBadge"]">
+                                <Template Context="w">
+                                    @if (w.IsDefaultForSite)
+                                    {
+                                        <span class="cap-badge">@Text["InvDefaultWarehouseBadge"]</span>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["PoStatusColumn"]">
+                                <Template Context="w">
+                                    <span class="read-badge @(w.IsActive ? "active" : "inactive")">@(w.IsActive ? Text["ReadActive"] : Text["ReadInactive"])</span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["ReadActions"]">
+                                <Template Context="w">
+                                    <div class="read-row-actions">
+                                        @if (scopeCanManage)
+                                        {
+                                            <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                           Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                                           OnClick="() => OpenEditWarehouse(w)" />
+                                            </BitTooltip>
+                                        }
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+    }
+
+    <BitDialog Width="560px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="whModalOpen"
+               Title="@(editingWarehouse is null ? Text["InvWarehouseCreateTitle"] : Text["InvWarehouseEditTitle"])"
+               AriaLabel="@(editingWarehouse is null ? Text["InvWarehouseCreateTitle"] : Text["InvWarehouseEditTitle"])"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="audit-modal-body">
+                @if (whError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[whError]</p>
+                }
+                <div class="po-form-grid">
+                    @if (editingWarehouse is null)
+                    {
+                        <div class="write-field">
+                            <label for="wh-code">@Text["ReadCode"]</label>
+                            <input id="wh-code" type="text" maxlength="32" @bind="whCode" placeholder="WH-MAIN" />
+                            <span class="write-hint">@Text["BomCreateHint"]</span>
+                        </div>
+                        <div class="write-field">
+                            <label for="wh-site">@Text["PoSiteColumn"]</label>
+                            @if (CurrentScope is OrganizationScope.Site sScope)
+                            {
+                                var site = authorizedSites.FirstOrDefault(s => s.Id == sScope.SiteId);
+                                <input id="wh-site" type="text" readonly value="@(site is null ? sScope.SiteId.ToString(CultureInfo.InvariantCulture) : $"{site.Code} — {site.Name}")" />
+                            }
+                            else
+                            {
+                                <select id="wh-site" @bind="whSiteId">
+                                    @foreach (var s in authorizedSites)
+                                    {
+                                        <option value="@s.Id">@s.Code — @s.Name</option>
+                                    }
+                                </select>
+                            }
+                        </div>
+                    }
+                    <div class="write-field po-field-full">
+                        <label for="wh-name">@Text["ReadName"]</label>
+                        <input id="wh-name" type="text" maxlength="200" @bind="whName" />
+                    </div>
+                </div>
+                <label class="write-check">
+                    <input type="checkbox" @bind="whIsDefault" />
+                    <span>@Text["InvDefaultForSiteLabel"]</span>
+                </label>
+
+                <div class="po-dialog-footer">
+                    <BitButton IsEnabled="@(!modalBusy && (editingWarehouse is not null || whSiteId > 0))" OnClick="SaveWarehouseAsync">
+                        @(editingWarehouse is null ? Text["CreateSubmit"] : Text["WriteSave"])
+                    </BitButton>
+                    @if (editingWarehouse is not null)
+                    {
+                        <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="ToggleWarehouseActiveAsync">
+                            @(editingWarehouse.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
+                        </BitButton>
+                    }
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => whModalOpen = false">@Text["WriteCancel"]</BitButton>
+                </div>
+            </div>
+        </Body>
+    </BitDialog>
+
+    <BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="postModalOpen"
+               Title="@Text["InvPostMovementBtn"]" AriaLabel="@Text["InvPostMovementBtn"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="audit-modal-body">
+                @if (postError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[postError]</p>
+                }
+                <div class="po-form-grid">
+                    <div class="write-field">
+                        <label for="inv-post-doc">@Text["InvDocNumberLabel"]</label>
+                        <input id="inv-post-doc" type="text" maxlength="32" @bind="postDocNumber" placeholder="INV-2026-001" />
+                        <span class="write-hint">@Text["BomCreateHint"]</span>
+                    </div>
+                    <div class="write-field">
+                        <label for="inv-post-type">@Text["InvTxnTypeLabel"]</label>
+                        <select id="inv-post-type" value="@((byte)postType)" @onchange="OnPostTypeChangedAsync">
+                            <option value="@((byte)InventoryTransactionType.Receipt)">@TxnTypeLabel(InventoryTransactionType.Receipt)</option>
+                            <option value="@((byte)InventoryTransactionType.Issue)">@TxnTypeLabel(InventoryTransactionType.Issue)</option>
+                            <option value="@((byte)InventoryTransactionType.Adjustment)">@TxnTypeLabel(InventoryTransactionType.Adjustment)</option>
+                            <option value="@((byte)InventoryTransactionType.TransferOut)">@TxnTypeLabel(InventoryTransactionType.TransferOut)</option>
+                            <option value="@((byte)InventoryTransactionType.ProductionIssue)">@TxnTypeLabel(InventoryTransactionType.ProductionIssue)</option>
+                            <option value="@((byte)InventoryTransactionType.ProductionReceipt)">@TxnTypeLabel(InventoryTransactionType.ProductionReceipt)</option>
+                        </select>
+                    </div>
+                    <div class="write-field">
+                        <label for="inv-post-wh">@Text["InvWarehouseLabel"]</label>
+                        <select id="inv-post-wh" @bind="postWarehouseId">
+                            @foreach (var w in activeWarehouses)
+                            {
+                                <option value="@w.Id">@w.Code — @w.Name (@w.SiteCode)</option>
+                            }
+                        </select>
+                    </div>
+                    @if (postType == InventoryTransactionType.TransferOut)
+                    {
+                        <div class="write-field">
+                            <label for="inv-post-dest">@Text["InvDestWarehouseLabel"]</label>
+                            <select id="inv-post-dest" @bind="postDestWarehouseId">
+                                <option value="0">@Text["InvSelectWarehouseOption"]</option>
+                                @foreach (var w in activeWarehouses.Where(x => x.Id != postWarehouseId))
+                                {
+                                    <option value="@w.Id">@w.Code — @w.Name (@w.SiteCode)</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    else if (postType is InventoryTransactionType.ProductionIssue or InventoryTransactionType.ProductionReceipt)
+                    {
+                        <div class="write-field">
+                            <label for="inv-post-po">@Text["PoOrderNumberColumn"]</label>
+                            <select id="inv-post-po" value="@postProductionOrderId" @onchange="OnPostOrderChangedAsync">
+                                <option value="0">@Text["InvSelectOrderOption"]</option>
+                                @foreach (var o in activeProductionOrders)
+                                {
+                                    <option value="@o.Id">@o.OrderNumber — @o.ItemCode (@o.SiteCode)</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    <div class="write-field po-field-full">
+                        <label for="inv-post-note">@Text["PoNotesLabel"]</label>
+                        <textarea id="inv-post-note" rows="2" maxlength="500" @bind="postReferenceNote"></textarea>
+                    </div>
+                </div>
+
+                <div class="po-context-card">
+                    <div class="po-context-head">
+                        <strong>@Text["InvLinesSection"]</strong>
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="po-add-cond-btn"
+                                   Icon="@PlusIcon" IsEnabled="@(activeItems.Count > 0)" OnClick="AddPostLine">
+                            @Text["InvAddLineBtn"]
+                        </BitButton>
+                    </div>
+                    @foreach (var row in postLines)
+                    {
+                        <div class="po-cond-row" style="grid-template-columns:minmax(140px,1.4fr) minmax(90px,.8fr) minmax(90px,.7fr) minmax(100px,.9fr) auto;">
+                            <select aria-label="@Text["BomLineItemColumn"]" value="@row.ItemId" @onchange="e => OnPostLineItemChanged(row, e)">
+                                <option value="0">@Text["InvSelectItemOption"]</option>
+                                @foreach (var it in activeItems)
+                                {
+                                    <option value="@it.Id">@it.Code — @it.Name</option>
+                                }
+                            </select>
+                            <input type="text" maxlength="32" @bind="row.LotCode" placeholder="@Text["InvLotCodeLabel"]" />
+                            <input type="number" step="0.000001" @bind="row.Quantity" placeholder="@Text["BomQuantityColumn"]" />
+                            <select aria-label="@Text["BomLineUnitColumn"]" @bind="row.UnitId">
+                                @foreach (var u in activeUnits)
+                                {
+                                    <option value="@u.Id">@u.Code (@u.Symbol)</option>
+                                }
+                            </select>
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => postLines.Remove(row)">
+                                @Text["BomRemoveRowBtn"]
+                            </BitButton>
+                        </div>
+                    }
+                </div>
+
+                <div class="po-dialog-footer">
+                    <BitButton IsEnabled="@(!modalBusy && postWarehouseId > 0 && postLines.Count > 0)" OnClick="SubmitPostTransactionAsync">
+                        @Text["InvPostSubmitBtn"]
+                    </BitButton>
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => postModalOpen = false">@Text["WriteCancel"]</BitButton>
+                </div>
+            </div>
+        </Body>
+    </BitDialog>
+
+    <BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailsOpen"
+               Title="@Text["InvTxnDetailsTitle"]" AriaLabel="@Text["InvTxnDetailsTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            @if (selectedTxn is not null)
+            {
+                var t = selectedTxn.Summary;
+                <div class="audit-modal-body">
+                    <div class="audit-modal-title-row">
+                        <span class="audit-modal-code" dir="ltr">@t.DocumentNumber</span>
+                        <span class="read-badge @TxnBadgeClass(t.TransactionType)">@TxnTypeLabel(t.TransactionType)</span>
+                    </div>
+                    @if (detailsError is not null)
+                    {
+                        <p role="alert" class="write-error">@Text[detailsError]</p>
+                    }
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["InvWarehouseLabel"]</span>
+                            <span class="audit-meta-val" dir="ltr">@t.WarehouseCode — @t.WarehouseName@(t.DestinationWarehouseCode is not null ? $" -> {t.DestinationWarehouseCode}" : string.Empty)</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(t.ProductionOrderNumber))
+                        {
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["PoOrderNumberColumn"]</span>
+                                <span class="audit-meta-val" dir="ltr">@t.ProductionOrderNumber</span>
+                            </div>
+                        }
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["AuditTimeColumn"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@FormatTimestamp(t.PostedAtUtc)</bdi>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(t.ReferenceNote))
+                        {
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["PoNotesLabel"]</span>
+                                <span class="audit-meta-val">@t.ReferenceNote</span>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="audit-modal-section">
+                        <h3 class="audit-section-heading">@Text["InvLinesSection"]</h3>
+                        <div class="audit-fields-box">
+                            <table class="audit-fields-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>@Text["InvWarehouseLabel"]</th>
+                                        <th>@Text["BomLineItemColumn"]</th>
+                                        <th>@Text["InvLotCodeLabel"]</th>
+                                        <th>@Text["InvEnteredQtyLabel"]</th>
+                                        <th>@Text["InvBaseQtyDeltaLabel"]</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var line in selectedTxn.Entries)
+                                    {
+                                        <tr>
+                                            <td>@line.LineNumber</td>
+                                            <td dir="ltr">@line.WarehouseCode</td>
+                                            <td><span dir="ltr">@line.ItemCode</span> — @line.ItemName</td>
+                                            <td dir="ltr">@(string.IsNullOrEmpty(line.LotCode) ? "—" : line.LotCode)</td>
+                                            <td dir="ltr">@Format.Number(line.EnteredQuantity) @line.EnteredUnitSymbol</td>
+                                            <td dir="ltr">
+                                                <span class="@(line.BaseQuantityDelta >= 0m ? "inv-delta-in" : "inv-delta-out")">
+                                                    @(line.BaseQuantityDelta > 0m ? "+" : string.Empty)@Format.Number(line.BaseQuantityDelta) @line.BaseUnitSymbol
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    @if (scopeCanManage && t.TransactionType != InventoryTransactionType.Reversal && !t.IsReversed)
+                    {
+                        <div class="po-context-card">
+                            <strong>@Text["InvReverseSection"]</strong>
+                            <div class="po-form-grid">
+                                <div class="write-field">
+                                    <label for="inv-rev-doc">@Text["InvReverseDocNumLabel"]</label>
+                                    <input id="inv-rev-doc" type="text" maxlength="32" @bind="reverseDocNumber" placeholder="@($"{t.DocumentNumber}-REV")" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="inv-rev-note">@Text["PoNotesLabel"]</label>
+                                    <input id="inv-rev-note" type="text" maxlength="500" @bind="reverseNote" />
+                                </div>
+                            </div>
+                            <div class="write-actions">
+                                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy && !string.IsNullOrWhiteSpace(reverseDocNumber))" OnClick="ReverseSelectedTxnAsync">
+                                    @Text["InvReverseBtn"]
+                                </BitButton>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </Body>
+    </BitDialog>
+</section>
+
+@code {
+    [Parameter] public long? OrganizationId { get; set; }
+    [SupplyParameterFromQuery(Name = "poId")] public long? QueryPoId { get; set; }
+
+    private const int TabBalances = 0;
+    private const int TabMovements = 1;
+    private const int TabWarehouses = 2;
+
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+    private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
+    private static readonly BitIconInfo PlusIcon = BitIconInfo.Css("ff-icon ff-icon--plus");
+
+    private BitDataGrid<InventoryBalanceSummary>? balGrid;
+    private BitDataGrid<InventoryTransactionSummary>? txnGrid;
+    private BitDataGrid<WarehouseSummary>? whGrid;
+
+    private int activeTab = TabBalances;
+    private bool initialLoading = true;
+    private string? pageError;
+    private string? pageNotice;
+    private List<OrganizationScope> available = [];
+    private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
+        new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+    private int scopeIndex;
+    private bool scopeCanManage;
+
+    private IReadOnlyList<ProductionOrderSiteInfo> authorizedSites = [];
+    private IReadOnlyList<WarehouseSummary> activeWarehouses = [];
+    private IReadOnlyList<ItemSummary> activeItems = [];
+    private IReadOnlyList<UnitSummary> activeUnits = [];
+    private IReadOnlyList<ProductionOrderSummary> activeProductionOrders = [];
+
+    private long siteFilter;
+    private long warehouseFilter;
+    private string typeFilter = string.Empty;
+    private bool includeZeroBalances;
+    private bool includeInactiveWarehouses;
+    private string? search;
+    private string? appliedSearch;
+    private bool modalBusy;
+
+    private bool whModalOpen;
+    private WarehouseSummary? editingWarehouse;
+    private string? whError;
+    private string whCode = string.Empty;
+    private long whSiteId;
+    private string whName = string.Empty;
+    private bool whIsDefault;
+
+    private bool postModalOpen;
+    private string? postError;
+    private string postDocNumber = string.Empty;
+    private InventoryTransactionType postType = InventoryTransactionType.Receipt;
+    private long postWarehouseId;
+    private long postDestWarehouseId;
+    private long postProductionOrderId;
+    private string? postReferenceNote;
+    private readonly List<PostLineRow> postLines = [];
+
+    private bool detailsOpen;
+    private InventoryTransactionDetails? selectedTxn;
+    private string? detailsError;
+    private string reverseDocNumber = string.Empty;
+    private string? reverseNote;
+    private long? handledQueryPoId;
+
+    private sealed class PostLineRow
+    {
+        public long ItemId { get; set; }
+        public string LotCode { get; set; } = string.Empty;
+        public decimal Quantity { get; set; } = 1m;
+        public long UnitId { get; set; }
+    }
+
+    private OrganizationScope? CurrentScope =>
+        scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
+
+    private static long ScopeOrganizationId(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site s => s.OrganizationId,
+        _ => 0
+    };
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["Inventory"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    protected override async Task OnParametersSetAsync() => await ReloadScopeAsync();
+
+    private async Task ReloadScopeAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        pageNotice = null;
+        try
+        {
+            var loaded = await Scopes.LoadInventoryScopesAsync();
+            available = OrganizationId is long orgId
+                ? loaded.Where(s => ScopeOrganizationId(s) == orgId).ToList()
+                : loaded.ToList();
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+            if (available.Count == 0 && OrganizationId is long fallbackOrgId)
+                available = [new OrganizationScope.Organization(fallbackOrgId)];
+            scopeIndex = 0;
+            await RefreshScopeStateAsync();
+            if (QueryPoId is long poId && handledQueryPoId != poId && scopeCanManage && activeWarehouses.Count > 0)
+            {
+                handledQueryPoId = poId;
+                await OpenPostModal(poId);
+            }
+        }
+        catch
+        {
+            pageError = "ReadError";
+        }
+        finally
+        {
+            initialLoading = false;
+        }
+    }
+
+    private async Task RefreshScopeStateAsync()
+    {
+        scopeCanManage = false;
+        authorizedSites = [];
+        activeWarehouses = [];
+        activeItems = [];
+        activeUnits = [];
+        activeProductionOrders = [];
+        siteFilter = 0;
+        warehouseFilter = 0;
+
+        var scope = CurrentScope;
+        if (scope is null) return;
+
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is not null)
+        {
+            var eval = await Permissions.EvaluateAsync(actor, scope, InventoryPermissions.InventoryManage, default);
+            scopeCanManage = eval.IsAllowed;
+        }
+
+        var orgId = ScopeOrganizationId(scope);
+        var whRes = await InvService.ListWarehouses(scope, orgId, new WarehouseListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        if (whRes.Succeeded)
+            activeWarehouses = whRes.Value!.Items;
+
+        var sitesRes = await OrderService.ListAuthorizedSites(scope, orgId);
+        if (sitesRes.Succeeded)
+            authorizedSites = sitesRes.Value!;
+        if (scope is OrganizationScope.Site siteScope)
+            siteFilter = siteScope.SiteId;
+
+        var itemsRes = await ItemService.ListItems(scope, orgId, new ItemListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        if (itemsRes.Succeeded)
+            activeItems = itemsRes.Value!.Items;
+
+        var unitsRes = await UnitService.ListUnits(scope, orgId, new UnitListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        if (unitsRes.Succeeded)
+            activeUnits = unitsRes.Value!.Items;
+
+        var relOrders = await OrderService.ListOrders(scope, orgId, new ProductionOrderListQuery(Status: ProductionOrderStatus.Released, Page: 1, PageSize: 50));
+        var progOrders = await OrderService.ListOrders(scope, orgId, new ProductionOrderListQuery(Status: ProductionOrderStatus.InProgress, Page: 1, PageSize: 50));
+        var combined = new List<ProductionOrderSummary>();
+        if (relOrders.Succeeded) combined.AddRange(relOrders.Value!.Items);
+        if (progOrders.Succeeded) combined.AddRange(progOrders.Value!.Items);
+        activeProductionOrders = combined.OrderByDescending(o => o.Id).ToArray();
+    }
+
+    private string ScopeLabel(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o when scopeLabels.TryGetValue(scope, out var info) && info.OrgCode is not null
+            => $"{info.OrgCode} — {info.OrgName}",
+        OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId],
+        OrganizationScope.Site s when scopeLabels.TryGetValue(scope, out var info) && info.SiteCode is not null
+            => $"{info.OrgCode} / {info.SiteCode} — {info.SiteName}",
+        OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
+        _ => string.Empty
+    };
+
+    private async Task SwitchTabAsync(int tab)
+    {
+        activeTab = tab;
+        await ReloadActiveGridAsync(fromFirstPage: true);
+    }
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx))
+            scopeIndex = idx;
+        await RefreshScopeStateAsync();
+        await ReloadActiveGridAsync(fromFirstPage: true);
+    }
+
+    private async Task ChangeSiteFilterAsync(ChangeEventArgs e)
+    {
+        siteFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
+        await ReloadActiveGridAsync(fromFirstPage: true);
+    }
+
+    private async Task ChangeWarehouseFilterAsync(ChangeEventArgs e)
+    {
+        warehouseFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
+        await ReloadActiveGridAsync(fromFirstPage: true);
+    }
+
+    private async Task ChangeTypeFilterAsync(ChangeEventArgs e)
+    {
+        typeFilter = e.Value?.ToString() ?? string.Empty;
+        await ReloadActiveGridAsync(fromFirstPage: true);
+    }
+
+    private async Task ToggleZeroBalancesAsync(ChangeEventArgs e)
+    {
+        includeZeroBalances = e.Value is bool b && b;
+        await ReloadActiveGridAsync(fromFirstPage: true);
+    }
+
+    private async Task ToggleInactiveWarehousesAsync(ChangeEventArgs e)
+    {
+        includeInactiveWarehouses = e.Value is bool b && b;
+        await ReloadActiveGridAsync(fromFirstPage: true);
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        await ReloadActiveGridAsync(fromFirstPage: true);
+    }
+
+    private async Task ReloadActiveGridAsync(bool fromFirstPage)
+    {
+        if (activeTab == TabBalances && balGrid is not null)
+        {
+            if (fromFirstPage && balGrid.CurrentPage > 1) await balGrid.GoToPageAsync(1);
+            else await balGrid.RefreshAsync();
+        }
+        else if (activeTab == TabMovements && txnGrid is not null)
+        {
+            if (fromFirstPage && txnGrid.CurrentPage > 1) await txnGrid.GoToPageAsync(1);
+            else await txnGrid.RefreshAsync();
+        }
+        else if (activeTab == TabWarehouses && whGrid is not null)
+        {
+            if (fromFirstPage && whGrid.CurrentPage > 1) await whGrid.GoToPageAsync(1);
+            else await whGrid.RefreshAsync();
+        }
+    }
+
+    private async Task<BitDataGridReadResult<InventoryBalanceSummary>> ReadBalancesAsync(BitDataGridReadRequest request)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var orgId = ScopeOrganizationId(scope);
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        long? reqSite = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
+        var res = await InvService.ListBalances(scope, orgId, new InventoryBalanceListQuery(reqSite, warehouseFilter > 0 ? warehouseFilter : null, null, appliedSearch, includeZeroBalances, page, size), request.CancellationToken);
+        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private async Task<BitDataGridReadResult<InventoryTransactionSummary>> ReadTransactionsAsync(BitDataGridReadRequest request)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var orgId = ScopeOrganizationId(scope);
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        long? reqSite = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
+        InventoryTransactionType? tt = byte.TryParse(typeFilter, out var raw) && Enum.IsDefined((InventoryTransactionType)raw)
+            ? (InventoryTransactionType)raw
+            : null;
+        var res = await InvService.ListTransactions(scope, orgId, new InventoryTransactionListQuery(reqSite, warehouseFilter > 0 ? warehouseFilter : null, tt, null, appliedSearch, page, size), request.CancellationToken);
+        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private async Task<BitDataGridReadResult<WarehouseSummary>> ReadWarehousesAsync(BitDataGridReadRequest request)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var orgId = ScopeOrganizationId(scope);
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        long? reqSite = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
+        var res = await InvService.ListWarehouses(scope, orgId, new WarehouseListQuery(reqSite, appliedSearch, includeInactiveWarehouses, page, size), request.CancellationToken);
+        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private void OpenCreateWarehouse()
+    {
+        editingWarehouse = null;
+        whError = null;
+        whCode = string.Empty;
+        whName = string.Empty;
+        whSiteId = CurrentScope is OrganizationScope.Site s ? s.SiteId : authorizedSites.FirstOrDefault()?.Id ?? 0;
+        whIsDefault = false;
+        whModalOpen = true;
+    }
+
+    private void OpenEditWarehouse(WarehouseSummary w)
+    {
+        editingWarehouse = w;
+        whError = null;
+        whCode = w.Code;
+        whName = w.Name;
+        whSiteId = w.SiteId;
+        whIsDefault = w.IsDefaultForSite;
+        whModalOpen = true;
+    }
+
+    private async Task SaveWarehouseAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        whError = null;
+        try
+        {
+            var orgId = ScopeOrganizationId(scope);
+            var res = editingWarehouse is null
+                ? await InvService.CreateWarehouse(scope, new CreateWarehouseRequest(orgId, whSiteId, whCode, whName, whIsDefault))
+                : await InvService.UpdateWarehouse(scope, new UpdateWarehouseRequest(orgId, editingWarehouse.Id, whName, whIsDefault, editingWarehouse.RowVersion));
+            if (!res.Succeeded) { whError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            whModalOpen = false;
+            pageNotice = Text["InvSavedNotice"];
+            await RefreshScopeStateAsync();
+            await ReloadActiveGridAsync(fromFirstPage: false);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task ToggleWarehouseActiveAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || editingWarehouse is null) return;
+        modalBusy = true;
+        whError = null;
+        try
+        {
+            var res = await InvService.SetWarehouseActive(scope, new SetWarehouseActiveRequest(editingWarehouse.OrganizationId, editingWarehouse.Id, !editingWarehouse.IsActive, editingWarehouse.RowVersion));
+            if (!res.Succeeded) { whError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            whModalOpen = false;
+            pageNotice = Text["InvSavedNotice"];
+            await RefreshScopeStateAsync();
+            await ReloadActiveGridAsync(fromFirstPage: false);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task OpenPostModal(long? prefillPoId)
+    {
+        postError = null;
+        postDocNumber = string.Empty;
+        postDestWarehouseId = 0;
+        postReferenceNote = null;
+        postLines.Clear();
+        postType = prefillPoId.HasValue ? InventoryTransactionType.ProductionIssue : InventoryTransactionType.Receipt;
+        postProductionOrderId = prefillPoId ?? 0;
+        postWarehouseId = activeWarehouses.FirstOrDefault(w => w.IsDefaultForSite)?.Id ?? activeWarehouses.FirstOrDefault()?.Id ?? 0;
+
+        if (prefillPoId.HasValue)
+            await PrefillFromProductionOrderAsync(prefillPoId.Value);
+        else
+            AddPostLine();
+
+        postModalOpen = true;
+    }
+
+    private Task OnPostTypeChangedAsync(ChangeEventArgs e)
+    {
+        if (byte.TryParse(e.Value?.ToString(), out var raw) && Enum.IsDefined((InventoryTransactionType)raw))
+            postType = (InventoryTransactionType)raw;
+        return Task.CompletedTask;
+    }
+
+    private async Task OnPostOrderChangedAsync(ChangeEventArgs e)
+    {
+        postProductionOrderId = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
+        if (postProductionOrderId > 0)
+            await PrefillFromProductionOrderAsync(postProductionOrderId);
+    }
+
+    private async Task PrefillFromProductionOrderAsync(long poId)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        var res = await OrderService.GetOrder(scope, ScopeOrganizationId(scope), poId);
+        if (!res.Succeeded) return;
+        var details = res.Value!;
+        var matchingWh = activeWarehouses.FirstOrDefault(w => w.SiteId == details.Summary.SiteId && w.IsDefaultForSite)
+                         ?? activeWarehouses.FirstOrDefault(w => w.SiteId == details.Summary.SiteId);
+        if (matchingWh is not null)
+            postWarehouseId = matchingWh.Id;
+
+        postLines.Clear();
+        if (postType == InventoryTransactionType.ProductionIssue)
+        {
+            foreach (var inp in details.Inputs.Where(i => !i.IsSubAssembly))
+                postLines.Add(new PostLineRow { ItemId = inp.ItemId, Quantity = inp.GrossQuantity, UnitId = inp.UnitId });
+        }
+        else if (postType == InventoryTransactionType.ProductionReceipt)
+        {
+            foreach (var outLine in details.Outputs.Where(o => o.Level == 1))
+                postLines.Add(new PostLineRow { ItemId = outLine.ItemId, Quantity = outLine.PlannedQuantity, UnitId = outLine.UnitId });
+        }
+        if (postLines.Count == 0)
+            AddPostLine();
+    }
+
+    private void AddPostLine()
+    {
+        var firstItem = activeItems.FirstOrDefault();
+        postLines.Add(new PostLineRow
+        {
+            ItemId = firstItem?.Id ?? 0,
+            Quantity = 1m,
+            UnitId = firstItem?.BaseUnitId ?? activeUnits.FirstOrDefault()?.Id ?? 0
+        });
+    }
+
+    private void OnPostLineItemChanged(PostLineRow row, ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+        {
+            row.ItemId = id;
+            var it = activeItems.FirstOrDefault(i => i.Id == id);
+            if (it is not null) row.UnitId = it.BaseUnitId;
+        }
+    }
+
+    private async Task SubmitPostTransactionAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        postError = null;
+        try
+        {
+            var orgId = ScopeOrganizationId(scope);
+            var lines = postLines.Select(l => new InventoryLineInput(l.ItemId, l.LotCode, l.Quantity, l.UnitId > 0 ? l.UnitId : null, null)).ToArray();
+            var res = await InvService.PostTransaction(scope, new PostInventoryTransactionRequest(
+                orgId,
+                postWarehouseId,
+                postType == InventoryTransactionType.TransferOut ? postDestWarehouseId : null,
+                postDocNumber,
+                postType,
+                postType is InventoryTransactionType.ProductionIssue or InventoryTransactionType.ProductionReceipt ? postProductionOrderId : null,
+                postReferenceNote,
+                null,
+                lines));
+            if (!res.Succeeded) { postError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            postModalOpen = false;
+            pageNotice = Text["InvPostedNotice"];
+            await ReloadActiveGridAsync(fromFirstPage: true);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task OpenTransactionDetailsAsync(long id)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        var res = await InvService.GetTransaction(scope, ScopeOrganizationId(scope), id);
+        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+        selectedTxn = res.Value!;
+        detailsError = null;
+        reverseDocNumber = string.Empty;
+        reverseNote = null;
+        detailsOpen = true;
+    }
+
+    private async Task ReverseSelectedTxnAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedTxn is null) return;
+        modalBusy = true;
+        detailsError = null;
+        try
+        {
+            var res = await InvService.ReverseTransaction(scope, new ReverseInventoryTransactionRequest(
+                selectedTxn.Summary.OrganizationId,
+                selectedTxn.Summary.Id,
+                reverseDocNumber,
+                reverseNote));
+            if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            detailsOpen = false;
+            pageNotice = Text["InvReversedNotice"];
+            await ReloadActiveGridAsync(fromFirstPage: true);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private string TxnTypeLabel(InventoryTransactionType type) => type switch
+    {
+        InventoryTransactionType.Receipt => Text["InvTypeReceipt"],
+        InventoryTransactionType.Issue => Text["InvTypeIssue"],
+        InventoryTransactionType.Adjustment => Text["InvTypeAdjustment"],
+        InventoryTransactionType.TransferOut => Text["InvTypeTransferOut"],
+        InventoryTransactionType.TransferIn => Text["InvTypeTransferIn"],
+        InventoryTransactionType.ProductionIssue => Text["InvTypeProdIssue"],
+        InventoryTransactionType.ProductionReceipt => Text["InvTypeProdReceipt"],
+        InventoryTransactionType.Reversal => Text["InvTypeReversal"],
+        _ => type.ToString()
+    };
+
+    private static string TxnBadgeClass(InventoryTransactionType type) => type switch
+    {
+        InventoryTransactionType.Receipt or InventoryTransactionType.ProductionReceipt or InventoryTransactionType.TransferIn => "po-status-completed",
+        InventoryTransactionType.Issue or InventoryTransactionType.ProductionIssue => "po-status-inprogress",
+        InventoryTransactionType.TransferOut or InventoryTransactionType.Adjustment => "po-status-released",
+        InventoryTransactionType.Reversal => "po-status-cancelled",
+        _ => "po-status-draft"
+    };
+
+    private string FormatTimestamp(DateTime utc)
+    {
+        var dateText = Format.Date(DateOnly.FromDateTime(utc));
+        var timeText = utc.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+        return $"{dateText} {timeText} UTC";
+    }
+}

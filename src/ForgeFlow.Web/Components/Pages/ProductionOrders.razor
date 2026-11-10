@@ -1,6 +1,7 @@
 @page "/production-orders"
 @page "/organizations/{OrganizationId:long}/production-orders"
 @using ForgeFlow.Application.Boms
+@using ForgeFlow.Application.Inventory
 @using ForgeFlow.Application.Items
 @using ForgeFlow.Application.Organizations
 @using ForgeFlow.Application.ProductionOrders
@@ -17,6 +18,7 @@
 @inject IOrganizationPermissionEvaluator Permissions
 @inject CulturePolicy Culture
 @inject DisplayFormatter Format
+@inject NavigationManager Navigation
 @inject IStringLocalizer<SharedResources> Text
 
 <PageTitle>@Text["ProductionOrders"] - @Text["AppTitle"]</PageTitle>
@@ -473,6 +475,10 @@
                     {
                         <div class="write-actions">
                             <BitButton IsEnabled="@(!modalBusy)" OnClick="StartOrderAsync">@Text["PoStartButton"]</BitButton>
+                            @if (canManageInventory)
+                            {
+                                <BitButton Variant="BitVariant.Outline" OnClick='() => Navigation.NavigateTo($"/inventory?poId={summary.Id}")'>@Text["PoPostInventoryBtn"]</BitButton>
+                            }
                         </div>
                     }
                     else if (scopeCanManage && summary.Status == ProductionOrderStatus.InProgress)
@@ -496,6 +502,10 @@
                             <div class="write-actions">
                                 <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="RecordActualsAsync">@Text["PoRecordActualsButton"]</BitButton>
                                 <BitButton IsEnabled="@(!modalBusy)" OnClick="CompleteOrderAsync">@Text["PoCompleteButton"]</BitButton>
+                                @if (canManageInventory)
+                                {
+                                    <BitButton Variant="BitVariant.Outline" OnClick='() => Navigation.NavigateTo($"/inventory?poId={summary.Id}")'>@Text["PoPostInventoryBtn"]</BitButton>
+                                }
                             </div>
                         </div>
                     }
@@ -664,6 +674,7 @@
         new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
     private int scopeIndex;
     private bool scopeCanManage;
+    private bool canManageInventory;
 
     private IReadOnlyList<ProductionOrderSiteInfo> authorizedSites = [];
     private IReadOnlyList<ItemSummary> manufacturableItems = [];
@@ -798,6 +809,7 @@
     private async Task RefreshScopeStateAsync()
     {
         scopeCanManage = false;
+        canManageInventory = false;
         authorizedSites = [];
         manufacturableItems = [];
         activeUnits = [];
@@ -812,6 +824,8 @@
         {
             var eval = await Permissions.EvaluateAsync(actor, scope, ProductionOrderPermissions.ProductionOrdersManage, default);
             scopeCanManage = eval.IsAllowed;
+            var invEval = await Permissions.EvaluateAsync(actor, scope, InventoryPermissions.InventoryManage, default);
+            canManageInventory = invEval.IsAllowed;
         }
 
         var orgId = ScopeOrganizationId(scope);

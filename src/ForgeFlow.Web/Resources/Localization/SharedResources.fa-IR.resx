@@ -1599,4 +1599,187 @@
   <data name="PoErrorNotesInvalid" xml:space="preserve">
     <value>توضیحات نباید بیشتر از ۵۰۰ کاراکتر یا شامل کاراکترهای کنترلی باشد.</value>
   </data>
+  <data name="PoPostInventoryBtn" xml:space="preserve">
+    <value>مصرف / رسید انبار</value>
+  </data>
+  <data name="InventoryNavGroup" xml:space="preserve">
+    <value>انبار و موجودی</value>
+  </data>
+  <data name="Inventory" xml:space="preserve">
+    <value>انبار و گردش کالا</value>
+  </data>
+  <data name="InventoryCaption" xml:space="preserve">
+    <value>مدیریت انبارهای سایت، دفتر کل غیرقابل‌ویرایش، تراز لحظه‌ای و مصرف/رسید سفارش تولید</value>
+  </data>
+  <data name="PermPageInventory" xml:space="preserve">
+    <value>صفحه انبار و موجودی</value>
+  </data>
+  <data name="PermOpManageInventory" xml:space="preserve">
+    <value>مدیریت انبارها و ثبت گردش کالا</value>
+  </data>
+  <data name="InvWarehouseCreateBtn" xml:space="preserve">
+    <value>انبار جدید</value>
+  </data>
+  <data name="InvPostMovementBtn" xml:space="preserve">
+    <value>ثبت گردش کالا</value>
+  </data>
+  <data name="InvTabBalances" xml:space="preserve">
+    <value>موجودی فعلی</value>
+  </data>
+  <data name="InvTabMovements" xml:space="preserve">
+    <value>اسناد و گردش کالا</value>
+  </data>
+  <data name="InvTabWarehouses" xml:space="preserve">
+    <value>انبارها</value>
+  </data>
+  <data name="InvWarehouseLabel" xml:space="preserve">
+    <value>انبار</value>
+  </data>
+  <data name="InvDestWarehouseLabel" xml:space="preserve">
+    <value>انبار مقصد</value>
+  </data>
+  <data name="InvAllWarehousesOption" xml:space="preserve">
+    <value>همه انبارها</value>
+  </data>
+  <data name="InvTxnTypeLabel" xml:space="preserve">
+    <value>نوع حرکت</value>
+  </data>
+  <data name="InvAllTypesOption" xml:space="preserve">
+    <value>همه نوع‌های حرکت</value>
+  </data>
+  <data name="InvIncludeZeroLabel" xml:space="preserve">
+    <value>نمایش موجودی‌های صفر</value>
+  </data>
+  <data name="InvLotCodeLabel" xml:space="preserve">
+    <value>بچ / لات</value>
+  </data>
+  <data name="InvOnHandLabel" xml:space="preserve">
+    <value>موجودی فعلی (واحد پایه)</value>
+  </data>
+  <data name="InvLastMovedLabel" xml:space="preserve">
+    <value>آخرین گردش</value>
+  </data>
+  <data name="InvDocNumberLabel" xml:space="preserve">
+    <value>شماره سند</value>
+  </data>
+  <data name="InvReversedBadge" xml:space="preserve">
+    <value>برگشت‌خورده</value>
+  </data>
+  <data name="InvDefaultWarehouseBadge" xml:space="preserve">
+    <value>پیش‌فرض</value>
+  </data>
+  <data name="InvDefaultForSiteLabel" xml:space="preserve">
+    <value>تنظیم به‌عنوان انبار پیش‌فرض فعال این سایت</value>
+  </data>
+  <data name="InvWarehouseCreateTitle" xml:space="preserve">
+    <value>ایجاد انبار جدید</value>
+  </data>
+  <data name="InvWarehouseEditTitle" xml:space="preserve">
+    <value>ویرایش انبار</value>
+  </data>
+  <data name="InvSelectWarehouseOption" xml:space="preserve">
+    <value>یک انبار انتخاب کنید...</value>
+  </data>
+  <data name="InvSelectOrderOption" xml:space="preserve">
+    <value>یک سفارش تولید فعال انتخاب کنید...</value>
+  </data>
+  <data name="InvSelectItemOption" xml:space="preserve">
+    <value>یک کالا انتخاب کنید...</value>
+  </data>
+  <data name="InvLinesSection" xml:space="preserve">
+    <value>اقلام گردش کالا</value>
+  </data>
+  <data name="InvAddLineBtn" xml:space="preserve">
+    <value>افزودن ردیف</value>
+  </data>
+  <data name="InvPostSubmitBtn" xml:space="preserve">
+    <value>ثبت قطعی سند</value>
+  </data>
+  <data name="InvTxnDetailsTitle" xml:space="preserve">
+    <value>جزئیات سند گردش کالا</value>
+  </data>
+  <data name="InvEnteredQtyLabel" xml:space="preserve">
+    <value>مقدار ثبت‌شده</value>
+  </data>
+  <data name="InvBaseQtyDeltaLabel" xml:space="preserve">
+    <value>تغییر در واحد پایه</value>
+  </data>
+  <data name="InvReverseSection" xml:space="preserve">
+    <value>برگشت / ابطال جبرانی سند</value>
+  </data>
+  <data name="InvReverseDocNumLabel" xml:space="preserve">
+    <value>شماره سند برگشتی</value>
+  </data>
+  <data name="InvReverseBtn" xml:space="preserve">
+    <value>ثبت سند برگشتی</value>
+  </data>
+  <data name="InvSavedNotice" xml:space="preserve">
+    <value>اطلاعات انبار به‌روزرسانی شد.</value>
+  </data>
+  <data name="InvPostedNotice" xml:space="preserve">
+    <value>سند انبار ثبت شد و موجودی به‌روز گردید.</value>
+  </data>
+  <data name="InvReversedNotice" xml:space="preserve">
+    <value>سند برگشت جبرانی با موفقیت ثبت شد.</value>
+  </data>
+  <data name="InvTypeReceipt" xml:space="preserve">
+    <value>رسید کالا</value>
+  </data>
+  <data name="InvTypeIssue" xml:space="preserve">
+    <value>حواله خروج</value>
+  </data>
+  <data name="InvTypeAdjustment" xml:space="preserve">
+    <value>تعدیل موجودی</value>
+  </data>
+  <data name="InvTypeTransferOut" xml:space="preserve">
+    <value>انتقال بین‌انباری</value>
+  </data>
+  <data name="InvTypeTransferIn" xml:space="preserve">
+    <value>ورود انتقالی</value>
+  </data>
+  <data name="InvTypeProdIssue" xml:space="preserve">
+    <value>مصرف تولید</value>
+  </data>
+  <data name="InvTypeProdReceipt" xml:space="preserve">
+    <value>رسید محصول تولیدی</value>
+  </data>
+  <data name="InvTypeReversal" xml:space="preserve">
+    <value>سند برگشتی</value>
+  </data>
+  <data name="InvErrorWarehouseInactive" xml:space="preserve">
+    <value>انبار انتخاب‌شده غیرفعال است.</value>
+  </data>
+  <data name="InvErrorAlreadyReversed" xml:space="preserve">
+    <value>این سند انبار قبلاً برگشت (ابطال جبرانی) خورده است.</value>
+  </data>
+  <data name="InvErrorCannotReverseReversal" xml:space="preserve">
+    <value>سند برگشتی مجدداً قابل برگشت نیست.</value>
+  </data>
+  <data name="InvErrorLinesRequired" xml:space="preserve">
+    <value>حداقل یک ردیف کالا برای ثبت سند الزامی است.</value>
+  </data>
+  <data name="InvErrorQuantityInvalid" xml:space="preserve">
+    <value>مقدار واردشده باید معتبر، غیرصفر و متناسب با نوع حرکت باشد.</value>
+  </data>
+  <data name="InvErrorLotCodeInvalid" xml:space="preserve">
+    <value>کد بچ/لات باید با حرف یا رقم لاتین شروع شود و فقط شامل A-Z، 0-9، _ یا - باشد.</value>
+  </data>
+  <data name="InvErrorDestWarehouseInvalid" xml:space="preserve">
+    <value>یک انبار مقصد معتبر و فعال برای انتقال انتخاب کنید.</value>
+  </data>
+  <data name="InvErrorTransferSameWarehouse" xml:space="preserve">
+    <value>انبار مبدأ و انبار مقصد باید متفاوت باشند.</value>
+  </data>
+  <data name="InvErrorOrderInvalid" xml:space="preserve">
+    <value>یک سفارش تولید معتبر در همین سایت انتخاب کنید.</value>
+  </data>
+  <data name="InvErrorOrderStateInvalid" xml:space="preserve">
+    <value>ثبت مصرف یا رسید تولید فقط برای سفارش‌های ابلاغ‌شده یا در حال تولید مجاز است.</value>
+  </data>
+  <data name="InvErrorInsufficientStock" xml:space="preserve">
+    <value>موجودی فعلی انبار برای ثبت این خروج کالا کافی نیست.</value>
+  </data>
+  <data name="InvErrorIdempotencyInvalid" xml:space="preserve">
+    <value>کلید یکتای جلوگیری از ثبت تکراری نامعتبر است.</value>
+  </data>
 </root>

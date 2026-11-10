@@ -1,6 +1,6 @@
 # Slice 07 — Warehouses, Stock Ledger & Production Material Issue/Receipt (`07-inventory`)
 
-Status: **DESIGN PROPOSED (`07.0`)** (2026-11-10) — Implements the **Warehouse & Inventory Ledger domain** per [ForgeFlow.md](../../../ForgeFlow.md) row `انبار/بچ و lot` and `Inventory = What is actually available`: tracking physical warehouse balances per `(OrganizationId, SiteId, WarehouseId, ItemId, LotCode)` via immutable append-only ledger entries, hybrid item+global UOM conversion to each item's `BaseUnitId`, and explicit material issue / finished-goods receipt links to `ProductionOrder`s without ever mutating historical BOMs or order snapshots.
+Status: **ACCEPTED (`07.5`, User Verified Local UI; Slice 08 Authorized)** (2026-11-11) — Implements the **Warehouse & Inventory Ledger domain** per [ForgeFlow.md](../../../ForgeFlow.md) row `انبار/بچ و lot` and `Inventory = What is actually available`: tracking physical warehouse balances per `(OrganizationId, SiteId, WarehouseId, ItemId, LotCode)` via immutable append-only ledger entries, hybrid item+global UOM conversion to each item's `BaseUnitId`, and explicit material issue / finished-goods receipt links to `ProductionOrder`s without ever mutating historical BOMs or order snapshots.
 
 ## 1. Objective, actors, preconditions, outputs, and out-of-scope
 
@@ -51,5 +51,10 @@ Status: **DESIGN PROPOSED (`07.0`)** (2026-11-10) — Implements the **Warehouse
 - `BitDialog` (`ShowOkButton="false"`, `ShowCancelButton="false"`, `ShowCloseButton="true"`) with `.po-form-grid` 2-column alignment and tinted `.po-dialog-footer`.
 - Codes (`Warehouse.Code`, `DocumentNumber`, `Item.Code`, `LotCode`) in `<bdi dir="ltr">`, quantities via `DisplayFormatter.Number` (`"N2"` or precision-aware formatting), dates via `DisplayFormatter.Date` / `BitDatePicker`, and zero hardcoded UI text (`fa-IR` / `en-US` `.resx` + `ResourceContractTests`).
 
-## 4. Next step
-- Confirm open design decisions `Q-I01`–`Q-I04` in [decisions.md](decisions.md) before starting `07.1` (Domain & Application).
+## 4. Implementation Status & Next Step
+- **07.0 Design**: APPROVED (`Q-I01`–`Q-I04`).
+- **07.1 Domain (`ForgeFlow.Domain.Inventory`)**: Implemented `PermissionModule.Inventory = 10` (`Inventory.Read`, `Inventory.Manage` as `OrganizationOrSite`), `Warehouse`, `InventoryTransaction`, `InventoryLedgerEntry`, `InventoryBalance`, `InventoryTransactionType`, `InventoryErrors`, and `InventoryText`.
+- **07.2 Application (`ForgeFlow.Application.Inventory`)**: Implemented `InventoryUseCases`, `InventoryContracts`, hybrid item+global UOM conversion (`UnitConversionGraph.ConvertQuantity`), atomic two-warehouse `TransferOut`, idempotency key deduplication, `ProductionIssue`/`ProductionReceipt` order validation, and compensating `Reversal`.
+- **07.3 Infrastructure (`ForgeFlow.Infrastructure.Organizations`)**: Added 4 EF entities (`27` total, `6` migrations including `20261110201924_InventoryWarehousesAndStockLedger` with append-only `DENY UPDATE, DELETE` on `InventoryTransaction`/`InventoryLedgerEntry` + `DENY DELETE` on `Warehouse`/`InventoryBalance`), `SqlInventoryOperationsStore` with deterministic serialized `UPDLOCK, HOLDLOCK` on `InventoryBalance`, `AuthDbContext` ignores, `OrganizationDbContext` site-attributed audit events (`Warehouse.*`, `InventoryTransaction.Posted/Reversed`), and idempotent DDL in [upgrade-local-testdb.ps1](../../../scripts/upgrade-local-testdb.ps1).
+- **07.4 Web & Tests**: Added `InventoryNavGroup` -> `/inventory` (`Inventory.razor` tabbed workbench for Balances, Movements/Ledger & Reversals, and Warehouses), `/production-orders` Issue/Receive shortcut, bilingual `fa-IR`/`en-US` `.resx` keys, `InventoryTests` (`I01`–`I07`), and `InventorySqlTests` (`S01`–`S04`).
+- **07.5 Acceptance & Next**: User reviewed local `https://localhost:5001/inventory` and authorized committing/pushing Slice 07 and advancing to **Slice 08 (`08-reports-variance`)** (`ReportSqlTests` + `InventorySqlTests` remain runnable locally with `FORGEFLOW_TEST_SQLSERVER`).

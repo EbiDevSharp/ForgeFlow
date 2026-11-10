@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ForgeFlow.Application.Boms;
+using ForgeFlow.Application.Inventory;
 using ForgeFlow.Application.Items;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.ProductionOrders;
@@ -41,6 +42,9 @@ public static class OrganizationPersistenceRegistration
         services.AddScoped<ProductionOrderUseCases>(provider => new ProductionOrderUseCases(
             new SqlProductionOrderOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
             new BomOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
+        services.AddScoped<InventoryUseCases>(provider => new InventoryUseCases(
+            new SqlInventoryOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
         return services;
     }

@@ -829,6 +829,166 @@ BEGIN
     VALUES (N'20261110194120_ProductionOrdersAndSnapshots', N'10.0.14');
 END;
 
+IF OBJECT_ID(N'organization.Warehouse', N'U') IS NULL
+BEGIN
+    IF OBJECT_ID(N'organization.CK_OrganizationChange_Event', N'C') IS NOT NULL
+        ALTER TABLE [organization].[OrganizationChange] DROP CONSTRAINT [CK_OrganizationChange_Event];
+
+    CREATE TABLE [organization].[Warehouse] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [SiteId] bigint NOT NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [IsDefaultForSite] bit NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_Warehouse] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_Warehouse_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_Warehouse_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_Warehouse_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_Warehouse_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [FK_Warehouse_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id]),
+        CONSTRAINT [FK_Warehouse_Site] FOREIGN KEY ([OrganizationId], [SiteId]) REFERENCES [organization].[Site] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[InventoryBalance] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [SiteId] bigint NOT NULL,
+        [WarehouseId] bigint NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [LotCode] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL DEFAULT '',
+        [BaseUnitId] bigint NOT NULL,
+        [OnHandBaseQuantity] decimal(18,6) NOT NULL,
+        [LastMovedAtUtc] datetime2(7) NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_InventoryBalance] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_InventoryBalance_LotCode] CHECK (([LotCode] = '' OR (DATALENGTH([LotCode]) BETWEEN 1 AND 32 AND DATALENGTH([LotCode]) = LEN([LotCode]) AND [LotCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([LotCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'))),
+        CONSTRAINT [CK_InventoryBalance_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_InventoryBalance_NonNegative] CHECK ([OnHandBaseQuantity] >= 0),
+        CONSTRAINT [FK_InventoryBalance_BaseUnit] FOREIGN KEY ([OrganizationId], [BaseUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_InventoryBalance_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_InventoryBalance_Site] FOREIGN KEY ([OrganizationId], [SiteId]) REFERENCES [organization].[Site] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_InventoryBalance_Warehouse] FOREIGN KEY ([OrganizationId], [WarehouseId]) REFERENCES [organization].[Warehouse] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[InventoryTransaction] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [SiteId] bigint NOT NULL,
+        [WarehouseId] bigint NOT NULL,
+        [DestinationWarehouseId] bigint NULL,
+        [DocumentNumber] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [TransactionType] tinyint NOT NULL,
+        [ProductionOrderId] bigint NULL,
+        [ReversedTransactionId] bigint NULL,
+        [ReferenceNote] nvarchar(500) NULL,
+        [IdempotencyKey] varchar(64) COLLATE Latin1_General_100_BIN2 NULL,
+        [PostedAtUtc] datetime2(7) NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_InventoryTransaction] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_InventoryTransaction_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_InventoryTransaction_DocNum] CHECK (DATALENGTH([DocumentNumber]) BETWEEN 1 AND 32 AND DATALENGTH([DocumentNumber]) = LEN([DocumentNumber]) AND [DocumentNumber] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([DocumentNumber], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_InventoryTransaction_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_InventoryTransaction_Type] CHECK ([TransactionType] BETWEEN 1 AND 8),
+        CONSTRAINT [FK_InventoryTransaction_DestWarehouse] FOREIGN KEY ([OrganizationId], [DestinationWarehouseId]) REFERENCES [organization].[Warehouse] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_InventoryTransaction_Order] FOREIGN KEY ([OrganizationId], [ProductionOrderId]) REFERENCES [organization].[ProductionOrder] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_InventoryTransaction_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id]),
+        CONSTRAINT [FK_InventoryTransaction_Reversal] FOREIGN KEY ([OrganizationId], [ReversedTransactionId]) REFERENCES [organization].[InventoryTransaction] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_InventoryTransaction_Site] FOREIGN KEY ([OrganizationId], [SiteId]) REFERENCES [organization].[Site] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_InventoryTransaction_Warehouse] FOREIGN KEY ([OrganizationId], [WarehouseId]) REFERENCES [organization].[Warehouse] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[InventoryLedgerEntry] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [InventoryTransactionId] bigint NOT NULL,
+        [SiteId] bigint NOT NULL,
+        [WarehouseId] bigint NOT NULL,
+        [LineNumber] int NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [LotCode] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL DEFAULT '',
+        [EnteredQuantity] decimal(18,6) NOT NULL,
+        [EnteredUnitId] bigint NOT NULL,
+        [BaseQuantityDelta] decimal(18,6) NOT NULL,
+        [BaseUnitId] bigint NOT NULL,
+        [OccurredAtUtc] datetime2(7) NOT NULL,
+        [Notes] nvarchar(300) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_InventoryLedgerEntry] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_InventoryLedgerEntry_LotCode] CHECK (([LotCode] = '' OR (DATALENGTH([LotCode]) BETWEEN 1 AND 32 AND DATALENGTH([LotCode]) = LEN([LotCode]) AND [LotCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([LotCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'))),
+        CONSTRAINT [CK_InventoryLedgerEntry_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_InventoryLedgerEntry_Qty] CHECK ([EnteredQuantity] <> 0 AND [BaseQuantityDelta] <> 0),
+        CONSTRAINT [FK_InventoryLedgerEntry_BaseUnit] FOREIGN KEY ([OrganizationId], [BaseUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_InventoryLedgerEntry_EnteredUnit] FOREIGN KEY ([OrganizationId], [EnteredUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_InventoryLedgerEntry_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_InventoryLedgerEntry_Site] FOREIGN KEY ([OrganizationId], [SiteId]) REFERENCES [organization].[Site] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_InventoryLedgerEntry_Txn] FOREIGN KEY ([OrganizationId], [InventoryTransactionId]) REFERENCES [organization].[InventoryTransaction] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_InventoryLedgerEntry_Warehouse] FOREIGN KEY ([OrganizationId], [WarehouseId]) REFERENCES [organization].[Warehouse] ([OrganizationId], [Id])
+    );
+
+    ALTER TABLE [organization].[OrganizationChange] ADD CONSTRAINT [CK_OrganizationChange_Event] CHECK (DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed'))));
+
+    CREATE INDEX [IX_InventoryBalance_OrganizationId_BaseUnitId] ON [organization].[InventoryBalance] ([OrganizationId], [BaseUnitId]);
+    CREATE INDEX [IX_InventoryBalance_OrganizationId_ItemId] ON [organization].[InventoryBalance] ([OrganizationId], [ItemId]);
+    CREATE INDEX [IX_InventoryBalance_OrganizationId_SiteId] ON [organization].[InventoryBalance] ([OrganizationId], [SiteId]);
+    CREATE UNIQUE INDEX [UX_InventoryBalance_Org_Wh_Item_Lot] ON [organization].[InventoryBalance] ([OrganizationId], [WarehouseId], [ItemId], [LotCode]);
+
+    CREATE INDEX [IX_InventoryLedgerEntry_Org_Wh_Item_Lot] ON [organization].[InventoryLedgerEntry] ([OrganizationId], [WarehouseId], [ItemId], [LotCode], [OccurredAtUtc]);
+    CREATE INDEX [IX_InventoryLedgerEntry_OrganizationId_BaseUnitId] ON [organization].[InventoryLedgerEntry] ([OrganizationId], [BaseUnitId]);
+    CREATE INDEX [IX_InventoryLedgerEntry_OrganizationId_EnteredUnitId] ON [organization].[InventoryLedgerEntry] ([OrganizationId], [EnteredUnitId]);
+    CREATE INDEX [IX_InventoryLedgerEntry_OrganizationId_ItemId] ON [organization].[InventoryLedgerEntry] ([OrganizationId], [ItemId]);
+    CREATE INDEX [IX_InventoryLedgerEntry_OrganizationId_SiteId] ON [organization].[InventoryLedgerEntry] ([OrganizationId], [SiteId]);
+    CREATE UNIQUE INDEX [UX_InventoryLedgerEntry_Org_Txn_Line] ON [organization].[InventoryLedgerEntry] ([OrganizationId], [InventoryTransactionId], [LineNumber]);
+
+    CREATE INDEX [IX_InventoryTransaction_Org_Site_Date] ON [organization].[InventoryTransaction] ([OrganizationId], [SiteId], [PostedAtUtc]);
+    CREATE INDEX [IX_InventoryTransaction_OrganizationId_DestinationWarehouseId] ON [organization].[InventoryTransaction] ([OrganizationId], [DestinationWarehouseId]);
+    CREATE INDEX [IX_InventoryTransaction_OrganizationId_ProductionOrderId] ON [organization].[InventoryTransaction] ([OrganizationId], [ProductionOrderId]);
+    CREATE INDEX [IX_InventoryTransaction_OrganizationId_WarehouseId] ON [organization].[InventoryTransaction] ([OrganizationId], [WarehouseId]);
+    CREATE UNIQUE INDEX [UX_InventoryTransaction_Org_DocNum] ON [organization].[InventoryTransaction] ([OrganizationId], [DocumentNumber]);
+    CREATE UNIQUE INDEX [UX_InventoryTransaction_Org_Idempotency] ON [organization].[InventoryTransaction] ([OrganizationId], [IdempotencyKey]) WHERE [IdempotencyKey] IS NOT NULL;
+    CREATE UNIQUE INDEX [UX_InventoryTransaction_Org_Reversal] ON [organization].[InventoryTransaction] ([OrganizationId], [ReversedTransactionId]) WHERE [ReversedTransactionId] IS NOT NULL;
+
+    CREATE UNIQUE INDEX [UX_Warehouse_Org_Code] ON [organization].[Warehouse] ([OrganizationId], [Code]);
+    CREATE UNIQUE INDEX [UX_Warehouse_Org_Site_Default] ON [organization].[Warehouse] ([OrganizationId], [SiteId]) WHERE [IsDefaultForSite] = 1 AND [IsActive] = 1;
+
+    IF DATABASE_PRINCIPAL_ID(N'ForgeFlowOrganizationRuntime') IS NOT NULL
+    BEGIN
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[Warehouse] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[InventoryBalance] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT ON OBJECT::[organization].[InventoryTransaction] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT ON OBJECT::[organization].[InventoryLedgerEntry] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[Warehouse] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[InventoryBalance] TO [ForgeFlowOrganizationRuntime];
+        DENY UPDATE, DELETE ON OBJECT::[organization].[InventoryTransaction] TO [ForgeFlowOrganizationRuntime];
+        DENY UPDATE, DELETE ON OBJECT::[organization].[InventoryLedgerEntry] TO [ForgeFlowOrganizationRuntime];
+    END;
+END;
+
+IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [dbo].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261110201924_InventoryWarehousesAndStockLedger')
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261110201924_InventoryWarehousesAndStockLedger', N'10.0.14');
+END;
+
 COMMIT;
 "@
 
@@ -838,7 +998,7 @@ try {
     $cmd = $cn.CreateCommand()
     $cmd.CommandText = $sql
     [void]$cmd.ExecuteNonQuery()
-    Write-Host "testforgflow database upgraded to 20261110194120_ProductionOrdersAndSnapshots." -ForegroundColor Green
+    Write-Host "testforgflow database upgraded to 20261110201924_InventoryWarehousesAndStockLedger." -ForegroundColor Green
 }
 finally {
     $cn.Dispose()

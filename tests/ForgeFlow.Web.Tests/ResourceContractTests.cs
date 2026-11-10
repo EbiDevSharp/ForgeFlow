@@ -204,7 +204,29 @@ public sealed class ResourceContractTests
             ["PoSavedNotice"] = 0, ["PoCreatedNotice"] = 0,
             ["PoErrorSiteInvalid"] = 0, ["PoErrorSiteInactive"] = 0, ["PoErrorImmutable"] = 0,
             ["PoErrorTransitionInvalid"] = 0, ["PoErrorActualQtyInvalid"] = 0,
-            ["PoErrorCancelReasonInvalid"] = 0, ["PoErrorNotesInvalid"] = 0
+            ["PoErrorCancelReasonInvalid"] = 0, ["PoErrorNotesInvalid"] = 0,
+            ["PoPostInventoryBtn"] = 0,
+            ["InventoryNavGroup"] = 0, ["Inventory"] = 0, ["InventoryCaption"] = 0,
+            ["PermPageInventory"] = 0, ["PermOpManageInventory"] = 0,
+            ["InvWarehouseCreateBtn"] = 0, ["InvPostMovementBtn"] = 0,
+            ["InvTabBalances"] = 0, ["InvTabMovements"] = 0, ["InvTabWarehouses"] = 0,
+            ["InvWarehouseLabel"] = 0, ["InvDestWarehouseLabel"] = 0, ["InvAllWarehousesOption"] = 0,
+            ["InvTxnTypeLabel"] = 0, ["InvAllTypesOption"] = 0, ["InvIncludeZeroLabel"] = 0,
+            ["InvLotCodeLabel"] = 0, ["InvOnHandLabel"] = 0, ["InvLastMovedLabel"] = 0,
+            ["InvDocNumberLabel"] = 0, ["InvReversedBadge"] = 0, ["InvDefaultWarehouseBadge"] = 0,
+            ["InvDefaultForSiteLabel"] = 0, ["InvWarehouseCreateTitle"] = 0, ["InvWarehouseEditTitle"] = 0,
+            ["InvSelectWarehouseOption"] = 0, ["InvSelectOrderOption"] = 0, ["InvSelectItemOption"] = 0,
+            ["InvLinesSection"] = 0, ["InvAddLineBtn"] = 0, ["InvPostSubmitBtn"] = 0,
+            ["InvTxnDetailsTitle"] = 0, ["InvEnteredQtyLabel"] = 0, ["InvBaseQtyDeltaLabel"] = 0,
+            ["InvReverseSection"] = 0, ["InvReverseDocNumLabel"] = 0, ["InvReverseBtn"] = 0,
+            ["InvSavedNotice"] = 0, ["InvPostedNotice"] = 0, ["InvReversedNotice"] = 0,
+            ["InvTypeReceipt"] = 0, ["InvTypeIssue"] = 0, ["InvTypeAdjustment"] = 0,
+            ["InvTypeTransferOut"] = 0, ["InvTypeTransferIn"] = 0, ["InvTypeProdIssue"] = 0,
+            ["InvTypeProdReceipt"] = 0, ["InvTypeReversal"] = 0,
+            ["InvErrorWarehouseInactive"] = 0, ["InvErrorAlreadyReversed"] = 0, ["InvErrorCannotReverseReversal"] = 0,
+            ["InvErrorLinesRequired"] = 0, ["InvErrorQuantityInvalid"] = 0, ["InvErrorLotCodeInvalid"] = 0,
+            ["InvErrorDestWarehouseInvalid"] = 0, ["InvErrorTransferSameWarehouse"] = 0, ["InvErrorOrderInvalid"] = 0,
+            ["InvErrorOrderStateInvalid"] = 0, ["InvErrorInsufficientStock"] = 0, ["InvErrorIdempotencyInvalid"] = 0
         }
     };
 
@@ -266,8 +288,8 @@ public sealed class ResourceContractTests
              "UserErrorSiteMembershipRequired", "UserErrorParentSiteInactive", "UserErrorRoleScopeInvalid",
              "RoleEditTitle", "RoleDetailTitle", "RoleSystemBadge", "RoleCustomBadge", "RoleConfirmDisable", "RoleConfirmEnable",
              "RoleBuiltInOrgAdmin", "RoleBuiltInSiteOperator", "RoleBuiltInProvisioner",
-             "PermPageOrganizations", "PermPageSites", "PermPageUsers", "PermPageRoles", "PermPageAudit", "PermPageUnits", "PermPageItems", "PermPageBoms", "PermPageProductionOrders",
-             "PermOpRead", "PermOpCreate", "PermOpUpdate", "PermOpSetActive", "PermOpUnlock", "PermOpResetPassword", "PermOpManageMemberships", "PermOpAssignFixedRoles", "PermOpManageRoles", "PermOpAssignPermissions", "PermOpManageUnits", "PermOpManageItems", "PermOpManageBoms", "PermOpManageProductionOrders",
+             "PermPageOrganizations", "PermPageSites", "PermPageUsers", "PermPageRoles", "PermPageAudit", "PermPageUnits", "PermPageItems", "PermPageBoms", "PermPageProductionOrders", "PermPageInventory",
+             "PermOpRead", "PermOpCreate", "PermOpUpdate", "PermOpSetActive", "PermOpUnlock", "PermOpResetPassword", "PermOpManageMemberships", "PermOpAssignFixedRoles", "PermOpManageRoles", "PermOpAssignPermissions", "PermOpManageUnits", "PermOpManageItems", "PermOpManageBoms", "PermOpManageProductionOrders", "PermOpManageInventory",
              "RoleErrorInvalidName", "RoleErrorDuplicateName", "RoleErrorSystemImmutable", "RoleErrorPermissionUnknown", "RoleErrorPermissionScopeInvalid",
              "UnitDimensionMass", "UnitDimensionVolume", "UnitDimensionLength", "UnitDimensionArea", "UnitDimensionCount", "UnitDimensionTime",
              "UnitCreateButton", "UnitEditTitle", "UnitDetailTitle",
@@ -294,7 +316,11 @@ public sealed class ResourceContractTests
              "BomDimStdCustomer", "BomDimStdManufacturingMethod",
              "PoSavedNotice",
              "PoErrorSiteInvalid", "PoErrorSiteInactive", "PoErrorImmutable", "PoErrorTransitionInvalid",
-             "PoErrorActualQtyInvalid", "PoErrorCancelReasonInvalid", "PoErrorNotesInvalid"]);
+             "PoErrorActualQtyInvalid", "PoErrorCancelReasonInvalid", "PoErrorNotesInvalid",
+             "InvErrorWarehouseInactive", "InvErrorAlreadyReversed", "InvErrorCannotReverseReversal",
+             "InvErrorLinesRequired", "InvErrorQuantityInvalid", "InvErrorLotCodeInvalid",
+             "InvErrorDestWarehouseInvalid", "InvErrorTransferSameWarehouse", "InvErrorOrderInvalid",
+             "InvErrorOrderStateInvalid", "InvErrorInsufficientStock", "InvErrorIdempotencyInvalid"]);
         Assert.Equal(Contracts[nameof(SharedResources)].Keys.Order(), used[nameof(SharedResources)].Order());
     }
 
