@@ -4,6 +4,7 @@ using ForgeFlow.Application.Audit;
 using ForgeFlow.Application.Boms;
 using ForgeFlow.Application.Items;
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Application.ProductionOrders;
 using ForgeFlow.Application.Roles;
 using ForgeFlow.Application.Units;
 using ForgeFlow.Application.Users;
@@ -349,7 +350,8 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
             or AuditPermissions.AuditRead
             or UnitPermissions.UnitsRead
             or ItemPermissions.ItemsRead
-            or BomPermissions.BomsRead;
+            or BomPermissions.BomsRead
+            or ProductionOrderPermissions.ProductionOrdersRead;
         if (!company.IsActive && !read && permission != OrganizationPermissions.OrganizationsSetActive)
             return false;
 

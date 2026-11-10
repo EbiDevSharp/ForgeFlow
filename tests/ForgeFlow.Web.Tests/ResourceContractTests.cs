@@ -184,7 +184,27 @@ public sealed class ResourceContractTests
             ["BomErrorNoActiveBomFound"] = 0, ["BomErrorAmbiguousResolution"] = 0,
             ["BomDateToday"] = 0, ["BomDateClear"] = 0,
             ["BomDimStdPlant"] = 0, ["BomDimStdProductionLine"] = 0, ["BomDimStdMarket"] = 0,
-            ["BomDimStdCustomer"] = 0, ["BomDimStdManufacturingMethod"] = 0
+            ["BomDimStdCustomer"] = 0, ["BomDimStdManufacturingMethod"] = 0,
+            ["ProductionNavGroup"] = 0, ["ProductionOrders"] = 0, ["ProductionOrdersCaption"] = 0,
+            ["PermPageProductionOrders"] = 0, ["PermOpManageProductionOrders"] = 0,
+            ["PoCreateButton"] = 0, ["PoCreateSubmit"] = 0, ["PoSiteColumn"] = 0, ["PoAllSitesOption"] = 0,
+            ["PoStatusColumn"] = 0, ["PoAllStatusesOption"] = 0,
+            ["PoStatusDraft"] = 0, ["PoStatusReleased"] = 0, ["PoStatusInProgress"] = 0, ["PoStatusCompleted"] = 0, ["PoStatusCancelled"] = 0,
+            ["PoOrderNumberColumn"] = 0, ["PoItemColumn"] = 0, ["PoRequestedQtyColumn"] = 0, ["PoDatesColumn"] = 0,
+            ["PoPlannedStartDate"] = 0, ["PoPlannedDueDate"] = 0, ["PoBomSnapshotColumn"] = 0, ["PoActualsColumn"] = 0,
+            ["PoNotesLabel"] = 0, ["PoContextSection"] = 0, ["PoContextHint"] = 0,
+            ["PoCreateTitle"] = 0, ["PoWorkbenchTitle"] = 0, ["PoEditDraftSection"] = 0,
+            ["PoSaveDraftButton"] = 0, ["PoRefreshBomButton"] = 0, ["PoReleaseButton"] = 0,
+            ["PoReleaseHint"] = 0, ["PoFrozenSnapshotNotice"] = 0, ["PoStartButton"] = 0,
+            ["PoExecutionSection"] = 0, ["PoActualProducedLabel"] = 0, ["PoActualScrapLabel"] = 0,
+            ["PoRecordActualsButton"] = 0, ["PoCompleteButton"] = 0,
+            ["PoCancelSection"] = 0, ["PoCancelReasonLabel"] = 0, ["PoCancelButton"] = 0,
+            ["PoInputsSnapshotHeading"] = 0, ["PoOutputsSnapshotHeading"] = 0, ["PoTimelineHeading"] = 0,
+            ["PoReleasedAtLabel"] = 0, ["PoStartedAtLabel"] = 0, ["PoCompletedAtLabel"] = 0, ["PoCancelledAtLabel"] = 0,
+            ["PoSavedNotice"] = 0, ["PoCreatedNotice"] = 0,
+            ["PoErrorSiteInvalid"] = 0, ["PoErrorSiteInactive"] = 0, ["PoErrorImmutable"] = 0,
+            ["PoErrorTransitionInvalid"] = 0, ["PoErrorActualQtyInvalid"] = 0,
+            ["PoErrorCancelReasonInvalid"] = 0, ["PoErrorNotesInvalid"] = 0
         }
     };
 
@@ -246,8 +266,8 @@ public sealed class ResourceContractTests
              "UserErrorSiteMembershipRequired", "UserErrorParentSiteInactive", "UserErrorRoleScopeInvalid",
              "RoleEditTitle", "RoleDetailTitle", "RoleSystemBadge", "RoleCustomBadge", "RoleConfirmDisable", "RoleConfirmEnable",
              "RoleBuiltInOrgAdmin", "RoleBuiltInSiteOperator", "RoleBuiltInProvisioner",
-             "PermPageOrganizations", "PermPageSites", "PermPageUsers", "PermPageRoles", "PermPageAudit", "PermPageUnits", "PermPageItems", "PermPageBoms",
-             "PermOpRead", "PermOpCreate", "PermOpUpdate", "PermOpSetActive", "PermOpUnlock", "PermOpResetPassword", "PermOpManageMemberships", "PermOpAssignFixedRoles", "PermOpManageRoles", "PermOpAssignPermissions", "PermOpManageUnits", "PermOpManageItems", "PermOpManageBoms",
+             "PermPageOrganizations", "PermPageSites", "PermPageUsers", "PermPageRoles", "PermPageAudit", "PermPageUnits", "PermPageItems", "PermPageBoms", "PermPageProductionOrders",
+             "PermOpRead", "PermOpCreate", "PermOpUpdate", "PermOpSetActive", "PermOpUnlock", "PermOpResetPassword", "PermOpManageMemberships", "PermOpAssignFixedRoles", "PermOpManageRoles", "PermOpAssignPermissions", "PermOpManageUnits", "PermOpManageItems", "PermOpManageBoms", "PermOpManageProductionOrders",
              "RoleErrorInvalidName", "RoleErrorDuplicateName", "RoleErrorSystemImmutable", "RoleErrorPermissionUnknown", "RoleErrorPermissionScopeInvalid",
              "UnitDimensionMass", "UnitDimensionVolume", "UnitDimensionLength", "UnitDimensionArea", "UnitDimensionCount", "UnitDimensionTime",
              "UnitCreateButton", "UnitEditTitle", "UnitDetailTitle",
@@ -271,7 +291,10 @@ public sealed class ResourceContractTests
              "BomErrorCircularDependency", "BomErrorApplicabilityInvalid",
              "BomErrorNoActiveBomFound", "BomErrorAmbiguousResolution",
              "BomDimStdPlant", "BomDimStdProductionLine", "BomDimStdMarket",
-             "BomDimStdCustomer", "BomDimStdManufacturingMethod"]);
+             "BomDimStdCustomer", "BomDimStdManufacturingMethod",
+             "PoSavedNotice",
+             "PoErrorSiteInvalid", "PoErrorSiteInactive", "PoErrorImmutable", "PoErrorTransitionInvalid",
+             "PoErrorActualQtyInvalid", "PoErrorCancelReasonInvalid", "PoErrorNotesInvalid"]);
         Assert.Equal(Contracts[nameof(SharedResources)].Keys.Order(), used[nameof(SharedResources)].Order());
     }
 

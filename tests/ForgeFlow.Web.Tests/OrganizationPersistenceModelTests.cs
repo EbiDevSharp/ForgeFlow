@@ -24,7 +24,7 @@ public sealed class OrganizationPersistenceModelTests
     {
         using var db = OfflineContext();
         var model = db.GetService<IDesignTimeModel>().Model;
-        Assert.Equal(19, model.GetEntityTypes().Count());
+        Assert.Equal(23, model.GetEntityTypes().Count());
         var org = model.FindEntityType(typeof(Organization))!;
         var site = model.FindEntityType(typeof(Site))!;
         var unit = model.FindEntityType(typeof(Unit))!;
@@ -119,7 +119,7 @@ public sealed class OrganizationPersistenceModelTests
     public void Migration_snapshot_matches_the_model_and_generates_only_the_three_scoped_tables()
     {
         using var db = OfflineContext();
-        Assert.Equal(4, db.Database.GetMigrations().Count());
+        Assert.Equal(5, db.Database.GetMigrations().Count());
         Assert.False(db.Database.HasPendingModelChanges());
         var script = db.GetService<IMigrator>().GenerateScript();
         Assert.Contains("CREATE TABLE [organization].[Organization]", script);
@@ -132,6 +132,10 @@ public sealed class OrganizationPersistenceModelTests
         Assert.Contains("CREATE TABLE [organization].[AttributeDefinition]", script);
         Assert.Contains("CREATE TABLE [organization].[Bom]", script);
         Assert.Contains("CREATE TABLE [organization].[BomVersion]", script);
+        Assert.Contains("CREATE TABLE [organization].[ProductionOrder]", script);
+        Assert.Contains("CREATE TABLE [organization].[ProductionOrderInput]", script);
+        Assert.Contains("CREATE TABLE [organization].[ProductionOrderOutput]", script);
+        Assert.Contains("CREATE TABLE [organization].[ProductionOrderContext]", script);
         Assert.Contains("CREATE TABLE [organization].[ContextDimension]", script);
         Assert.Contains("rowversion", script);
         Assert.Contains("DENY DELETE", script);

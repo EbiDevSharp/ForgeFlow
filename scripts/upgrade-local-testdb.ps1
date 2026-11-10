@@ -660,6 +660,175 @@ BEGIN
     VALUES (N'20261110173434_ManufacturingBomsAndApplicability', N'10.0.14');
 END;
 
+IF OBJECT_ID(N'organization.ProductionOrder', N'U') IS NULL
+BEGIN
+    IF OBJECT_ID(N'organization.CK_OrganizationChange_Event', N'C') IS NOT NULL
+        ALTER TABLE [organization].[OrganizationChange] DROP CONSTRAINT [CK_OrganizationChange_Event];
+
+    CREATE TABLE [organization].[ProductionOrder] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [SiteId] bigint NOT NULL,
+        [OrderNumber] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Status] tinyint NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [RequestedQuantity] decimal(18,6) NOT NULL,
+        [RequestedUnitId] bigint NOT NULL,
+        [PlannedStartDate] date NOT NULL,
+        [PlannedDueDate] date NOT NULL,
+        [BomId] bigint NOT NULL,
+        [BomCodeSnapshot] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [BomVersionId] bigint NOT NULL,
+        [BomVersionNumberSnapshot] int NOT NULL,
+        [BaseOutputQuantitySnapshot] decimal(18,6) NOT NULL,
+        [BaseOutputUnitIdSnapshot] bigint NOT NULL,
+        [ActualProducedQuantity] decimal(18,6) NOT NULL,
+        [ActualScrapQuantity] decimal(18,6) NOT NULL,
+        [Notes] nvarchar(500) NULL,
+        [CancellationReason] nvarchar(500) NULL,
+        [ReleasedAtUtc] datetime2(7) NULL,
+        [StartedAtUtc] datetime2(7) NULL,
+        [CompletedAtUtc] datetime2(7) NULL,
+        [CancelledAtUtc] datetime2(7) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_ProductionOrder] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_ProductionOrder_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_ProductionOrder_Actuals] CHECK ([ActualProducedQuantity] >= 0 AND [ActualScrapQuantity] >= 0),
+        CONSTRAINT [CK_ProductionOrder_BaseOutputQty] CHECK ([BaseOutputQuantitySnapshot] > 0 AND [BomVersionNumberSnapshot] > 0),
+        CONSTRAINT [CK_ProductionOrder_BomCodeSnapshot] CHECK (DATALENGTH([BomCodeSnapshot]) BETWEEN 1 AND 32 AND DATALENGTH([BomCodeSnapshot]) = LEN([BomCodeSnapshot]) AND [BomCodeSnapshot] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([BomCodeSnapshot], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_ProductionOrder_Dates] CHECK ([PlannedDueDate] >= [PlannedStartDate]),
+        CONSTRAINT [CK_ProductionOrder_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_ProductionOrder_Number] CHECK (DATALENGTH([OrderNumber]) BETWEEN 1 AND 32 AND DATALENGTH([OrderNumber]) = LEN([OrderNumber]) AND [OrderNumber] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([OrderNumber], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_ProductionOrder_RequestedQty] CHECK ([RequestedQuantity] > 0),
+        CONSTRAINT [CK_ProductionOrder_Status] CHECK ([Status] BETWEEN 1 AND 5),
+        CONSTRAINT [FK_ProductionOrder_BaseOutputUnitSnapshot] FOREIGN KEY ([OrganizationId], [BaseOutputUnitIdSnapshot]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrder_Bom] FOREIGN KEY ([OrganizationId], [BomId]) REFERENCES [organization].[Bom] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrder_BomVersion] FOREIGN KEY ([OrganizationId], [BomVersionId]) REFERENCES [organization].[BomVersion] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrder_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrder_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id]),
+        CONSTRAINT [FK_ProductionOrder_RequestedUnit] FOREIGN KEY ([OrganizationId], [RequestedUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrder_Site] FOREIGN KEY ([OrganizationId], [SiteId]) REFERENCES [organization].[Site] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[ProductionOrderContext] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [ProductionOrderId] bigint NOT NULL,
+        [DimensionCode] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [DimensionValue] nvarchar(400) NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_ProductionOrderContext] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ProductionOrderContext_DimCode] CHECK (DATALENGTH([DimensionCode]) BETWEEN 1 AND 32 AND DATALENGTH([DimensionCode]) = LEN([DimensionCode]) AND [DimensionCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([DimensionCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_ProductionOrderContext_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_ProductionOrderContext_Value] CHECK (DATALENGTH([DimensionValue]) > 0),
+        CONSTRAINT [FK_ProductionOrderContext_Order] FOREIGN KEY ([OrganizationId], [ProductionOrderId]) REFERENCES [organization].[ProductionOrder] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[ProductionOrderInput] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [ProductionOrderId] bigint NOT NULL,
+        [Level] int NOT NULL,
+        [Sequence] int NOT NULL,
+        [ParentItemId] bigint NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [NetQuantity] decimal(18,6) NOT NULL,
+        [ScrapPercentage] decimal(5,2) NOT NULL,
+        [GrossQuantity] decimal(18,6) NOT NULL,
+        [UnitId] bigint NOT NULL,
+        [IsOptional] bit NOT NULL,
+        [IsSubAssembly] bit NOT NULL,
+        [ResolvedSubBomVersionId] bigint NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_ProductionOrderInput] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ProductionOrderInput_LevelSeq] CHECK ([Level] >= 1 AND [Sequence] >= 1),
+        CONSTRAINT [CK_ProductionOrderInput_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_ProductionOrderInput_Quantities] CHECK ([NetQuantity] > 0 AND [GrossQuantity] > 0),
+        CONSTRAINT [CK_ProductionOrderInput_Scrap] CHECK ([ScrapPercentage] >= 0 AND [ScrapPercentage] < 100),
+        CONSTRAINT [FK_ProductionOrderInput_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrderInput_Order] FOREIGN KEY ([OrganizationId], [ProductionOrderId]) REFERENCES [organization].[ProductionOrder] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrderInput_ParentItem] FOREIGN KEY ([OrganizationId], [ParentItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrderInput_SubBomVersion] FOREIGN KEY ([OrganizationId], [ResolvedSubBomVersionId]) REFERENCES [organization].[BomVersion] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrderInput_Unit] FOREIGN KEY ([OrganizationId], [UnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[ProductionOrderOutput] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [ProductionOrderId] bigint NOT NULL,
+        [Level] int NOT NULL,
+        [Sequence] int NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [OutputType] tinyint NOT NULL,
+        [PlannedQuantity] decimal(18,6) NOT NULL,
+        [UnitId] bigint NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_ProductionOrderOutput] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ProductionOrderOutput_LevelSeq] CHECK ([Level] >= 1 AND [Sequence] >= 1),
+        CONSTRAINT [CK_ProductionOrderOutput_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_ProductionOrderOutput_Qty] CHECK ([PlannedQuantity] > 0),
+        CONSTRAINT [CK_ProductionOrderOutput_Type] CHECK ([OutputType] BETWEEN 1 AND 4),
+        CONSTRAINT [FK_ProductionOrderOutput_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrderOutput_Order] FOREIGN KEY ([OrganizationId], [ProductionOrderId]) REFERENCES [organization].[ProductionOrder] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrderOutput_Unit] FOREIGN KEY ([OrganizationId], [UnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id])
+    );
+
+    ALTER TABLE [organization].[OrganizationChange] ADD CONSTRAINT [CK_OrganizationChange_Event] CHECK (DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled'))));
+
+    CREATE INDEX [IX_ProductionOrder_Org_BomVersion] ON [organization].[ProductionOrder] ([OrganizationId], [BomVersionId]);
+    CREATE INDEX [IX_ProductionOrder_Org_Site_Status_Date] ON [organization].[ProductionOrder] ([OrganizationId], [SiteId], [Status], [PlannedStartDate]);
+    CREATE INDEX [IX_ProductionOrder_OrganizationId_BaseOutputUnitIdSnapshot] ON [organization].[ProductionOrder] ([OrganizationId], [BaseOutputUnitIdSnapshot]);
+    CREATE INDEX [IX_ProductionOrder_OrganizationId_BomId] ON [organization].[ProductionOrder] ([OrganizationId], [BomId]);
+    CREATE INDEX [IX_ProductionOrder_OrganizationId_ItemId] ON [organization].[ProductionOrder] ([OrganizationId], [ItemId]);
+    CREATE INDEX [IX_ProductionOrder_OrganizationId_RequestedUnitId] ON [organization].[ProductionOrder] ([OrganizationId], [RequestedUnitId]);
+    CREATE UNIQUE INDEX [UX_ProductionOrder_Org_Number] ON [organization].[ProductionOrder] ([OrganizationId], [OrderNumber]);
+
+    CREATE INDEX [IX_ProductionOrderContext_OrganizationId_ProductionOrderId] ON [organization].[ProductionOrderContext] ([OrganizationId], [ProductionOrderId]);
+    CREATE UNIQUE INDEX [UX_ProductionOrderContext_Order_Dim] ON [organization].[ProductionOrderContext] ([ProductionOrderId], [DimensionCode]);
+
+    CREATE INDEX [IX_ProductionOrderInput_Org_Order_LvlSeq] ON [organization].[ProductionOrderInput] ([OrganizationId], [ProductionOrderId], [Level], [Sequence]);
+    CREATE INDEX [IX_ProductionOrderInput_OrganizationId_ItemId] ON [organization].[ProductionOrderInput] ([OrganizationId], [ItemId]);
+    CREATE INDEX [IX_ProductionOrderInput_OrganizationId_ParentItemId] ON [organization].[ProductionOrderInput] ([OrganizationId], [ParentItemId]);
+    CREATE INDEX [IX_ProductionOrderInput_OrganizationId_ResolvedSubBomVersionId] ON [organization].[ProductionOrderInput] ([OrganizationId], [ResolvedSubBomVersionId]);
+    CREATE INDEX [IX_ProductionOrderInput_OrganizationId_UnitId] ON [organization].[ProductionOrderInput] ([OrganizationId], [UnitId]);
+
+    CREATE INDEX [IX_ProductionOrderOutput_Org_Order_LvlSeq] ON [organization].[ProductionOrderOutput] ([OrganizationId], [ProductionOrderId], [Level], [Sequence]);
+    CREATE INDEX [IX_ProductionOrderOutput_OrganizationId_ItemId] ON [organization].[ProductionOrderOutput] ([OrganizationId], [ItemId]);
+    CREATE INDEX [IX_ProductionOrderOutput_OrganizationId_UnitId] ON [organization].[ProductionOrderOutput] ([OrganizationId], [UnitId]);
+
+    IF DATABASE_PRINCIPAL_ID(N'ForgeFlowOrganizationRuntime') IS NOT NULL
+    BEGIN
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[ProductionOrder] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[ProductionOrderInput] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[ProductionOrderOutput] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[ProductionOrderContext] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[ProductionOrder] TO [ForgeFlowOrganizationRuntime];
+    END;
+END;
+
+IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [dbo].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261110194120_ProductionOrdersAndSnapshots')
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261110194120_ProductionOrdersAndSnapshots', N'10.0.14');
+END;
+
 COMMIT;
 "@
 
@@ -669,7 +838,7 @@ try {
     $cmd = $cn.CreateCommand()
     $cmd.CommandText = $sql
     [void]$cmd.ExecuteNonQuery()
-    Write-Host "testforgflow database upgraded to 20261110173434_ManufacturingBomsAndApplicability." -ForegroundColor Green
+    Write-Host "testforgflow database upgraded to 20261110194120_ProductionOrdersAndSnapshots." -ForegroundColor Green
 }
 finally {
     $cn.Dispose()

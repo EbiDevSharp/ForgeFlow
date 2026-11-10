@@ -1,0 +1,1252 @@
+@page "/production-orders"
+@page "/organizations/{OrganizationId:long}/production-orders"
+@using ForgeFlow.Application.Boms
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Boms
+@using ForgeFlow.Domain.ProductionOrders
+@using ForgeFlow.Web.Roles
+@inject ProductionOrderUseCases OrderService
+@inject BomUseCases BomService
+@inject ItemUseCases ItemService
+@inject UnitUseCases UnitService
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject CulturePolicy Culture
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["ProductionOrders"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="po-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="po-title">@Text["ProductionOrders"]</h1>
+            <p class="write-hint">@Text["ProductionOrdersCaption"]</p>
+        </div>
+        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage)
+        {
+            <div class="read-head-actions">
+                <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateModal">
+                    @Text["PoCreateButton"]
+                </BitButton>
+            </div>
+        }
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div class="read-state" role="alert">
+            <p>@Text[pageError]</p>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else if (available.Count == 0)
+    {
+        <p role="status" class="read-empty">@Text["ReadDenied"]</p>
+    }
+    else
+    {
+        <div class="read-toolbar-card">
+            @if (available.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="po-scope">@Text["ReadScope"]</label>
+                    <select id="po-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                        @for (var i = 0; i < available.Count; i++)
+                        {
+                            <option value="@i">@ScopeLabel(available[i])</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (CurrentScope is OrganizationScope.Organization && authorizedSites.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="po-site-filter">@Text["PoSiteColumn"]</label>
+                    <select id="po-site-filter" value="@siteFilter" @onchange="ChangeSiteFilterAsync">
+                        <option value="0">@Text["PoAllSitesOption"]</option>
+                        @foreach (var s in authorizedSites)
+                        {
+                            <option value="@s.Id">@s.Code — @s.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="read-field">
+                <label for="po-status-filter">@Text["PoStatusColumn"]</label>
+                <select id="po-status-filter" value="@statusFilter" @onchange="ChangeStatusFilterAsync">
+                    <option value="">@Text["PoAllStatusesOption"]</option>
+                    @foreach (var st in Enum.GetValues<ProductionOrderStatus>())
+                    {
+                        <option value="@((byte)st)">@StatusLabel(st)</option>
+                    }
+                </select>
+            </div>
+
+            <div class="read-field">
+                <label for="po-search">@Text["ReadSearch"]</label>
+                <input id="po-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="64" placeholder="@Text["ReadSearch"]" />
+            </div>
+        </div>
+
+        <div class="read-grid-card">
+            <div class="read-grid">
+                <BitDataGrid @ref="grid" TItem="ProductionOrderSummary" OnRead="ReadOrdersAsync" Pageable="true" PageSize="25"
+                             PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                             AriaLabelledBy="po-title" WrapCellText="true">
+                    <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                    <Columns>
+                        <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoOrderNumberColumn"]">
+                            <Template Context="o">
+                                <strong dir="ltr">@o.OrderNumber</strong>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoSiteColumn"]">
+                            <Template Context="o">
+                                <span dir="ltr">@o.SiteCode</span> — @o.SiteName
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoItemColumn"]">
+                            <Template Context="o">
+                                <span dir="ltr">@o.ItemCode</span> — @o.ItemName
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoRequestedQtyColumn"]">
+                            <Template Context="o">
+                                <bdi dir="ltr">@Format.Number(o.RequestedQuantity) @o.RequestedUnitSymbol</bdi>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoDatesColumn"]">
+                            <Template Context="o">
+                                <bdi dir="ltr">@Format.Date(o.PlannedStartDate) – @Format.Date(o.PlannedDueDate)</bdi>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoBomSnapshotColumn"]">
+                            <Template Context="o">
+                                <span class="cap-badge" dir="ltr">@o.BomCodeSnapshot v@o.BomVersionNumberSnapshot</span>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoStatusColumn"]">
+                            <Template Context="o">
+                                <span class="read-badge @StatusBadgeClass(o.Status)">@StatusLabel(o.Status)</span>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["ReadActions"]">
+                            <Template Context="o">
+                                <div class="read-row-actions">
+                                    <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                   IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                                   OnClick="() => OpenWorkbenchAsync(o.Id)" />
+                                    </BitTooltip>
+                                </div>
+                            </Template>
+                        </BitDataGridColumn>
+                    </Columns>
+                </BitDataGrid>
+            </div>
+        </div>
+    }
+
+    <BitDialog Width="680px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createOpen"
+               Title="@Text["PoCreateTitle"]" AriaLabel="@Text["PoCreateTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="audit-modal-body">
+                @if (createError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[createError]</p>
+                }
+                <div class="po-form-grid">
+                    <div class="write-field">
+                        <label for="po-create-num">@Text["PoOrderNumberColumn"]</label>
+                        <input id="po-create-num" type="text" maxlength="32" @bind="newOrderNumber" placeholder="PO-2026-001" />
+                        <span class="write-hint">@Text["BomCreateHint"]</span>
+                    </div>
+                    <div class="write-field">
+                        <label for="po-create-site">@Text["PoSiteColumn"]</label>
+                        @if (CurrentScope is OrganizationScope.Site siteScope)
+                        {
+                            var activeSite = authorizedSites.FirstOrDefault(s => s.Id == siteScope.SiteId);
+                            <input id="po-create-site" type="text" readonly value="@(activeSite is null ? siteScope.SiteId.ToString(CultureInfo.InvariantCulture) : $"{activeSite.Code} — {activeSite.Name}")" />
+                        }
+                        else
+                        {
+                            <select id="po-create-site" @bind="newSiteId">
+                                @foreach (var s in authorizedSites)
+                                {
+                                    <option value="@s.Id">@s.Code — @s.Name</option>
+                                }
+                            </select>
+                        }
+                    </div>
+                    <div class="write-field po-field-full">
+                        <label for="po-create-item">@Text["PoItemColumn"]</label>
+                        <select id="po-create-item" value="@newItemId" @onchange="OnNewItemChanged">
+                            <option value="0">@Text["BomSelectItemOption"]</option>
+                            @foreach (var it in manufacturableItems)
+                            {
+                                <option value="@it.Id">@it.Code — @it.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="write-field">
+                        <label for="po-create-qty">@Text["PoRequestedQtyColumn"]</label>
+                        <input id="po-create-qty" type="number" step="0.000001" min="0.000001" @bind="newQuantity" />
+                    </div>
+                    <div class="write-field">
+                        <label for="po-create-unit">@Text["BomLineUnitColumn"]</label>
+                        <select id="po-create-unit" @bind="newUnitId">
+                            @foreach (var u in activeUnits)
+                            {
+                                <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="write-field">
+                        <label>@Text["PoPlannedStartDate"]</label>
+                        <BitDatePicker @bind-Value="NewStartDateOffset"
+                                       Class="bom-dtp"
+                                       Culture="@Culture.PickerCulture"
+                                       DateFormat="@PickerDateFormat"
+                                       ShowTimePicker="false"
+                                       AllowTextInput="false"
+                                       AutoClose="true"
+                                       ShowGoToToday="true"
+                                       GoToTodayTitle="@Text["BomDateToday"]"
+                                       GoToTodayIcon="@TodayIcon"
+                                       Icon="@CalendarIcon"
+                                       NextMonthNavIcon="@NextNavIcon"
+                                       PrevMonthNavIcon="@PrevNavIcon"
+                                       NextYearNavIcon="@NextYearIcon"
+                                       PrevYearNavIcon="@PrevYearIcon"
+                                       ClearButtonIcon="@CloseIcon" />
+                    </div>
+                    <div class="write-field">
+                        <label>@Text["PoPlannedDueDate"]</label>
+                        <BitDatePicker @bind-Value="NewDueDateOffset"
+                                       Class="bom-dtp"
+                                       Culture="@Culture.PickerCulture"
+                                       DateFormat="@PickerDateFormat"
+                                       ShowTimePicker="false"
+                                       AllowTextInput="false"
+                                       AutoClose="true"
+                                       ShowGoToToday="true"
+                                       GoToTodayTitle="@Text["BomDateToday"]"
+                                       GoToTodayIcon="@TodayIcon"
+                                       Icon="@CalendarIcon"
+                                       NextMonthNavIcon="@NextNavIcon"
+                                       PrevMonthNavIcon="@PrevNavIcon"
+                                       NextYearNavIcon="@NextYearIcon"
+                                       PrevYearNavIcon="@PrevYearIcon"
+                                       ClearButtonIcon="@CloseIcon" />
+                    </div>
+                    <div class="write-field po-field-full">
+                        <label for="po-create-notes">@Text["PoNotesLabel"]</label>
+                        <textarea id="po-create-notes" rows="3" maxlength="500" @bind="newNotes"></textarea>
+                    </div>
+                </div>
+
+                <div class="po-context-card">
+                    <div class="po-context-head">
+                        <strong>@Text["PoContextSection"]</strong>
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="po-add-cond-btn"
+                                   Icon="@PlusIcon" IsEnabled="@(activeDimensions.Count > 0)" OnClick="() => AddContextRow(newContextPairs)">
+                            @Text["BomAddConditionBtn"]
+                        </BitButton>
+                    </div>
+                    <p class="po-info-hint">
+                        <span class="ff-icon ff-icon--info" aria-hidden="true"></span>
+                        <span>@Text["PoContextHint"]</span>
+                    </p>
+                    @foreach (var row in newContextPairs)
+                    {
+                        <div class="po-cond-row">
+                            <select aria-label="@Text["BomDimLabel"]" @bind="row.DimensionCode">
+                                @foreach (var d in activeDimensions)
+                                {
+                                    <option value="@d.Code">@d.Code — @RolePermissionLocalization.ContextDimensionDisplayName(d.Code, d.Name, Text)</option>
+                                }
+                            </select>
+                            <input type="text" maxlength="400" @bind="row.Value" placeholder="@Text["BomConditionValuePlaceholder"]" />
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => newContextPairs.Remove(row)">
+                                @Text["BomRemoveRowBtn"]
+                            </BitButton>
+                        </div>
+                    }
+                </div>
+
+                <div class="po-dialog-footer">
+                    <BitButton IsEnabled="@(!modalBusy && newItemId > 0 && newSiteId > 0)" OnClick="CreateOrderAsync">@Text["PoCreateSubmit"]</BitButton>
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => createOpen = false">@Text["WriteCancel"]</BitButton>
+                </div>
+            </div>
+        </Body>
+    </BitDialog>
+
+    <BitDialog Width="820px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="workbenchOpen"
+               Title="@Text["PoWorkbenchTitle"]" AriaLabel="@Text["PoWorkbenchTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            @if (selectedOrder is not null)
+            {
+                var summary = selectedOrder.Summary;
+                <div class="audit-modal-body">
+                    <div class="audit-modal-title-row">
+                        <span class="audit-modal-code" dir="ltr">@summary.OrderNumber — @summary.ItemCode (@summary.ItemName)</span>
+                        <span class="read-badge @StatusBadgeClass(summary.Status)">@StatusLabel(summary.Status)</span>
+                    </div>
+
+                    @if (workbenchError is not null)
+                    {
+                        <p role="alert" class="write-error">@Text[workbenchError]</p>
+                    }
+                    @if (workbenchSaved is not null)
+                    {
+                        <p role="status" class="write-saved">@Text[workbenchSaved]</p>
+                    }
+
+                    @if (summary.Status == ProductionOrderStatus.Draft)
+                    {
+                        <p class="write-hint">@Text["PoReleaseHint"]</p>
+                    }
+                    else
+                    {
+                        <p class="converter-result-card">@Text["PoFrozenSnapshotNotice"]</p>
+                    }
+
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["PoSiteColumn"]</span>
+                            <span class="audit-meta-val" dir="ltr">@summary.SiteCode — @summary.SiteName</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["PoRequestedQtyColumn"]</span>
+                            <span class="audit-meta-val" dir="ltr">@Format.Number(summary.RequestedQuantity) @summary.RequestedUnitSymbol</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["PoDatesColumn"]</span>
+                            <span class="audit-meta-val" dir="ltr">@Format.Date(summary.PlannedStartDate) – @Format.Date(summary.PlannedDueDate)</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["PoBomSnapshotColumn"]</span>
+                            <span class="audit-meta-val" dir="ltr">@summary.BomCodeSnapshot v@summary.BomVersionNumberSnapshot (@Format.Number(summary.BaseOutputQuantitySnapshot) @summary.BaseOutputUnitSymbolSnapshot)</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["PoActualsColumn"]</span>
+                            <span class="audit-meta-val" dir="ltr">@Format.Number(summary.ActualProducedQuantity) / @Format.Number(summary.ActualScrapQuantity) @summary.RequestedUnitSymbol</span>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(summary.Notes))
+                        {
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["PoNotesLabel"]</span>
+                                <span class="audit-meta-val">@summary.Notes</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(summary.CancellationReason))
+                        {
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["PoCancelReasonLabel"]</span>
+                                <span class="audit-meta-val write-error">@summary.CancellationReason</span>
+                            </div>
+                        }
+                    </div>
+
+                    @if (selectedOrder.Contexts.Count > 0)
+                    {
+                        <div class="cap-badge-row">
+                            @foreach (var ctx in selectedOrder.Contexts)
+                            {
+                                <span class="cap-badge" dir="ltr">@ctx.DimensionCode = @ctx.DimensionValue</span>
+                            }
+                        </div>
+                    }
+
+                    @if (scopeCanManage && summary.Status == ProductionOrderStatus.Draft)
+                    {
+                        <div class="item-sub-card">
+                            <strong>@Text["PoEditDraftSection"]</strong>
+                            <div class="po-form-grid">
+                                <div class="write-field">
+                                    <label for="po-edit-qty">@Text["PoRequestedQtyColumn"]</label>
+                                    <input id="po-edit-qty" type="number" step="0.000001" min="0.000001" @bind="editQuantity" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="po-edit-unit">@Text["BomLineUnitColumn"]</label>
+                                    <select id="po-edit-unit" @bind="editUnitId">
+                                        @foreach (var u in activeUnits)
+                                        {
+                                            <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="write-field">
+                                    <label>@Text["PoPlannedStartDate"]</label>
+                                    <BitDatePicker @bind-Value="EditStartDateOffset"
+                                                   Class="bom-dtp"
+                                                   Culture="@Culture.PickerCulture"
+                                                   DateFormat="@PickerDateFormat"
+                                                   ShowTimePicker="false"
+                                                   AllowTextInput="false"
+                                                   AutoClose="true"
+                                                   ShowGoToToday="true"
+                                                   GoToTodayTitle="@Text["BomDateToday"]"
+                                                   GoToTodayIcon="@TodayIcon"
+                                                   Icon="@CalendarIcon"
+                                                   NextMonthNavIcon="@NextNavIcon"
+                                                   PrevMonthNavIcon="@PrevNavIcon"
+                                                   NextYearNavIcon="@NextYearIcon"
+                                                   PrevYearNavIcon="@PrevYearIcon"
+                                                   ClearButtonIcon="@CloseIcon" />
+                                </div>
+                                <div class="write-field">
+                                    <label>@Text["PoPlannedDueDate"]</label>
+                                    <BitDatePicker @bind-Value="EditDueDateOffset"
+                                                   Class="bom-dtp"
+                                                   Culture="@Culture.PickerCulture"
+                                                   DateFormat="@PickerDateFormat"
+                                                   ShowTimePicker="false"
+                                                   AllowTextInput="false"
+                                                   AutoClose="true"
+                                                   ShowGoToToday="true"
+                                                   GoToTodayTitle="@Text["BomDateToday"]"
+                                                   GoToTodayIcon="@TodayIcon"
+                                                   Icon="@CalendarIcon"
+                                                   NextMonthNavIcon="@NextNavIcon"
+                                                   PrevMonthNavIcon="@PrevNavIcon"
+                                                   NextYearNavIcon="@NextYearIcon"
+                                                   PrevYearNavIcon="@PrevYearIcon"
+                                                   ClearButtonIcon="@CloseIcon" />
+                                </div>
+                                <div class="write-field po-field-full">
+                                    <label for="po-edit-notes">@Text["PoNotesLabel"]</label>
+                                    <textarea id="po-edit-notes" rows="3" maxlength="500" @bind="editNotes"></textarea>
+                                </div>
+                            </div>
+                            <div class="po-context-head">
+                                <span>@Text["PoContextSection"]</span>
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="po-add-cond-btn"
+                                           Icon="@PlusIcon" IsEnabled="@(activeDimensions.Count > 0)" OnClick="() => AddContextRow(editContextPairs)">
+                                    @Text["BomAddConditionBtn"]
+                                </BitButton>
+                            </div>
+                            @foreach (var row in editContextPairs)
+                            {
+                                <div class="po-cond-row">
+                                    <select aria-label="@Text["BomDimLabel"]" @bind="row.DimensionCode">
+                                        @foreach (var d in activeDimensions)
+                                        {
+                                            <option value="@d.Code">@d.Code — @RolePermissionLocalization.ContextDimensionDisplayName(d.Code, d.Name, Text)</option>
+                                        }
+                                    </select>
+                                    <input type="text" maxlength="400" @bind="row.Value" placeholder="@Text["BomConditionValuePlaceholder"]" />
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => editContextPairs.Remove(row)">
+                                        @Text["BomRemoveRowBtn"]
+                                    </BitButton>
+                                </div>
+                            }
+                            <div class="write-actions">
+                                <BitButton IsEnabled="@(!modalBusy)" OnClick="SaveDraftAsync">@Text["PoSaveDraftButton"]</BitButton>
+                                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="RefreshSnapshotAsync">@Text["PoRefreshBomButton"]</BitButton>
+                                <BitButton IsEnabled="@(!modalBusy)" OnClick="ReleaseOrderAsync">@Text["PoReleaseButton"]</BitButton>
+                            </div>
+                        </div>
+                    }
+                    else if (scopeCanManage && summary.Status == ProductionOrderStatus.Released)
+                    {
+                        <div class="write-actions">
+                            <BitButton IsEnabled="@(!modalBusy)" OnClick="StartOrderAsync">@Text["PoStartButton"]</BitButton>
+                        </div>
+                    }
+                    else if (scopeCanManage && summary.Status == ProductionOrderStatus.InProgress)
+                    {
+                        <div class="item-sub-card">
+                            <strong>@Text["PoExecutionSection"]</strong>
+                            <div class="write-grid">
+                                <div class="write-field">
+                                    <label for="po-actual-prod">@Text["PoActualProducedLabel"]</label>
+                                    <input id="po-actual-prod" type="number" step="0.000001" min="0" @bind="actualProduced" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="po-actual-scrap">@Text["PoActualScrapLabel"]</label>
+                                    <input id="po-actual-scrap" type="number" step="0.000001" min="0" @bind="actualScrap" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="po-exec-notes">@Text["PoNotesLabel"]</label>
+                                    <input id="po-exec-notes" type="text" maxlength="500" @bind="execNotes" />
+                                </div>
+                            </div>
+                            <div class="write-actions">
+                                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="RecordActualsAsync">@Text["PoRecordActualsButton"]</BitButton>
+                                <BitButton IsEnabled="@(!modalBusy)" OnClick="CompleteOrderAsync">@Text["PoCompleteButton"]</BitButton>
+                            </div>
+                        </div>
+                    }
+
+                    @if (scopeCanManage && summary.Status is ProductionOrderStatus.Draft or ProductionOrderStatus.Released or ProductionOrderStatus.InProgress)
+                    {
+                        <div class="item-sub-card">
+                            <strong>@Text["PoCancelSection"]</strong>
+                            <div class="write-grid">
+                                <div class="write-field">
+                                    <label for="po-cancel-reason">@Text["PoCancelReasonLabel"]</label>
+                                    <input id="po-cancel-reason" type="text" maxlength="500" @bind="cancelReason" />
+                                </div>
+                            </div>
+                            <div class="write-actions">
+                                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy && !string.IsNullOrWhiteSpace(cancelReason))" OnClick="CancelOrderAsync">
+                                    @Text["PoCancelButton"]
+                                </BitButton>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="audit-modal-section">
+                        <h3 class="audit-section-heading">@Text["PoInputsSnapshotHeading"]</h3>
+                        <div class="audit-fields-box">
+                            <table class="audit-fields-table">
+                                <thead>
+                                    <tr>
+                                        <th>@Text["BomLevelColumn"]</th>
+                                        <th>@Text["BomParentItemColumn"]</th>
+                                        <th>@Text["BomLineItemColumn"]</th>
+                                        <th>@Text["BomNetQtyColumn"]</th>
+                                        <th>@Text["BomScrapColumn"]</th>
+                                        <th>@Text["BomGrossQtyColumn"]</th>
+                                        <th>@Text["BomLineUnitColumn"]</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var inp in selectedOrder.Inputs)
+                                    {
+                                        <tr>
+                                            <td><span class="bom-tree-level">L@inp.Level</span></td>
+                                            <td dir="ltr">@inp.ParentItemCode</td>
+                                            <td>
+                                                <span dir="ltr">@inp.ItemCode</span> — @inp.ItemName
+                                                @if (inp.IsSubAssembly)
+                                                {
+                                                    <span class="cap-badge">@Text["BomSubAssemblyBadge"]</span>
+                                                }
+                                                @if (inp.IsOptional)
+                                                {
+                                                    <span class="cap-badge">@Text["BomOptionalBadge"]</span>
+                                                }
+                                            </td>
+                                            <td dir="ltr">@Format.Number(inp.NetQuantity)</td>
+                                            <td dir="ltr">@Format.Number(inp.ScrapPercentage)%</td>
+                                            <td dir="ltr"><strong>@Format.Number(inp.GrossQuantity)</strong></td>
+                                            <td dir="ltr">@inp.UnitSymbol</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="audit-modal-section">
+                        <h3 class="audit-section-heading">@Text["PoOutputsSnapshotHeading"]</h3>
+                        <div class="audit-fields-box">
+                            <table class="audit-fields-table">
+                                <thead>
+                                    <tr>
+                                        <th>@Text["BomLevelColumn"]</th>
+                                        <th>@Text["BomLineItemColumn"]</th>
+                                        <th>@Text["BomOutputTypeColumn"]</th>
+                                        <th>@Text["BomProducedQtyColumn"]</th>
+                                        <th>@Text["BomLineUnitColumn"]</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var outLine in selectedOrder.Outputs)
+                                    {
+                                        <tr>
+                                            <td><span class="bom-tree-level">L@outLine.Level</span></td>
+                                            <td><span dir="ltr">@outLine.ItemCode</span> — @outLine.ItemName</td>
+                                            <td><span class="read-badge @OutputTypeBadgeClass(outLine.OutputType)">@OutputTypeLabel(outLine.OutputType)</span></td>
+                                            <td dir="ltr"><strong>@Format.Number(outLine.PlannedQuantity)</strong></td>
+                                            <td dir="ltr">@outLine.UnitSymbol</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    @if (summary.ReleasedAtUtc.HasValue || summary.StartedAtUtc.HasValue || summary.CompletedAtUtc.HasValue || summary.CancelledAtUtc.HasValue)
+                    {
+                        <div class="audit-modal-section">
+                            <h3 class="audit-section-heading">@Text["PoTimelineHeading"]</h3>
+                            <div class="audit-meta-card">
+                                @if (summary.ReleasedAtUtc.HasValue)
+                                {
+                                    <div class="audit-meta-row">
+                                        <span class="audit-meta-label">@Text["PoReleasedAtLabel"]</span>
+                                        <bdi class="audit-meta-val" dir="ltr">@FormatTimestamp(summary.ReleasedAtUtc.Value)</bdi>
+                                    </div>
+                                }
+                                @if (summary.StartedAtUtc.HasValue)
+                                {
+                                    <div class="audit-meta-row">
+                                        <span class="audit-meta-label">@Text["PoStartedAtLabel"]</span>
+                                        <bdi class="audit-meta-val" dir="ltr">@FormatTimestamp(summary.StartedAtUtc.Value)</bdi>
+                                    </div>
+                                }
+                                @if (summary.CompletedAtUtc.HasValue)
+                                {
+                                    <div class="audit-meta-row">
+                                        <span class="audit-meta-label">@Text["PoCompletedAtLabel"]</span>
+                                        <bdi class="audit-meta-val" dir="ltr">@FormatTimestamp(summary.CompletedAtUtc.Value)</bdi>
+                                    </div>
+                                }
+                                @if (summary.CancelledAtUtc.HasValue)
+                                {
+                                    <div class="audit-meta-row">
+                                        <span class="audit-meta-label">@Text["PoCancelledAtLabel"]</span>
+                                        <bdi class="audit-meta-val" dir="ltr">@FormatTimestamp(summary.CancelledAtUtc.Value)</bdi>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </Body>
+    </BitDialog>
+</section>
+
+@code {
+    [Parameter] public long? OrganizationId { get; set; }
+
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+
+    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
+    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
+    private static readonly BitIconInfo NextNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-next");
+    private static readonly BitIconInfo PrevNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-prev");
+    private static readonly BitIconInfo NextYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-next");
+    private static readonly BitIconInfo PrevYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-prev");
+    private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
+    private static readonly BitIconInfo PlusIcon = BitIconInfo.Css("ff-icon ff-icon--plus");
+    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
+
+    private BitDataGrid<ProductionOrderSummary>? grid;
+    private bool initialLoading = true;
+    private string? pageError;
+    private string? pageNotice;
+    private List<OrganizationScope> available = [];
+    private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
+        new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+    private int scopeIndex;
+    private bool scopeCanManage;
+
+    private IReadOnlyList<ProductionOrderSiteInfo> authorizedSites = [];
+    private IReadOnlyList<ItemSummary> manufacturableItems = [];
+    private IReadOnlyList<UnitSummary> activeUnits = [];
+    private IReadOnlyList<ContextDimensionSummary> activeDimensions = [];
+
+    private long siteFilter;
+    private string statusFilter = string.Empty;
+    private string? search;
+    private string? appliedSearch;
+
+    private bool createOpen;
+    private bool modalBusy;
+    private string? createError;
+    private long newSiteId;
+    private string newOrderNumber = string.Empty;
+    private long newItemId;
+    private decimal newQuantity = 1m;
+    private long newUnitId;
+    private DateOnly newStartDate = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+    private DateOnly newDueDate = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(1));
+    private string? newNotes;
+    private readonly List<ContextPairRow> newContextPairs = [];
+
+    private bool workbenchOpen;
+    private ProductionOrderDetails? selectedOrder;
+    private string? workbenchError;
+    private string? workbenchSaved;
+    private decimal editQuantity;
+    private long editUnitId;
+    private DateOnly editStartDate;
+    private DateOnly editDueDate;
+    private string? editNotes;
+    private readonly List<ContextPairRow> editContextPairs = [];
+    private decimal actualProduced;
+    private decimal actualScrap;
+    private string? execNotes;
+    private string? cancelReason;
+
+    private sealed class ContextPairRow
+    {
+        public string DimensionCode { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+    }
+
+    private DateTimeOffset? NewStartDateOffset
+    {
+        get => ToOffset(newStartDate);
+        set => newStartDate = FromOffset(value, newStartDate);
+    }
+
+    private DateTimeOffset? NewDueDateOffset
+    {
+        get => ToOffset(newDueDate);
+        set => newDueDate = FromOffset(value, newDueDate);
+    }
+
+    private DateTimeOffset? EditStartDateOffset
+    {
+        get => ToOffset(editStartDate);
+        set => editStartDate = FromOffset(value, editStartDate);
+    }
+
+    private DateTimeOffset? EditDueDateOffset
+    {
+        get => ToOffset(editDueDate);
+        set => editDueDate = FromOffset(value, editDueDate);
+    }
+
+    private static DateTimeOffset? ToOffset(DateOnly d) =>
+        new(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero);
+
+    private static DateOnly FromOffset(DateTimeOffset? value, DateOnly fallback) =>
+        value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : fallback;
+
+    private OrganizationScope? CurrentScope =>
+        scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
+
+    private static long ScopeOrganizationId(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site s => s.OrganizationId,
+        _ => 0
+    };
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["ProductionOrders"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    protected override async Task OnParametersSetAsync() => await ReloadScopeAsync();
+
+    private async Task ReloadScopeAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        pageNotice = null;
+        try
+        {
+            var loaded = await Scopes.LoadProductionOrderScopesAsync();
+            available = OrganizationId is long orgId
+                ? loaded.Where(s => ScopeOrganizationId(s) == orgId).ToList()
+                : loaded.ToList();
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+            if (available.Count == 0 && OrganizationId is long fallbackOrgId)
+                available = [new OrganizationScope.Organization(fallbackOrgId)];
+            scopeIndex = 0;
+            await RefreshScopeStateAsync();
+        }
+        catch
+        {
+            pageError = "ReadError";
+        }
+        finally
+        {
+            initialLoading = false;
+        }
+    }
+
+    private async Task RefreshScopeStateAsync()
+    {
+        scopeCanManage = false;
+        authorizedSites = [];
+        manufacturableItems = [];
+        activeUnits = [];
+        activeDimensions = [];
+        siteFilter = 0;
+
+        var scope = CurrentScope;
+        if (scope is null) return;
+
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is not null)
+        {
+            var eval = await Permissions.EvaluateAsync(actor, scope, ProductionOrderPermissions.ProductionOrdersManage, default);
+            scopeCanManage = eval.IsAllowed;
+        }
+
+        var orgId = ScopeOrganizationId(scope);
+        var sitesRes = await OrderService.ListAuthorizedSites(scope, orgId);
+        if (sitesRes.Succeeded)
+            authorizedSites = sitesRes.Value!;
+
+        if (scope is OrganizationScope.Site siteScope)
+            siteFilter = siteScope.SiteId;
+
+        var itemsRes = await ItemService.ListItems(scope, orgId, new ItemListQuery(CanBeManufactured: true, IncludeInactive: false, Page: 1, PageSize: 100));
+        if (itemsRes.Succeeded)
+            manufacturableItems = itemsRes.Value!.Items;
+
+        var unitsRes = await UnitService.ListUnits(scope, orgId, new UnitListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        if (unitsRes.Succeeded)
+            activeUnits = unitsRes.Value!.Items;
+
+        var dimsRes = await BomService.ListContextDimensions(scope, orgId, new ContextDimensionListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        if (dimsRes.Succeeded)
+            activeDimensions = dimsRes.Value!.Items;
+    }
+
+    private string ScopeLabel(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o when scopeLabels.TryGetValue(scope, out var info) && info.OrgCode is not null
+            => $"{info.OrgCode} — {info.OrgName}",
+        OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId],
+        OrganizationScope.Site s when scopeLabels.TryGetValue(scope, out var info) && info.SiteCode is not null
+            => $"{info.OrgCode} / {info.SiteCode} — {info.SiteName}",
+        OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
+        _ => string.Empty
+    };
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx))
+            scopeIndex = idx;
+        pageError = null;
+        pageNotice = null;
+        await RefreshScopeStateAsync();
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task ChangeSiteFilterAsync(ChangeEventArgs e)
+    {
+        siteFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task ChangeStatusFilterAsync(ChangeEventArgs e)
+    {
+        statusFilter = e.Value?.ToString() ?? string.Empty;
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task ReloadGridFromFirstPageAsync()
+    {
+        if (grid is null) return;
+        if (grid.CurrentPage <= 1) await grid.RefreshAsync();
+        else await grid.GoToPageAsync(1);
+    }
+
+    private async Task<BitDataGridReadResult<ProductionOrderSummary>> ReadOrdersAsync(BitDataGridReadRequest request)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var orgId = ScopeOrganizationId(scope);
+
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        ProductionOrderStatus? parsedStatus = byte.TryParse(statusFilter, out var st) && Enum.IsDefined((ProductionOrderStatus)st)
+            ? (ProductionOrderStatus)st
+            : null;
+        long? requestedSiteId = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
+
+        try
+        {
+            var res = await OrderService.ListOrders(scope, orgId, new ProductionOrderListQuery(requestedSiteId, parsedStatus, null, appliedSearch, page, size), request.CancellationToken);
+            if (!res.Succeeded)
+            {
+                pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                StateHasChanged();
+                return new([], 0);
+            }
+            return new(res.Value!.Items.ToList(), res.Value.Total);
+        }
+        catch (OperationCanceledException)
+        {
+            return new([], 0);
+        }
+        catch
+        {
+            pageError = "ReadError";
+            StateHasChanged();
+            return new([], 0);
+        }
+    }
+
+    private void OpenCreateModal()
+    {
+        createError = null;
+        newOrderNumber = string.Empty;
+        newSiteId = CurrentScope is OrganizationScope.Site siteScope
+            ? siteScope.SiteId
+            : authorizedSites.FirstOrDefault()?.Id ?? 0;
+        newItemId = 0;
+        newUnitId = activeUnits.FirstOrDefault()?.Id ?? 0;
+        newQuantity = 1m;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        newStartDate = today;
+        newDueDate = today.AddDays(1);
+        newNotes = null;
+        newContextPairs.Clear();
+        createOpen = true;
+    }
+
+    private void OnNewItemChanged(ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+        {
+            newItemId = id;
+            var item = manufacturableItems.FirstOrDefault(i => i.Id == id);
+            if (item is not null) newUnitId = item.BaseUnitId;
+        }
+    }
+
+    private void AddContextRow(List<ContextPairRow> rows)
+    {
+        var used = rows.Select(r => r.DimensionCode).ToHashSet(StringComparer.Ordinal);
+        var next = activeDimensions.FirstOrDefault(d => !used.Contains(d.Code)) ?? activeDimensions.FirstOrDefault();
+        if (next is not null)
+            rows.Add(new ContextPairRow { DimensionCode = next.Code, Value = string.Empty });
+    }
+
+    private static IReadOnlyDictionary<string, string>? BuildContextDictionary(List<ContextPairRow> rows)
+    {
+        var dict = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var row in rows)
+        {
+            if (!string.IsNullOrWhiteSpace(row.DimensionCode) && !string.IsNullOrWhiteSpace(row.Value))
+                dict[row.DimensionCode.Trim().ToUpperInvariant()] = row.Value.Trim();
+        }
+        return dict.Count == 0 ? null : dict;
+    }
+
+    private async Task CreateOrderAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        createError = null;
+        try
+        {
+            var orgId = ScopeOrganizationId(scope);
+            var req = new CreateProductionOrderRequest(
+                orgId,
+                newSiteId,
+                newOrderNumber,
+                newItemId,
+                newQuantity,
+                newUnitId > 0 ? newUnitId : null,
+                newStartDate,
+                newDueDate,
+                BuildContextDictionary(newContextPairs),
+                newNotes);
+            var res = await OrderService.CreateDraftOrder(scope, req);
+            if (!res.Succeeded)
+            {
+                createError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            createOpen = false;
+            pageNotice = Text["PoCreatedNotice"];
+            await ReloadGridFromFirstPageAsync();
+            PopulateWorkbench(res.Value!);
+            workbenchOpen = true;
+        }
+        finally
+        {
+            modalBusy = false;
+        }
+    }
+
+    private async Task OpenWorkbenchAsync(long orderId)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        var res = await OrderService.GetOrder(scope, ScopeOrganizationId(scope), orderId);
+        if (!res.Succeeded)
+        {
+            pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+            return;
+        }
+        PopulateWorkbench(res.Value!);
+        workbenchOpen = true;
+    }
+
+    private void PopulateWorkbench(ProductionOrderDetails details)
+    {
+        selectedOrder = details;
+        workbenchError = null;
+        workbenchSaved = null;
+        var s = details.Summary;
+        editQuantity = s.RequestedQuantity;
+        editUnitId = s.RequestedUnitId;
+        editStartDate = s.PlannedStartDate;
+        editDueDate = s.PlannedDueDate;
+        editNotes = s.Notes;
+        editContextPairs.Clear();
+        foreach (var ctx in details.Contexts)
+            editContextPairs.Add(new ContextPairRow { DimensionCode = ctx.DimensionCode, Value = ctx.DimensionValue });
+        actualProduced = s.ActualProducedQuantity;
+        actualScrap = s.ActualScrapQuantity;
+        execNotes = s.Notes;
+        cancelReason = string.Empty;
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedOrder is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var s = selectedOrder.Summary;
+            var res = await OrderService.UpdateDraftOrder(scope, new UpdateDraftProductionOrderRequest(
+                s.OrganizationId, s.Id, editQuantity, editUnitId > 0 ? editUnitId : null, editStartDate, editDueDate,
+                BuildContextDictionary(editContextPairs), editNotes, s.RowVersion));
+            if (!res.Succeeded)
+            {
+                workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            PopulateWorkbench(res.Value!);
+            workbenchSaved = "PoSavedNotice";
+            await RefreshGridCurrentPageAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task RefreshSnapshotAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedOrder is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var s = selectedOrder.Summary;
+            var res = await OrderService.RefreshDraftSnapshot(scope, new RefreshProductionOrderSnapshotRequest(s.OrganizationId, s.Id, s.RowVersion));
+            if (!res.Succeeded)
+            {
+                workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            PopulateWorkbench(res.Value!);
+            workbenchSaved = "PoSavedNotice";
+            await RefreshGridCurrentPageAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task ReleaseOrderAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedOrder is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var s = selectedOrder.Summary;
+            var res = await OrderService.ReleaseOrder(scope, new ReleaseProductionOrderRequest(s.OrganizationId, s.Id, s.RowVersion));
+            if (!res.Succeeded)
+            {
+                workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            PopulateWorkbench(res.Value!);
+            workbenchSaved = "PoSavedNotice";
+            await RefreshGridCurrentPageAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task StartOrderAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedOrder is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var s = selectedOrder.Summary;
+            var res = await OrderService.StartOrder(scope, new StartProductionOrderRequest(s.OrganizationId, s.Id, s.RowVersion));
+            if (!res.Succeeded)
+            {
+                workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            PopulateWorkbench(res.Value!);
+            workbenchSaved = "PoSavedNotice";
+            await RefreshGridCurrentPageAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task RecordActualsAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedOrder is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var s = selectedOrder.Summary;
+            var res = await OrderService.RecordActuals(scope, new RecordProductionOrderActualsRequest(s.OrganizationId, s.Id, actualProduced, actualScrap, execNotes, s.RowVersion));
+            if (!res.Succeeded)
+            {
+                workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            PopulateWorkbench(res.Value!);
+            workbenchSaved = "PoSavedNotice";
+            await RefreshGridCurrentPageAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task CompleteOrderAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedOrder is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var s = selectedOrder.Summary;
+            var res = await OrderService.CompleteOrder(scope, new CompleteProductionOrderRequest(s.OrganizationId, s.Id, actualProduced, actualScrap, execNotes, s.RowVersion));
+            if (!res.Succeeded)
+            {
+                workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            PopulateWorkbench(res.Value!);
+            workbenchSaved = "PoSavedNotice";
+            await RefreshGridCurrentPageAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task CancelOrderAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedOrder is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var s = selectedOrder.Summary;
+            var res = await OrderService.CancelOrder(scope, new CancelProductionOrderRequest(s.OrganizationId, s.Id, cancelReason, s.RowVersion));
+            if (!res.Succeeded)
+            {
+                workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            PopulateWorkbench(res.Value!);
+            workbenchSaved = "PoSavedNotice";
+            await RefreshGridCurrentPageAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task RefreshGridCurrentPageAsync()
+    {
+        if (grid is not null)
+            await grid.RefreshAsync();
+    }
+
+    private string StatusLabel(ProductionOrderStatus status) => status switch
+    {
+        ProductionOrderStatus.Draft => Text["PoStatusDraft"],
+        ProductionOrderStatus.Released => Text["PoStatusReleased"],
+        ProductionOrderStatus.InProgress => Text["PoStatusInProgress"],
+        ProductionOrderStatus.Completed => Text["PoStatusCompleted"],
+        ProductionOrderStatus.Cancelled => Text["PoStatusCancelled"],
+        _ => status.ToString()
+    };
+
+    private static string StatusBadgeClass(ProductionOrderStatus status) => status switch
+    {
+        ProductionOrderStatus.Draft => "po-status-draft",
+        ProductionOrderStatus.Released => "po-status-released",
+        ProductionOrderStatus.InProgress => "po-status-inprogress",
+        ProductionOrderStatus.Completed => "po-status-completed",
+        ProductionOrderStatus.Cancelled => "po-status-cancelled",
+        _ => "po-status-draft"
+    };
+
+    private string OutputTypeLabel(BomOutputType type) => type switch
+    {
+        BomOutputType.MainProduct => Text["BomOutMainProduct"],
+        BomOutputType.CoProduct => Text["BomOutCoProduct"],
+        BomOutputType.ByProduct => Text["BomOutByProduct"],
+        BomOutputType.Waste => Text["BomOutWaste"],
+        _ => type.ToString()
+    };
+
+    private static string OutputTypeBadgeClass(BomOutputType type) => type switch
+    {
+        BomOutputType.MainProduct => "bom-out-main",
+        BomOutputType.CoProduct => "bom-out-coproduct",
+        BomOutputType.ByProduct => "bom-out-byproduct",
+        BomOutputType.Waste => "bom-out-waste",
+        _ => "bom-out-main"
+    };
+
+    private string FormatTimestamp(DateTime utc)
+    {
+        var dateText = Format.Date(DateOnly.FromDateTime(utc));
+        var timeText = utc.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+        return $"{dateText} {timeText} UTC";
+    }
+}

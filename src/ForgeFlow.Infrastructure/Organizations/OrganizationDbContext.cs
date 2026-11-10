@@ -5,6 +5,7 @@ using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Boms;
 using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
+using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Units;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -40,6 +41,10 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
     public DbSet<BomOutput> BomOutputs => Set<BomOutput>();
     public DbSet<BomApplicability> BomApplicabilities => Set<BomApplicability>();
     public DbSet<BomApplicabilityCondition> BomApplicabilityConditions => Set<BomApplicabilityCondition>();
+    public DbSet<ProductionOrder> ProductionOrders => Set<ProductionOrder>();
+    public DbSet<ProductionOrderInput> ProductionOrderInputs => Set<ProductionOrderInput>();
+    public DbSet<ProductionOrderOutput> ProductionOrderOutputs => Set<ProductionOrderOutput>();
+    public DbSet<ProductionOrderContext> ProductionOrderContexts => Set<ProductionOrderContext>();
     public DbSet<OrganizationChange> OrganizationChanges => Set<OrganizationChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) => OrganizationModel.Configure(modelBuilder);
@@ -78,12 +83,14 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                 or ClassificationSet or Classification or Item or ItemClassification
                 or ItemUnitConversion or AttributeDefinition or ItemAttributeValue
                 or ContextDimension or Bom or BomVersion or BomInput or BomOutput
-                or BomApplicability or BomApplicabilityCondition))
+                or BomApplicability or BomApplicabilityCondition
+                or ProductionOrder or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext))
             {
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             }
             if (entry.State == EntityState.Deleted && entry.Entity is not (ItemClassification or ItemAttributeValue
-                or BomInput or BomOutput or BomApplicability or BomApplicabilityCondition))
+                or BomInput or BomOutput or BomApplicability or BomApplicabilityCondition
+                or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext))
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             if (entry.State == EntityState.Modified)
             {
@@ -100,6 +107,10 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                     Bom => new[] { "Name", "IsActive" },
                     BomVersion => new[] { "Status", "BaseOutputQuantity", "BaseOutputUnitId", "EffectiveFromDate", "EffectiveToDate", "Notes" },
                     BomApplicability => new[] { "Name", "IsActive" },
+                    ProductionOrder => new[] { "Status", "RequestedQuantity", "RequestedUnitId", "PlannedStartDate", "PlannedDueDate",
+                        "BomId", "BomCodeSnapshot", "BomVersionId", "BomVersionNumberSnapshot", "BaseOutputQuantitySnapshot", "BaseOutputUnitIdSnapshot",
+                        "ActualProducedQuantity", "ActualScrapQuantity", "Notes", "CancellationReason",
+                        "ReleasedAtUtc", "StartedAtUtc", "CompletedAtUtc", "CancelledAtUtc" },
                     _ => new[] { "Name", "IsActive" }
                 };
                 if (entry.Properties.Any(p => p.IsModified && !allowedProps.Contains(p.Metadata.Name, StringComparer.Ordinal)))
@@ -135,7 +146,7 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
             foreach (var change in changes)
             {
                 var orgId = ResolveEntityOrganizationId(change.Entry.Entity);
-                long? siteId = change.Entry.Entity is Site siteEntity ? siteEntity.Id : null;
+                long? siteId = ResolveEntitySiteId(change.Entry.Entity);
                 OrganizationChanges.Add(new OrganizationChange(orgId, siteId, actor.ActorId, change.EventCode,
                     now, actor.CorrelationId, change.Json));
             }
@@ -179,13 +190,32 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         BomOutput bo => bo.OrganizationId,
         BomApplicability ba => ba.OrganizationId,
         BomApplicabilityCondition bc => bc.OrganizationId,
+        ProductionOrder po => po.OrganizationId,
+        ProductionOrderInput poi => poi.OrganizationId,
+        ProductionOrderOutput poo => poo.OrganizationId,
+        ProductionOrderContext poc => poc.OrganizationId,
         _ => throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied)
+    };
+
+    private long? ResolveEntitySiteId(object entity) => entity switch
+    {
+        Site site => site.Id,
+        ProductionOrder po => po.SiteId,
+        ProductionOrderInput poi => ChangeTracker.Entries<ProductionOrder>().FirstOrDefault(p => p.Entity.Id == poi.ProductionOrderId)?.Entity.SiteId,
+        ProductionOrderOutput poo => ChangeTracker.Entries<ProductionOrder>().FirstOrDefault(p => p.Entity.Id == poo.ProductionOrderId)?.Entity.SiteId,
+        ProductionOrderContext poc => ChangeTracker.Entries<ProductionOrder>().FirstOrDefault(p => p.Entity.Id == poc.ProductionOrderId)?.Entity.SiteId,
+        _ => null
     };
 
     private static IEnumerable<PendingChange> CaptureAllChanges(EntityEntry[] entries)
     {
         var seenBomLinesVersions = new HashSet<long>();
         var seenApplicabilityIds = new HashSet<long>();
+        var ordersWithHeaderEvent = entries
+            .Where(e => e.Entity is ProductionOrder)
+            .Select(e => ((ProductionOrder)e.Entity).Id)
+            .ToHashSet();
+        var seenRefreshedOrders = new HashSet<long>();
 
         foreach (var entry in entries)
         {
@@ -210,6 +240,23 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                 continue;
             }
 
+            if (entry.Entity is ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext)
+            {
+                var poId = entry.Entity switch
+                {
+                    ProductionOrderInput pi => pi.ProductionOrderId,
+                    ProductionOrderOutput po => po.ProductionOrderId,
+                    ProductionOrderContext pc => pc.ProductionOrderId,
+                    _ => 0L
+                };
+                if (poId > 0 && !ordersWithHeaderEvent.Contains(poId) && seenRefreshedOrders.Add(poId))
+                {
+                    yield return new PendingChange(entry, "ProductionOrder.Refreshed",
+                        JsonSerializer.Serialize(new { ProductionOrderId = poId }, AuditJson));
+                }
+                continue;
+            }
+
             foreach (var change in CaptureChanges(entry))
                 yield return change;
         }
@@ -217,6 +264,47 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
 
     private static IEnumerable<PendingChange> CaptureChanges(EntityEntry entry)
     {
+        if (entry.Entity is ProductionOrder poOrder)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "ProductionOrder.Created",
+                    JsonSerializer.Serialize(new { poOrder.OrderNumber, poOrder.SiteId, poOrder.ItemId, poOrder.RequestedQuantity, poOrder.BomVersionId }, AuditJson));
+                yield break;
+            }
+            if (entry.Property("Status").IsModified)
+            {
+                var evCode = poOrder.Status switch
+                {
+                    ProductionOrderStatus.Released => "ProductionOrder.Released",
+                    ProductionOrderStatus.InProgress => "ProductionOrder.Started",
+                    ProductionOrderStatus.Completed => "ProductionOrder.Completed",
+                    ProductionOrderStatus.Cancelled => "ProductionOrder.Cancelled",
+                    _ => "ProductionOrder.Updated"
+                };
+                yield return new PendingChange(entry, evCode,
+                    JsonSerializer.Serialize(new
+                    {
+                        poOrder.OrderNumber,
+                        Status = poOrder.Status.ToString(),
+                        poOrder.BomVersionId,
+                        poOrder.ActualProducedQuantity,
+                        poOrder.ActualScrapQuantity
+                    }, AuditJson));
+                yield break;
+            }
+            yield return new PendingChange(entry, "ProductionOrder.Updated",
+                JsonSerializer.Serialize(new
+                {
+                    poOrder.OrderNumber,
+                    poOrder.RequestedQuantity,
+                    poOrder.BomVersionId,
+                    poOrder.ActualProducedQuantity,
+                    poOrder.ActualScrapQuantity
+                }, AuditJson));
+            yield break;
+        }
+
         if (entry.Entity is ContextDimension cd)
         {
             if (entry.State == EntityState.Added)
@@ -580,6 +668,12 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                     || e.Entity is BomVersion or BomInput or BomOutput or BomApplicability or BomApplicabilityCondition));
             if (bomChanged && !effectiveActive)
                 throw new InvalidOperationException(BomErrors.ParentOrganizationInactive);
+
+            var poChanged = entries.Any(e => e.Entity is ProductionOrder or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext
+                && ResolveEntityOrganizationId(e.Entity) == orgId
+                && (e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted));
+            if (poChanged && !effectiveActive)
+                throw new InvalidOperationException(ProductionOrderErrors.ParentOrganizationInactive);
         }
     }
 }

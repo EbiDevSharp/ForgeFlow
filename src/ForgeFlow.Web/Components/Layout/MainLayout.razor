@@ -80,6 +80,7 @@
             unitScopes = await ReadScopes.LoadUnitScopesAsync();
             itemScopes = await ReadScopes.LoadItemScopesAsync();
             bomScopes = await ReadScopes.LoadBomScopesAsync();
+            productionOrderScopes = await ReadScopes.LoadProductionOrderScopesAsync();
         }
         catch
         {
@@ -91,6 +92,7 @@
             unitScopes = [];
             itemScopes = [];
             bomScopes = [];
+            productionOrderScopes = [];
         }
         StateHasChanged();
     }
@@ -127,6 +129,7 @@
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> unitScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> itemScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> bomScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> productionOrderScopes = [];
 
     // The framework stylesheet ships only a few glyphs, so the shell uses its own CSS-mask icons (app.css, .ff-icon--*).
     private static BitIconInfo Icon(string name) => BitIconInfo.Css("ff-icon ff-icon--" + name);
@@ -140,6 +143,11 @@
             {
                 new() { Text = Text["Home"], AriaLabel = Text["Home"], Icon = Icon("home"), Url = "/", Match = BitNavMatch.Exact }
             };
+            var production = ProductionItems;
+            if (production.Count > 0)
+            {
+                items.Add(new() { Text = Text["ProductionNavGroup"], Icon = Icon("production"), IsExpanded = true, ChildItems = production });
+            }
             var masterData = MasterDataItems;
             if (masterData.Count > 0)
             {
@@ -150,6 +158,17 @@
             {
                 items.Add(new() { Text = Text["Settings"], Icon = Icon("settings"), IsExpanded = true, ChildItems = settings });
             }
+            return items;
+        }
+    }
+
+    private List<BitNavItem> ProductionItems
+    {
+        get
+        {
+            var items = new List<BitNavItem>();
+            if (productionOrderScopes.Count > 0)
+                items.Add(new() { Text = Text["ProductionOrders"], Icon = Icon("production"), Url = "/production-orders", Match = BitNavMatch.Exact });
             return items;
         }
     }

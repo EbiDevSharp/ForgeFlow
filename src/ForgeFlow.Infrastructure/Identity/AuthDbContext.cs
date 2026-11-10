@@ -4,6 +4,7 @@ using ForgeFlow.Application.Users;
 using ForgeFlow.Domain.Boms;
 using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
+using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Units;
 using ForgeFlow.Infrastructure.Organizations;
 using Microsoft.AspNetCore.Identity;
@@ -54,6 +55,10 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         model.Ignore<BomOutput>();
         model.Ignore<BomApplicability>();
         model.Ignore<BomApplicabilityCondition>();
+        model.Ignore<ProductionOrder>();
+        model.Ignore<ProductionOrderInput>();
+        model.Ignore<ProductionOrderOutput>();
+        model.Ignore<ProductionOrderContext>();
         model.Entity<Organization>().ToTable("Organization", "organization", t => t.ExcludeFromMigrations());
         model.Entity<Site>().ToTable("Site", "organization", t => t.ExcludeFromMigrations());
 

@@ -1419,4 +1419,184 @@
   <data name="UserAccountSubtitle" xml:space="preserve">
     <value>User account</value>
   </data>
+  <data name="ProductionNavGroup" xml:space="preserve">
+    <value>Production</value>
+  </data>
+  <data name="ProductionOrders" xml:space="preserve">
+    <value>Production orders</value>
+  </data>
+  <data name="ProductionOrdersCaption" xml:space="preserve">
+    <value>Plan, release, and track site-scoped production orders with frozen BOM snapshots</value>
+  </data>
+  <data name="PermPageProductionOrders" xml:space="preserve">
+    <value>Production orders</value>
+  </data>
+  <data name="PermOpManageProductionOrders" xml:space="preserve">
+    <value>Create &amp; execute production orders</value>
+  </data>
+  <data name="PoCreateButton" xml:space="preserve">
+    <value>New production order</value>
+  </data>
+  <data name="PoCreateSubmit" xml:space="preserve">
+    <value>Create order</value>
+  </data>
+  <data name="PoSiteColumn" xml:space="preserve">
+    <value>Site</value>
+  </data>
+  <data name="PoAllSitesOption" xml:space="preserve">
+    <value>All authorized sites</value>
+  </data>
+  <data name="PoStatusColumn" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="PoAllStatusesOption" xml:space="preserve">
+    <value>All statuses</value>
+  </data>
+  <data name="PoStatusDraft" xml:space="preserve">
+    <value>Draft</value>
+  </data>
+  <data name="PoStatusReleased" xml:space="preserve">
+    <value>Released</value>
+  </data>
+  <data name="PoStatusInProgress" xml:space="preserve">
+    <value>In progress</value>
+  </data>
+  <data name="PoStatusCompleted" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="PoStatusCancelled" xml:space="preserve">
+    <value>Cancelled</value>
+  </data>
+  <data name="PoOrderNumberColumn" xml:space="preserve">
+    <value>Order number</value>
+  </data>
+  <data name="PoItemColumn" xml:space="preserve">
+    <value>Output item</value>
+  </data>
+  <data name="PoRequestedQtyColumn" xml:space="preserve">
+    <value>Requested qty</value>
+  </data>
+  <data name="PoDatesColumn" xml:space="preserve">
+    <value>Schedule</value>
+  </data>
+  <data name="PoPlannedStartDate" xml:space="preserve">
+    <value>Planned start date</value>
+  </data>
+  <data name="PoPlannedDueDate" xml:space="preserve">
+    <value>Planned due date</value>
+  </data>
+  <data name="PoBomSnapshotColumn" xml:space="preserve">
+    <value>BOM snapshot</value>
+  </data>
+  <data name="PoActualsColumn" xml:space="preserve">
+    <value>Produced / Scrap</value>
+  </data>
+  <data name="PoNotesLabel" xml:space="preserve">
+    <value>Notes</value>
+  </data>
+  <data name="PoContextSection" xml:space="preserve">
+    <value>Production context criteria</value>
+  </data>
+  <data name="PoContextHint" xml:space="preserve">
+    <value>PLANT is derived automatically from the selected site unless overridden.</value>
+  </data>
+  <data name="PoCreateTitle" xml:space="preserve">
+    <value>Create draft production order</value>
+  </data>
+  <data name="PoWorkbenchTitle" xml:space="preserve">
+    <value>Production order workbench</value>
+  </data>
+  <data name="PoEditDraftSection" xml:space="preserve">
+    <value>Edit draft parameters</value>
+  </data>
+  <data name="PoSaveDraftButton" xml:space="preserve">
+    <value>Save draft</value>
+  </data>
+  <data name="PoRefreshBomButton" xml:space="preserve">
+    <value>Refresh BOM snapshot</value>
+  </data>
+  <data name="PoReleaseButton" xml:space="preserve">
+    <value>Release order</value>
+  </data>
+  <data name="PoReleaseHint" xml:space="preserve">
+    <value>Releasing permanently freezes the active BOM version, planned inputs, and planned outputs for this order.</value>
+  </data>
+  <data name="PoFrozenSnapshotNotice" xml:space="preserve">
+    <value>BOM snapshot is permanently frozen at release. Later BOM edits do not alter this order.</value>
+  </data>
+  <data name="PoStartButton" xml:space="preserve">
+    <value>Start production</value>
+  </data>
+  <data name="PoExecutionSection" xml:space="preserve">
+    <value>Production execution actuals</value>
+  </data>
+  <data name="PoActualProducedLabel" xml:space="preserve">
+    <value>Actual produced qty</value>
+  </data>
+  <data name="PoActualScrapLabel" xml:space="preserve">
+    <value>Actual scrap qty</value>
+  </data>
+  <data name="PoRecordActualsButton" xml:space="preserve">
+    <value>Save actuals</value>
+  </data>
+  <data name="PoCompleteButton" xml:space="preserve">
+    <value>Complete order</value>
+  </data>
+  <data name="PoCancelSection" xml:space="preserve">
+    <value>Cancel order</value>
+  </data>
+  <data name="PoCancelReasonLabel" xml:space="preserve">
+    <value>Cancellation reason</value>
+  </data>
+  <data name="PoCancelButton" xml:space="preserve">
+    <value>Cancel order</value>
+  </data>
+  <data name="PoInputsSnapshotHeading" xml:space="preserve">
+    <value>Planned material inputs (frozen snapshot)</value>
+  </data>
+  <data name="PoOutputsSnapshotHeading" xml:space="preserve">
+    <value>Planned outputs (frozen snapshot)</value>
+  </data>
+  <data name="PoTimelineHeading" xml:space="preserve">
+    <value>Lifecycle timestamps</value>
+  </data>
+  <data name="PoReleasedAtLabel" xml:space="preserve">
+    <value>Released at</value>
+  </data>
+  <data name="PoStartedAtLabel" xml:space="preserve">
+    <value>Started at</value>
+  </data>
+  <data name="PoCompletedAtLabel" xml:space="preserve">
+    <value>Completed at</value>
+  </data>
+  <data name="PoCancelledAtLabel" xml:space="preserve">
+    <value>Cancelled at</value>
+  </data>
+  <data name="PoSavedNotice" xml:space="preserve">
+    <value>Production order updated.</value>
+  </data>
+  <data name="PoCreatedNotice" xml:space="preserve">
+    <value>Draft production order created with resolved BOM snapshot.</value>
+  </data>
+  <data name="PoErrorSiteInvalid" xml:space="preserve">
+    <value>Select an active site in this organization.</value>
+  </data>
+  <data name="PoErrorSiteInactive" xml:space="preserve">
+    <value>The selected site is inactive.</value>
+  </data>
+  <data name="PoErrorImmutable" xml:space="preserve">
+    <value>Only draft production orders can edit BOM or draft parameters.</value>
+  </data>
+  <data name="PoErrorTransitionInvalid" xml:space="preserve">
+    <value>This status transition is not allowed for the current production order state.</value>
+  </data>
+  <data name="PoErrorActualQtyInvalid" xml:space="preserve">
+    <value>Actual produced and scrap quantities must be zero or positive within allowed precision.</value>
+  </data>
+  <data name="PoErrorCancelReasonInvalid" xml:space="preserve">
+    <value>A valid cancellation reason (up to 500 characters) is required.</value>
+  </data>
+  <data name="PoErrorNotesInvalid" xml:space="preserve">
+    <value>Notes must not exceed 500 characters or contain control characters.</value>
+  </data>
 </root>

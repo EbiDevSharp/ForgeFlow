@@ -1,6 +1,6 @@
 # Slice 06 — Design Decisions (`06-production-orders`)
 
-Status: **PROPOSED (`06.0`)** — Confirm `Q-P01`–`Q-P04` before `06.1` implementation.
+Status: **APPROVED (`06.0`, 2026-11-10)** — `Q-P01`–`Q-P04` approved for Slice 06 implementation.
 
 ## `Q-P01` — Site-Scoped Ownership & Delegated Permissions
 - **Question:** Should `ProductionOrder` carry both `OrganizationId` and mandatory `SiteId` (referencing `organization.Site (OrganizationId, Id)`), with both `ProductionOrders.Read` and `ProductionOrders.Manage` marked `PermissionScopeApplicability.OrganizationOrSite`?

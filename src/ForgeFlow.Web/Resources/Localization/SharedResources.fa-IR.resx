@@ -1419,4 +1419,184 @@
   <data name="UserAccountSubtitle" xml:space="preserve">
     <value>حساب کاربری</value>
   </data>
+  <data name="ProductionNavGroup" xml:space="preserve">
+    <value>تولید</value>
+  </data>
+  <data name="ProductionOrders" xml:space="preserve">
+    <value>سفارش‌های تولید</value>
+  </data>
+  <data name="ProductionOrdersCaption" xml:space="preserve">
+    <value>برنامه‌ریزی، ابلاغ و پیگیری سفارش‌های تولید در سطح سایت با تصویر ثابت ساختار محصول</value>
+  </data>
+  <data name="PermPageProductionOrders" xml:space="preserve">
+    <value>سفارش‌های تولید</value>
+  </data>
+  <data name="PermOpManageProductionOrders" xml:space="preserve">
+    <value>ایجاد و اجرای سفارش‌های تولید</value>
+  </data>
+  <data name="PoCreateButton" xml:space="preserve">
+    <value>سفارش تولید جدید</value>
+  </data>
+  <data name="PoCreateSubmit" xml:space="preserve">
+    <value>ایجاد سفارش</value>
+  </data>
+  <data name="PoSiteColumn" xml:space="preserve">
+    <value>سایت</value>
+  </data>
+  <data name="PoAllSitesOption" xml:space="preserve">
+    <value>همه سایت‌های مجاز</value>
+  </data>
+  <data name="PoStatusColumn" xml:space="preserve">
+    <value>وضعیت</value>
+  </data>
+  <data name="PoAllStatusesOption" xml:space="preserve">
+    <value>همه وضعیت‌ها</value>
+  </data>
+  <data name="PoStatusDraft" xml:space="preserve">
+    <value>پیش‌نویس</value>
+  </data>
+  <data name="PoStatusReleased" xml:space="preserve">
+    <value>ابلاغ‌شده</value>
+  </data>
+  <data name="PoStatusInProgress" xml:space="preserve">
+    <value>در حال تولید</value>
+  </data>
+  <data name="PoStatusCompleted" xml:space="preserve">
+    <value>تکمیل‌شده</value>
+  </data>
+  <data name="PoStatusCancelled" xml:space="preserve">
+    <value>لغوشده</value>
+  </data>
+  <data name="PoOrderNumberColumn" xml:space="preserve">
+    <value>شماره سفارش</value>
+  </data>
+  <data name="PoItemColumn" xml:space="preserve">
+    <value>کالای تولیدی</value>
+  </data>
+  <data name="PoRequestedQtyColumn" xml:space="preserve">
+    <value>مقدار درخواستی</value>
+  </data>
+  <data name="PoDatesColumn" xml:space="preserve">
+    <value>زمان‌بندی</value>
+  </data>
+  <data name="PoPlannedStartDate" xml:space="preserve">
+    <value>تاریخ شروع برنامه‌ریزی‌شده</value>
+  </data>
+  <data name="PoPlannedDueDate" xml:space="preserve">
+    <value>تاریخ سررسید برنامه‌ریزی‌شده</value>
+  </data>
+  <data name="PoBomSnapshotColumn" xml:space="preserve">
+    <value>ساختار محصول (BOM)</value>
+  </data>
+  <data name="PoActualsColumn" xml:space="preserve">
+    <value>تولید واقعی / ضایعات</value>
+  </data>
+  <data name="PoNotesLabel" xml:space="preserve">
+    <value>توضیحات</value>
+  </data>
+  <data name="PoContextSection" xml:space="preserve">
+    <value>شرایط زمینه تولید</value>
+  </data>
+  <data name="PoContextHint" xml:space="preserve">
+    <value>کد سایت (PLANT) به‌صورت خودکار از سایت انتخاب‌شده اعمال می‌شود مگر اینکه دستی مقداردهی شود.</value>
+  </data>
+  <data name="PoCreateTitle" xml:space="preserve">
+    <value>ایجاد سفارش تولید پیش‌نویس</value>
+  </data>
+  <data name="PoWorkbenchTitle" xml:space="preserve">
+    <value>میز کار سفارش تولید</value>
+  </data>
+  <data name="PoEditDraftSection" xml:space="preserve">
+    <value>ویرایش مشخصات پیش‌نویس</value>
+  </data>
+  <data name="PoSaveDraftButton" xml:space="preserve">
+    <value>ذخیره پیش‌نویس</value>
+  </data>
+  <data name="PoRefreshBomButton" xml:space="preserve">
+    <value>به‌روزرسانی ساختار محصول</value>
+  </data>
+  <data name="PoReleaseButton" xml:space="preserve">
+    <value>ابلاغ سفارش</value>
+  </data>
+  <data name="PoReleaseHint" xml:space="preserve">
+    <value>با ابلاغ سفارش، نسخه فعلی BOM، مواد اولیه و خروجی‌های برنامه‌ریزی‌شده به‌صورت دائمی برای این سفارش تثبیت می‌شوند.</value>
+  </data>
+  <data name="PoFrozenSnapshotNotice" xml:space="preserve">
+    <value>تصویر ساختار محصول (BOM) هنگام ابلاغ به‌طور دائمی تثبیت شده است؛ تغییرات بعدی BOM روی این سفارش اثر نمی‌گذارد.</value>
+  </data>
+  <data name="PoStartButton" xml:space="preserve">
+    <value>شروع تولید</value>
+  </data>
+  <data name="PoExecutionSection" xml:space="preserve">
+    <value>ثبت مقادیر واقعی تولید</value>
+  </data>
+  <data name="PoActualProducedLabel" xml:space="preserve">
+    <value>مقدار تولید واقعی</value>
+  </data>
+  <data name="PoActualScrapLabel" xml:space="preserve">
+    <value>مقدار ضایعات واقعی</value>
+  </data>
+  <data name="PoRecordActualsButton" xml:space="preserve">
+    <value>ثبت مقادیر واقعی</value>
+  </data>
+  <data name="PoCompleteButton" xml:space="preserve">
+    <value>تکمیل سفارش</value>
+  </data>
+  <data name="PoCancelSection" xml:space="preserve">
+    <value>لغو سفارش</value>
+  </data>
+  <data name="PoCancelReasonLabel" xml:space="preserve">
+    <value>دلیل لغو</value>
+  </data>
+  <data name="PoCancelButton" xml:space="preserve">
+    <value>لغو سفارش</value>
+  </data>
+  <data name="PoInputsSnapshotHeading" xml:space="preserve">
+    <value>مواد اولیه برنامه‌ریزی‌شده (تصویر تثبیت‌شده)</value>
+  </data>
+  <data name="PoOutputsSnapshotHeading" xml:space="preserve">
+    <value>خروجی‌های برنامه‌ریزی‌شده (تصویر تثبیت‌شده)</value>
+  </data>
+  <data name="PoTimelineHeading" xml:space="preserve">
+    <value>زمان‌بندی رخدادهای سفارش</value>
+  </data>
+  <data name="PoReleasedAtLabel" xml:space="preserve">
+    <value>زمان ابلاغ</value>
+  </data>
+  <data name="PoStartedAtLabel" xml:space="preserve">
+    <value>زمان شروع تولید</value>
+  </data>
+  <data name="PoCompletedAtLabel" xml:space="preserve">
+    <value>زمان تکمیل</value>
+  </data>
+  <data name="PoCancelledAtLabel" xml:space="preserve">
+    <value>زمان لغو</value>
+  </data>
+  <data name="PoSavedNotice" xml:space="preserve">
+    <value>سفارش تولید با موفقیت به‌روزرسانی شد.</value>
+  </data>
+  <data name="PoCreatedNotice" xml:space="preserve">
+    <value>سفارش تولید پیش‌نویس با تصویر ساختار محصول ایجاد شد.</value>
+  </data>
+  <data name="PoErrorSiteInvalid" xml:space="preserve">
+    <value>یک سایت معتبر در این سازمان انتخاب کنید.</value>
+  </data>
+  <data name="PoErrorSiteInactive" xml:space="preserve">
+    <value>سایت انتخاب‌شده غیرفعال است.</value>
+  </data>
+  <data name="PoErrorImmutable" xml:space="preserve">
+    <value>فقط در وضعیت پیش‌نویس می‌توان مشخصات یا ساختار محصول را تغییر داد.</value>
+  </data>
+  <data name="PoErrorTransitionInvalid" xml:space="preserve">
+    <value>این تغییر وضعیت برای حالت فعلی سفارش تولید مجاز نیست.</value>
+  </data>
+  <data name="PoErrorActualQtyInvalid" xml:space="preserve">
+    <value>مقادیر تولید واقعی و ضایعات باید صفر یا مثبت و در محدوده مجاز باشند.</value>
+  </data>
+  <data name="PoErrorCancelReasonInvalid" xml:space="preserve">
+    <value>وارد کردن دلیل لغو معتبر (حداکثر ۵۰۰ کاراکتر) الزامی است.</value>
+  </data>
+  <data name="PoErrorNotesInvalid" xml:space="preserve">
+    <value>توضیحات نباید بیشتر از ۵۰۰ کاراکتر یا شامل کاراکترهای کنترلی باشد.</value>
+  </data>
 </root>

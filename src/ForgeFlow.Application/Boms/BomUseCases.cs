@@ -437,65 +437,105 @@ public sealed class BomUseCases(
 
         return await ExecuteStore(async () =>
         {
-            var rootDataset = await store.LoadItemBomResolutionDataset(request.OrganizationId, request.ItemId, ct);
-            if (rootDataset is null || !rootDataset.ItemIsActive)
-                return OrganizationResult<BomExplosionResultDto>.Failure(BomErrors.PrimaryItemInvalid);
-
-            var context = new ManufacturingContext(request.ContextValues);
-            var rootCandidate = ResolveFromDataset(rootDataset, request.ProductionDate, context);
-            ValidateCandidateStructure(rootCandidate);
-
-            var rootSummary = rootCandidate.Details.Summary;
-            var requestedUnitId = request.RequestedUnitId ?? rootDataset.BaseUnitId;
-            var requestedQtyInBaseOutput = request.RequestedQuantity;
-
-            if (requestedUnitId != rootSummary.BaseOutputUnitId)
-            {
-                var resolution = UnitConversionGraph.ConvertQuantity(
-                    request.RequestedQuantity,
-                    requestedUnitId,
-                    rootSummary.BaseOutputUnitId,
-                    rootCandidate.ItemUnitEdges.Concat(rootDataset.GlobalUnitEdges));
-                requestedQtyInBaseOutput = resolution.ConvertedQuantity;
-            }
-
-            var consumed = new List<BomExplosionLineDto>();
-            var produced = new List<BomExplosionOutputLineDto>();
-            var branchItems = new HashSet<long> { request.ItemId };
-            var datasetCache = new Dictionary<long, BomResolutionDataset?> { [request.ItemId] = rootDataset };
-
-            await ExplodeRecursiveAsync(
+            var core = await ResolveAndExplodeCoreAsync(
                 request.OrganizationId,
+                request.ItemId,
                 request.ProductionDate,
-                context,
-                level: 1,
-                parentItemId: request.ItemId,
-                parentItemCode: rootDataset.ItemCode,
-                candidate: rootCandidate,
-                targetBaseOutputQuantity: requestedQtyInBaseOutput,
-                globalEdges: rootDataset.GlobalUnitEdges,
-                branchItems: branchItems,
-                datasetCache: datasetCache,
-                consumed: consumed,
-                produced: produced,
-                ct: ct);
-
-            var reqUnitCode = requestedUnitId == rootSummary.BaseOutputUnitId ? rootSummary.BaseOutputUnitCode : rootDataset.BaseUnitCode;
-            var reqUnitSym = requestedUnitId == rootSummary.BaseOutputUnitId ? rootSummary.BaseOutputUnitSymbol : rootDataset.BaseUnitSymbol;
-
-            return OrganizationResult<BomExplosionResultDto>.Success(new BomExplosionResultDto(
-                rootDataset.ItemId,
-                rootDataset.ItemCode,
-                rootDataset.ItemName,
                 request.RequestedQuantity,
-                requestedUnitId,
-                reqUnitCode,
-                reqUnitSym,
-                rootSummary.Id,
-                rootSummary.VersionNumber,
-                consumed,
-                produced));
+                request.RequestedUnitId,
+                request.ContextValues,
+                ct);
+            return core.Succeeded
+                ? OrganizationResult<BomExplosionResultDto>.Success(core.Value!.Explosion)
+                : OrganizationResult<BomExplosionResultDto>.Failure(core.Error!.Code, core.Error.Parameters);
         });
+    }
+
+    internal async Task<OrganizationResult<(BomResolutionResultDto Resolution, BomExplosionResultDto Explosion)>> ResolveAndExplodeCoreAsync(
+        long organizationId,
+        long itemId,
+        DateOnly productionDate,
+        decimal requestedQuantity,
+        long? requestedUnitIdInput,
+        IReadOnlyDictionary<string, string>? contextValues,
+        CancellationToken ct)
+    {
+        if (requestedQuantity <= 0m)
+            return OrganizationResult<(BomResolutionResultDto, BomExplosionResultDto)>.Failure(BomErrors.QuantityInvalid);
+
+        var rootDataset = await store.LoadItemBomResolutionDataset(organizationId, itemId, ct);
+        if (rootDataset is null || !rootDataset.ItemIsActive)
+            return OrganizationResult<(BomResolutionResultDto, BomExplosionResultDto)>.Failure(BomErrors.PrimaryItemInvalid);
+
+        var context = new ManufacturingContext(contextValues);
+        var rootCandidate = ResolveFromDataset(rootDataset, productionDate, context);
+        ValidateCandidateStructure(rootCandidate);
+
+        var rootSummary = rootCandidate.Details.Summary;
+        var requestedUnitId = requestedUnitIdInput ?? rootDataset.BaseUnitId;
+        var requestedQtyInBaseOutput = requestedQuantity;
+
+        if (requestedUnitId != rootSummary.BaseOutputUnitId)
+        {
+            var resolution = UnitConversionGraph.ConvertQuantity(
+                requestedQuantity,
+                requestedUnitId,
+                rootSummary.BaseOutputUnitId,
+                rootCandidate.ItemUnitEdges.Concat(rootDataset.GlobalUnitEdges));
+            requestedQtyInBaseOutput = resolution.ConvertedQuantity;
+        }
+
+        var consumed = new List<BomExplosionLineDto>();
+        var produced = new List<BomExplosionOutputLineDto>();
+        var branchItems = new HashSet<long> { itemId };
+        var datasetCache = new Dictionary<long, BomResolutionDataset?> { [itemId] = rootDataset };
+
+        await ExplodeRecursiveAsync(
+            organizationId,
+            productionDate,
+            context,
+            level: 1,
+            parentItemId: itemId,
+            parentItemCode: rootDataset.ItemCode,
+            candidate: rootCandidate,
+            targetBaseOutputQuantity: requestedQtyInBaseOutput,
+            globalEdges: rootDataset.GlobalUnitEdges,
+            branchItems: branchItems,
+            datasetCache: datasetCache,
+            consumed: consumed,
+            produced: produced,
+            ct: ct);
+
+        var reqUnitCode = requestedUnitId == rootSummary.BaseOutputUnitId ? rootSummary.BaseOutputUnitCode : rootDataset.BaseUnitCode;
+        var reqUnitSym = requestedUnitId == rootSummary.BaseOutputUnitId ? rootSummary.BaseOutputUnitSymbol : rootDataset.BaseUnitSymbol;
+
+        var resolutionDto = new BomResolutionResultDto(
+            rootCandidate.BomId,
+            rootCandidate.BomCode,
+            rootCandidate.BomName,
+            rootSummary.Id,
+            rootSummary.VersionNumber,
+            rootSummary.BaseOutputQuantity,
+            rootSummary.BaseOutputUnitId,
+            rootSummary.BaseOutputUnitCode,
+            rootSummary.BaseOutputUnitSymbol,
+            rootSummary.EffectiveFromDate,
+            rootSummary.EffectiveToDate);
+
+        var explosionDto = new BomExplosionResultDto(
+            rootDataset.ItemId,
+            rootDataset.ItemCode,
+            rootDataset.ItemName,
+            requestedQuantity,
+            requestedUnitId,
+            reqUnitCode,
+            reqUnitSym,
+            rootSummary.Id,
+            rootSummary.VersionNumber,
+            consumed,
+            produced);
+
+        return OrganizationResult<(BomResolutionResultDto, BomExplosionResultDto)>.Success((resolutionDto, explosionDto));
     }
 
     private async Task ExplodeRecursiveAsync(

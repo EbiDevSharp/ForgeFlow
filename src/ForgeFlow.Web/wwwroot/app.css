@@ -191,7 +191,7 @@ dd { margin-inline-start: 0; margin-block-start: .4rem; }
 .read-toolbar-card { display:flex; flex-wrap:wrap; align-items:end; gap:20px; padding:20px; margin-block:24px; background:white; border:1px solid #dce5ed; border-radius:12px; }
 .read-field { display:flex; flex-direction:column; gap:8px; flex:1 1 180px; min-width:0; }
 .read-field label { color:#64748b; font-size:.875rem; }
-.read-field input, .read-field select { width:100%; min-width:0; box-sizing:border-box; min-height:44px; border:1px solid #b6c8d8; border-radius:8px; padding:10px; font:inherit; background:white; }
+.read-field input:not(.bit-dtp-inp), .read-field select { width:100%; min-width:0; box-sizing:border-box; min-height:44px; border:1px solid #b6c8d8; border-radius:8px; padding:10px; font:inherit; background:white; }
 .read-inactive { align-self:center; display:flex; align-items:center; gap:8px; }
 .read-grid-card { background:white; border:1px solid #dce5ed; border-radius:12px; overflow:hidden; }
 .read-grid th { background:#f4f7fa; color:#64748b; padding:12px 14px; }
@@ -372,8 +372,33 @@ dd { margin-inline-start: 0; margin-block-start: .4rem; }
 @media (max-width: 640px) { .bom-cond-row { grid-template-columns:1fr; } }
 .write-card { display:flex; flex-direction:column; gap:14px; padding:20px; background:#ffffff; border:1px solid #dce5ed; border-radius:12px; }
 .write-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; align-items:end; }
-.write-field input, .write-field select { width:100%; min-width:0; min-height:42px; border:1px solid #b6c8d8; border-radius:8px; padding:8px 10px; font:inherit; background:#ffffff; box-sizing:border-box; }
-.bom-dtp { width:100%; --bit-DatePicker-height:42px; }
-.bom-dtp .bit-dtp-grp { min-height:42px; border-radius:8px; border-color:#b6c8d8; background:#ffffff; }
-.bom-dtp .bit-dtp-icn { display:inline-flex; align-items:center; justify-content:center; color:#14607f; }
+.write-field :is(input:not(.bit-dtp-inp), select, textarea) { width:100%; min-width:0; min-height:44px; border:1px solid #b6c8d8; border-radius:8px; padding:8px 12px; font:inherit; background:#ffffff; box-sizing:border-box; color:#182c3a; }
+.write-field textarea { min-height:84px; padding:10px 12px; resize:vertical; line-height:1.5; }
+.write-field :is(input:not(.bit-dtp-inp), select, textarea):focus-visible { outline:none; border-color:#14607f; box-shadow:0 0 0 3px rgba(20,96,127,.14); }
+.bit-dtp { width:100%; --bit-DatePicker-input-height:44px; --bit-dtp-inp-h-sz:44px; --bit-DatePicker-input-radius:8px; }
+.bit-dtp .bit-dtp-icn, .bom-dtp .bit-dtp-icn { display:flex; flex-direction:row; align-items:center; gap:8px; width:100%; height:44px; min-height:44px; padding:0 12px; border:1px solid #b6c8d8; border-radius:8px; background:#ffffff; color:#182c3a; box-sizing:border-box; }
+.bit-dtp .bit-dtp-icn:focus-within, .bom-dtp .bit-dtp-icn:focus-within { border-color:#14607f; box-shadow:0 0 0 3px rgba(20,96,127,.14); outline:none; }
+.bit-dtp .bit-dtp-inp, .write-field .bit-dtp-inp, .read-field .bit-dtp-inp { flex:1 1 auto; width:100%; min-width:0; height:100%; min-height:0; padding:0; margin:0; border:0; border-radius:0; background:transparent; box-shadow:none; outline:none; font:inherit; color:#182c3a; text-align:start; unicode-bidi:plaintext; }
+.bit-dtp .bit-dtp-ico { flex:none; width:18px; height:18px; color:#64748b; padding:0; margin:0; }
+.bit-dtp .bit-dtp-cbt, .bit-dtp .bit-dtp-cls { flex:none; min-height:0; padding:2px; border:0; background:transparent; color:#64748b; display:inline-flex; align-items:center; justify-content:center; }
+.ff-icon--plus { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E"); }
+.ff-icon--info { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 16v-4M12 8h.01'/%3E%3C/svg%3E"); }
+.po-form-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; align-items:start; }
+.po-field-full { grid-column:1 / -1; }
+.po-cond-row { display:grid; grid-template-columns:minmax(160px, 1fr) minmax(160px, 1.3fr) auto; gap:8px; align-items:center; }
+.po-cond-row select, .po-cond-row input { width:100%; min-width:0; min-height:40px; border:1px solid #b6c8d8; border-radius:8px; padding:7px 10px; font:inherit; background:#ffffff; box-sizing:border-box; }
+@media (max-width: 600px) { .po-form-grid, .po-cond-row { grid-template-columns:1fr; } }
+.po-context-card { display:flex; flex-direction:column; gap:10px; padding:14px 16px; border:1px solid #dce5ed; border-radius:10px; background:#f8fafc; }
+.po-context-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; }
+.po-add-cond-btn { --bit-Button-min-height:36px; min-height:36px; padding-inline:12px; border-radius:8px; gap:6px; background:#ffffff; }
+.po-info-hint { margin:0; display:flex; align-items:flex-start; gap:7px; color:#64748b; font-size:.83rem; line-height:1.5; }
+.po-info-hint .ff-icon--info { width:16px; height:16px; margin-block-start:2px; color:#64748b; }
+.po-dialog-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; margin:8px -18px -16px; padding:14px 18px; border-top:1px solid #e5edf3; background:#f8fafc; }
+.po-dialog-footer .bit-btn { --bit-Button-min-height:40px; min-height:40px; border-radius:8px; padding-inline:18px; font-weight:600; }
+.ff-icon--production { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 20h18'/%3E%3Cpath d='M5 20V10l5 3V10l5 3V6h4v14'/%3E%3Cpath d='M9 17h2M13 17h2'/%3E%3C/svg%3E"); }
+.po-status-draft { background:#eef2f6; color:#334155; }
+.po-status-released { background:#e2eff5; color:#14607f; }
+.po-status-inprogress { background:#fef3c7; color:#92400e; }
+.po-status-completed { background:#dcfce7; color:#166534; }
+.po-status-cancelled { background:#fdecea; color:#8f2027; }
 

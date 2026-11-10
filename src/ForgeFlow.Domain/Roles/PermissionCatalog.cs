@@ -9,7 +9,8 @@ public enum PermissionModule : byte
     Audit = 5,
     Units = 6,
     Items = 7,
-    Boms = 8
+    Boms = 8,
+    ProductionOrders = 9
 }
 
 public enum PermissionScopeApplicability : byte
@@ -67,7 +68,10 @@ public static class PermissionCatalog
         new("Items.Manage", PermissionModule.Items, "ManageItems", PermissionScopeApplicability.OrganizationOnly),
 
         new("Boms.Read", PermissionModule.Boms, "Read", PermissionScopeApplicability.OrganizationOrSite),
-        new("Boms.Manage", PermissionModule.Boms, "ManageBoms", PermissionScopeApplicability.OrganizationOnly)
+        new("Boms.Manage", PermissionModule.Boms, "ManageBoms", PermissionScopeApplicability.OrganizationOnly),
+
+        new("ProductionOrders.Read", PermissionModule.ProductionOrders, "Read", PermissionScopeApplicability.OrganizationOrSite),
+        new("ProductionOrders.Manage", PermissionModule.ProductionOrders, "ManageProductionOrders", PermissionScopeApplicability.OrganizationOrSite)
     ];
 
     private static readonly Dictionary<string, PermissionDescriptor> ByCode =
@@ -130,7 +134,7 @@ public static class PermissionCatalog
         {
             1 => descriptor.Applicability != PermissionScopeApplicability.PlatformOnly,
             2 => descriptor.Applicability == PermissionScopeApplicability.OrganizationOrSite
-                 && descriptor.Module is PermissionModule.Sites or PermissionModule.Audit or PermissionModule.Units or PermissionModule.Items or PermissionModule.Boms,
+                 && descriptor.Module is PermissionModule.Sites or PermissionModule.Audit or PermissionModule.Units or PermissionModule.Items or PermissionModule.Boms or PermissionModule.ProductionOrders,
             _ => false
         };
     }

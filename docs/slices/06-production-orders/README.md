@@ -1,6 +1,6 @@
 # Slice 06 — Production Orders & Immutable BOM Snapshot (`06-production-orders`)
 
-Status: **DESIGN PROPOSED (`06.0`)** (2026-11-10) — Establishes the **Production Order / Manufacturing Order boundary (`Day 11`)** per [ForgeFlow.md](../../../ForgeFlow.md) `Next Step — Day 11` and Section `7. Historical Traceability`: converting a resolved `BomVersion` and multi-level/single-level requirement into a committed, site-scoped production order whose BOM reference (`BomId`, `BomVersionId`, `VersionNumber`), effective context criteria, and planned input/output snapshot cannot be rewritten by subsequent master-data changes.
+Status: **ACCEPTED (`06.5`)** (2026-11-10) — Establishes the **Production Order / Manufacturing Order boundary (`Day 11`)** per [ForgeFlow.md](../../../ForgeFlow.md) `Next Step — Day 11` and Section `7. Historical Traceability`: converting a resolved `BomVersion` and multi-level/single-level requirement into a committed, site-scoped production order whose BOM reference (`BomId`, `BomVersionId`, `VersionNumber`), effective context criteria, and planned input/output snapshot cannot be rewritten by subsequent master-data changes.
 
 ## 1. Objective, actors, preconditions, outputs, and out-of-scope
 
@@ -44,5 +44,11 @@ Status: **DESIGN PROPOSED (`06.0`)** (2026-11-10) — Establishes the **Producti
 - Identical `Bit.BlazorUI 10.7.0` standards as Slice 05 (`BitDataGrid` server-side paging `10/25/50/100`, `BitDialog` `ShowOkButton="false"` `ShowCancelButton="false"`, `BitDatePicker` Jalali in `fa-IR` and Gregorian in `en-US`, zero hardcoded display text, `fa-IR`/`en-US` `.resx` catalogs, `ResourceContractTests` verified).
 - Order/item/BOM codes use `<bdi dir="ltr">`, dates use `DisplayFormatter.Date` / `BitDatePicker`, and context dimensions reuse `RolePermissionLocalization.ContextDimensionDisplayName`.
 
-## 4. Next step
-- Confirm open design decisions `Q-P01`–`Q-P04` in [decisions.md](decisions.md) before starting `06.1` (Domain & Application).
+## 4. Implementation Status & Next Step
+- **06.0 Design**: APPROVED (`Q-P01`–`Q-P04`).
+- **06.1 Domain (`ForgeFlow.Domain.ProductionOrders`)**: Implemented `ProductionOrder`, `ProductionOrderInput`, `ProductionOrderOutput`, `ProductionOrderContext`, `ProductionOrderStatus`, `ProductionOrderErrors`, `ProductionOrderText`, and `PermissionCatalog` (`ProductionOrders.Read`, `ProductionOrders.Manage` as `OrganizationOrSite`).
+- **06.2 Application (`ForgeFlow.Application.ProductionOrders`)**: Implemented `ProductionOrderUseCases`, `ProductionOrderContracts`, automatic `PLANT = Site.Code` context injection, shared `BomUseCases.ResolveAndExplodeCoreAsync` reuse, site isolation checks, and lifecycle transitions (`Draft -> Released -> InProgress -> Completed / Cancelled`).
+- **06.3 Infrastructure (`ForgeFlow.Infrastructure.Organizations`)**: Configured `OrganizationModel` & `OrganizationDbContext` (`23` entities, `5` migrations including `20261110194120_ProductionOrdersAndSnapshots` with `[ForgeFlowOrganizationRuntime]` grants/`DENY DELETE` and non-empty rollback guard), `SqlProductionOrderOperationsStore`, `AuthDbContext` ignores, and idempotent DDL in `scripts/upgrade-local-testdb.ps1`.
+- **06.4 Web & Verification**: Added `ProductionNavGroup` in `MainLayout.razor`, `/production-orders` & `/organizations/{OrganizationId:long}/production-orders` (`ProductionOrders.razor` with `BitDataGrid`, `BitDialog`, culture-aware `BitDatePicker`, `fa-IR`/`en-US` `.resx` resources), `ProductionOrder.*` audit event codes, `ProductionOrderTests` (`P01`–`P07`), and `ProductionOrderSqlTests` (`S01`–`S04`).
+- **06.5 Acceptance**: Verified live against local SQL Server (`7/7 PASS` across `ProductionOrderSqlTests` + `OrganizationSqlServerTests`), local `testforgflow` upgraded via `scripts/upgrade-local-testdb.ps1`, `347/347` non-SQL tests passing, and bilingual UI (`fa-IR` / `en-US`, RTL/LTR, refined 2-column Create modal & unified `44px` `BitDatePicker`s) accepted by user. **Slice 06 (`06-production-orders`) is ACCEPTED.**
+- **Next**: Complete design approval (`07.0` `Q-I01`–`Q-I04`) for **Slice 07 (`07-inventory` — Warehouses, Stock Ledger & Production Material Issue/Receipt)** in [../07-inventory/README.md](../07-inventory/README.md) before starting `07.1`.
