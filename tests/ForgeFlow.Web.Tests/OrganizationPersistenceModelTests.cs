@@ -1,4 +1,6 @@
+using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
+using ForgeFlow.Domain.Units;
 using ForgeFlow.Infrastructure.Organizations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -22,9 +24,17 @@ public sealed class OrganizationPersistenceModelTests
     {
         using var db = OfflineContext();
         var model = db.GetService<IDesignTimeModel>().Model;
-        Assert.Equal(3, model.GetEntityTypes().Count());
+        Assert.Equal(19, model.GetEntityTypes().Count());
         var org = model.FindEntityType(typeof(Organization))!;
         var site = model.FindEntityType(typeof(Site))!;
+        var unit = model.FindEntityType(typeof(Unit))!;
+        var conversion = model.FindEntityType(typeof(UnitConversion))!;
+        var item = model.FindEntityType(typeof(Item))!;
+        Assert.Equal("Unit", unit.GetTableName());
+        Assert.Equal("UnitConversion", conversion.GetTableName());
+        Assert.Equal("Item", item.GetTableName());
+        Assert.Contains(unit.GetKeys(), k => k.Properties.Select(p => p.Name).SequenceEqual(new[] { "OrganizationId", "Id" }));
+        Assert.Contains(item.GetKeys(), k => k.Properties.Select(p => p.Name).SequenceEqual(new[] { "OrganizationId", "Id" }));
         Assert.Equal("organization", org.GetSchema());
         Assert.Equal("Organization", org.GetTableName());
         Assert.Equal("Site", site.GetTableName());
@@ -109,12 +119,20 @@ public sealed class OrganizationPersistenceModelTests
     public void Migration_snapshot_matches_the_model_and_generates_only_the_three_scoped_tables()
     {
         using var db = OfflineContext();
-        Assert.Single(db.Database.GetMigrations());
+        Assert.Equal(4, db.Database.GetMigrations().Count());
         Assert.False(db.Database.HasPendingModelChanges());
         var script = db.GetService<IMigrator>().GenerateScript();
         Assert.Contains("CREATE TABLE [organization].[Organization]", script);
         Assert.Contains("CREATE TABLE [organization].[Site]", script);
         Assert.Contains("CREATE TABLE [organization].[OrganizationChange]", script);
+        Assert.Contains("CREATE TABLE [organization].[Unit]", script);
+        Assert.Contains("CREATE TABLE [organization].[UnitConversion]", script);
+        Assert.Contains("CREATE TABLE [organization].[Item]", script);
+        Assert.Contains("CREATE TABLE [organization].[Classification]", script);
+        Assert.Contains("CREATE TABLE [organization].[AttributeDefinition]", script);
+        Assert.Contains("CREATE TABLE [organization].[Bom]", script);
+        Assert.Contains("CREATE TABLE [organization].[BomVersion]", script);
+        Assert.Contains("CREATE TABLE [organization].[ContextDimension]", script);
         Assert.Contains("rowversion", script);
         Assert.Contains("DENY DELETE", script);
         Assert.Contains("DENY UPDATE, DELETE", script);

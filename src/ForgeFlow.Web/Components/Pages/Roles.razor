@@ -168,37 +168,49 @@ else
 
         <div class="write-section">
             <p class="write-section-title">@Text["RolePermissionsColumn"]</p>
-            @foreach (var module in RolePermissionLocalization.TenantModules)
-            {
-                var moduleOps = RolePermissionLocalization.OrganizationScopePermissions.Where(x => x.Module == module).ToList();
+            @{
                 var canEditOps = editMode && !selected.IsSystem && selected.IsActive && scopeCanManageRoles;
-                var allChecked = moduleOps.All(x => editSelectedPerms.Contains(x.Code));
-                <div class="perm-group">
-                    <div class="perm-group-header">
-                        <span>@Text[RolePermissionLocalization.PageTitleKey(module)]</span>
-                        @if (canEditOps)
-                        {
-                            <label class="perm-check">
-                                <input type="checkbox" checked="@allChecked" disabled="@saving"
-                                       @onchange="e => ToggleEditModuleAll(module, e.Value is bool b && b)" />
-                                <span>@Text["PermSelectAllPage"]</span>
-                            </label>
-                        }
-                    </div>
-                    <div class="perm-grid">
-                        @foreach (var op in moduleOps)
-                        {
-                            var isChecked = editSelectedPerms.Contains(op.Code);
-                            <label class="perm-check">
-                                <input type="checkbox" checked="@isChecked"
-                                       disabled="@(!canEditOps || saving)"
-                                       @onchange="e => ToggleEditOperation(op, e.Value is bool b && b)" />
-                                <span>@Text[RolePermissionLocalization.OperationLabelKey(op.Code)]</span>
-                            </label>
-                        }
-                    </div>
-                </div>
+                var editModuleOps = RolePermissionLocalization.OrganizationScopePermissions.Where(x => x.Module == editSelectedModule).ToList();
+                var allChecked = editModuleOps.All(x => editSelectedPerms.Contains(x.Code));
             }
+            <div class="read-field">
+                <label for="edit-role-module">@Text["PermPageSelectLabel"]</label>
+                <select id="edit-role-module" value="@((byte)editSelectedModule)" @onchange="ChangeEditModule">
+                    @foreach (var module in RolePermissionLocalization.TenantModules)
+                    {
+                        var ops = RolePermissionLocalization.OrganizationScopePermissions.Where(x => x.Module == module).ToList();
+                        var selectedCount = ops.Count(x => editSelectedPerms.Contains(x.Code));
+                        <option value="@((byte)module)">
+                            @Text["PermModuleSummary", Text[RolePermissionLocalization.PageTitleKey(module)], selectedCount, ops.Count]
+                        </option>
+                    }
+                </select>
+            </div>
+            <div class="perm-group">
+                <div class="perm-group-header">
+                    <span>@Text[RolePermissionLocalization.PageTitleKey(editSelectedModule)]</span>
+                    @if (canEditOps)
+                    {
+                        <label class="perm-check">
+                            <input type="checkbox" checked="@allChecked" disabled="@saving"
+                                   @onchange="e => ToggleEditModuleAll(editSelectedModule, e.Value is bool b && b)" />
+                            <span>@Text["PermSelectAllPage"]</span>
+                        </label>
+                    }
+                </div>
+                <div class="perm-grid">
+                    @foreach (var op in editModuleOps)
+                    {
+                        var isChecked = editSelectedPerms.Contains(op.Code);
+                        <label class="perm-check">
+                            <input type="checkbox" checked="@isChecked"
+                                   disabled="@(!canEditOps || saving)"
+                                   @onchange="e => ToggleEditOperation(op, e.Value is bool b && b)" />
+                            <span>@Text[RolePermissionLocalization.OperationLabelKey(op.Code)]</span>
+                        </label>
+                    }
+                </div>
+            </div>
         </div>
 
         @if (editMode && !selected.IsSystem && scopeCanManageRoles)
@@ -263,32 +275,44 @@ else
 
     <div class="write-section">
         <p class="write-section-title">@Text["RolePermissionsColumn"]</p>
-        @foreach (var module in RolePermissionLocalization.TenantModules)
-        {
-            var moduleOps = RolePermissionLocalization.OrganizationScopePermissions.Where(x => x.Module == module).ToList();
-            var allChecked = moduleOps.All(x => createSelectedPerms.Contains(x.Code));
-            <div class="perm-group">
-                <div class="perm-group-header">
-                    <span>@Text[RolePermissionLocalization.PageTitleKey(module)]</span>
-                    <label class="perm-check">
-                        <input type="checkbox" checked="@allChecked" disabled="@creating"
-                               @onchange="e => ToggleCreateModuleAll(module, e.Value is bool b && b)" />
-                        <span>@Text["PermSelectAllPage"]</span>
-                    </label>
-                </div>
-                <div class="perm-grid">
-                    @foreach (var op in moduleOps)
-                    {
-                        var isChecked = createSelectedPerms.Contains(op.Code);
-                        <label class="perm-check">
-                            <input type="checkbox" checked="@isChecked" disabled="@creating"
-                                   @onchange="e => ToggleCreateOperation(op, e.Value is bool b && b)" />
-                            <span>@Text[RolePermissionLocalization.OperationLabelKey(op.Code)]</span>
-                        </label>
-                    }
-                </div>
-            </div>
+        @{
+            var createModuleOps = RolePermissionLocalization.OrganizationScopePermissions.Where(x => x.Module == createSelectedModule).ToList();
+            var createAllChecked = createModuleOps.All(x => createSelectedPerms.Contains(x.Code));
         }
+        <div class="read-field">
+            <label for="create-role-module">@Text["PermPageSelectLabel"]</label>
+            <select id="create-role-module" value="@((byte)createSelectedModule)" @onchange="ChangeCreateModule">
+                @foreach (var module in RolePermissionLocalization.TenantModules)
+                {
+                    var ops = RolePermissionLocalization.OrganizationScopePermissions.Where(x => x.Module == module).ToList();
+                    var selectedCount = ops.Count(x => createSelectedPerms.Contains(x.Code));
+                    <option value="@((byte)module)">
+                        @Text["PermModuleSummary", Text[RolePermissionLocalization.PageTitleKey(module)], selectedCount, ops.Count]
+                    </option>
+                }
+            </select>
+        </div>
+        <div class="perm-group">
+            <div class="perm-group-header">
+                <span>@Text[RolePermissionLocalization.PageTitleKey(createSelectedModule)]</span>
+                <label class="perm-check">
+                    <input type="checkbox" checked="@createAllChecked" disabled="@creating"
+                           @onchange="e => ToggleCreateModuleAll(createSelectedModule, e.Value is bool b && b)" />
+                    <span>@Text["PermSelectAllPage"]</span>
+                </label>
+            </div>
+            <div class="perm-grid">
+                @foreach (var op in createModuleOps)
+                {
+                    var isChecked = createSelectedPerms.Contains(op.Code);
+                    <label class="perm-check">
+                        <input type="checkbox" checked="@isChecked" disabled="@creating"
+                               @onchange="e => ToggleCreateOperation(op, e.Value is bool b && b)" />
+                        <span>@Text[RolePermissionLocalization.OperationLabelKey(op.Code)]</span>
+                    </label>
+                }
+            </div>
+        </div>
     </div>
 
     <div class="write-actions">
@@ -342,11 +366,25 @@ else
     private bool saving, saved;
     private bool? confirmToggleActive;
     private readonly HashSet<string> editSelectedPerms = new(StringComparer.Ordinal);
+    private PermissionModule editSelectedModule = PermissionModule.Organizations;
 
     private bool createOpen, creating, createDiscardConfirm, draftInitialized;
     private string? createName, createError;
     private readonly HashSet<string> createSelectedPerms = new(StringComparer.Ordinal);
+    private PermissionModule createSelectedModule = PermissionModule.Organizations;
     private DraftDefinition? pendingDraft;
+
+    private void ChangeEditModule(ChangeEventArgs e)
+    {
+        if (byte.TryParse(e.Value?.ToString(), out var raw) && Enum.IsDefined((PermissionModule)raw))
+            editSelectedModule = (PermissionModule)raw;
+    }
+
+    private void ChangeCreateModule(ChangeEventArgs e)
+    {
+        if (byte.TryParse(e.Value?.ToString(), out var raw) && Enum.IsDefined((PermissionModule)raw))
+            createSelectedModule = (PermissionModule)raw;
+    }
 
     private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
     private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");

@@ -16,6 +16,25 @@ public sealed class CulturePolicy
 
     public Calendar Calendar => Current.Name == Persian ? new PersianCalendar() : new GregorianCalendar();
 
+    public CultureInfo PickerCulture
+    {
+        get
+        {
+            if (Language != Persian)
+                return CultureInfo.GetCultureInfo(English);
+
+            var culture = (CultureInfo)CultureInfo.GetCultureInfo(Persian).Clone();
+            if (culture.DateTimeFormat.Calendar is not PersianCalendar)
+            {
+                var persianCal = culture.OptionalCalendars.OfType<PersianCalendar>().FirstOrDefault() ?? new PersianCalendar();
+                culture.DateTimeFormat.Calendar = persianCal;
+            }
+            culture.DateTimeFormat.FirstDayOfWeek = DayOfWeek.Saturday;
+            culture.DateTimeFormat.ShortDatePattern = "yyyy/MM/dd";
+            return culture;
+        }
+    }
+
     public static void Configure(RequestLocalizationOptions options)
     {
         options.SetDefaultCulture(Persian).AddSupportedCultures([.. Supported]).AddSupportedUICultures([.. Supported]);

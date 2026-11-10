@@ -1,8 +1,11 @@
 using System.Data;
 using System.Data.Common;
 using ForgeFlow.Application.Audit;
+using ForgeFlow.Application.Boms;
+using ForgeFlow.Application.Items;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.Roles;
+using ForgeFlow.Application.Units;
 using ForgeFlow.Application.Users;
 using ForgeFlow.Domain.Roles;
 using Microsoft.AspNetCore.Identity;
@@ -339,7 +342,14 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
         if (company is null)
             return false;
 
-        var read = permission is OrganizationPermissions.OrganizationsRead or OrganizationPermissions.SitesRead or UserPermissions.UsersRead or RolePermissions.RolesRead or AuditPermissions.AuditRead;
+        var read = permission is OrganizationPermissions.OrganizationsRead
+            or OrganizationPermissions.SitesRead
+            or UserPermissions.UsersRead
+            or RolePermissions.RolesRead
+            or AuditPermissions.AuditRead
+            or UnitPermissions.UnitsRead
+            or ItemPermissions.ItemsRead
+            or BomPermissions.BomsRead;
         if (!company.IsActive && !read && permission != OrganizationPermissions.OrganizationsSetActive)
             return false;
 
@@ -353,6 +363,7 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
                 return false;
         }
 
+        var autoGrantedToOrgAdmin = PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(permission, 1);
         var orgRoleAllowed = await (from r in db.ScopedRoleAssignments.AsNoTracking()
                                     join rd in db.RoleDefinitions.AsNoTracking() on r.RoleId equals rd.Id
                                     join rp in db.RolePermissions.AsNoTracking() on rd.Id equals rp.RoleId
@@ -362,8 +373,8 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
                                           && r.OrganizationId == orgId
                                           && rd.IsActive
                                           && (rd.OrganizationId == null || rd.OrganizationId == orgId)
-                                          && rp.IsActive
-                                          && (rp.PermissionCode == permission || (r.RoleId == FixedAccessRoles.OrganizationAdministrator && permission == AuditPermissions.AuditRead))
+                                          && ((rp.IsActive && rp.PermissionCode == permission)
+                                              || (r.RoleId == FixedAccessRoles.OrganizationAdministrator && autoGrantedToOrgAdmin))
                                     select r.Id).AnyAsync(ct);
         if (orgRoleAllowed)
             return true;
@@ -417,8 +428,8 @@ public static class FixedRolePolicy
         FixedAccessRoles.DeploymentProvisioner => scope is OrganizationScope.Platform
             && permission is OrganizationPermissions.OrganizationsCreate or UserPermissions.UsersAttachOrganization or UserPermissions.UsersSetActive or UserPermissions.UsersUnlock or UserPermissions.UsersResetPassword or AuditPermissions.AuditRead,
         FixedAccessRoles.OrganizationAdministrator => scope switch {
-            OrganizationScope.Organization => permission is OrganizationPermissions.OrganizationsRead or OrganizationPermissions.OrganizationsUpdate or OrganizationPermissions.OrganizationsSetActive or OrganizationPermissions.SitesRead or OrganizationPermissions.SitesCreate or OrganizationPermissions.SitesUpdate or OrganizationPermissions.SitesSetActive or UserPermissions.UsersRead or UserPermissions.UsersCreate or UserPermissions.UsersSetActive or UserPermissions.UsersUnlock or UserPermissions.UsersResetPassword or UserPermissions.MembershipsManage or UserPermissions.RolesAssignFixed or RolePermissions.RolesRead or RolePermissions.RolesManage or RolePermissions.PermissionsAssign or AuditPermissions.AuditRead,
-            OrganizationScope.Site => permission is OrganizationPermissions.SitesRead or OrganizationPermissions.SitesUpdate or OrganizationPermissions.SitesSetActive or AuditPermissions.AuditRead, _=>false },
+            OrganizationScope.Organization => PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(permission, 1),
+            OrganizationScope.Site => PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(permission, 2), _=>false },
         FixedAccessRoles.SiteOperator => scope is OrganizationScope.Site && permission is OrganizationPermissions.SitesRead or OrganizationPermissions.SitesUpdate or OrganizationPermissions.SitesSetActive,
         _=>false
     };

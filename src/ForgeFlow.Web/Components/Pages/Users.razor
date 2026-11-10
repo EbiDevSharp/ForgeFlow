@@ -581,19 +581,35 @@ else
 
         <div class="write-section">
             <p class="write-section-title">@Text["UserDirectOpsSectionTitle"]</p>
-            @foreach (var module in TargetModules)
+            @if (TargetModules.Count > 0)
             {
-                var moduleOps = TargetDescriptors.Where(x => x.Module == module).ToList();
+                var activeModule = TargetModules.Contains(permSelectedModule) ? permSelectedModule : TargetModules[0];
+                var moduleOps = TargetDescriptors.Where(x => x.Module == activeModule).ToList();
                 var allSelected = moduleOps.All(x => roleGrantedPerms.Contains(x.Code) || directSelectedPerms.Contains(x.Code));
                 var allViaRole = moduleOps.All(x => roleGrantedPerms.Contains(x.Code));
+
+                <div class="read-field">
+                    <label for="user-perm-module">@Text["PermPageSelectLabel"]</label>
+                    <select id="user-perm-module" value="@((byte)activeModule)" @onchange="ChangePermSelectedModule">
+                        @foreach (var module in TargetModules)
+                        {
+                            var ops = TargetDescriptors.Where(x => x.Module == module).ToList();
+                            var selectedCount = ops.Count(x => roleGrantedPerms.Contains(x.Code) || directSelectedPerms.Contains(x.Code));
+                            <option value="@((byte)module)">
+                                @Text["PermModuleSummary", Text[RolePermissionLocalization.PageTitleKey(module)], selectedCount, ops.Count]
+                            </option>
+                        }
+                    </select>
+                </div>
+
                 <div class="perm-group">
                     <div class="perm-group-header">
-                        <span>@Text[RolePermissionLocalization.PageTitleKey(module)]</span>
+                        <span>@Text[RolePermissionLocalization.PageTitleKey(activeModule)]</span>
                         @if (scopeCanAssignPermissions && !allViaRole)
                         {
                             <label class="perm-check">
                                 <input type="checkbox" checked="@allSelected" disabled="@permSaving"
-                                       @onchange="e => ToggleDirectModuleAll(module, e.Value is bool b && b)" />
+                                       @onchange="e => ToggleDirectModuleAll(activeModule, e.Value is bool b && b)" />
                                 <span>@Text["PermSelectAllPage"]</span>
                             </label>
                         }
@@ -696,6 +712,7 @@ else
     private bool permOpen, permSaving, permSaved;
     private bool scopeCanReadRoles, scopeCanAssignPermissions;
     private long permSiteId, selectedRoleIdToAssign;
+    private PermissionModule permSelectedModule = PermissionModule.Organizations;
     private string? permError;
     private UserPermissionMatrix? permSnapshot;
     private List<UserSiteMembershipDetails> permUserSites = [];
@@ -1293,13 +1310,24 @@ else
         }
     }
 
-    private IReadOnlyList<PermissionModule> TargetModules => permSiteId == 0
-        ? RolePermissionLocalization.TenantModules
-        : [PermissionModule.Sites];
+    private IReadOnlyList<PermissionModule> TargetModules => TargetDescriptors
+        .Select(d => d.Module)
+        .Distinct()
+        .ToList();
 
     private IReadOnlyList<PermissionDescriptor> TargetDescriptors => permSiteId == 0
         ? RolePermissionLocalization.OrganizationScopePermissions
         : RolePermissionLocalization.SiteScopePermissions;
+
+    private void ChangePermSelectedModule(ChangeEventArgs e)
+    {
+        if (byte.TryParse(e.Value?.ToString(), out var raw) && Enum.IsDefined((PermissionModule)raw))
+        {
+            var candidate = (PermissionModule)raw;
+            if (TargetModules.Contains(candidate))
+                permSelectedModule = candidate;
+        }
+    }
 
     private bool IsTargetOrgAdmin => permSnapshot is not null && permSnapshot.AssignedRoles.Any(
         x => x.RoleId == PermissionCatalog.OrganizationAdministratorRoleId && x.IsActive && x.ScopeTarget == RoleScopeTarget.Organization);
@@ -1423,6 +1451,7 @@ else
             {
                 roleGrantedPerms.Add("Sites.Read");
                 roleGrantedPerms.Add("Sites.Update");
+                roleGrantedPerms.Add("Sites.SetActive");
             }
             else if (roleMap.TryGetValue(ra.RoleId, out var codes))
             {
@@ -1435,6 +1464,8 @@ else
         }
 
         selectedRoleIdToAssign = AssignableRolesForTarget.FirstOrDefault()?.Id ?? 0;
+        if (!TargetModules.Contains(permSelectedModule) && TargetModules.Count > 0)
+            permSelectedModule = TargetModules[0];
     }
 
     private void ToggleDirectOperation(PermissionDescriptor descriptor, bool isChecked)

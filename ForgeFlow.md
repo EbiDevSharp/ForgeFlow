@@ -1,5 +1,73 @@
 # Slice index and shared boundaries — 01 design
 
+## Slice 05 — Sub-slice `05B` (Item Catalog, Classifications, Capabilities & Attributes) Implemented — awaiting SQL & live UI review (2026-11-10)
+
+### 1. Sub-slice `05B` implementation
+- **Domain (`src/ForgeFlow.Domain/`)**:
+  - `Roles/PermissionCatalog.cs`: added `PermissionModule.Items = 7`, `Items.Read` (`OrganizationOrSite`), `Items.Manage` (`OrganizationOnly`), and updated `IsGrantedToBuiltInOrganizationAdmin`.
+  - `Items/`: `ItemErrors.cs`, `ItemText.cs`, `AttributeDataType.cs`, `Item.cs` (enforces `CanBePurchased || CanBeManufactured || CanBeSold || CanBeConsumed`), `ClassificationSet.cs`, `Classification.cs`, `ItemClassification.cs`, `ItemUnitConversion.cs`, `AttributeDefinition.cs`, `ItemAttributeValue.cs`.
+- **Application (`src/ForgeFlow.Application/Items/`)**:
+  - `ItemContracts.cs`, `ItemUseCases.cs`: CRUD & lifecycle for Items, ClassificationSets, Classifications (with hierarchy parent validation), Item-specific unit conversions + `A08` hybrid `PreviewItemConversion` (combining `ItemUnitConversions` + global `UnitConversions` via `UnitConversionGraph`), AttributeDefinitions, and typed ItemAttributeValues.
+- **Infrastructure (`src/ForgeFlow.Infrastructure/`)**:
+  - Updated `OrganizationModel.cs`, `OrganizationDbContext.cs`, `AuthDbContext.cs` (ignores 7 new entities so `AuthDbContext.HasPendingModelChanges() == false`), `RuntimeSessions.cs` (`Items.Read`), `OrganizationPersistenceRegistration.cs` (`ItemUseCases`), added `ItemOperationsStore.cs`, generated EF migration `20261110171954_ItemsClassificationsAttributes.cs` (`ForgeFlowOrganizationRuntime` table grants / `DENY DELETE` on master tables), and updated `scripts/upgrade-local-testdb.ps1` with idempotent DDL for both `UnitsAndConversions` and `ItemsClassificationsAttributes`.
+- **Web & Tests (`src/ForgeFlow.Web/`, `tests/ForgeFlow.Web.Tests/`)**:
+  - Added `/items` and `/organizations/{OrganizationId:long}/items` (`Components/Pages/Items.razor`) with 3 tabs (`Items`, `Classifications`, `Attributes`), `BitDataGrid` server-side paging (`10/25/50/100`), cleanly padded `BitDialog` modals (`ShowOkButton="false"`, `ShowCancelButton="false"`), item detail/edit sub-tabs (`General`, `Classifications`, `Item conversions` + live `A08` calculator, `Attributes`).
+  - Updated `ReadScopes.cs` (`LoadItemScopesAsync`), `RolePermissionLocalization.cs`, `MainLayout.razor` (`/items` under `MasterDataNavGroup`), `Audit.razor` (`KnownEventCodes`), `wwwroot/app.css` (`.ff-icon--items`, `.cap-badge`, `.item-sub-card`), `SharedResources.en-US.resx`, `SharedResources.fa-IR.resx`, `ResourceContractTests.cs`, `RoleDomainTests.cs`, `OrganizationPersistenceModelTests.cs`, `OrganizationSqlServerTests.cs`, and added `ItemTests.cs` + `ItemSqlTests.cs`.
+
+### 2. Actual verification (this session, Release, no restore)
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — **PASS** (`8` projects, `0 Warning(s)`, `0 Error(s)`).
+- `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` — **340 passed, 0 failed, 46 skipped** (SQL suites remain skipped in agent sandbox).
+- `node .\scripts\drafts.test.mjs` — **19 passed, 0 failed**.
+- `node .\verification\slice01-ui\browser-check.cjs` — **4/4 PASS** (`fa-IR` / `en-US` at `1440px` / `320px`).
+- Development Web (`task-2257`) running at `https://localhost:5001`: `GET /account/login` -> `HTTP 200` (`15723 bytes`), anonymous `GET /items` -> `HTTP 302`.
+
+### 3. Remaining before `05C` (Manufacturing BOM, Versions, Applicability, Resolver & Explosion)
+- Run `.\scripts\upgrade-local-testdb.ps1` (to create `Unit`, `UnitConversion`, `Item`, `ClassificationSet`, `Classification`, `ItemClassification`, `ItemUnitConversion`, `AttributeDefinition`, and `ItemAttributeValue` in `localhost/testforgflow`), optionally run `UnitSqlTests|ItemSqlTests|OrganizationSqlServerTests`, and inspect `/units` and `/items` in the browser before advancing to `05C`.
+
+## Slice 05 (`05.0` APPROVED; Sub-slice `05A` Units of Measure & Conversions Implemented — awaiting SQL & live UI acceptance) (2026-11-10)
+
+### 1. Approved decisions (`05.0`)
+- User approved `Q-M01`–`Q-M04` in [decisions.md](docs/slices/05-item-catalog/decisions.md): 3-phase delivery (`05A` Units & Conversions -> `05B` Item Catalog, Classifications & Attributes -> `05C` BOM, Resolver & Explosion), organization-shared ownership with composite `(OrganizationId, Id)` keys, granular `Units.*` / `Items.*` / `Boms.*` permissions auto-granted to built-in `OrganizationAdministrator`, and collapsible **Master Data & Engineering** (`MasterDataNavGroup`) sidebar group.
+
+### 2. Sub-slice `05A` (Units of Measure & Conversions) implementation
+- **Domain (`src/ForgeFlow.Domain/`)**:
+  - `Roles/PermissionCatalog.cs`: added `PermissionModule.Units = 6`, `Units.Read` (`OrganizationOrSite`), `Units.Manage` (`OrganizationOnly`), and `IsGrantedToBuiltInOrganizationAdmin`.
+  - `Units/UnitDimension.cs`, `UnitErrors.cs`, `UnitText.cs`, `Unit.cs`, `UnitConversion.cs`, `UnitConversionGraph.cs` (exact rational BFS multi-hop conversion engine supporting both global organization edges and `A08` item-specific edge precedence, plus conflicting-path & quantity > 0 validation).
+- **Application (`src/ForgeFlow.Application/Units/`)**:
+  - `UnitContracts.cs`, `UnitUseCases.cs` (`ListUnits`, `ListActiveUnits`, `GetUnit`, `CreateUnit`, `UpdateUnit`, `SetUnitActive`, `ListConversions`, `GetConversion`, `CreateConversion`, `UpdateConversionFactor`, `SetConversionActive`, `PreviewConversion`, `SeedStandardUnits`).
+- **Infrastructure (`src/ForgeFlow.Infrastructure/`)**:
+  - `Identity/RuntimeSessions.cs` & `SqlRoleOperationsStore.cs`: automated built-in `OrganizationAdministrator` grants via `PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin`; `AuthDbContext.cs` excludes `Unit`/`UnitConversion` from Auth migrations (`HasPendingModelChanges() == false`).
+  - `Organizations/OrganizationModel.cs`, `OrganizationDbContext.cs`, `UnitOperationsStore.cs`, `OrganizationPersistenceRegistration.cs`, and EF Core migration `Migrations/20261110164056_UnitsAndConversions.cs` (`organization.Unit`, `organization.UnitConversion`, composite FKs, `CHECK` constraints, `ForgeFlowOrganizationRuntime` grants/DENY DELETE, and `CK_OrganizationChange_Event` extension for `Unit.*` / `UnitConversion.*` atomic business audit).
+- **Web & Tests (`src/ForgeFlow.Web/`, `tests/ForgeFlow.Web.Tests/`)**:
+  - Added `/units` and `/organizations/{OrganizationId:long}/units` (`Components/Pages/Units.razor`) using `BitDataGrid` server-side paging (`10/25/50/100`), cleanly padded `BitDialog` modals (`Width="580px"`, `ShowOkButton="false"`, `ShowCancelButton="false"`, `OnDismissing` unsaved-change guard), interactive multi-hop conversion calculator dialog, and one-click `UnitsSeedButton`.
+  - Updated `ReadScopes.cs`, `RolePermissionLocalization.cs`, `MainLayout.razor` (`MasterDataNavGroup`), `Audit.razor` (`KnownEventCodes`), `wwwroot/app.css`, `SharedResources.en-US.resx`, `SharedResources.fa-IR.resx`, `scripts/upgrade-local-testdb.ps1`, `ResourceContractTests.cs`, `RoleDomainTests.cs`, `OrganizationPersistenceModelTests.cs`, `OrganizationSqlServerTests.cs`, and added `UnitTests.cs` & `UnitSqlTests.cs`.
+
+### 3. Actual verification (this session, Release, no restore)
+- **Permissions Modal UX Refactor (`Users.razor` & `Roles.razor`)**: Replaced vertically stacked module permission lists inside `Users.razor` (User Permissions modal) and `Roles.razor` (Create & Edit/View Role modals) with a compact localized Page/Module `<select>` dropdown (`PermPageSelectLabel`, displaying `{PageTitle} ({Selected}/{Total})` counts via `PermModuleSummary`) paired with a single styled `<div class="perm-group">` operation-checkbox panel below it; updated `Users.razor` `TargetModules` to derive dynamically from `TargetDescriptors` so Site-scope permissions also include `Audit` and `Units`, and added explicit `.perm-group`/`.perm-check`/`.perm-chip` palette styling in `wwwroot/app.css`.
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — **PASS** (`8` projects, `0 Warning(s)`, `0 Error(s)`).
+- `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'` — **336 passed, 0 failed, 45 skipped** (disposable SQL tests remain skipped in agent sandbox).
+- `node .\scripts\drafts.test.mjs` — **19 passed, 0 failed**.
+- `node .\verification\slice01-ui\browser-check.cjs` — **4/4 PASS** (`fa-IR` / `en-US` at `1440px` / `320px`).
+- Development Web (`task-2147`) running at `https://localhost:5001`: `GET /account/login` -> `HTTP 200` (`15692 bytes`), anonymous `GET /users` -> `HTTP 302`.
+
+### 4. Remaining before `05B` (Item Catalog, Classifications & Attributes)
+- User to run `.\scripts\upgrade-local-testdb.ps1` (to create `organization.Unit` and `organization.UnitConversion` in `localhost/testforgflow`), optionally run disposable SQL tests `UnitSqlTests|OrganizationSqlServerTests`, and inspect `https://localhost:5001/units` in Persian/English & mobile/desktop before proceeding to Sub-slice `05B`.
+
+## Slice 02–04 Pushed (`7716030`) & Slice 05 (`05.0` Units, Item Catalog & BOM Design Proposed) (2026-11-10)
+
+### 1. Authorized Git commit & push for Slices `02`, `03`, and `04`
+- Per explicit user authorization, committed and pushed all Slice 02 (`02-user-management`), Slice 03 (`03-roles-permissions`), and Slice 04 (`04-audit-viewer`) changes to `origin/main`:
+  - `git add -A; git commit -m "Complete Slices 02, 03 & 04: user management, roles/permissions, and audit viewer"; git push origin main` -> **`[main 7716030]` (`02580b6..7716030 main -> main`)** on `https://github.com/EbiDevSharp/ForgeFlow.git`.
+- Development Web (`task-1844`) verified running at `https://localhost:5001` (`GET /account/login` -> `HTTP 200`, `15697 bytes`; anonymous `GET /audit` -> `HTTP 302`).
+
+### 2. Slice 05 (`05-item-catalog`, `05.0`) — design proposed for review
+Created the design-first Slice 05 package under `docs/slices/05-item-catalog/` per `ForgeFlow.md` `۰۰.۴` row `06` (`FF-A002`, `FF-A006`, `FF-A007`):
+- [README.md](docs/slices/05-item-catalog/README.md): phased sub-slices (`05A`: **Units of Measure & Conversions** `/units` -> `05B`: **Item Catalog, Classifications, Capabilities & Attributes** `/items` -> `05C`: **Manufacturing BOM, Versions, Applicability, Resolver & Explosion** `/boms`), closure of historical Day 10 audit findings (`A02`, `A03`, `A04`, `A07`, `A08`, `A11`, `A14`), and Bit BlazorUI 10.7.0 / zero-hardcoded localization standards.
+- [decisions.md](docs/slices/05-item-catalog/decisions.md): open decisions **`Q-M01`–`Q-M04`** (3-part phased delivery `05A` -> `05B` -> `05C`, organization-shared ownership with composite `(OrganizationId, Id)` keys, granular permissions `Units.*` / `Items.*` / `Boms.*` auto-granted to `OrganizationAdministrator`, and collapsible **Master Data & Engineering** sidebar navigation group).
+- [physical-erd.md](docs/slices/05-item-catalog/physical-erd.md) & [test-plan.md](docs/slices/05-item-catalog/test-plan.md): SQL schema contract, composite FKs, `CHECK` constraints, and unit/SQL/browser verification matrix (`M01`–`M07`, `S01`–`S04`, `B01`–`B04`).
+
+Next small step: confirm `Q-M01`–`Q-M04` in [decisions.md](docs/slices/05-item-catalog/decisions.md) to begin Sub-slice `05A` (**Units of Measure & Conversions** — Domain, Application, EF migration, and `/units` Bit Blazor UI).
+
 ## Slice 03 (`03.5` ACCEPTED) & Slice 04 (`04.0`–`04.5` Audit & Security Events Viewer ACCEPTED) (2026-11-10)
 
 ### 1. Slice 03 (`03-roles-permissions`) — ACCEPTED (`03.5`)
@@ -3397,3 +3465,28 @@ Final verification commands: dotnet build .\ForgeFlow.slnx -c Release --no-resto
 Startup inspection: Get-NetTCPConnection -LocalPort 5001 -State Listen and Get-CimInstance Win32_Process returned Access denied (HRESULT 0x80041003). No process stopped/restarted. curl login probe returned (35) schannel AcquireCredentialsHandle SEC_E_NO_CREDENTIALS (0x8009030E), HTTP 000. No verified fresh preview. Manual fallback: normal PowerShell verify workspace executable and Development listener, then run fresh .tools/slice014-fix-output/ForgeFlow.Web.dll with src/ForgeFlow.Web content root, Development, process-only existing localhost/testforgflow connection and HTTPS 5001; no migrations/bootstrap/recovery.
 
 Browser tools unavailable: in-app/direct/refresh/back-forward/rapid-switch rendered behavior, FA/EN desktop/320px, active styling and dialog focus/layout remain pending live acceptance. Live SQL checks explicitly pending. Deferred AUTH-01 gates unchanged; Slice 01.4 NOT ACCEPTED. Next: live navigation and visual verification/corrections before new CRUD.
+
+## Slice 05 (`05-item-catalog`: 05A Units, 05B Items, 05C Manufacturing BOM & Applicability) — 2026-11-10
+
+Implemented Slice 05 across Domain, Application, Infrastructure (EF Core SQL Server + append-only `organization.OrganizationChange` + runtime role grants), and Web (`BitDataGrid` + `BitDialog` + bilingual `fa-IR`/`en-US` `.resx` resources):
+- **05A (`/units`)**: `PermissionModule.Units` (`Units.Read`, `Units.Manage`), `Unit`, `UnitConversion`, `UnitConversionGraph` (exact rational BFS + `A08`), `UnitUseCases`, `UnitOperationsStore`, migration `20261110164056_UnitsAndConversions`, `/units` page, `UnitTests`, `UnitSqlTests`, plus permission modal dropdown + single group card refactor on `Users.razor`/`Roles.razor`.
+- **05B (`/items`)**: `PermissionModule.Items` (`Items.Read`, `Items.Manage`), `Item`, `ClassificationSet`, `Classification`, `ItemClassification`, `ItemUnitConversion`, `AttributeDefinition`, `ItemAttributeValue`, `ItemUseCases` (hybrid item+global `A08` conversion), `ItemOperationsStore`, migration `20261110171954_ItemsClassificationsAttributes`, `/items` page, `ItemTests`, `ItemSqlTests`.
+- **05C (`/boms`)**: `PermissionModule.Boms` (`Boms.Read`, `Boms.Manage`), `Bom`, `BomVersion`, `BomInput`, `BomOutput`, `ContextDimension`, `BomApplicability`, `BomApplicabilityCondition`, `BomResolutionEngine` (Day 9 dominance + missing-context safety + `A07`/`A11`), `BomUseCases` (cycle-safe recursive `ExplodeBom` enforcing `A08`/`A14`), `BomOperationsStore`, migration `20261110173434_ManufacturingBomsAndApplicability` (with `[ForgeFlowOrganizationRuntime]` `GRANT`/`DENY DELETE` and non-empty rollback guard), `/boms` page (BOMs & Versions workbench, Context Dimensions + standard dimension seed, and live Resolver/Explosion simulator), audit event codes on `/audit`, `BomTests`, and `BomSqlTests`. Added idempotent DDL for all three migrations to `scripts/upgrade-local-testdb.ps1`. Post-launch UI fixes: removed unsupported `Class` attribute from `BitDataGridColumn`; replaced native `<input type="date">` with culture-aware `BitDatePicker` (`CulturePolicy.PickerCulture` — Jalali in `fa-IR`, Gregorian in `en-US`) and localized effective dates via `DisplayFormatter.Date`; localized seeded standard context dimensions (`PLANT`, `PRODUCTION_LINE`, `MARKET`, `CUSTOMER`, `MANUFACTURING_METHOD`) via `RolePermissionLocalization.ContextDimensionDisplayName`; redesigned header `UserMenu.razor` with a `44px` pill trigger (`BitPersona` `36px` + chevron + active open ring), `288px` card (`BitPersona` `44px` single-line ellipsis header + `UserAccountSubtitle`), dividers, and `BitButton` Text actions (`KeyIcon` change password + soft-red `LogoutIcon` sign out).
+
+Verification evidence (executed after all Slice 05 edits):
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1`: PASS (`0 Warning(s), 0 Error(s)`).
+- `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger 'console;verbosity=minimal'`: `Passed! - Failed: 0, Passed: 344, Skipped: 47, Total: 391` (`47` SQL Server `[OrganizationSqlServerFact]` tests skipped in agent sandbox).
+- User-executed live SQL Server verification in normal Windows PowerShell (`FORGEFLOW_TEST_SQLSERVER` set on `localhost`): `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~UnitSqlTests|FullyQualifiedName~ItemSqlTests|FullyQualifiedName~BomSqlTests|FullyQualifiedName~OrganizationSqlServerTests' --logger 'console;verbosity=minimal'` → **`Passed! - Failed: 0, Passed: 9, Skipped: 0, Total: 9`** (`6.5s`).
+- `.\scripts\upgrade-local-testdb.ps1` executed cleanly against `localhost/testforgflow`.
+- `node .\scripts\drafts.test.mjs`: `19 pass, 0 fail`.
+- Development Web server running at `https://localhost:5001` against local `testforgflow` (`ASPNETCORE_ENVIRONMENT=Development`); `node .\verification\slice01-ui\browser-check.cjs`: `4/4 PASS` (`fa-IR` 1440px/320px, `en-US` 1440px/320px); `curl.exe -k` verified `GET /account/login` -> `HTTP 200`, `GET /boms` anonymous -> `HTTP 302`; user confirmed live UI across `/units`, `/items`, `/boms`, and redesigned header `UserMenu`.
+- **Slice 05 (`05-item-catalog`) Status: ACCEPTED (`05.5`)** (2026-11-10).
+
+## Slice 06 (`06.0` Production Orders & Immutable BOM Snapshot Design Proposed — Day 11) — 2026-11-10
+
+Created the design-first Slice 06 package under `docs/slices/06-production-orders/` per `ForgeFlow.md` `Next Step — Day 11` and Section `7. Historical Traceability`:
+- [README.md](docs/slices/06-production-orders/README.md): Site-scoped `ProductionOrder` master & execution boundary (`Draft -> Released -> InProgress -> Completed / Cancelled`), capturing and freezing resolved `BomId`, `BomVersionId`, `VersionNumber`, context criteria (`ProductionOrderContext`), planned inputs (`ProductionOrderInput`), and planned outputs (`ProductionOrderOutput`) so subsequent BOM updates never rewrite active/historical manufacturing orders.
+- [decisions.md](docs/slices/06-production-orders/decisions.md): Open decisions **`Q-P01`–`Q-P04`** (Site-level ownership & `OrganizationOrSite` permissions `ProductionOrders.Read` / `ProductionOrders.Manage`, Draft resolution vs `Released` snapshot freeze with automatic `PLANT = Site.Code` injection, lean actual output/scrap tracking without premature Inventory Ledger coupling, and collapsible `ProductionNavGroup` + `BitDatePicker` `DateOnly` dates).
+- [physical-erd.md](docs/slices/06-production-orders/physical-erd.md) & [test-plan.md](docs/slices/06-production-orders/test-plan.md): SQL schema contract (`organization.ProductionOrder`, `ProductionOrderInput`, `ProductionOrderOutput`, `ProductionOrderContext`), composite FKs, runtime `DENY DELETE`, `OrganizationChange` audit events (`ProductionOrder.*`), and unit/SQL/browser verification plan (`P01`–`P07`, `S01`–`S04`, `B01`–`B04`).
+
+Next small step: confirm `Q-P01`–`Q-P04` in `docs/slices/06-production-orders/decisions.md` (and optionally authorize committing/pushing Slice 05) before beginning `06.1` (Domain & Application).

@@ -188,7 +188,479 @@ BEGIN
     END;
 END;
 
-COMMIT TRANSACTION;
+IF OBJECT_ID(N'organization.Unit', N'U') IS NULL
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrganizationChange_Event' AND parent_object_id = OBJECT_ID(N'organization.OrganizationChange'))
+        ALTER TABLE [organization].[OrganizationChange] DROP CONSTRAINT [CK_OrganizationChange_Event];
+
+    CREATE TABLE [organization].[Unit] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [Symbol] nvarchar(32) NOT NULL,
+        [Dimension] tinyint NOT NULL,
+        [PrecisionScale] tinyint NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_Unit] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_Unit_Organization_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_Unit_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_Unit_Dimension] CHECK ([Dimension] BETWEEN 1 AND 6),
+        CONSTRAINT [CK_Unit_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_Unit_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [CK_Unit_PrecisionScale] CHECK ([PrecisionScale] BETWEEN 0 AND 6),
+        CONSTRAINT [CK_Unit_Symbol] CHECK (DATALENGTH([Symbol]) BETWEEN 2 AND 64 AND DATALENGTH([Symbol]) = DATALENGTH(LTRIM(RTRIM([Symbol]))) AND DATALENGTH(LTRIM(RTRIM([Symbol]))) > 0),
+        CONSTRAINT [FK_Unit_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id])
+    );
+
+    CREATE TABLE [organization].[UnitConversion] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [FromUnitId] bigint NOT NULL,
+        [ToUnitId] bigint NOT NULL,
+        [Factor] decimal(18,6) NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_UnitConversion] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_UnitConversion_DifferentUnits] CHECK ([FromUnitId] <> [ToUnitId]),
+        CONSTRAINT [CK_UnitConversion_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_UnitConversion_PositiveFactor] CHECK ([Factor] > 0),
+        CONSTRAINT [FK_UnitConversion_FromUnit] FOREIGN KEY ([OrganizationId], [FromUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_UnitConversion_ToUnit] FOREIGN KEY ([OrganizationId], [ToUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id])
+    );
+
+    ALTER TABLE [organization].[OrganizationChange] ADD CONSTRAINT [CK_OrganizationChange_Event]
+        CHECK (DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated'))));
+
+    CREATE INDEX [IX_Unit_Organization_IsActive_Code] ON [organization].[Unit] ([OrganizationId], [IsActive], [Code], [Id]);
+    CREATE UNIQUE INDEX [UX_Unit_Organization_Code] ON [organization].[Unit] ([OrganizationId], [Code]);
+    CREATE INDEX [IX_UnitConversion_OrganizationId_ToUnitId] ON [organization].[UnitConversion] ([OrganizationId], [ToUnitId]);
+    CREATE UNIQUE INDEX [UX_UnitConversion_Organization_From_To] ON [organization].[UnitConversion] ([OrganizationId], [FromUnitId], [ToUnitId]);
+
+    IF DATABASE_PRINCIPAL_ID(N'ForgeFlowOrganizationRuntime') IS NOT NULL
+    BEGIN
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[Unit] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[UnitConversion] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[Unit] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[UnitConversion] TO [ForgeFlowOrganizationRuntime];
+    END;
+END;
+
+IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [dbo].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261110164056_UnitsAndConversions')
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261110164056_UnitsAndConversions', N'10.0.5');
+END;
+
+IF OBJECT_ID(N'organization.Item', N'U') IS NULL
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrganizationChange_Event' AND parent_object_id = OBJECT_ID(N'organization.OrganizationChange'))
+        ALTER TABLE [organization].[OrganizationChange] DROP CONSTRAINT [CK_OrganizationChange_Event];
+
+    CREATE TABLE [organization].[AttributeDefinition] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [DataType] tinyint NOT NULL,
+        [UnitId] bigint NULL,
+        [IsRequired] bit NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_AttributeDefinition] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_AttributeDefinition_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_AttributeDefinition_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_AttributeDefinition_DataType] CHECK ([DataType] BETWEEN 1 AND 3),
+        CONSTRAINT [CK_AttributeDefinition_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_AttributeDefinition_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [FK_AttributeDefinition_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id]),
+        CONSTRAINT [FK_AttributeDefinition_Unit] FOREIGN KEY ([OrganizationId], [UnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[ClassificationSet] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [IsMandatory] bit NOT NULL,
+        [AllowMultiple] bit NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_ClassificationSet] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_ClassificationSet_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_ClassificationSet_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_ClassificationSet_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_ClassificationSet_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [FK_ClassificationSet_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id])
+    );
+
+    CREATE TABLE [organization].[Item] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [Description] nvarchar(500) NULL,
+        [BaseUnitId] bigint NOT NULL,
+        [CanBePurchased] bit NOT NULL,
+        [CanBeManufactured] bit NOT NULL,
+        [CanBeSold] bit NOT NULL,
+        [CanBeConsumed] bit NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_Item] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_Item_Organization_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_Item_Capability] CHECK ([CanBePurchased] = 1 OR [CanBeManufactured] = 1 OR [CanBeSold] = 1 OR [CanBeConsumed] = 1),
+        CONSTRAINT [CK_Item_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_Item_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_Item_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [FK_Item_BaseUnit] FOREIGN KEY ([OrganizationId], [BaseUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_Item_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id])
+    );
+
+    CREATE TABLE [organization].[Classification] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [ClassificationSetId] bigint NOT NULL,
+        [ParentClassificationId] bigint NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_Classification] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_Classification_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_Classification_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_Classification_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_Classification_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [CK_Classification_NoSelfParent] CHECK ([ParentClassificationId] IS NULL OR [ParentClassificationId] <> [Id]),
+        CONSTRAINT [FK_Classification_Parent] FOREIGN KEY ([OrganizationId], [ParentClassificationId]) REFERENCES [organization].[Classification] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_Classification_Set] FOREIGN KEY ([OrganizationId], [ClassificationSetId]) REFERENCES [organization].[ClassificationSet] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[ItemAttributeValue] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [AttributeDefinitionId] bigint NOT NULL,
+        [TextValue] nvarchar(400) NULL,
+        [DecimalValue] decimal(18,6) NULL,
+        [BooleanValue] bit NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_ItemAttributeValue] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ItemAttributeValue_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [FK_ItemAttributeValue_Definition] FOREIGN KEY ([OrganizationId], [AttributeDefinitionId]) REFERENCES [organization].[AttributeDefinition] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ItemAttributeValue_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[ItemUnitConversion] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [FromUnitId] bigint NOT NULL,
+        [ToUnitId] bigint NOT NULL,
+        [Factor] decimal(18,6) NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_ItemUnitConversion] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ItemUnitConversion_DifferentUnits] CHECK ([FromUnitId] <> [ToUnitId]),
+        CONSTRAINT [CK_ItemUnitConversion_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_ItemUnitConversion_PositiveFactor] CHECK ([Factor] > 0),
+        CONSTRAINT [FK_ItemUnitConversion_FromUnit] FOREIGN KEY ([OrganizationId], [FromUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ItemUnitConversion_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ItemUnitConversion_ToUnit] FOREIGN KEY ([OrganizationId], [ToUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[ItemClassification] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [ClassificationId] bigint NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_ItemClassification] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ItemClassification_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [FK_ItemClassification_Classification] FOREIGN KEY ([OrganizationId], [ClassificationId]) REFERENCES [organization].[Classification] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ItemClassification_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id])
+    );
+
+    ALTER TABLE [organization].[OrganizationChange] ADD CONSTRAINT [CK_OrganizationChange_Event] CHECK (DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated'))));
+
+    CREATE INDEX [IX_AttributeDefinition_OrganizationId_UnitId] ON [organization].[AttributeDefinition] ([OrganizationId], [UnitId]);
+    CREATE UNIQUE INDEX [UX_AttributeDefinition_Org_Code] ON [organization].[AttributeDefinition] ([OrganizationId], [Code]);
+    CREATE INDEX [IX_Classification_OrganizationId_ParentClassificationId] ON [organization].[Classification] ([OrganizationId], [ParentClassificationId]);
+    CREATE UNIQUE INDEX [UX_Classification_Org_Set_Code] ON [organization].[Classification] ([OrganizationId], [ClassificationSetId], [Code]);
+    CREATE UNIQUE INDEX [UX_ClassificationSet_Org_Code] ON [organization].[ClassificationSet] ([OrganizationId], [Code]);
+    CREATE INDEX [IX_Item_Organization_IsActive_Code] ON [organization].[Item] ([OrganizationId], [IsActive], [Code], [Id]);
+    CREATE INDEX [IX_Item_OrganizationId_BaseUnitId] ON [organization].[Item] ([OrganizationId], [BaseUnitId]);
+    CREATE UNIQUE INDEX [UX_Item_Organization_Code] ON [organization].[Item] ([OrganizationId], [Code]);
+    CREATE INDEX [IX_ItemAttributeValue_OrganizationId_AttributeDefinitionId] ON [organization].[ItemAttributeValue] ([OrganizationId], [AttributeDefinitionId]);
+    CREATE UNIQUE INDEX [UX_ItemAttributeValue_Org_Item_Def] ON [organization].[ItemAttributeValue] ([OrganizationId], [ItemId], [AttributeDefinitionId]);
+    CREATE INDEX [IX_ItemClassification_OrganizationId_ClassificationId] ON [organization].[ItemClassification] ([OrganizationId], [ClassificationId]);
+    CREATE UNIQUE INDEX [UX_ItemClassification_Org_Item_Class] ON [organization].[ItemClassification] ([OrganizationId], [ItemId], [ClassificationId]);
+    CREATE INDEX [IX_ItemUnitConversion_OrganizationId_FromUnitId] ON [organization].[ItemUnitConversion] ([OrganizationId], [FromUnitId]);
+    CREATE INDEX [IX_ItemUnitConversion_OrganizationId_ToUnitId] ON [organization].[ItemUnitConversion] ([OrganizationId], [ToUnitId]);
+    CREATE UNIQUE INDEX [UX_ItemUnitConversion_Org_Item_From_To] ON [organization].[ItemUnitConversion] ([OrganizationId], [ItemId], [FromUnitId], [ToUnitId]);
+
+    IF DATABASE_PRINCIPAL_ID(N'ForgeFlowOrganizationRuntime') IS NOT NULL
+    BEGIN
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[ClassificationSet] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[Classification] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[Item] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[ItemUnitConversion] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[AttributeDefinition] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[ItemClassification] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[ItemAttributeValue] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[ClassificationSet] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[Classification] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[Item] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[ItemUnitConversion] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[AttributeDefinition] TO [ForgeFlowOrganizationRuntime];
+    END;
+END;
+
+IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [dbo].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261110171954_ItemsClassificationsAttributes')
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261110171954_ItemsClassificationsAttributes', N'10.0.14');
+END;
+
+IF OBJECT_ID(N'organization.Bom', N'U') IS NULL
+BEGIN
+    ALTER TABLE [organization].[OrganizationChange] DROP CONSTRAINT [CK_OrganizationChange_Event];
+
+    CREATE TABLE [organization].[Bom] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [PrimaryOutputItemId] bigint NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_Bom] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_Bom_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_Bom_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_Bom_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_Bom_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [FK_Bom_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id]),
+        CONSTRAINT [FK_Bom_PrimaryItem] FOREIGN KEY ([OrganizationId], [PrimaryOutputItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[ContextDimension] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_ContextDimension] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_ContextDimension_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_ContextDimension_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_ContextDimension_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_ContextDimension_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [FK_ContextDimension_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id])
+    );
+
+    CREATE TABLE [organization].[BomVersion] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [BomId] bigint NOT NULL,
+        [VersionNumber] int NOT NULL,
+        [Status] tinyint NOT NULL,
+        [BaseOutputQuantity] decimal(18,6) NOT NULL,
+        [BaseOutputUnitId] bigint NOT NULL,
+        [EffectiveFromDate] date NOT NULL,
+        [EffectiveToDate] date NULL,
+        [Notes] nvarchar(500) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_BomVersion] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_BomVersion_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_BomVersion_EffectiveDates] CHECK ([EffectiveToDate] IS NULL OR [EffectiveToDate] >= [EffectiveFromDate]),
+        CONSTRAINT [CK_BomVersion_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_BomVersion_Number] CHECK ([VersionNumber] > 0),
+        CONSTRAINT [CK_BomVersion_PositiveBaseQty] CHECK ([BaseOutputQuantity] > 0),
+        CONSTRAINT [CK_BomVersion_Status] CHECK ([Status] BETWEEN 1 AND 5),
+        CONSTRAINT [FK_BomVersion_BaseUnit] FOREIGN KEY ([OrganizationId], [BaseOutputUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_BomVersion_Bom] FOREIGN KEY ([OrganizationId], [BomId]) REFERENCES [organization].[Bom] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[BomApplicability] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [BomVersionId] bigint NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_BomApplicability] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_BomApplicability_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_BomApplicability_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_BomApplicability_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [FK_BomApplicability_Version] FOREIGN KEY ([OrganizationId], [BomVersionId]) REFERENCES [organization].[BomVersion] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[BomInput] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [BomVersionId] bigint NOT NULL,
+        [Sequence] int NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [Quantity] decimal(18,6) NOT NULL,
+        [UnitId] bigint NOT NULL,
+        [ScrapPercentage] decimal(5,2) NOT NULL,
+        [IsOptional] bit NOT NULL,
+        [Notes] nvarchar(500) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_BomInput] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_BomInput_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_BomInput_PositiveQty] CHECK ([Quantity] > 0),
+        CONSTRAINT [CK_BomInput_ScrapBounds] CHECK ([ScrapPercentage] >= 0 AND [ScrapPercentage] < 100),
+        CONSTRAINT [CK_BomInput_Sequence] CHECK ([Sequence] > 0),
+        CONSTRAINT [FK_BomInput_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_BomInput_Unit] FOREIGN KEY ([OrganizationId], [UnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_BomInput_Version] FOREIGN KEY ([OrganizationId], [BomVersionId]) REFERENCES [organization].[BomVersion] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[BomOutput] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [BomVersionId] bigint NOT NULL,
+        [Sequence] int NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [OutputType] tinyint NOT NULL,
+        [Quantity] decimal(18,6) NOT NULL,
+        [UnitId] bigint NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_BomOutput] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_BomOutput_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_BomOutput_PositiveQty] CHECK ([Quantity] > 0),
+        CONSTRAINT [CK_BomOutput_Sequence] CHECK ([Sequence] > 0),
+        CONSTRAINT [CK_BomOutput_Type] CHECK ([OutputType] BETWEEN 1 AND 4),
+        CONSTRAINT [FK_BomOutput_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_BomOutput_Unit] FOREIGN KEY ([OrganizationId], [UnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_BomOutput_Version] FOREIGN KEY ([OrganizationId], [BomVersionId]) REFERENCES [organization].[BomVersion] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[BomApplicabilityCondition] (
+        [Id] bigint NOT NULL IDENTITY,
+        [OrganizationId] bigint NOT NULL,
+        [BomApplicabilityId] bigint NOT NULL,
+        [ContextDimensionId] bigint NOT NULL,
+        [Operator] tinyint NOT NULL,
+        [Value] nvarchar(400) NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_BomApplicabilityCondition] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_BomApplicabilityCondition_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_BomApplicabilityCondition_Operator] CHECK ([Operator] BETWEEN 1 AND 4),
+        CONSTRAINT [CK_BomApplicabilityCondition_Value] CHECK (DATALENGTH([Value]) > 0),
+        CONSTRAINT [FK_BomApplicabilityCondition_Applicability] FOREIGN KEY ([OrganizationId], [BomApplicabilityId]) REFERENCES [organization].[BomApplicability] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_BomApplicabilityCondition_Dimension] FOREIGN KEY ([OrganizationId], [ContextDimensionId]) REFERENCES [organization].[ContextDimension] ([OrganizationId], [Id])
+    );
+
+    ALTER TABLE [organization].[OrganizationChange] ADD CONSTRAINT [CK_OrganizationChange_Event] CHECK (DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated'))));
+
+    CREATE INDEX [IX_Bom_Org_PrimaryItem] ON [organization].[Bom] ([OrganizationId], [PrimaryOutputItemId], [IsActive]);
+    CREATE UNIQUE INDEX [UX_Bom_Org_Code] ON [organization].[Bom] ([OrganizationId], [Code]);
+    CREATE UNIQUE INDEX [UX_BomApplicability_Org_Version] ON [organization].[BomApplicability] ([OrganizationId], [BomVersionId]);
+    CREATE INDEX [IX_BomApplicabilityCondition_OrganizationId_BomApplicabilityId] ON [organization].[BomApplicabilityCondition] ([OrganizationId], [BomApplicabilityId]);
+    CREATE INDEX [IX_BomApplicabilityCondition_OrganizationId_ContextDimensionId] ON [organization].[BomApplicabilityCondition] ([OrganizationId], [ContextDimensionId]);
+    CREATE UNIQUE INDEX [UX_BomApplicabilityCondition_Dim_Op] ON [organization].[BomApplicabilityCondition] ([BomApplicabilityId], [ContextDimensionId], [Operator]);
+    CREATE INDEX [IX_BomInput_Org_Ver_Seq] ON [organization].[BomInput] ([OrganizationId], [BomVersionId], [Sequence]);
+    CREATE INDEX [IX_BomInput_OrganizationId_ItemId] ON [organization].[BomInput] ([OrganizationId], [ItemId]);
+    CREATE INDEX [IX_BomInput_OrganizationId_UnitId] ON [organization].[BomInput] ([OrganizationId], [UnitId]);
+    CREATE INDEX [IX_BomOutput_Org_Ver_Seq] ON [organization].[BomOutput] ([OrganizationId], [BomVersionId], [Sequence]);
+    CREATE INDEX [IX_BomOutput_OrganizationId_ItemId] ON [organization].[BomOutput] ([OrganizationId], [ItemId]);
+    CREATE INDEX [IX_BomOutput_OrganizationId_UnitId] ON [organization].[BomOutput] ([OrganizationId], [UnitId]);
+    CREATE INDEX [IX_BomVersion_OrganizationId_BaseOutputUnitId] ON [organization].[BomVersion] ([OrganizationId], [BaseOutputUnitId]);
+    CREATE UNIQUE INDEX [UX_BomVersion_Org_Bom_Ver] ON [organization].[BomVersion] ([OrganizationId], [BomId], [VersionNumber]);
+    CREATE UNIQUE INDEX [UX_ContextDimension_Org_Code] ON [organization].[ContextDimension] ([OrganizationId], [Code]);
+
+    IF DATABASE_PRINCIPAL_ID(N'ForgeFlowOrganizationRuntime') IS NOT NULL
+    BEGIN
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[Bom] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[BomVersion] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[ContextDimension] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[BomInput] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[BomOutput] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[BomApplicability] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[BomApplicabilityCondition] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[Bom] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[BomVersion] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[ContextDimension] TO [ForgeFlowOrganizationRuntime];
+    END;
+END;
+
+IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [dbo].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261110173434_ManufacturingBomsAndApplicability')
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261110173434_ManufacturingBomsAndApplicability', N'10.0.14');
+END;
+
+COMMIT;
 "@
 
 $cn = New-Object System.Data.SqlClient.SqlConnection($conn)
@@ -197,7 +669,7 @@ try {
     $cmd = $cn.CreateCommand()
     $cmd.CommandText = $sql
     [void]$cmd.ExecuteNonQuery()
-    Write-Host "testforgflow database upgraded to 20261110134703_RolesAndGranularPermissions and admin full permissions verified." -ForegroundColor Green
+    Write-Host "testforgflow database upgraded to 20261110173434_ManufacturingBomsAndApplicability." -ForegroundColor Green
 }
 finally {
     $cn.Dispose()

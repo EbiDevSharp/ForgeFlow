@@ -753,4 +753,670 @@
   <data name="AuditSystemActor" xml:space="preserve">
     <value>System / Anonymous</value>
   </data>
+  <data name="MasterDataNavGroup" xml:space="preserve">
+    <value>Master Data &amp; Engineering</value>
+  </data>
+  <data name="PermPageUnits" xml:space="preserve">
+    <value>Units of Measure</value>
+  </data>
+  <data name="PermPageSelectLabel" xml:space="preserve">
+    <value>Page / module</value>
+  </data>
+  <data name="PermModuleSummary" xml:space="preserve">
+    <value>{0} ({1}/{2})</value>
+  </data>
+  <data name="PermOpManageUnits" xml:space="preserve">
+    <value>Manage units &amp; conversions</value>
+  </data>
+  <data name="Units" xml:space="preserve">
+    <value>Units &amp; Conversions</value>
+  </data>
+  <data name="UnitsCaption" xml:space="preserve">
+    <value>Organization units of measure and multi-hop conversions</value>
+  </data>
+  <data name="UnitsTab" xml:space="preserve">
+    <value>Units</value>
+  </data>
+  <data name="UnitConversionsTab" xml:space="preserve">
+    <value>Unit conversions</value>
+  </data>
+  <data name="UnitCreateButton" xml:space="preserve">
+    <value>New unit</value>
+  </data>
+  <data name="UnitCreateTitle" xml:space="preserve">
+    <value>Create unit</value>
+  </data>
+  <data name="UnitEditTitle" xml:space="preserve">
+    <value>Edit unit</value>
+  </data>
+  <data name="UnitDetailTitle" xml:space="preserve">
+    <value>Unit details</value>
+  </data>
+  <data name="UnitConversionCreateButton" xml:space="preserve">
+    <value>New conversion</value>
+  </data>
+  <data name="UnitConversionCreateTitle" xml:space="preserve">
+    <value>Create conversion</value>
+  </data>
+  <data name="UnitConversionEditTitle" xml:space="preserve">
+    <value>Edit conversion</value>
+  </data>
+  <data name="UnitConversionDetailTitle" xml:space="preserve">
+    <value>Conversion details</value>
+  </data>
+  <data name="UnitsSeedButton" xml:space="preserve">
+    <value>Seed standard units</value>
+  </data>
+  <data name="UnitsSeededNotice" xml:space="preserve">
+    <value>{0} unit(s) and {1} conversion(s) added.</value>
+  </data>
+  <data name="UnitConverterButton" xml:space="preserve">
+    <value>Test conversion</value>
+  </data>
+  <data name="UnitConverterTitle" xml:space="preserve">
+    <value>Multi-hop conversion calculator</value>
+  </data>
+  <data name="UnitConverterQuantityLabel" xml:space="preserve">
+    <value>Quantity</value>
+  </data>
+  <data name="UnitConverterCalculate" xml:space="preserve">
+    <value>Calculate</value>
+  </data>
+  <data name="UnitConverterHops" xml:space="preserve">
+    <value>Path length: {0} step(s), effective factor: {1}</value>
+  </data>
+  <data name="UnitSymbolLabel" xml:space="preserve">
+    <value>Symbol</value>
+  </data>
+  <data name="UnitDimensionLabel" xml:space="preserve">
+    <value>Dimension</value>
+  </data>
+  <data name="UnitDimensionAll" xml:space="preserve">
+    <value>All dimensions</value>
+  </data>
+  <data name="UnitDimensionMass" xml:space="preserve">
+    <value>Mass</value>
+  </data>
+  <data name="UnitDimensionVolume" xml:space="preserve">
+    <value>Volume</value>
+  </data>
+  <data name="UnitDimensionLength" xml:space="preserve">
+    <value>Length</value>
+  </data>
+  <data name="UnitDimensionArea" xml:space="preserve">
+    <value>Area</value>
+  </data>
+  <data name="UnitDimensionCount" xml:space="preserve">
+    <value>Count</value>
+  </data>
+  <data name="UnitDimensionTime" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="UnitPrecisionLabel" xml:space="preserve">
+    <value>Decimal precision</value>
+  </data>
+  <data name="UnitConversionFromLabel" xml:space="preserve">
+    <value>From unit</value>
+  </data>
+  <data name="UnitConversionToLabel" xml:space="preserve">
+    <value>To unit</value>
+  </data>
+  <data name="UnitConversionFactorLabel" xml:space="preserve">
+    <value>Factor</value>
+  </data>
+  <data name="UnitConversionRelationLabel" xml:space="preserve">
+    <value>Conversion formula</value>
+  </data>
+  <data name="UnitFilterAll" xml:space="preserve">
+    <value>All units</value>
+  </data>
+  <data name="UnitSearchPlaceholder" xml:space="preserve">
+    <value>Search by code, name, or symbol</value>
+  </data>
+  <data name="UnitCreatedSucceeded" xml:space="preserve">
+    <value>Unit {0} created.</value>
+  </data>
+  <data name="UnitConversionCreatedSucceeded" xml:space="preserve">
+    <value>Unit conversion created.</value>
+  </data>
+  <data name="UnitErrorSymbolInvalid" xml:space="preserve">
+    <value>Enter a valid symbol (1–32 characters).</value>
+  </data>
+  <data name="UnitErrorDimensionInvalid" xml:space="preserve">
+    <value>Select a valid unit dimension.</value>
+  </data>
+  <data name="UnitErrorPrecisionInvalid" xml:space="preserve">
+    <value>Precision scale must be between 0 and 6 decimals.</value>
+  </data>
+  <data name="UnitErrorInactive" xml:space="preserve">
+    <value>Inactive units or conversions cannot be edited until reactivated.</value>
+  </data>
+  <data name="UnitErrorConversionDuplicate" xml:space="preserve">
+    <value>A direct conversion between these units already exists.</value>
+  </data>
+  <data name="UnitErrorConversionSameUnit" xml:space="preserve">
+    <value>Source and target units must be different.</value>
+  </data>
+  <data name="UnitErrorConversionFactorInvalid" xml:space="preserve">
+    <value>Enter a positive factor with at most 6 decimal places.</value>
+  </data>
+  <data name="UnitErrorConversionPathNotFound" xml:space="preserve">
+    <value>No active conversion path exists between the selected units.</value>
+  </data>
+  <data name="UnitErrorConversionConflictingPath" xml:space="preserve">
+    <value>This conversion conflicts with an existing multi-hop conversion path.</value>
+  </data>
+  <data name="UnitErrorConversionQuantityInvalid" xml:space="preserve">
+    <value>Enter a quantity greater than zero.</value>
+  </data>
+  <data name="PermPageItems" xml:space="preserve">
+    <value>Item Catalog &amp; Classifications</value>
+  </data>
+  <data name="PermOpManageItems" xml:space="preserve">
+    <value>Manage items, classifications &amp; attributes</value>
+  </data>
+  <data name="Items" xml:space="preserve">
+    <value>Item Catalog</value>
+  </data>
+  <data name="ItemsCaption" xml:space="preserve">
+    <value>Universal item master, classifications, capabilities, conversions &amp; attributes</value>
+  </data>
+  <data name="ItemsTab" xml:space="preserve">
+    <value>Items</value>
+  </data>
+  <data name="ItemsClassificationsTab" xml:space="preserve">
+    <value>Classifications</value>
+  </data>
+  <data name="ItemsAttributesTab" xml:space="preserve">
+    <value>Attributes</value>
+  </data>
+  <data name="ItemCreateButton" xml:space="preserve">
+    <value>New item</value>
+  </data>
+  <data name="ItemCreateTitle" xml:space="preserve">
+    <value>Create item</value>
+  </data>
+  <data name="ItemEditTitle" xml:space="preserve">
+    <value>Edit item</value>
+  </data>
+  <data name="ItemDetailTitle" xml:space="preserve">
+    <value>Item details</value>
+  </data>
+  <data name="ItemDescriptionLabel" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="ItemBaseUnitLabel" xml:space="preserve">
+    <value>Base unit</value>
+  </data>
+  <data name="ItemCapabilitiesLabel" xml:space="preserve">
+    <value>Operational capabilities</value>
+  </data>
+  <data name="ItemCapFilterAll" xml:space="preserve">
+    <value>All capabilities</value>
+  </data>
+  <data name="ItemCapPurchase" xml:space="preserve">
+    <value>Purchase</value>
+  </data>
+  <data name="ItemCapManufacture" xml:space="preserve">
+    <value>Manufacture</value>
+  </data>
+  <data name="ItemCapSell" xml:space="preserve">
+    <value>Sell</value>
+  </data>
+  <data name="ItemCapConsume" xml:space="preserve">
+    <value>Consume</value>
+  </data>
+  <data name="ItemSearchPlaceholder" xml:space="preserve">
+    <value>Search by code or name</value>
+  </data>
+  <data name="ItemCreatedSucceeded" xml:space="preserve">
+    <value>Item {0} created.</value>
+  </data>
+  <data name="ItemSectionGeneral" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="ItemSectionClassifications" xml:space="preserve">
+    <value>Classifications</value>
+  </data>
+  <data name="ItemSectionConversions" xml:space="preserve">
+    <value>Item conversions</value>
+  </data>
+  <data name="ItemSectionAttributes" xml:space="preserve">
+    <value>Attributes</value>
+  </data>
+  <data name="ClassificationSetCreateButton" xml:space="preserve">
+    <value>New set</value>
+  </data>
+  <data name="ClassificationCreateButton" xml:space="preserve">
+    <value>New classification</value>
+  </data>
+  <data name="ClassificationSetLabel" xml:space="preserve">
+    <value>Classification set</value>
+  </data>
+  <data name="ClassificationSetAll" xml:space="preserve">
+    <value>All sets</value>
+  </data>
+  <data name="ClassificationSetAllowMultiple" xml:space="preserve">
+    <value>Allow assigning multiple nodes from this set</value>
+  </data>
+  <data name="ClassificationParentLabel" xml:space="preserve">
+    <value>Parent classification</value>
+  </data>
+  <data name="ClassificationFilterAll" xml:space="preserve">
+    <value>All classifications</value>
+  </data>
+  <data name="AttributeCreateButton" xml:space="preserve">
+    <value>New attribute</value>
+  </data>
+  <data name="AttributeDataTypeLabel" xml:space="preserve">
+    <value>Data type</value>
+  </data>
+  <data name="AttributeDataTypeAll" xml:space="preserve">
+    <value>All types</value>
+  </data>
+  <data name="AttributeDataTypeText" xml:space="preserve">
+    <value>Text</value>
+  </data>
+  <data name="AttributeDataTypeDecimal" xml:space="preserve">
+    <value>Decimal number</value>
+  </data>
+  <data name="AttributeDataTypeBoolean" xml:space="preserve">
+    <value>Yes / No</value>
+  </data>
+  <data name="AttributeRequiredLabel" xml:space="preserve">
+    <value>Required</value>
+  </data>
+  <data name="AttributeRequiredYes" xml:space="preserve">
+    <value>Required</value>
+  </data>
+  <data name="AttributeRequiredNo" xml:space="preserve">
+    <value>Optional</value>
+  </data>
+  <data name="AttributeBoolTrue" xml:space="preserve">
+    <value>Yes</value>
+  </data>
+  <data name="AttributeBoolFalse" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="ItemErrorDescriptionInvalid" xml:space="preserve">
+    <value>Description must be at most 500 characters without control characters.</value>
+  </data>
+  <data name="ItemErrorBaseUnitInvalid" xml:space="preserve">
+    <value>Select an active base unit in this organization.</value>
+  </data>
+  <data name="ItemErrorCapabilityRequired" xml:space="preserve">
+    <value>Select at least one operational capability for the item.</value>
+  </data>
+  <data name="ItemErrorClassificationParentInvalid" xml:space="preserve">
+    <value>Selected parent or classification assignment is invalid for this set.</value>
+  </data>
+  <data name="ItemErrorClassificationCircularParent" xml:space="preserve">
+    <value>A classification cannot be an ancestor of itself.</value>
+  </data>
+  <data name="ItemErrorAttributeValueInvalid" xml:space="preserve">
+    <value>Enter a valid attribute value matching the definition data type and bounds.</value>
+  </data>
+  <data name="ItemErrorAttributeRequired" xml:space="preserve">
+    <value>A required attribute value is missing.</value>
+  </data>
+  <data name="Boms" xml:space="preserve">
+    <value>Bills of Materials</value>
+  </data>
+  <data name="BomsCaption" xml:space="preserve">
+    <value>Versioned manufacturing formulas, contextual applicability rules, and multi-level BOM explosion</value>
+  </data>
+  <data name="PermPageBoms" xml:space="preserve">
+    <value>Bills of Materials</value>
+  </data>
+  <data name="PermOpManageBoms" xml:space="preserve">
+    <value>Manage BOMs &amp; versions</value>
+  </data>
+  <data name="BomsTab" xml:space="preserve">
+    <value>BOMs &amp; Versions</value>
+  </data>
+  <data name="BomDimensionsTab" xml:space="preserve">
+    <value>Context Dimensions</value>
+  </data>
+  <data name="BomSimulatorTab" xml:space="preserve">
+    <value>Resolver &amp; Explosion</value>
+  </data>
+  <data name="BomCreateButton" xml:space="preserve">
+    <value>New BOM</value>
+  </data>
+  <data name="BomDimCreateButton" xml:space="preserve">
+    <value>New dimension</value>
+  </data>
+  <data name="BomDimSeedButton" xml:space="preserve">
+    <value>Seed standard dimensions</value>
+  </data>
+  <data name="BomPrimaryItemLabel" xml:space="preserve">
+    <value>Primary output item</value>
+  </data>
+  <data name="BomPrimaryItemAll" xml:space="preserve">
+    <value>All manufacturable items</value>
+  </data>
+  <data name="BomSearchPlaceholder" xml:space="preserve">
+    <value>Search by code or name</value>
+  </data>
+  <data name="BomVersionCountColumn" xml:space="preserve">
+    <value>Versions</value>
+  </data>
+  <data name="BomVersionsAction" xml:space="preserve">
+    <value>Versions</value>
+  </data>
+  <data name="BomSimulatorHeading" xml:space="preserve">
+    <value>BOM Resolver &amp; Multi-Level Explosion</value>
+  </data>
+  <data name="BomSimulatorHint" xml:space="preserve">
+    <value>Select a manufacturable item, production date, quantity, and optional context values to resolve and explode the effective BOM.</value>
+  </data>
+  <data name="BomSelectItemOption" xml:space="preserve">
+    <value>Select a manufacturable item...</value>
+  </data>
+  <data name="BomProductionDateLabel" xml:space="preserve">
+    <value>Production date</value>
+  </data>
+  <data name="BomRequestedQtyLabel" xml:space="preserve">
+    <value>Requested quantity</value>
+  </data>
+  <data name="BomRequestedUnitLabel" xml:space="preserve">
+    <value>Requested unit</value>
+  </data>
+  <data name="BomDefaultBaseUnitOption" xml:space="preserve">
+    <value>Item base unit</value>
+  </data>
+  <data name="BomContextPairsLabel" xml:space="preserve">
+    <value>Manufacturing context</value>
+  </data>
+  <data name="BomAddContextPairBtn" xml:space="preserve">
+    <value>Add context criterion</value>
+  </data>
+  <data name="BomNoContextPairsHint" xml:space="preserve">
+    <value>No context specified; unconditional or general BOMs apply.</value>
+  </data>
+  <data name="BomDimLabel" xml:space="preserve">
+    <value>Context dimension</value>
+  </data>
+  <data name="BomConditionValuePlaceholder" xml:space="preserve">
+    <value>Value (comma-separated for In / Not In)</value>
+  </data>
+  <data name="BomRemoveRowBtn" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="BomResolveBtn" xml:space="preserve">
+    <value>Resolve active BOM</value>
+  </data>
+  <data name="BomExplodeBtn" xml:space="preserve">
+    <value>Explode BOM</value>
+  </data>
+  <data name="BomBaseOutputSummary" xml:space="preserve">
+    <value>Base output: {0} {1} · Effective: {2} to {3}</value>
+  </data>
+  <data name="BomExplosionInputsHeading" xml:space="preserve">
+    <value>Consumed Materials &amp; Sub-Assemblies</value>
+  </data>
+  <data name="BomExplosionOutputsHeading" xml:space="preserve">
+    <value>Produced Outputs</value>
+  </data>
+  <data name="BomLevelColumn" xml:space="preserve">
+    <value>Level</value>
+  </data>
+  <data name="BomParentItemColumn" xml:space="preserve">
+    <value>Parent item</value>
+  </data>
+  <data name="BomLineItemColumn" xml:space="preserve">
+    <value>Item</value>
+  </data>
+  <data name="BomNetQtyColumn" xml:space="preserve">
+    <value>Net qty</value>
+  </data>
+  <data name="BomScrapColumn" xml:space="preserve">
+    <value>Scrap %</value>
+  </data>
+  <data name="BomGrossQtyColumn" xml:space="preserve">
+    <value>Gross qty</value>
+  </data>
+  <data name="BomLineUnitColumn" xml:space="preserve">
+    <value>Unit</value>
+  </data>
+  <data name="BomSubAssemblyBadge" xml:space="preserve">
+    <value>Sub-assembly</value>
+  </data>
+  <data name="BomOptionalBadge" xml:space="preserve">
+    <value>Optional</value>
+  </data>
+  <data name="BomOutputTypeColumn" xml:space="preserve">
+    <value>Output type</value>
+  </data>
+  <data name="BomProducedQtyColumn" xml:space="preserve">
+    <value>Produced qty</value>
+  </data>
+  <data name="BomCreateHeading" xml:space="preserve">
+    <value>Create Bill of Materials</value>
+  </data>
+  <data name="BomCreateHint" xml:space="preserve">
+    <value>Code must start with an ASCII letter or digit and may use A-Z, 0-9, _ or -.</value>
+  </data>
+  <data name="BomEditHeading" xml:space="preserve">
+    <value>Edit BOM</value>
+  </data>
+  <data name="BomVersionsHeading" xml:space="preserve">
+    <value>BOM Details &amp; Versions</value>
+  </data>
+  <data name="BomNoVersionsEmpty" xml:space="preserve">
+    <value>No versions have been created for this BOM yet.</value>
+  </data>
+  <data name="BomVersionNumberLabel" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="BomBaseOutputColumn" xml:space="preserve">
+    <value>Base output</value>
+  </data>
+  <data name="BomEffectiveDatesColumn" xml:space="preserve">
+    <value>Effective dates</value>
+  </data>
+  <data name="BomApplicabilityColumn" xml:space="preserve">
+    <value>Applicability</value>
+  </data>
+  <data name="BomRulesCountBadge" xml:space="preserve">
+    <value>{0} rule(s)</value>
+  </data>
+  <data name="BomUnconditionalLabel" xml:space="preserve">
+    <value>Unconditional</value>
+  </data>
+  <data name="BomOpenVersionBtn" xml:space="preserve">
+    <value>Open version</value>
+  </data>
+  <data name="BomCreateVersionHeading" xml:space="preserve">
+    <value>Create New Draft Version</value>
+  </data>
+  <data name="BomBaseOutputQtyLabel" xml:space="preserve">
+    <value>Base output quantity</value>
+  </data>
+  <data name="BomBaseOutputUnitLabel" xml:space="preserve">
+    <value>Base output unit</value>
+  </data>
+  <data name="BomEffectiveFromLabel" xml:space="preserve">
+    <value>Effective from</value>
+  </data>
+  <data name="BomEffectiveToLabel" xml:space="preserve">
+    <value>Effective to (optional)</value>
+  </data>
+  <data name="BomNotesLabel" xml:space="preserve">
+    <value>Notes</value>
+  </data>
+  <data name="BomCreateVersionBtn" xml:space="preserve">
+    <value>Create draft version</value>
+  </data>
+  <data name="BomVersionWorkbenchTitle" xml:space="preserve">
+    <value>BOM Version Workbench</value>
+  </data>
+  <data name="BomVersionImmutableNotice" xml:space="preserve">
+    <value>Approved, Active, Superseded, and Obsolete versions are structurally immutable.</value>
+  </data>
+  <data name="BomActionApprove" xml:space="preserve">
+    <value>Approve</value>
+  </data>
+  <data name="BomActionActivate" xml:space="preserve">
+    <value>Activate</value>
+  </data>
+  <data name="BomActionSupersede" xml:space="preserve">
+    <value>Supersede</value>
+  </data>
+  <data name="BomActionObsolete" xml:space="preserve">
+    <value>Mark Obsolete</value>
+  </data>
+  <data name="BomVersionHeaderSection" xml:space="preserve">
+    <value>Version Header</value>
+  </data>
+  <data name="BomSaveHeaderBtn" xml:space="preserve">
+    <value>Save header</value>
+  </data>
+  <data name="BomInputsSection" xml:space="preserve">
+    <value>Inputs (Materials)</value>
+  </data>
+  <data name="BomAddInputBtn" xml:space="preserve">
+    <value>Add input line</value>
+  </data>
+  <data name="BomQuantityColumn" xml:space="preserve">
+    <value>Quantity</value>
+  </data>
+  <data name="BomOutputsSection" xml:space="preserve">
+    <value>Outputs (Main / Co- / By-Product / Waste)</value>
+  </data>
+  <data name="BomAddOutputBtn" xml:space="preserve">
+    <value>Add output line</value>
+  </data>
+  <data name="BomSaveLinesBtn" xml:space="preserve">
+    <value>Save inputs &amp; outputs</value>
+  </data>
+  <data name="BomAddConditionBtn" xml:space="preserve">
+    <value>Add condition</value>
+  </data>
+  <data name="BomEnableApplicabilityLabel" xml:space="preserve">
+    <value>Enable contextual applicability rules for this version</value>
+  </data>
+  <data name="BomSaveApplicabilityBtn" xml:space="preserve">
+    <value>Save applicability</value>
+  </data>
+  <data name="BomDimCreateHeading" xml:space="preserve">
+    <value>Create Context Dimension</value>
+  </data>
+  <data name="BomDimEditHeading" xml:space="preserve">
+    <value>Edit Context Dimension</value>
+  </data>
+  <data name="BomDimSeededNotice" xml:space="preserve">
+    <value>Standard context dimensions checked; {0} created.</value>
+  </data>
+  <data name="BomStatusDraft" xml:space="preserve">
+    <value>Draft</value>
+  </data>
+  <data name="BomStatusApproved" xml:space="preserve">
+    <value>Approved</value>
+  </data>
+  <data name="BomStatusActive" xml:space="preserve">
+    <value>Active</value>
+  </data>
+  <data name="BomStatusSuperseded" xml:space="preserve">
+    <value>Superseded</value>
+  </data>
+  <data name="BomStatusObsolete" xml:space="preserve">
+    <value>Obsolete</value>
+  </data>
+  <data name="BomOutMainProduct" xml:space="preserve">
+    <value>Main product</value>
+  </data>
+  <data name="BomOutCoProduct" xml:space="preserve">
+    <value>Co-product</value>
+  </data>
+  <data name="BomOutByProduct" xml:space="preserve">
+    <value>By-product</value>
+  </data>
+  <data name="BomOutWaste" xml:space="preserve">
+    <value>Waste</value>
+  </data>
+  <data name="BomOpEquals" xml:space="preserve">
+    <value>Equals</value>
+  </data>
+  <data name="BomOpNotEquals" xml:space="preserve">
+    <value>Not equals</value>
+  </data>
+  <data name="BomOpIn" xml:space="preserve">
+    <value>In set</value>
+  </data>
+  <data name="BomOpNotIn" xml:space="preserve">
+    <value>Not in set</value>
+  </data>
+  <data name="BomErrorItemInvalid" xml:space="preserve">
+    <value>Selected item was not found or is inactive in this organization.</value>
+  </data>
+  <data name="BomErrorPrimaryNotManufacturable" xml:space="preserve">
+    <value>Primary output item must be marked as manufacturable.</value>
+  </data>
+  <data name="BomErrorVersionNumberInvalid" xml:space="preserve">
+    <value>Version number must be a positive integer.</value>
+  </data>
+  <data name="BomErrorVersionImmutable" xml:space="preserve">
+    <value>Only Draft BOM versions can be structurally modified.</value>
+  </data>
+  <data name="BomErrorVersionTransitionInvalid" xml:space="preserve">
+    <value>This BOM version status transition is not allowed.</value>
+  </data>
+  <data name="BomErrorQuantityInvalid" xml:space="preserve">
+    <value>Enter a positive quantity greater than zero.</value>
+  </data>
+  <data name="BomErrorEffectiveDatesInvalid" xml:space="preserve">
+    <value>Effective end date must be on or after the effective start date.</value>
+  </data>
+  <data name="BomErrorMainOutputRequired" xml:space="preserve">
+    <value>Exactly one Main Product output matching the BOM primary output item is required before approval or activation.</value>
+  </data>
+  <data name="BomErrorInputsRequired" xml:space="preserve">
+    <value>At least one input line is required before approval or activation.</value>
+  </data>
+  <data name="BomErrorScrapInvalid" xml:space="preserve">
+    <value>Scrap percentage must be at least 0 and less than 100.</value>
+  </data>
+  <data name="BomErrorUnitInvalid" xml:space="preserve">
+    <value>Selected unit was not found or is inactive.</value>
+  </data>
+  <data name="BomErrorDirectSelfCycle" xml:space="preserve">
+    <value>A BOM cannot list its own primary output item as an input material.</value>
+  </data>
+  <data name="BomErrorCircularDependency" xml:space="preserve">
+    <value>A circular multi-level BOM dependency was detected.</value>
+  </data>
+  <data name="BomErrorApplicabilityInvalid" xml:space="preserve">
+    <value>Applicability rule requires a valid name and active context dimension conditions without conflicting rules.</value>
+  </data>
+  <data name="BomErrorNoActiveBomFound" xml:space="preserve">
+    <value>No active effective BOM matched the item, date, and manufacturing context.</value>
+  </data>
+  <data name="BomErrorAmbiguousResolution" xml:space="preserve">
+    <value>Multiple equally specific active BOM versions matched without a unique deterministic winner.</value>
+  </data>
+  <data name="BomDateToday" xml:space="preserve">
+    <value>Today</value>
+  </data>
+  <data name="BomDateClear" xml:space="preserve">
+    <value>Clear date</value>
+  </data>
+  <data name="BomDimStdPlant" xml:space="preserve">
+    <value>Plant / Site</value>
+  </data>
+  <data name="BomDimStdProductionLine" xml:space="preserve">
+    <value>Production Line</value>
+  </data>
+  <data name="BomDimStdMarket" xml:space="preserve">
+    <value>Target Market</value>
+  </data>
+  <data name="BomDimStdCustomer" xml:space="preserve">
+    <value>Customer</value>
+  </data>
+  <data name="BomDimStdManufacturingMethod" xml:space="preserve">
+    <value>Manufacturing Method</value>
+  </data>
+  <data name="UserAccountSubtitle" xml:space="preserve">
+    <value>User account</value>
+  </data>
 </root>

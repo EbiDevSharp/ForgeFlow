@@ -1,0 +1,20 @@
+# Slice 05 — Design Decisions (`05-item-catalog`)
+
+Status: **APPROVED (`05.0`)** (2026-11-10) — Decisions `Q-M01`–`Q-M04` approved by user; proceeding with `05A` (Units of Measure & Conversions).
+
+## Approved decisions (`Q-M01`–`Q-M04`)
+
+| ID | Question | Recommended default | Impact / rationale |
+|---|---|---|---|
+| `Q-M01` | **Phased delivery order**: Should we implement Slice 05 in three focused sub-increments (`05A`: **Units & Conversions** `/units` -> `05B`: **Item Catalog, Classifications & Attributes** `/items` -> `05C`: **Manufacturing BOM, Resolver & Explosion** `/boms`)? | **Yes (3 focused sub-increments: `05A` -> `05B` -> `05C`)** | Keeps each database migration, use-case suite, and Bit Blazor UI screen (`BitDataGrid`, `BitDialog`, `.resx` catalogs) small, thoroughly tested, and easy to inspect in the browser. |
+| `Q-M02` | **Organization ownership & Site applicability**: Follow the approved Slice 01 Ownership Matrix (`G02` in `01-organization-sites/decisions.md`) where `Units`, `UnitConversions`, `Items`, `ClassificationSets`/`Classifications`, `Attributes`, and `BOMs`/`BomVersions` are **Organization-shared** (`OrganizationId`), while `UnitDimension` is an immutable shipped enum/reference and `Site` (`PLANT`) is evaluated in `BomApplicability` / `ManufacturingContext`? | **Yes** | Matches `ForgeFlow.md` `FF-A002` and `01-organization-sites/decisions.md` `Q1`–`Q3`: prevents cross-tenant leakage with composite `(OrganizationId, Id)` keys while allowing multiple Sites inside one Organization to share the same Item/Unit/BOM master data and resolve site-specific BOM versions. |
+| `Q-M03` | **Granular permissions & Admin automatic access**: Add `Units.Read`, `Units.Manage`, `Items.Read`, `Items.Manage`, `Boms.Read`, `Boms.Manage` to `PermissionCatalog`, grant them automatically to built-in `OrganizationAdministrator` (`RoleId = 1`), and expose them in `/roles` and `/users` permission matrices? | **Yes** | Consistent with Slices 03 & 04: `OrganizationAdministrator` automatically gets full access to all new pages, while custom roles and direct user operation grants can be delegated per module. |
+| `Q-M04` | **Navigation structure in `MainLayout.razor`**: Group `/units`, `/items`, and `/boms` under a localized **Master Data & Engineering (`اطلاعات پایه و مهندسی` / `Master Data & Engineering`)** navigation group (which hides itself automatically if the user has zero `.Read` permissions in that group, just like `Settings`)? | **Yes** | Keeps the sidebar clean and organized as the application grows, and enforces the same parent-group visibility rule implemented for `Settings` in Slice 03. |
+
+## Established invariants carried into Slice 05
+
+1. **Canonical codes (`Code`)**: Trimmed uppercase ASCII (`1..32` chars, `[A-Z0-9][A-Z0-9_-]*`), immutable after creation, unique per `(OrganizationId, Code)`. Deactivated codes remain reserved.
+2. **Bilingual-friendly names (`Name`)**: Trimmed Unicode (`1..200` chars), preserving Persian and English text without auto-translation.
+3. **Decimal precision**: All quantities and conversion factors use `decimal(18,6)` in SQL Server and exact `decimal` arithmetic in Domain/Application (`Factor > 0`, `Quantity > 0`, `BaseOutputQuantity > 0`, `0 <= ScrapPercentage < 100`).
+4. **Immutable approved/active BOM versions (`Day 8` & `Day 9`)**: Only `Draft` BOM versions can have their header quantities, inputs, outputs, or applicability conditions mutated. Transitioning to `Approved` or `Active` validates completeness (`MainProduct` output present, positive quantities, valid unit conversions, no self-dependency) and locks structural edits; historical versions are never hard-deleted.
+5. **Atomic business audit (`FF-A005`)**: Every create, update, status transition, and activation/deactivation appends an `organization.OrganizationChange` row in the same database transaction with `ActorUserId`, `OrganizationId`, `EntityType`, `EntityId`, `ChangeType`, and structured `ChangeJson` (visible immediately in `/audit`).

@@ -1,7 +1,10 @@
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.Roles;
 using ForgeFlow.Application.Users;
+using ForgeFlow.Domain.Boms;
+using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
+using ForgeFlow.Domain.Units;
 using ForgeFlow.Infrastructure.Organizations;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -35,6 +38,22 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         model.HasDefaultSchema("auth");
         OrganizationModel.Configure(model);
         model.Ignore<OrganizationChange>();
+        model.Ignore<Unit>();
+        model.Ignore<UnitConversion>();
+        model.Ignore<ClassificationSet>();
+        model.Ignore<Classification>();
+        model.Ignore<Item>();
+        model.Ignore<ItemClassification>();
+        model.Ignore<ItemUnitConversion>();
+        model.Ignore<AttributeDefinition>();
+        model.Ignore<ItemAttributeValue>();
+        model.Ignore<ContextDimension>();
+        model.Ignore<Bom>();
+        model.Ignore<BomVersion>();
+        model.Ignore<BomInput>();
+        model.Ignore<BomOutput>();
+        model.Ignore<BomApplicability>();
+        model.Ignore<BomApplicabilityCondition>();
         model.Entity<Organization>().ToTable("Organization", "organization", t => t.ExcludeFromMigrations());
         model.Entity<Site>().ToTable("Site", "organization", t => t.ExcludeFromMigrations());
 

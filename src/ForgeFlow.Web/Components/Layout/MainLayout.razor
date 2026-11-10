@@ -77,6 +77,9 @@
             userScopes = await ReadScopes.LoadUserScopesAsync();
             roleScopes = await ReadScopes.LoadRoleScopesAsync();
             auditScopes = await ReadScopes.LoadAuditScopesAsync();
+            unitScopes = await ReadScopes.LoadUnitScopesAsync();
+            itemScopes = await ReadScopes.LoadItemScopesAsync();
+            bomScopes = await ReadScopes.LoadBomScopesAsync();
         }
         catch
         {
@@ -85,6 +88,9 @@
             userScopes = [];
             roleScopes = [];
             auditScopes = [];
+            unitScopes = [];
+            itemScopes = [];
+            bomScopes = [];
         }
         StateHasChanged();
     }
@@ -118,6 +124,9 @@
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> userScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> roleScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> auditScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> unitScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> itemScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> bomScopes = [];
 
     // The framework stylesheet ships only a few glyphs, so the shell uses its own CSS-mask icons (app.css, .ff-icon--*).
     private static BitIconInfo Icon(string name) => BitIconInfo.Css("ff-icon ff-icon--" + name);
@@ -131,11 +140,31 @@
             {
                 new() { Text = Text["Home"], AriaLabel = Text["Home"], Icon = Icon("home"), Url = "/", Match = BitNavMatch.Exact }
             };
+            var masterData = MasterDataItems;
+            if (masterData.Count > 0)
+            {
+                items.Add(new() { Text = Text["MasterDataNavGroup"], Icon = Icon("catalog"), IsExpanded = true, ChildItems = masterData });
+            }
             var settings = SettingsItems;
             if (settings.Count > 0)
             {
                 items.Add(new() { Text = Text["Settings"], Icon = Icon("settings"), IsExpanded = true, ChildItems = settings });
             }
+            return items;
+        }
+    }
+
+    private List<BitNavItem> MasterDataItems
+    {
+        get
+        {
+            var items = new List<BitNavItem>();
+            if (unitScopes.Count > 0)
+                items.Add(new() { Text = Text["Units"], Icon = Icon("units"), Url = "/units", Match = BitNavMatch.Exact });
+            if (itemScopes.Count > 0)
+                items.Add(new() { Text = Text["Items"], Icon = Icon("items"), Url = "/items", Match = BitNavMatch.Exact });
+            if (bomScopes.Count > 0)
+                items.Add(new() { Text = Text["Boms"], Icon = Icon("boms"), Url = "/boms", Match = BitNavMatch.Exact });
             return items;
         }
     }

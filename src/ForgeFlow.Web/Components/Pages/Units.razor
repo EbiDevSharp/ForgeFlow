@@ -1,0 +1,1382 @@
+@page "/units"
+@page "/organizations/{OrganizationId:long}/units"
+@using System.Globalization
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Units
+@using ForgeFlow.Web.Roles
+@inject UnitUseCases UnitService
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["Units"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="units-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="units-title">@Text["Units"]</h1>
+            <p class="write-hint">@Text["UnitsCaption"]</p>
+        </div>
+        @if (!initialLoading && pageError is null && available.Count > 0)
+        {
+            <div class="read-head-actions">
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-create-btn"
+                           OnClick="OpenConverter">@Text["UnitConverterButton"]</BitButton>
+                @if (scopeCanManage)
+                {
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-create-btn"
+                               IsEnabled="@(!seeding)" OnClick="SeedStandardUnitsAsync">@Text["UnitsSeedButton"]</BitButton>
+                    <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn"
+                               OnClick="OpenActiveCreate">
+                        @Text[activeTab == TabUnits ? "UnitCreateButton" : "UnitConversionCreateButton"]
+                    </BitButton>
+                }
+            </div>
+        }
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div class="read-state" role="alert">
+            <p>@Text[pageError]</p>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else
+    {
+        <div class="read-tab-bar" role="tablist" aria-label="@Text["Units"]">
+            <button type="button" role="tab" aria-selected="@(activeTab == TabUnits)"
+                    class="read-tab-btn @(activeTab == TabUnits ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabUnits)">@Text["UnitsTab"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabConversions)"
+                    class="read-tab-btn @(activeTab == TabConversions ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabConversions)">@Text["UnitConversionsTab"]</button>
+        </div>
+
+        <div class="read-toolbar-card">
+            @if (available.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="units-scope">@Text["ReadScope"]</label>
+                    <select id="units-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                        @for (var i = 0; i < available.Count; i++)
+                        {
+                            <option value="@i">@ScopeLabel(available[i])</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (activeTab == TabUnits)
+            {
+                <div class="read-field">
+                    <label for="units-dimension">@Text["UnitDimensionLabel"]</label>
+                    <select id="units-dimension" aria-label="@Text["UnitDimensionLabel"]" value="@dimensionFilter" @onchange="ChangeDimensionAsync">
+                        <option value="">@Text["UnitDimensionAll"]</option>
+                        @foreach (var dim in AllDimensions)
+                        {
+                            <option value="@((byte)dim)">@Text[DimensionResourceKey(dim)]</option>
+                        }
+                    </select>
+                </div>
+            }
+            else
+            {
+                <div class="read-field">
+                    <label for="conv-unit-filter">@Text["UnitsTab"]</label>
+                    <select id="conv-unit-filter" aria-label="@Text["UnitsTab"]" value="@conversionUnitFilter" @onchange="ChangeConversionUnitFilterAsync">
+                        <option value="">@Text["UnitFilterAll"]</option>
+                        @foreach (var u in activeUnits)
+                        {
+                            <option value="@u.Id">@FormatUnitOption(u)</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="read-field">
+                <label for="units-search">@Text["ReadSearch"]</label>
+                <input id="units-search" type="search" @bind="search" @bind:after="ApplySearchAsync"
+                       maxlength="100" placeholder="@Text["UnitSearchPlaceholder"]" />
+            </div>
+
+            <label class="read-inactive">
+                <input type="checkbox" @bind="includeInactive" @bind:after="ApplySearchAsync" /> @Text["ReadInactive"]
+            </label>
+        </div>
+
+        @if (activeTab == TabUnits)
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="unitsGrid" TItem="UnitSummary" OnRead="ReadUnitsGridAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="units-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="UnitSummary" Title="@Text["ReadCode"]">
+                                <Template Context="row"><bdi dir="ltr">@row.Code</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="UnitSummary" Title="@Text["ReadName"]">
+                                <Template Context="row">@row.Name</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="UnitSummary" Title="@Text["UnitSymbolLabel"]">
+                                <Template Context="row"><bdi dir="ltr">@row.Symbol</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="UnitSummary" Title="@Text["UnitDimensionLabel"]">
+                                <Template Context="row">
+                                    <span class="read-badge role">@Text[DimensionResourceKey(row.Dimension)]</span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="UnitSummary" Title="@Text["UnitPrecisionLabel"]">
+                                <Template Context="row"><bdi dir="ltr">@row.PrecisionScale</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="UnitSummary" Title="@Text["ReadStatus"]">
+                                <Template Context="row">
+                                    <span class="read-badge @(row.IsActive ? "active" : "inactive")">
+                                        @Text[row.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                                    </span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="UnitSummary" Title="@Text["ReadActions"]">
+                                <Template Context="row">
+                                    <div class="read-row-actions">
+                                        <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                       IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                                       OnClick="() => OpenUnitModal(row.Id, edit: false)" />
+                                        </BitTooltip>
+                                        @if (scopeCanManage)
+                                        {
+                                            <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                           Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                                           OnClick="() => OpenUnitModal(row.Id, edit: true)" />
+                                            </BitTooltip>
+                                        }
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="conversionsGrid" TItem="UnitConversionSummary" OnRead="ReadConversionsGridAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="units-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="UnitConversionSummary" Title="@Text["UnitConversionFromLabel"]">
+                                <Template Context="row">
+                                    <bdi dir="ltr">@row.FromUnitCode</bdi> — @row.FromUnitName (<bdi dir="ltr">@row.FromUnitSymbol</bdi>)
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="UnitConversionSummary" Title="@Text["UnitConversionToLabel"]">
+                                <Template Context="row">
+                                    <bdi dir="ltr">@row.ToUnitCode</bdi> — @row.ToUnitName (<bdi dir="ltr">@row.ToUnitSymbol</bdi>)
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="UnitConversionSummary" Title="@Text["UnitConversionFactorLabel"]">
+                                <Template Context="row">
+                                    <bdi dir="ltr">@FormatConversionFormula(row)</bdi>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="UnitConversionSummary" Title="@Text["ReadStatus"]">
+                                <Template Context="row">
+                                    <span class="read-badge @(row.IsActive ? "active" : "inactive")">
+                                        @Text[row.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                                    </span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="UnitConversionSummary" Title="@Text["ReadActions"]">
+                                <Template Context="row">
+                                    <div class="read-row-actions">
+                                        <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                       IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                                       OnClick="() => OpenConversionModal(row.Id, edit: false)" />
+                                        </BitTooltip>
+                                        @if (scopeCanManage)
+                                        {
+                                            <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                           Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                                           OnClick="() => OpenConversionModal(row.Id, edit: true)" />
+                                            </BitTooltip>
+                                        }
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+    }
+</section>
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="unitModalOpen"
+           OnDismissing="OnUnitModalDismissing"
+           Title="@Text[unitEditMode ? "UnitEditTitle" : "UnitDetailTitle"]"
+           AriaLabel="@Text[unitEditMode ? "UnitEditTitle" : "UnitDetailTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (selectedUnit is not null)
+        {
+            <div class="audit-modal-body">
+                @if (!unitEditMode)
+                {
+                    <div class="audit-modal-title-row">
+                        <strong class="audit-modal-code" dir="ltr">@selectedUnit.Code</strong>
+                        <span class="read-badge @(selectedUnit.IsActive ? "active" : "inactive")">
+                            @Text[selectedUnit.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </div>
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["ReadName"]</span>
+                            <span class="audit-meta-val">@selectedUnit.Name</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitSymbolLabel"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@selectedUnit.Symbol</bdi>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitDimensionLabel"]</span>
+                            <span class="audit-meta-val">@Text[DimensionResourceKey(selectedUnit.Dimension)]</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitPrecisionLabel"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@selectedUnit.PrecisionScale</bdi>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <form class="write-panel" @onsubmit:preventDefault>
+                        <div class="write-meta">
+                            <span class="write-code" dir="ltr">@selectedUnit.Code</span>
+                            <span class="read-badge @(selectedUnit.IsActive ? "active" : "inactive")">
+                                @Text[selectedUnit.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                            </span>
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-unit-name">@Text["ReadName"]</label>
+                            <input id="edit-unit-name" @bind="editUnitName" @bind:event="oninput" maxlength="200"
+                                   disabled="@(!selectedUnit.IsActive || unitSaving)" />
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-unit-symbol">@Text["UnitSymbolLabel"]</label>
+                            <input id="edit-unit-symbol" @bind="editUnitSymbol" @bind:event="oninput" maxlength="32"
+                                   disabled="@(!selectedUnit.IsActive || unitSaving)" />
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-unit-precision">@Text["UnitPrecisionLabel"]</label>
+                            <select id="edit-unit-precision" @bind="editUnitPrecision" disabled="@(!selectedUnit.IsActive || unitSaving)">
+                                @for (byte p = 0; p <= 6; p++)
+                                {
+                                    <option value="@p">@p</option>
+                                }
+                            </select>
+                        </div>
+
+                        @if (unitDiscardConfirm)
+                        {
+                            <div class="write-confirm" role="alertdialog" aria-labelledby="unit-discard-text">
+                                <p id="unit-discard-text">@Text["WriteDiscardConfirm"]</p>
+                                <div class="write-actions">
+                                    <BitButton Size="BitSize.Small" OnClick="ConfirmUnitDiscard">@Text["WriteDiscard"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => unitDiscardConfirm = false">@Text["WriteKeepEditing"]</BitButton>
+                                </div>
+                            </div>
+                        }
+
+                        @if (!unitDiscardConfirm && unitConfirmToggle is null)
+                        {
+                            <div class="write-actions">
+                                @if (selectedUnit.IsActive)
+                                {
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!unitSaving && UnitEditDirty)" OnClick="SubmitUnitUpdateAsync">@Text["WriteSave"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!unitSaving)" OnClick="() => unitConfirmToggle = false">@Text["WriteDeactivate"]</BitButton>
+                                }
+                                else
+                                {
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!unitSaving)" OnClick="() => unitConfirmToggle = true">@Text["WriteActivate"]</BitButton>
+                                }
+                            </div>
+                        }
+
+                        @if (unitConfirmToggle is bool targetActive)
+                        {
+                            <div class="write-confirm" role="alertdialog" aria-labelledby="unit-toggle-text">
+                                <p id="unit-toggle-text">@Text[targetActive ? "WriteConfirmActivate" : "WriteConfirmDeactivate", selectedUnit.Name]</p>
+                                <div class="write-actions">
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!unitSaving)" OnClick="ExecuteUnitToggleAsync">@Text["WriteConfirm"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!unitSaving)" OnClick="() => unitConfirmToggle = null">@Text["WriteCancel"]</BitButton>
+                                </div>
+                            </div>
+                        }
+
+                        @if (unitSaving) { <p role="status">@Text["WriteSaving"]</p> }
+                        @if (unitSaved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+                        @if (unitError is not null)
+                        {
+                            <p role="alert" class="write-error">@Text[unitError]</p>
+                            @if (unitError is "WriteConflict" or "WriteOutcomeUnknown")
+                            {
+                                <div class="write-actions">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadSelectedUnitAsync">@Text["WriteReload"]</BitButton>
+                                </div>
+                            }
+                        }
+                    </form>
+                }
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createUnitOpen"
+           OnDismissing="OnCreateUnitDismissing"
+           Title="@Text["UnitCreateTitle"]" AriaLabel="@Text["UnitCreateTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            <form class="write-panel" @onsubmit:preventDefault>
+                <div class="read-field">
+                    <label for="create-unit-code">@Text["ReadCode"]</label>
+                    <input id="create-unit-code" @bind="createUnitCode" @bind:event="oninput" maxlength="32"
+                           disabled="@unitSaving" aria-describedby="create-unit-code-hint" />
+                    <span id="create-unit-code-hint" class="write-hint">@Text["CreateCodeHint"]</span>
+                </div>
+                <div class="read-field">
+                    <label for="create-unit-name">@Text["ReadName"]</label>
+                    <input id="create-unit-name" @bind="createUnitName" @bind:event="oninput" maxlength="200" disabled="@unitSaving" />
+                </div>
+                <div class="read-field">
+                    <label for="create-unit-symbol">@Text["UnitSymbolLabel"]</label>
+                    <input id="create-unit-symbol" @bind="createUnitSymbol" @bind:event="oninput" maxlength="32" disabled="@unitSaving" />
+                </div>
+                <div class="read-field">
+                    <label for="create-unit-dimension">@Text["UnitDimensionLabel"]</label>
+                    <select id="create-unit-dimension" @bind="createUnitDimension" disabled="@unitSaving">
+                        @foreach (var dim in AllDimensions)
+                        {
+                            <option value="@dim">@Text[DimensionResourceKey(dim)]</option>
+                        }
+                    </select>
+                </div>
+                <div class="read-field">
+                    <label for="create-unit-precision">@Text["UnitPrecisionLabel"]</label>
+                    <select id="create-unit-precision" @bind="createUnitPrecision" disabled="@unitSaving">
+                        @for (byte p = 0; p <= 6; p++)
+                        {
+                            <option value="@p">@p</option>
+                        }
+                    </select>
+                </div>
+
+                @if (createUnitDiscardConfirm)
+                {
+                    <div class="write-confirm" role="alertdialog" aria-labelledby="create-unit-discard-text">
+                        <p id="create-unit-discard-text">@Text["WriteDiscardConfirm"]</p>
+                        <div class="write-actions">
+                            <BitButton Size="BitSize.Small" OnClick="ConfirmCreateUnitDiscard">@Text["WriteDiscard"]</BitButton>
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => createUnitDiscardConfirm = false">@Text["WriteKeepEditing"]</BitButton>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="write-actions">
+                        <BitButton Size="BitSize.Small" IsEnabled="@(!unitSaving && !string.IsNullOrWhiteSpace(createUnitCode) && !string.IsNullOrWhiteSpace(createUnitName) && !string.IsNullOrWhiteSpace(createUnitSymbol))"
+                                   OnClick="SubmitCreateUnitAsync">@Text["CreateSubmit"]</BitButton>
+                    </div>
+                }
+
+                @if (unitSaving) { <p role="status">@Text["WriteSaving"]</p> }
+                @if (unitError is not null) { <p role="alert" class="write-error">@Text[unitError]</p> }
+            </form>
+        </div>
+    </Body>
+</BitDialog>
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="conversionModalOpen"
+           OnDismissing="OnConversionModalDismissing"
+           Title="@Text[conversionEditMode ? "UnitConversionEditTitle" : "UnitConversionDetailTitle"]"
+           AriaLabel="@Text[conversionEditMode ? "UnitConversionEditTitle" : "UnitConversionDetailTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (selectedConversion is not null)
+        {
+            <div class="audit-modal-body">
+                @if (!conversionEditMode)
+                {
+                    <div class="audit-modal-title-row">
+                        <strong class="audit-modal-code" dir="ltr">@FormatConversionFormula(selectedConversion)</strong>
+                        <span class="read-badge @(selectedConversion.IsActive ? "active" : "inactive")">
+                            @Text[selectedConversion.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </div>
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitConversionFromLabel"]</span>
+                            <span class="audit-meta-val">@selectedConversion.FromUnitCode — @selectedConversion.FromUnitName</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitConversionToLabel"]</span>
+                            <span class="audit-meta-val">@selectedConversion.ToUnitCode — @selectedConversion.ToUnitName</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitConversionFactorLabel"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@selectedConversion.Factor.ToString("0.######", CultureInfo.InvariantCulture)</bdi>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <form class="write-panel" @onsubmit:preventDefault>
+                        <div class="write-meta">
+                            <span class="write-code" dir="ltr">@selectedConversion.FromUnitCode → @selectedConversion.ToUnitCode</span>
+                            <span class="read-badge @(selectedConversion.IsActive ? "active" : "inactive")">
+                                @Text[selectedConversion.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                            </span>
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-conv-factor">@Text["UnitConversionFactorLabel"]</label>
+                            <input id="edit-conv-factor" type="number" step="0.000001" min="0.000001"
+                                   @bind="editConversionFactorText" @bind:event="oninput"
+                                   disabled="@(!selectedConversion.IsActive || conversionSaving)" />
+                        </div>
+
+                        @if (conversionDiscardConfirm)
+                        {
+                            <div class="write-confirm" role="alertdialog" aria-labelledby="conv-discard-text">
+                                <p id="conv-discard-text">@Text["WriteDiscardConfirm"]</p>
+                                <div class="write-actions">
+                                    <BitButton Size="BitSize.Small" OnClick="ConfirmConversionDiscard">@Text["WriteDiscard"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => conversionDiscardConfirm = false">@Text["WriteKeepEditing"]</BitButton>
+                                </div>
+                            </div>
+                        }
+
+                        @if (!conversionDiscardConfirm && conversionConfirmToggle is null)
+                        {
+                            <div class="write-actions">
+                                @if (selectedConversion.IsActive)
+                                {
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!conversionSaving && ConversionEditDirty)" OnClick="SubmitConversionUpdateAsync">@Text["WriteSave"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!conversionSaving)" OnClick="() => conversionConfirmToggle = false">@Text["WriteDeactivate"]</BitButton>
+                                }
+                                else
+                                {
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!conversionSaving)" OnClick="() => conversionConfirmToggle = true">@Text["WriteActivate"]</BitButton>
+                                }
+                            </div>
+                        }
+
+                        @if (conversionConfirmToggle is bool targetActive)
+                        {
+                            <div class="write-confirm" role="alertdialog" aria-labelledby="conv-toggle-text">
+                                <p id="conv-toggle-text">@Text[targetActive ? "WriteConfirmActivate" : "WriteConfirmDeactivate", FormatConversionFormula(selectedConversion)]</p>
+                                <div class="write-actions">
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!conversionSaving)" OnClick="ExecuteConversionToggleAsync">@Text["WriteConfirm"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!conversionSaving)" OnClick="() => conversionConfirmToggle = null">@Text["WriteCancel"]</BitButton>
+                                </div>
+                            </div>
+                        }
+
+                        @if (conversionSaving) { <p role="status">@Text["WriteSaving"]</p> }
+                        @if (conversionSaved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+                        @if (conversionError is not null)
+                        {
+                            <p role="alert" class="write-error">@Text[conversionError]</p>
+                            @if (conversionError is "WriteConflict" or "WriteOutcomeUnknown")
+                            {
+                                <div class="write-actions">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadSelectedConversionAsync">@Text["WriteReload"]</BitButton>
+                                </div>
+                            }
+                        }
+                    </form>
+                }
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createConversionOpen"
+           OnDismissing="OnCreateConversionDismissing"
+           Title="@Text["UnitConversionCreateTitle"]" AriaLabel="@Text["UnitConversionCreateTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            <form class="write-panel" @onsubmit:preventDefault>
+                <div class="read-field">
+                    <label for="create-conv-from">@Text["UnitConversionFromLabel"]</label>
+                    <select id="create-conv-from" @bind="createFromUnitId" disabled="@conversionSaving">
+                        @foreach (var u in activeUnits)
+                        {
+                            <option value="@u.Id">@FormatUnitOption(u)</option>
+                        }
+                    </select>
+                </div>
+                <div class="read-field">
+                    <label for="create-conv-to">@Text["UnitConversionToLabel"]</label>
+                    <select id="create-conv-to" @bind="createToUnitId" disabled="@conversionSaving">
+                        @foreach (var u in activeUnits)
+                        {
+                            <option value="@u.Id">@FormatUnitOption(u)</option>
+                        }
+                    </select>
+                </div>
+                <div class="read-field">
+                    <label for="create-conv-factor">@Text["UnitConversionFactorLabel"]</label>
+                    <input id="create-conv-factor" type="number" step="0.000001" min="0.000001"
+                           @bind="createConversionFactorText" @bind:event="oninput" disabled="@conversionSaving" />
+                </div>
+
+                @if (TryFormatDraftFormula() is string formula)
+                {
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitConversionRelationLabel"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@formula</bdi>
+                        </div>
+                    </div>
+                }
+
+                @if (createConversionDiscardConfirm)
+                {
+                    <div class="write-confirm" role="alertdialog" aria-labelledby="create-conv-discard-text">
+                        <p id="create-conv-discard-text">@Text["WriteDiscardConfirm"]</p>
+                        <div class="write-actions">
+                            <BitButton Size="BitSize.Small" OnClick="ConfirmCreateConversionDiscard">@Text["WriteDiscard"]</BitButton>
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => createConversionDiscardConfirm = false">@Text["WriteKeepEditing"]</BitButton>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="write-actions">
+                        <BitButton Size="BitSize.Small" IsEnabled="@(!conversionSaving && createFromUnitId > 0 && createToUnitId > 0 && !string.IsNullOrWhiteSpace(createConversionFactorText))"
+                                   OnClick="SubmitCreateConversionAsync">@Text["CreateSubmit"]</BitButton>
+                    </div>
+                }
+
+                @if (conversionSaving) { <p role="status">@Text["WriteSaving"]</p> }
+                @if (conversionError is not null) { <p role="alert" class="write-error">@Text[conversionError]</p> }
+            </form>
+        </div>
+    </Body>
+</BitDialog>
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="converterOpen"
+           Title="@Text["UnitConverterTitle"]" AriaLabel="@Text["UnitConverterTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            <form class="write-panel" @onsubmit:preventDefault>
+                <div class="read-field">
+                    <label for="calc-qty">@Text["UnitConverterQuantityLabel"]</label>
+                    <input id="calc-qty" type="number" step="0.000001" min="0.000001" @bind="calcQuantityText" @bind:event="oninput" />
+                </div>
+                <div class="read-field">
+                    <label for="calc-from">@Text["UnitConversionFromLabel"]</label>
+                    <select id="calc-from" @bind="calcFromUnitId">
+                        @foreach (var u in activeUnits)
+                        {
+                            <option value="@u.Id">@FormatUnitOption(u)</option>
+                        }
+                    </select>
+                </div>
+                <div class="read-field">
+                    <label for="calc-to">@Text["UnitConversionToLabel"]</label>
+                    <select id="calc-to" @bind="calcToUnitId">
+                        @foreach (var u in activeUnits)
+                        {
+                            <option value="@u.Id">@FormatUnitOption(u)</option>
+                        }
+                    </select>
+                </div>
+                <div class="write-actions">
+                    <BitButton Size="BitSize.Small" IsEnabled="@(!calculating && calcFromUnitId > 0 && calcToUnitId > 0)"
+                               OnClick="CalculateConversionAsync">@Text["UnitConverterCalculate"]</BitButton>
+                </div>
+
+                @if (calcError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[calcError]</p>
+                }
+                else if (calcResult is not null)
+                {
+                    <div class="converter-result-card" role="status">
+                        <span class="converter-formula">@FormatCalculatedEquation()</span>
+                        <span class="converter-meta">
+                            @Text["UnitConverterHops", calcResult.Hops, calcResult.EffectiveFactor.ToString("0.######", CultureInfo.InvariantCulture)]
+                        </span>
+                    </div>
+                }
+            </form>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public long? OrganizationId { get; set; }
+
+    private const byte TabUnits = 0;
+    private const byte TabConversions = 1;
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+    private static readonly UnitDimension[] AllDimensions = Enum.GetValues<UnitDimension>();
+    private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+
+    private BitDataGrid<UnitSummary>? unitsGrid;
+    private BitDataGrid<UnitConversionSummary>? conversionsGrid;
+    private IReadOnlyList<OrganizationScope> available = [];
+    private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
+        new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+    private List<UnitSummary> activeUnits = [];
+    private int scopeIndex;
+    private byte activeTab = TabUnits;
+    private bool scopeCanManage;
+    private bool initialLoading = true;
+    private bool seeding;
+    private string? pageError;
+    private string? pageNotice;
+
+    private string dimensionFilter = string.Empty;
+    private string conversionUnitFilter = string.Empty;
+    private string search = string.Empty;
+    private bool includeInactive;
+
+    private bool unitModalOpen;
+    private bool unitEditMode;
+    private bool unitSaving;
+    private bool unitSaved;
+    private bool unitDiscardConfirm;
+    private bool? unitConfirmToggle;
+    private string? unitError;
+    private UnitSummary? selectedUnit;
+    private string editUnitName = string.Empty;
+    private string editUnitSymbol = string.Empty;
+    private byte editUnitPrecision;
+
+    private bool createUnitOpen;
+    private bool createUnitDiscardConfirm;
+    private string createUnitCode = string.Empty;
+    private string createUnitName = string.Empty;
+    private string createUnitSymbol = string.Empty;
+    private UnitDimension createUnitDimension = UnitDimension.Mass;
+    private byte createUnitPrecision = 3;
+
+    private bool conversionModalOpen;
+    private bool conversionEditMode;
+    private bool conversionSaving;
+    private bool conversionSaved;
+    private bool conversionDiscardConfirm;
+    private bool? conversionConfirmToggle;
+    private string? conversionError;
+    private UnitConversionSummary? selectedConversion;
+    private string editConversionFactorText = string.Empty;
+
+    private bool createConversionOpen;
+    private bool createConversionDiscardConfirm;
+    private long createFromUnitId;
+    private long createToUnitId;
+    private string createConversionFactorText = "1";
+
+    private bool converterOpen;
+    private bool calculating;
+    private long calcFromUnitId;
+    private long calcToUnitId;
+    private string calcQuantityText = "1";
+    private UnitConversionPreviewResult? calcResult;
+    private string? calcError;
+
+    private OrganizationScope? CurrentScope => scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
+    private long CurrentOrgId => CurrentScope switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site s => s.OrganizationId,
+        _ => 0
+    };
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["Units"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    private bool UnitEditDirty => selectedUnit is not null && selectedUnit.IsActive
+        && (editUnitName.Trim() != selectedUnit.Name
+            || editUnitSymbol.Trim() != selectedUnit.Symbol
+            || editUnitPrecision != selectedUnit.PrecisionScale);
+
+    private bool ConversionEditDirty => selectedConversion is not null && selectedConversion.IsActive
+        && TryParseFactor(editConversionFactorText, out var parsed)
+        && parsed != selectedConversion.Factor;
+
+    protected override async Task OnParametersSetAsync() => await LoadAllAsync();
+
+    private async Task LoadAllAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        pageNotice = null;
+        try
+        {
+            available = await Scopes.LoadUnitScopesAsync();
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+        }
+        catch when (OrganizationId is long requestedOrgId)
+        {
+            available = [new OrganizationScope.Organization(requestedOrgId)];
+        }
+        catch
+        {
+            pageError = "ReadError";
+            initialLoading = false;
+            return;
+        }
+
+        if (available.Count == 0)
+        {
+            if (OrganizationId is long requestedOrgId)
+            {
+                available = [new OrganizationScope.Organization(requestedOrgId)];
+                scopeIndex = 0;
+            }
+            else
+            {
+                pageError = "ReadDenied";
+                initialLoading = false;
+                return;
+            }
+        }
+        else if (OrganizationId is long orgId)
+        {
+            var matchIdx = -1;
+            for (var i = 0; i < available.Count; i++)
+            {
+                var scopeOrg = available[i] switch
+                {
+                    OrganizationScope.Organization o => o.OrganizationId,
+                    OrganizationScope.Site s => s.OrganizationId,
+                    _ => 0
+                };
+                if (scopeOrg == orgId)
+                {
+                    matchIdx = i;
+                    break;
+                }
+            }
+            if (matchIdx >= 0) scopeIndex = matchIdx;
+            else
+            {
+                available = [new OrganizationScope.Organization(orgId)];
+                scopeIndex = 0;
+            }
+        }
+        else
+        {
+            scopeIndex = Math.Clamp(scopeIndex, 0, available.Count - 1);
+        }
+
+        await RefreshScopePermissionsAndUnitsAsync();
+        initialLoading = false;
+    }
+
+    private async Task RefreshScopePermissionsAndUnitsAsync()
+    {
+        scopeCanManage = false;
+        activeUnits = [];
+        if (CurrentScope is null || CurrentOrgId <= 0) return;
+
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is not null && CurrentScope is OrganizationScope.Organization orgScope)
+            scopeCanManage = (await Permissions.EvaluateAsync(actor, orgScope, UnitPermissions.UnitsManage, default)).IsAllowed;
+
+        var probe = await UnitService.ListUnits(CurrentScope, CurrentOrgId, new UnitListQuery(null, null, false, 1, 1));
+        if (!probe.Succeeded)
+        {
+            pageError = RolePermissionLocalization.FailureKey(probe.Error!.Code);
+            return;
+        }
+
+        var activeRes = await UnitService.ListActiveUnits(CurrentScope, CurrentOrgId);
+        if (activeRes.Succeeded && activeRes.Value is not null)
+        {
+            activeUnits = activeRes.Value.ToList();
+            if (activeUnits.Count >= 2)
+            {
+                if (createFromUnitId == 0 || activeUnits.All(u => u.Id != createFromUnitId)) createFromUnitId = activeUnits[0].Id;
+                if (createToUnitId == 0 || activeUnits.All(u => u.Id != createToUnitId)) createToUnitId = activeUnits[1].Id;
+                if (calcFromUnitId == 0 || activeUnits.All(u => u.Id != calcFromUnitId)) calcFromUnitId = activeUnits[0].Id;
+                if (calcToUnitId == 0 || activeUnits.All(u => u.Id != calcToUnitId)) calcToUnitId = activeUnits[1].Id;
+            }
+            else if (activeUnits.Count == 1)
+            {
+                createFromUnitId = createToUnitId = calcFromUnitId = calcToUnitId = activeUnits[0].Id;
+            }
+        }
+    }
+
+    private async Task ReloadScopeAsync() => await LoadAllAsync();
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx) && idx >= 0 && idx < available.Count)
+        {
+            scopeIndex = idx;
+            pageError = null;
+            pageNotice = null;
+            await RefreshScopePermissionsAndUnitsAsync();
+            await RefreshActiveGridAsync();
+        }
+    }
+
+    private async Task SwitchTabAsync(byte tab)
+    {
+        if (activeTab == tab) return;
+        activeTab = tab;
+        pageNotice = null;
+        await RefreshActiveGridAsync();
+    }
+
+    private async Task ChangeDimensionAsync(ChangeEventArgs e)
+    {
+        dimensionFilter = e.Value?.ToString() ?? string.Empty;
+        await RefreshActiveGridAsync();
+    }
+
+    private async Task ChangeConversionUnitFilterAsync(ChangeEventArgs e)
+    {
+        conversionUnitFilter = e.Value?.ToString() ?? string.Empty;
+        await RefreshActiveGridAsync();
+    }
+
+    private Task ApplySearchAsync() => RefreshActiveGridAsync();
+
+    private Task RefreshActiveGridAsync() => activeTab == TabUnits
+        ? ReloadUnitsFromFirstPageAsync()
+        : ReloadConversionsFromFirstPageAsync();
+
+    private async Task ReloadUnitsFromFirstPageAsync()
+    {
+        if (unitsGrid is null) return;
+        if (unitsGrid.CurrentPage <= 1) await unitsGrid.RefreshAsync();
+        else await unitsGrid.GoToPageAsync(1);
+    }
+
+    private async Task ReloadConversionsFromFirstPageAsync()
+    {
+        if (conversionsGrid is null) return;
+        if (conversionsGrid.CurrentPage <= 1) await conversionsGrid.RefreshAsync();
+        else await conversionsGrid.GoToPageAsync(1);
+    }
+
+    private async Task<BitDataGridReadResult<UnitSummary>> ReadUnitsGridAsync(BitDataGridReadRequest req)
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0)
+            return new([], 0);
+
+        UnitDimension? dim = byte.TryParse(dimensionFilter, NumberStyles.Integer, CultureInfo.InvariantCulture, out var d)
+            && Enum.IsDefined(typeof(UnitDimension), d)
+            ? (UnitDimension)d
+            : null;
+
+        var pageSize = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / pageSize) + 1;
+        var res = await UnitService.ListUnits(CurrentScope, CurrentOrgId, new UnitListQuery(search, dim, includeInactive, page, pageSize), req.CancellationToken);
+        if (!res.Succeeded || res.Value is null)
+            return new([], 0);
+
+        return new(res.Value.Items.ToList(), res.Value.Total);
+    }
+
+    private async Task<BitDataGridReadResult<UnitConversionSummary>> ReadConversionsGridAsync(BitDataGridReadRequest req)
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0)
+            return new([], 0);
+
+        long? unitId = long.TryParse(conversionUnitFilter, NumberStyles.Integer, CultureInfo.InvariantCulture, out var uid) && uid > 0 ? uid : null;
+        var pageSize = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / pageSize) + 1;
+        var res = await UnitService.ListConversions(CurrentScope, CurrentOrgId, new UnitConversionListQuery(unitId, search, includeInactive, page, pageSize), req.CancellationToken);
+        if (!res.Succeeded || res.Value is null)
+            return new([], 0);
+
+        return new(res.Value.Items.ToList(), res.Value.Total);
+    }
+
+    private void OpenActiveCreate()
+    {
+        if (activeTab == TabUnits) OpenCreateUnit();
+        else OpenCreateConversion();
+    }
+
+    private void OpenCreateUnit()
+    {
+        createUnitCode = string.Empty;
+        createUnitName = string.Empty;
+        createUnitSymbol = string.Empty;
+        createUnitDimension = UnitDimension.Mass;
+        createUnitPrecision = 3;
+        unitError = null;
+        createUnitDiscardConfirm = false;
+        createUnitOpen = true;
+    }
+
+    private void OpenCreateConversion()
+    {
+        conversionError = null;
+        createConversionFactorText = "1";
+        createConversionDiscardConfirm = false;
+        if (activeUnits.Count >= 2 && createFromUnitId == createToUnitId)
+        {
+            createFromUnitId = activeUnits[0].Id;
+            createToUnitId = activeUnits[1].Id;
+        }
+        createConversionOpen = true;
+    }
+
+    private void OpenConverter()
+    {
+        calcError = null;
+        calcResult = null;
+        if (activeUnits.Count >= 2 && calcFromUnitId == calcToUnitId)
+        {
+            calcFromUnitId = activeUnits[0].Id;
+            calcToUnitId = activeUnits[1].Id;
+        }
+        converterOpen = true;
+    }
+
+    private async Task OpenUnitModal(long id, bool edit)
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0) return;
+        unitSaving = false;
+        unitSaved = false;
+        unitDiscardConfirm = false;
+        unitConfirmToggle = null;
+        unitError = null;
+
+        var res = await UnitService.GetUnit(CurrentScope, CurrentOrgId, id);
+        if (!res.Succeeded || res.Value is null)
+        {
+            pageNotice = null;
+            pageError = res.Succeeded ? "ReadNotFound" : RolePermissionLocalization.FailureKey(res.Error!.Code);
+            return;
+        }
+
+        ApplySelectedUnit(res.Value);
+        unitEditMode = edit && scopeCanManage;
+        unitModalOpen = true;
+    }
+
+    private void ApplySelectedUnit(UnitSummary unit)
+    {
+        selectedUnit = unit;
+        editUnitName = unit.Name;
+        editUnitSymbol = unit.Symbol;
+        editUnitPrecision = unit.PrecisionScale;
+    }
+
+    private async Task SubmitCreateUnitAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || unitSaving) return;
+        unitSaving = true;
+        unitError = null;
+        try
+        {
+            var res = await UnitService.CreateUnit(CurrentScope, new CreateUnitRequest(
+                CurrentOrgId, createUnitCode, createUnitName, createUnitSymbol, createUnitDimension, createUnitPrecision));
+            if (!res.Succeeded || res.Value is null)
+            {
+                unitError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            createUnitOpen = false;
+            pageNotice = Text["UnitCreatedSucceeded", res.Value.Code];
+            await RefreshScopePermissionsAndUnitsAsync();
+            await RefreshActiveGridAsync();
+        }
+        finally
+        {
+            unitSaving = false;
+        }
+    }
+
+    private async Task SubmitUnitUpdateAsync()
+    {
+        if (CurrentScope is null || selectedUnit is null || unitSaving) return;
+        unitSaving = true;
+        unitSaved = false;
+        unitError = null;
+        try
+        {
+            var res = await UnitService.UpdateUnit(CurrentScope, new UpdateUnitRequest(
+                selectedUnit.OrganizationId, selectedUnit.Id, editUnitName, editUnitSymbol, editUnitPrecision, selectedUnit.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                unitError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            ApplySelectedUnit(res.Value);
+            unitSaved = true;
+            await RefreshScopePermissionsAndUnitsAsync();
+            await RefreshActiveGridAsync();
+        }
+        finally
+        {
+            unitSaving = false;
+        }
+    }
+
+    private async Task ExecuteUnitToggleAsync()
+    {
+        if (CurrentScope is null || selectedUnit is null || unitConfirmToggle is not bool target || unitSaving) return;
+        unitSaving = true;
+        unitSaved = false;
+        unitError = null;
+        try
+        {
+            var res = await UnitService.SetUnitActive(CurrentScope, new SetUnitActiveRequest(
+                selectedUnit.OrganizationId, selectedUnit.Id, target, selectedUnit.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                unitConfirmToggle = null;
+                unitError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            ApplySelectedUnit(res.Value);
+            unitConfirmToggle = null;
+            unitSaved = true;
+            await RefreshScopePermissionsAndUnitsAsync();
+            await RefreshActiveGridAsync();
+        }
+        finally
+        {
+            unitSaving = false;
+        }
+    }
+
+    private async Task ReloadSelectedUnitAsync()
+    {
+        if (CurrentScope is null || selectedUnit is null) return;
+        await OpenUnitModal(selectedUnit.Id, unitEditMode);
+    }
+
+    private async Task OpenConversionModal(long id, bool edit)
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0) return;
+        conversionSaving = false;
+        conversionSaved = false;
+        conversionDiscardConfirm = false;
+        conversionConfirmToggle = null;
+        conversionError = null;
+
+        var res = await UnitService.GetConversion(CurrentScope, CurrentOrgId, id);
+        if (!res.Succeeded || res.Value is null)
+        {
+            pageNotice = null;
+            pageError = res.Succeeded ? "ReadNotFound" : RolePermissionLocalization.FailureKey(res.Error!.Code);
+            return;
+        }
+
+        ApplySelectedConversion(res.Value);
+        conversionEditMode = edit && scopeCanManage;
+        conversionModalOpen = true;
+    }
+
+    private void ApplySelectedConversion(UnitConversionSummary conversion)
+    {
+        selectedConversion = conversion;
+        editConversionFactorText = conversion.Factor.ToString("0.######", CultureInfo.InvariantCulture);
+    }
+
+    private async Task SubmitCreateConversionAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || conversionSaving) return;
+        if (!TryParseFactor(createConversionFactorText, out var factor))
+        {
+            conversionError = RolePermissionLocalization.FailureKey(UnitErrors.ConversionFactorInvalid);
+            return;
+        }
+        conversionSaving = true;
+        conversionError = null;
+        try
+        {
+            var res = await UnitService.CreateConversion(CurrentScope, new CreateUnitConversionRequest(
+                CurrentOrgId, createFromUnitId, createToUnitId, factor));
+            if (!res.Succeeded || res.Value is null)
+            {
+                conversionError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            createConversionOpen = false;
+            pageNotice = Text["UnitConversionCreatedSucceeded"];
+            await RefreshActiveGridAsync();
+        }
+        finally
+        {
+            conversionSaving = false;
+        }
+    }
+
+    private async Task SubmitConversionUpdateAsync()
+    {
+        if (CurrentScope is null || selectedConversion is null || conversionSaving) return;
+        if (!TryParseFactor(editConversionFactorText, out var factor))
+        {
+            conversionError = RolePermissionLocalization.FailureKey(UnitErrors.ConversionFactorInvalid);
+            return;
+        }
+        conversionSaving = true;
+        conversionSaved = false;
+        conversionError = null;
+        try
+        {
+            var res = await UnitService.UpdateConversionFactor(CurrentScope, new UpdateUnitConversionFactorRequest(
+                selectedConversion.OrganizationId, selectedConversion.Id, factor, selectedConversion.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                conversionError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            ApplySelectedConversion(res.Value);
+            conversionSaved = true;
+            await RefreshActiveGridAsync();
+        }
+        finally
+        {
+            conversionSaving = false;
+        }
+    }
+
+    private async Task ExecuteConversionToggleAsync()
+    {
+        if (CurrentScope is null || selectedConversion is null || conversionConfirmToggle is not bool target || conversionSaving) return;
+        conversionSaving = true;
+        conversionSaved = false;
+        conversionError = null;
+        try
+        {
+            var res = await UnitService.SetConversionActive(CurrentScope, new SetUnitConversionActiveRequest(
+                selectedConversion.OrganizationId, selectedConversion.Id, target, selectedConversion.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                conversionConfirmToggle = null;
+                conversionError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            ApplySelectedConversion(res.Value);
+            conversionConfirmToggle = null;
+            conversionSaved = true;
+            await RefreshActiveGridAsync();
+        }
+        finally
+        {
+            conversionSaving = false;
+        }
+    }
+
+    private async Task ReloadSelectedConversionAsync()
+    {
+        if (CurrentScope is null || selectedConversion is null) return;
+        await OpenConversionModal(selectedConversion.Id, conversionEditMode);
+    }
+
+    private async Task SeedStandardUnitsAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || seeding || !scopeCanManage) return;
+        seeding = true;
+        pageNotice = null;
+        pageError = null;
+        try
+        {
+            var res = await UnitService.SeedStandardUnits(CurrentScope, CurrentOrgId);
+            if (!res.Succeeded || res.Value is null)
+            {
+                pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            pageNotice = Text["UnitsSeededNotice", res.Value.UnitsCreated, res.Value.ConversionsCreated];
+            await RefreshScopePermissionsAndUnitsAsync();
+            await RefreshActiveGridAsync();
+        }
+        finally
+        {
+            seeding = false;
+        }
+    }
+
+    private async Task CalculateConversionAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || calculating) return;
+        calcError = null;
+        calcResult = null;
+        if (!TryParseFactor(calcQuantityText, out var qty))
+        {
+            calcError = RolePermissionLocalization.FailureKey(UnitErrors.ConversionQuantityInvalid);
+            return;
+        }
+        calculating = true;
+        try
+        {
+            var res = await UnitService.PreviewConversion(CurrentScope, new ConvertQuantityRequest(
+                CurrentOrgId, calcFromUnitId, calcToUnitId, qty));
+            if (!res.Succeeded || res.Value is null)
+            {
+                calcError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            calcResult = res.Value;
+        }
+        finally
+        {
+            calculating = false;
+        }
+    }
+
+    private void OnUnitModalDismissing(BitDialogDismissArgs args)
+    {
+        if (!unitEditMode || !UnitEditDirty || unitSaving) return;
+        args.Cancel = true;
+        unitDiscardConfirm = true;
+    }
+
+    private void ConfirmUnitDiscard()
+    {
+        unitDiscardConfirm = false;
+        unitModalOpen = false;
+    }
+
+    private void OnCreateUnitDismissing(BitDialogDismissArgs args)
+    {
+        if (unitSaving) return;
+        if (string.IsNullOrWhiteSpace(createUnitCode) && string.IsNullOrWhiteSpace(createUnitName) && string.IsNullOrWhiteSpace(createUnitSymbol))
+            return;
+        args.Cancel = true;
+        createUnitDiscardConfirm = true;
+    }
+
+    private void ConfirmCreateUnitDiscard()
+    {
+        createUnitDiscardConfirm = false;
+        createUnitOpen = false;
+    }
+
+    private void OnConversionModalDismissing(BitDialogDismissArgs args)
+    {
+        if (!conversionEditMode || !ConversionEditDirty || conversionSaving) return;
+        args.Cancel = true;
+        conversionDiscardConfirm = true;
+    }
+
+    private void ConfirmConversionDiscard()
+    {
+        conversionDiscardConfirm = false;
+        conversionModalOpen = false;
+    }
+
+    private void OnCreateConversionDismissing(BitDialogDismissArgs args)
+    {
+        if (conversionSaving || createConversionFactorText == "1") return;
+        args.Cancel = true;
+        createConversionDiscardConfirm = true;
+    }
+
+    private void ConfirmCreateConversionDiscard()
+    {
+        createConversionDiscardConfirm = false;
+        createConversionOpen = false;
+    }
+
+    private string? TryFormatDraftFormula()
+    {
+        var from = activeUnits.FirstOrDefault(u => u.Id == createFromUnitId);
+        var to = activeUnits.FirstOrDefault(u => u.Id == createToUnitId);
+        if (from is null || to is null || !TryParseFactor(createConversionFactorText, out var factor)) return null;
+        return $"1 {from.Symbol} = {factor.ToString("0.######", CultureInfo.InvariantCulture)} {to.Symbol}";
+    }
+
+    private string FormatCalculatedEquation()
+    {
+        if (calcResult is null) return string.Empty;
+        var fromSym = activeUnits.FirstOrDefault(u => u.Id == calcResult.FromUnitId)?.Symbol ?? "#";
+        var toSym = activeUnits.FirstOrDefault(u => u.Id == calcResult.ToUnitId)?.Symbol ?? "#";
+        return $"{calcResult.InputQuantity.ToString("0.######", CultureInfo.InvariantCulture)} {fromSym} = {calcResult.ConvertedQuantity.ToString("0.######", CultureInfo.InvariantCulture)} {toSym}";
+    }
+
+    private static string FormatConversionFormula(UnitConversionSummary row)
+        => $"1 {row.FromUnitSymbol} = {row.Factor.ToString("0.######", CultureInfo.InvariantCulture)} {row.ToUnitSymbol}";
+
+    private static string FormatUnitOption(UnitSummary u) => $"{u.Code} — {u.Name} ({u.Symbol})";
+
+    private static bool TryParseFactor(string? raw, out decimal value)
+        => decimal.TryParse(raw?.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out value) && value > 0m;
+
+    private static string DimensionResourceKey(UnitDimension dimension) => dimension switch
+    {
+        UnitDimension.Mass => "UnitDimensionMass",
+        UnitDimension.Volume => "UnitDimensionVolume",
+        UnitDimension.Length => "UnitDimensionLength",
+        UnitDimension.Area => "UnitDimensionArea",
+        UnitDimension.Count => "UnitDimensionCount",
+        UnitDimension.Time => "UnitDimensionTime",
+        _ => "UnitDimensionMass"
+    };
+
+    private string ScopeLabel(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o when scopeLabels.TryGetValue(scope, out var info) && info.OrgCode is not null
+            => $"{info.OrgCode} — {info.OrgName}",
+        OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId],
+        OrganizationScope.Site s when scopeLabels.TryGetValue(scope, out var info) && info.SiteCode is not null
+            => $"{info.OrgCode} / {info.SiteCode} — {info.SiteName}",
+        OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
+        _ => string.Empty
+    };
+}

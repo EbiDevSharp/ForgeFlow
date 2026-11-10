@@ -1,0 +1,2056 @@
+@page "/boms"
+@page "/organizations/{OrganizationId:long}/boms"
+@using System.Globalization
+@using ForgeFlow.Application.Boms
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Boms
+@using ForgeFlow.Web.Roles
+@inject BomUseCases BomService
+@inject ItemUseCases ItemService
+@inject UnitUseCases UnitService
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject CulturePolicy Culture
+@inject DisplayFormatter Formatter
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["Boms"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="boms-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="boms-title">@Text["Boms"]</h1>
+            <p class="write-hint">@Text["BomsCaption"]</p>
+        </div>
+        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage)
+        {
+            <div class="read-head-actions">
+                @if (activeTab == TabBoms)
+                {
+                    <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn"
+                               IsEnabled="@(manufacturableItems.Count > 0)" OnClick="OpenCreateBom">
+                        @Text["BomCreateButton"]
+                    </BitButton>
+                }
+                else if (activeTab == TabDimensions)
+                {
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-create-btn"
+                               IsEnabled="@(!seedingDimensions)" OnClick="SeedStandardDimensionsAsync">
+                        @(seedingDimensions ? Text["WriteSaving"] : Text["BomDimSeedButton"])
+                    </BitButton>
+                    <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateDim">
+                        @Text["BomDimCreateButton"]
+                    </BitButton>
+                }
+            </div>
+        }
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div class="read-state" role="alert">
+            <p>@Text[pageError]</p>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else
+    {
+        <div class="read-tab-bar" role="tablist" aria-label="@Text["Boms"]">
+            <button type="button" role="tab" aria-selected="@(activeTab == TabBoms)"
+                    class="read-tab-btn @(activeTab == TabBoms ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabBoms)">@Text["BomsTab"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabDimensions)"
+                    class="read-tab-btn @(activeTab == TabDimensions ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabDimensions)">@Text["BomDimensionsTab"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabSimulator)"
+                    class="read-tab-btn @(activeTab == TabSimulator ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabSimulator)">@Text["BomSimulatorTab"]</button>
+        </div>
+
+        @if (activeTab != TabSimulator || available.Count > 1)
+        {
+        <div class="read-toolbar-card">
+            @if (available.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="boms-scope">@Text["ReadScope"]</label>
+                    <select id="boms-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                        @for (var i = 0; i < available.Count; i++)
+                        {
+                            <option value="@i">@ScopeLabel(available[i])</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (activeTab == TabBoms)
+            {
+                <div class="read-field">
+                    <label for="boms-item-filter">@Text["BomPrimaryItemLabel"]</label>
+                    <select id="boms-item-filter" value="@bomItemFilter" @onchange="ChangeBomItemFilterAsync">
+                        <option value="">@Text["BomPrimaryItemAll"]</option>
+                        @foreach (var item in manufacturableItems)
+                        {
+                            <option value="@item.Id">@item.Code — @item.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (activeTab != TabSimulator)
+            {
+                <div class="read-field">
+                    <label for="boms-search">@Text["ReadSearch"]</label>
+                    <input id="boms-search" type="search" @bind="search" @bind:after="ApplySearchAsync"
+                           maxlength="100" placeholder="@Text["BomSearchPlaceholder"]" />
+                </div>
+
+                <label class="read-inactive">
+                    <input type="checkbox" @bind="includeInactive" @bind:after="ApplySearchAsync" /> @Text["ReadInactive"]
+                </label>
+            }
+        </div>
+        }
+
+        @if (activeTab == TabBoms)
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="bomsGrid" TItem="BomSummary" OnRead="ReadBomsGridAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="boms-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="BomSummary" Title="@Text["ReadCode"]">
+                                <Template Context="row"><bdi dir="ltr">@row.Code</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="BomSummary" Title="@Text["ReadName"]">
+                                <Template Context="row">@row.Name</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="BomSummary" Title="@Text["BomPrimaryItemLabel"]">
+                                <Template Context="row"><bdi dir="ltr">@row.PrimaryOutputItemCode</bdi> — @row.PrimaryOutputItemName</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="BomSummary" Title="@Text["BomVersionCountColumn"]">
+                                <Template Context="row"><bdi dir="ltr">@row.VersionCount</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="BomSummary" Title="@Text["ReadStatus"]">
+                                <Template Context="row">
+                                    <span class="read-badge @(row.IsActive ? "active" : "inactive")">@(row.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])</span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="BomSummary" Title="@Text["ReadActions"]">
+                                <Template Context="row">
+                                    <div class="read-row-actions">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OpenBomDetailsAsync(row.Id)">
+                                            @Text["BomVersionsAction"]
+                                        </BitButton>
+                                        @if (scopeCanManage)
+                                        {
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                       Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]" title="@Text["ReadEdit"]"
+                                                       OnClick="() => OpenBomEditModalAsync(row.Id)" />
+                                        }
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else if (activeTab == TabDimensions)
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="dimsGrid" TItem="ContextDimensionSummary" OnRead="ReadDimsGridAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="boms-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="ContextDimensionSummary" Title="@Text["ReadCode"]">
+                                <Template Context="row"><bdi dir="ltr">@row.Code</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="ContextDimensionSummary" Title="@Text["ReadName"]">
+                                <Template Context="row">@RolePermissionLocalization.ContextDimensionDisplayName(row.Code, row.Name, Text)</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="ContextDimensionSummary" Title="@Text["ReadStatus"]">
+                                <Template Context="row">
+                                    <span class="read-badge @(row.IsActive ? "active" : "inactive")">@(row.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])</span>
+                                </Template>
+                            </BitDataGridColumn>
+                            @if (scopeCanManage)
+                            {
+                                <BitDataGridColumn TItem="ContextDimensionSummary" Title="@Text["ReadActions"]">
+                                    <Template Context="row">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                   Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]" title="@Text["ReadEdit"]"
+                                                   OnClick="() => OpenEditDim(row)" />
+                                    </Template>
+                                </BitDataGridColumn>
+                            }
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="write-card">
+                <h2 class="audit-section-heading">@Text["BomSimulatorHeading"]</h2>
+                <p class="write-hint">@Text["BomSimulatorHint"]</p>
+
+                <div class="write-grid">
+                    <div class="write-field">
+                        <label for="sim-item">@Text["BomPrimaryItemLabel"]</label>
+                        <select id="sim-item" @bind="simItemId">
+                            <option value="0">@Text["BomSelectItemOption"]</option>
+                            @foreach (var item in manufacturableItems)
+                            {
+                                <option value="@item.Id">@item.Code — @item.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="write-field">
+                        <label for="sim-date">@Text["BomProductionDateLabel"]</label>
+                        <BitDatePicker @bind-Value="SimDateOffset"
+                                       Culture="@Culture.PickerCulture"
+                                       DateFormat="@PickerDateFormat"
+                                       ShowTimePicker="false"
+                                       AllowTextInput="false"
+                                       AutoClose="true"
+                                       ShowGoToToday="true"
+                                       GoToTodayTitle="@Text["BomDateToday"]"
+                                       GoToTodayIcon="@TodayIcon"
+                                       Icon="@CalendarIcon"
+                                       NextMonthNavIcon="@NextNavIcon"
+                                       PrevMonthNavIcon="@PrevNavIcon"
+                                       NextYearNavIcon="@NextYearIcon"
+                                       PrevYearNavIcon="@PrevYearIcon"
+                                       ClearButtonIcon="@CloseIcon"
+                                       Class="bom-dtp" />
+                    </div>
+                    <div class="write-field">
+                        <label for="sim-qty">@Text["BomRequestedQtyLabel"]</label>
+                        <input id="sim-qty" type="text" inputmode="decimal" dir="ltr" @bind="simQtyText" />
+                    </div>
+                    <div class="write-field">
+                        <label for="sim-unit">@Text["BomRequestedUnitLabel"]</label>
+                        <select id="sim-unit" @bind="simUnitId">
+                            <option value="0">@Text["BomDefaultBaseUnitOption"]</option>
+                            @foreach (var u in activeUnits)
+                            {
+                                <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="item-sub-card">
+                    <div class="audit-modal-title-row">
+                        <strong>@Text["BomContextPairsLabel"]</strong>
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                                   IsEnabled="@(activeDimensions.Count > 0)" OnClick="AddSimulatorContextPair">
+                            @Text["BomAddContextPairBtn"]
+                        </BitButton>
+                    </div>
+                    @if (simContextPairs.Count == 0)
+                    {
+                        <p class="write-hint">@Text["BomNoContextPairsHint"]</p>
+                    }
+                    else
+                    {
+                        @foreach (var pair in simContextPairs)
+                        {
+                            <div class="bom-cond-row">
+                                <select aria-label="@Text["BomDimLabel"]" @bind="pair.DimensionCode">
+                                    @foreach (var dim in activeDimensions)
+                                    {
+                                        <option value="@dim.Code">@RolePermissionLocalization.ContextDimensionDisplayName(dim.Code, dim.Name, Text) (@dim.Code)</option>
+                                    }
+                                </select>
+                                <span>=</span>
+                                <input type="text" dir="ltr" maxlength="100" @bind="pair.Value" placeholder="@Text["BomConditionValuePlaceholder"]" />
+                                <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => simContextPairs.Remove(pair)">
+                                    @Text["BomRemoveRowBtn"]
+                                </BitButton>
+                            </div>
+                        }
+                    }
+                </div>
+
+                <div class="write-actions">
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                               IsEnabled="@(!simRunning && simItemId > 0)" OnClick="RunResolveAsync">
+                        @Text["BomResolveBtn"]
+                    </BitButton>
+                    <BitButton Size="BitSize.Small"
+                               IsEnabled="@(!simRunning && simItemId > 0)" OnClick="RunExplodeAsync">
+                        @Text["BomExplodeBtn"]
+                    </BitButton>
+                </div>
+
+                @if (simError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[simError]</p>
+                }
+
+                @if (simResolution is not null)
+                {
+                    <div class="converter-result-card" role="status">
+                        <div class="audit-modal-title-row">
+                            <span class="audit-modal-code"><bdi dir="ltr">@simResolution.BomCode</bdi> — @simResolution.BomName</span>
+                            <span class="read-badge active">v@simResolution.VersionNumber</span>
+                        </div>
+                        <div class="converter-meta">
+                            @Text["BomBaseOutputSummary", simResolution.BaseOutputQuantity.ToString("G29", CultureInfo.InvariantCulture), simResolution.BaseOutputUnitSymbol, Formatter.Date(simResolution.EffectiveFromDate), simResolution.EffectiveToDate is DateOnly toDate ? Formatter.Date(toDate) : "∞"]
+                        </div>
+                    </div>
+                }
+
+                @if (simExplosion is not null)
+                {
+                    <div class="item-sub-card">
+                        <h3 class="audit-section-heading">@Text["BomExplosionInputsHeading"]</h3>
+                        @if (simExplosion.ConsumedInputs.Count == 0)
+                        {
+                            <p class="read-empty">@Text["ReadEmpty"]</p>
+                        }
+                        else
+                        {
+                            <div class="audit-fields-box" style="overflow-x:auto;">
+                                <table class="audit-fields-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">@Text["BomLevelColumn"]</th>
+                                            <th scope="col">@Text["BomParentItemColumn"]</th>
+                                            <th scope="col">@Text["BomLineItemColumn"]</th>
+                                            <th scope="col">@Text["BomNetQtyColumn"]</th>
+                                            <th scope="col">@Text["BomScrapColumn"]</th>
+                                            <th scope="col">@Text["BomGrossQtyColumn"]</th>
+                                            <th scope="col">@Text["BomLineUnitColumn"]</th>
+                                            <th scope="col">@Text["ReadStatus"]</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var line in simExplosion.ConsumedInputs)
+                                        {
+                                            <tr>
+                                                <td><span class="bom-tree-level">L@line.Level</span></td>
+                                                <td><bdi dir="ltr">@line.ParentItemCode</bdi></td>
+                                                <td><bdi dir="ltr">@line.ItemCode</bdi> — @line.ItemName</td>
+                                                <td><bdi dir="ltr">@line.NetQuantity.ToString("G29", CultureInfo.InvariantCulture)</bdi></td>
+                                                <td><bdi dir="ltr">@line.ScrapPercentage.ToString("G29", CultureInfo.InvariantCulture)%</bdi></td>
+                                                <td><strong><bdi dir="ltr">@line.GrossQuantity.ToString("G29", CultureInfo.InvariantCulture)</bdi></strong></td>
+                                                <td><bdi dir="ltr">@line.UnitSymbol</bdi></td>
+                                                <td>
+                                                    <div class="cap-badge-row">
+                                                        @if (line.IsSubAssembly)
+                                                        {
+                                                            <span class="cap-badge">@Text["BomSubAssemblyBadge"]</span>
+                                                        }
+                                                        @if (line.IsOptional)
+                                                        {
+                                                            <span class="cap-badge">@Text["BomOptionalBadge"]</span>
+                                                        }
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+
+                        <h3 class="audit-section-heading">@Text["BomExplosionOutputsHeading"]</h3>
+                        @if (simExplosion.ProducedOutputs.Count == 0)
+                        {
+                            <p class="read-empty">@Text["ReadEmpty"]</p>
+                        }
+                        else
+                        {
+                            <div class="audit-fields-box" style="overflow-x:auto;">
+                                <table class="audit-fields-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">@Text["BomLevelColumn"]</th>
+                                            <th scope="col">@Text["BomLineItemColumn"]</th>
+                                            <th scope="col">@Text["BomOutputTypeColumn"]</th>
+                                            <th scope="col">@Text["BomProducedQtyColumn"]</th>
+                                            <th scope="col">@Text["BomLineUnitColumn"]</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var line in simExplosion.ProducedOutputs)
+                                        {
+                                            <tr>
+                                                <td><span class="bom-tree-level">L@line.Level</span></td>
+                                                <td><bdi dir="ltr">@line.ItemCode</bdi> — @line.ItemName</td>
+                                                <td><span class="read-badge @OutputTypeCss(line.OutputType)">@Text[OutputTypeKey(line.OutputType)]</span></td>
+                                                <td><strong><bdi dir="ltr">@line.ProducedQuantity.ToString("G29", CultureInfo.InvariantCulture)</bdi></strong></td>
+                                                <td><bdi dir="ltr">@line.UnitSymbol</bdi></td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+
+    @* Create BOM Modal *@
+    <BitDialog @bind-IsOpen="createBomOpen" Title="@Text["BomCreateHeading"]" Width="560px" MaxWidth="calc(100vw - 24px)"
+               Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]">
+        <Body>
+            <div class="audit-modal-body">
+                <p class="write-hint">@Text["BomCreateHint"]</p>
+                <div class="write-field">
+                    <label for="bom-create-code">@Text["ReadCode"]</label>
+                    <input id="bom-create-code" type="text" dir="ltr" maxlength="32" @bind="createBomCode" disabled="@bomSaving" />
+                </div>
+                <div class="write-field">
+                    <label for="bom-create-name">@Text["ReadName"]</label>
+                    <input id="bom-create-name" type="text" maxlength="200" @bind="createBomName" disabled="@bomSaving" />
+                </div>
+                <div class="write-field">
+                    <label for="bom-create-item">@Text["BomPrimaryItemLabel"]</label>
+                    <select id="bom-create-item" @bind="createBomPrimaryItemId" disabled="@bomSaving">
+                        @foreach (var item in manufacturableItems)
+                        {
+                            <option value="@item.Id">@item.Code — @item.Name (@item.BaseUnitSymbol)</option>
+                        }
+                    </select>
+                </div>
+                @if (bomError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[bomError]</p>
+                }
+                <div class="write-actions">
+                    <BitButton IsEnabled="@(!bomSaving)" OnClick="SubmitCreateBomAsync">
+                        @(bomSaving ? Text["WriteSaving"] : Text["BomCreateButton"])
+                    </BitButton>
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => createBomOpen = false">@Text["WriteCancel"]</BitButton>
+                </div>
+            </div>
+        </Body>
+    </BitDialog>
+
+    @* Rename / Activate BOM Modal *@
+    <BitDialog @bind-IsOpen="bomEditOpen" Title="@Text["BomEditHeading"]" Width="520px" MaxWidth="calc(100vw - 24px)"
+               Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]">
+        <Body>
+            @if (selectedBom is not null)
+            {
+                <div class="audit-modal-body">
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["ReadCode"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@selectedBom.Summary.Code</bdi>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["BomPrimaryItemLabel"]</span>
+                            <span class="audit-meta-val"><bdi dir="ltr">@selectedBom.Summary.PrimaryOutputItemCode</bdi> — @selectedBom.Summary.PrimaryOutputItemName</span>
+                        </div>
+                    </div>
+                    <div class="write-field">
+                        <label for="bom-edit-name">@Text["ReadName"]</label>
+                        <input id="bom-edit-name" type="text" maxlength="200" @bind="editBomName" disabled="@bomSaving" />
+                    </div>
+                    @if (bomError is not null)
+                    {
+                        <p role="alert" class="write-error">@Text[bomError]</p>
+                    }
+                    <div class="write-actions">
+                        <BitButton IsEnabled="@(!bomSaving)" OnClick="SubmitUpdateBomAsync">
+                            @(bomSaving ? Text["WriteSaving"] : Text["WriteSave"])
+                        </BitButton>
+                        @if (bomConfirmToggle is null)
+                        {
+                            <BitButton Variant="BitVariant.Outline" IsEnabled="@(!bomSaving)"
+                                       OnClick="() => bomConfirmToggle = !selectedBom.Summary.IsActive">
+                                @(selectedBom.Summary.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
+                            </BitButton>
+                        }
+                        else
+                        {
+                            <BitButton Variant="BitVariant.Outline" IsEnabled="@(!bomSaving)" OnClick="ConfirmToggleBomAsync">
+                                @(bomConfirmToggle == true ? Text["WriteConfirmActivate", selectedBom.Summary.Name] : Text["WriteConfirmDeactivate", selectedBom.Summary.Name])
+                            </BitButton>
+                            <BitButton Variant="BitVariant.Text" OnClick="() => bomConfirmToggle = null">@Text["WriteCancel"]</BitButton>
+                        }
+                        <BitButton Variant="BitVariant.Text" OnClick="() => bomEditOpen = false">@Text["ReadClose"]</BitButton>
+                    </div>
+                </div>
+            }
+        </Body>
+    </BitDialog>
+
+    @* BOM Details & Versions Modal *@
+    <BitDialog @bind-IsOpen="bomVersionsOpen" Title="@Text["BomVersionsHeading"]" Width="740px" MaxWidth="calc(100vw - 24px)"
+               Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]">
+        <Body>
+            @if (selectedBom is not null)
+            {
+                <div class="audit-modal-body">
+                    <div class="audit-modal-title-row">
+                        <span class="audit-modal-code"><bdi dir="ltr">@selectedBom.Summary.Code</bdi> — @selectedBom.Summary.Name</span>
+                        <span class="read-badge @(selectedBom.Summary.IsActive ? "active" : "inactive")">
+                            @(selectedBom.Summary.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
+                        </span>
+                    </div>
+                    <p class="write-hint">
+                        @Text["BomPrimaryItemLabel"]: <bdi dir="ltr">@selectedBom.Summary.PrimaryOutputItemCode</bdi> — @selectedBom.Summary.PrimaryOutputItemName
+                    </p>
+
+                    @if (bomVersionListError is not null)
+                    {
+                        <p role="alert" class="write-error">@Text[bomVersionListError]</p>
+                    }
+
+                    @if (selectedBom.Versions.Count == 0)
+                    {
+                        <p class="read-empty">@Text["BomNoVersionsEmpty"]</p>
+                    }
+                    else
+                    {
+                        <div class="audit-fields-box" style="overflow-x:auto;">
+                            <table class="audit-fields-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">@Text["BomVersionNumberLabel"]</th>
+                                        <th scope="col">@Text["ReadStatus"]</th>
+                                        <th scope="col">@Text["BomBaseOutputColumn"]</th>
+                                        <th scope="col">@Text["BomEffectiveDatesColumn"]</th>
+                                        <th scope="col">@Text["BomApplicabilityColumn"]</th>
+                                        <th scope="col">@Text["ReadActions"]</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var ver in selectedBom.Versions)
+                                    {
+                                        <tr>
+                                            <td><strong dir="ltr">v@ver.VersionNumber</strong></td>
+                                            <td><span class="read-badge @VersionStatusCss(ver.Status)">@Text[VersionStatusKey(ver.Status)]</span></td>
+                                            <td><bdi dir="ltr">@ver.BaseOutputQuantity.ToString("G29", CultureInfo.InvariantCulture) @ver.BaseOutputUnitSymbol</bdi></td>
+                                            <td><bdi dir="ltr">@Formatter.Date(ver.EffectiveFromDate) — @(ver.EffectiveToDate is DateOnly verTo ? Formatter.Date(verTo) : "∞")</bdi></td>
+                                            <td>
+                                                @if (ver.HasApplicability && ver.ApplicabilityIsActive)
+                                                {
+                                                    <span class="cap-badge">@Text["BomRulesCountBadge", ver.ConditionCount]</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="write-hint">@Text["BomUnconditionalLabel"]</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OpenVersionWorkbenchAsync(ver.Id)">
+                                                    @Text["BomOpenVersionBtn"]
+                                                </BitButton>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    @if (scopeCanManage)
+                    {
+                        <div class="item-sub-card">
+                            <h3 class="audit-section-heading">@Text["BomCreateVersionHeading"]</h3>
+                            <div class="write-grid">
+                                <div class="write-field">
+                                    <label for="ver-num">@Text["BomVersionNumberLabel"]</label>
+                                    <input id="ver-num" type="number" min="1" dir="ltr" @bind="newVerNumber" disabled="@bomSaving" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="ver-qty">@Text["BomBaseOutputQtyLabel"]</label>
+                                    <input id="ver-qty" type="text" inputmode="decimal" dir="ltr" @bind="newVerQtyText" disabled="@bomSaving" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="ver-unit">@Text["BomBaseOutputUnitLabel"]</label>
+                                    <select id="ver-unit" @bind="newVerUnitId" disabled="@bomSaving">
+                                        @foreach (var u in activeUnits)
+                                        {
+                                            <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="write-field">
+                                    <label>@Text["BomEffectiveFromLabel"]</label>
+                                    <BitDatePicker @bind-Value="NewVerFromOffset"
+                                                   Culture="@Culture.PickerCulture"
+                                                   DateFormat="@PickerDateFormat"
+                                                   ShowTimePicker="false"
+                                                   AllowTextInput="false"
+                                                   AutoClose="true"
+                                                   ShowGoToToday="true"
+                                                   GoToTodayTitle="@Text["BomDateToday"]"
+                                                   GoToTodayIcon="@TodayIcon"
+                                                   Icon="@CalendarIcon"
+                                                   NextMonthNavIcon="@NextNavIcon"
+                                                   PrevMonthNavIcon="@PrevNavIcon"
+                                                   NextYearNavIcon="@NextYearIcon"
+                                                   PrevYearNavIcon="@PrevYearIcon"
+                                                   ClearButtonIcon="@CloseIcon"
+                                                   IsEnabled="@(!bomSaving)"
+                                                   Class="bom-dtp" />
+                                </div>
+                                <div class="write-field">
+                                    <label>@Text["BomEffectiveToLabel"]</label>
+                                    <BitDatePicker @bind-Value="NewVerToOffset"
+                                                   Culture="@Culture.PickerCulture"
+                                                   DateFormat="@PickerDateFormat"
+                                                   ShowTimePicker="false"
+                                                   AllowTextInput="false"
+                                                   AutoClose="true"
+                                                   ShowClearButton="true"
+                                                   ClearButtonTitle="@Text["BomDateClear"]"
+                                                   ShowGoToToday="true"
+                                                   GoToTodayTitle="@Text["BomDateToday"]"
+                                                   GoToTodayIcon="@TodayIcon"
+                                                   Icon="@CalendarIcon"
+                                                   NextMonthNavIcon="@NextNavIcon"
+                                                   PrevMonthNavIcon="@PrevNavIcon"
+                                                   NextYearNavIcon="@NextYearIcon"
+                                                   PrevYearNavIcon="@PrevYearIcon"
+                                                   ClearButtonIcon="@CloseIcon"
+                                                   IsEnabled="@(!bomSaving)"
+                                                   Class="bom-dtp" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="ver-notes">@Text["BomNotesLabel"]</label>
+                                    <input id="ver-notes" type="text" maxlength="500" @bind="newVerNotes" disabled="@bomSaving" />
+                                </div>
+                            </div>
+                            <div class="write-actions">
+                                <BitButton Size="BitSize.Small" IsEnabled="@(!bomSaving)" OnClick="SubmitCreateVersionAsync">
+                                    @(bomSaving ? Text["WriteSaving"] : Text["BomCreateVersionBtn"])
+                                </BitButton>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </Body>
+    </BitDialog>
+
+    @* BOM Version Workbench Modal *@
+    <BitDialog @bind-IsOpen="versionModalOpen" Title="@Text["BomVersionWorkbenchTitle"]" Width="800px" MaxWidth="calc(100vw - 24px)"
+               Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]">
+        <Body>
+            @if (selectedVersion is not null)
+            {
+                var isDraftEditable = scopeCanManage && selectedVersion.Summary.Status == BomVersionStatus.Draft;
+                <div class="audit-modal-body">
+                    <div class="audit-modal-title-row">
+                        <span class="audit-modal-code">v@selectedVersion.Summary.VersionNumber</span>
+                        <div class="cap-badge-row">
+                            <span class="read-badge @VersionStatusCss(selectedVersion.Summary.Status)">@Text[VersionStatusKey(selectedVersion.Summary.Status)]</span>
+                        </div>
+                    </div>
+
+                    @if (selectedVersion.Summary.Status != BomVersionStatus.Draft)
+                    {
+                        <p class="write-hint" role="status">@Text["BomVersionImmutableNotice"]</p>
+                    }
+
+                    @if (scopeCanManage)
+                    {
+                        <div class="write-actions">
+                            @if (selectedVersion.Summary.Status == BomVersionStatus.Draft)
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!verSaving)"
+                                           OnClick="() => TransitionVersionAsync(BomVersionStatus.Approved)">@Text["BomActionApprove"]</BitButton>
+                                <BitButton Size="BitSize.Small" IsEnabled="@(!verSaving)"
+                                           OnClick="() => TransitionVersionAsync(BomVersionStatus.Active)">@Text["BomActionActivate"]</BitButton>
+                                <BitButton Variant="BitVariant.Text" Size="BitSize.Small" IsEnabled="@(!verSaving)"
+                                           OnClick="() => TransitionVersionAsync(BomVersionStatus.Obsolete)">@Text["BomActionObsolete"]</BitButton>
+                            }
+                            else if (selectedVersion.Summary.Status == BomVersionStatus.Approved)
+                            {
+                                <BitButton Size="BitSize.Small" IsEnabled="@(!verSaving)"
+                                           OnClick="() => TransitionVersionAsync(BomVersionStatus.Active)">@Text["BomActionActivate"]</BitButton>
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!verSaving)"
+                                           OnClick="() => TransitionVersionAsync(BomVersionStatus.Obsolete)">@Text["BomActionObsolete"]</BitButton>
+                            }
+                            else if (selectedVersion.Summary.Status == BomVersionStatus.Active)
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!verSaving)"
+                                           OnClick="() => TransitionVersionAsync(BomVersionStatus.Superseded)">@Text["BomActionSupersede"]</BitButton>
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!verSaving)"
+                                           OnClick="() => TransitionVersionAsync(BomVersionStatus.Obsolete)">@Text["BomActionObsolete"]</BitButton>
+                            }
+                        </div>
+                    }
+
+                    @if (verError is not null)
+                    {
+                        <p role="alert" class="write-error">@Text[verError]</p>
+                    }
+                    @if (verNotice is not null)
+                    {
+                        <p role="status" class="write-saved">@verNotice</p>
+                    }
+
+                    @* Header Section *@
+                    <div class="item-sub-card">
+                        <h3 class="audit-section-heading">@Text["BomVersionHeaderSection"]</h3>
+                        <div class="write-grid">
+                            <div class="write-field">
+                                <label for="ed-ver-qty">@Text["BomBaseOutputQtyLabel"]</label>
+                                <input id="ed-ver-qty" type="text" inputmode="decimal" dir="ltr" @bind="editVerQtyText" disabled="@(!isDraftEditable || verSaving)" />
+                            </div>
+                            <div class="write-field">
+                                <label for="ed-ver-unit">@Text["BomBaseOutputUnitLabel"]</label>
+                                <select id="ed-ver-unit" @bind="editVerUnitId" disabled="@(!isDraftEditable || verSaving)">
+                                    @foreach (var u in activeUnits)
+                                    {
+                                        <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="write-field">
+                                <label>@Text["BomEffectiveFromLabel"]</label>
+                                <BitDatePicker @bind-Value="EditVerFromOffset"
+                                               Culture="@Culture.PickerCulture"
+                                               DateFormat="@PickerDateFormat"
+                                               ShowTimePicker="false"
+                                               AllowTextInput="false"
+                                               AutoClose="true"
+                                               ShowGoToToday="true"
+                                               GoToTodayTitle="@Text["BomDateToday"]"
+                                               GoToTodayIcon="@TodayIcon"
+                                               Icon="@CalendarIcon"
+                                               NextMonthNavIcon="@NextNavIcon"
+                                               PrevMonthNavIcon="@PrevNavIcon"
+                                               NextYearNavIcon="@NextYearIcon"
+                                               PrevYearNavIcon="@PrevYearIcon"
+                                               ClearButtonIcon="@CloseIcon"
+                                               IsEnabled="@(isDraftEditable && !verSaving)"
+                                               Class="bom-dtp" />
+                            </div>
+                            <div class="write-field">
+                                <label>@Text["BomEffectiveToLabel"]</label>
+                                <BitDatePicker @bind-Value="EditVerToOffset"
+                                               Culture="@Culture.PickerCulture"
+                                               DateFormat="@PickerDateFormat"
+                                               ShowTimePicker="false"
+                                               AllowTextInput="false"
+                                               AutoClose="true"
+                                               ShowClearButton="true"
+                                               ClearButtonTitle="@Text["BomDateClear"]"
+                                               ShowGoToToday="true"
+                                               GoToTodayTitle="@Text["BomDateToday"]"
+                                               GoToTodayIcon="@TodayIcon"
+                                               Icon="@CalendarIcon"
+                                               NextMonthNavIcon="@NextNavIcon"
+                                               PrevMonthNavIcon="@PrevNavIcon"
+                                               NextYearNavIcon="@NextYearIcon"
+                                               PrevYearNavIcon="@PrevYearIcon"
+                                               ClearButtonIcon="@CloseIcon"
+                                               IsEnabled="@(isDraftEditable && !verSaving)"
+                                               Class="bom-dtp" />
+                            </div>
+                            <div class="write-field">
+                                <label for="ed-ver-notes">@Text["BomNotesLabel"]</label>
+                                <input id="ed-ver-notes" type="text" maxlength="500" @bind="editVerNotes" disabled="@(!isDraftEditable || verSaving)" />
+                            </div>
+                        </div>
+                        @if (isDraftEditable)
+                        {
+                            <div class="write-actions">
+                                <BitButton Size="BitSize.Small" IsEnabled="@(!verSaving)" OnClick="SaveDraftHeaderAsync">
+                                    @(verSaving ? Text["WriteSaving"] : Text["BomSaveHeaderBtn"])
+                                </BitButton>
+                            </div>
+                        }
+                    </div>
+
+                    @* Inputs & Outputs Lines Section *@
+                    <div class="item-sub-card">
+                        <div class="audit-modal-title-row">
+                            <h3 class="audit-section-heading">@Text["BomInputsSection"]</h3>
+                            @if (isDraftEditable)
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!verSaving)" OnClick="AddDraftInputRow">
+                                    @Text["BomAddInputBtn"]
+                                </BitButton>
+                            }
+                        </div>
+                        @if (draftInputs.Count == 0)
+                        {
+                            <p class="read-empty">@Text["ReadEmpty"]</p>
+                        }
+                        else
+                        {
+                            <div class="audit-fields-box" style="overflow-x:auto;">
+                                <table class="audit-fields-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">#</th>
+                                            <th scope="col">@Text["BomLineItemColumn"]</th>
+                                            <th scope="col">@Text["BomQuantityColumn"]</th>
+                                            <th scope="col">@Text["BomLineUnitColumn"]</th>
+                                            <th scope="col">@Text["BomScrapColumn"]</th>
+                                            <th scope="col">@Text["BomOptionalBadge"]</th>
+                                            @if (isDraftEditable) { <th scope="col"></th> }
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var inp in draftInputs)
+                                        {
+                                            <tr>
+                                                <td><input type="number" min="1" dir="ltr" style="width:60px;" @bind="inp.Sequence" disabled="@(!isDraftEditable || verSaving)" /></td>
+                                                <td>
+                                                    <select @bind="inp.ItemId" disabled="@(!isDraftEditable || verSaving)">
+                                                        @foreach (var it in consumableItems)
+                                                        {
+                                                            <option value="@it.Id">@it.Code — @it.Name</option>
+                                                        }
+                                                    </select>
+                                                </td>
+                                                <td><input type="text" inputmode="decimal" dir="ltr" style="width:90px;" @bind="inp.QuantityText" disabled="@(!isDraftEditable || verSaving)" /></td>
+                                                <td>
+                                                    <select @bind="inp.UnitId" disabled="@(!isDraftEditable || verSaving)">
+                                                        @foreach (var u in activeUnits)
+                                                        {
+                                                            <option value="@u.Id">@u.Code (@u.Symbol)</option>
+                                                        }
+                                                    </select>
+                                                </td>
+                                                <td><input type="text" inputmode="decimal" dir="ltr" style="width:70px;" @bind="inp.ScrapText" disabled="@(!isDraftEditable || verSaving)" /></td>
+                                                <td><input type="checkbox" @bind="inp.IsOptional" disabled="@(!isDraftEditable || verSaving)" /></td>
+                                                @if (isDraftEditable)
+                                                {
+                                                    <td>
+                                                        <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => draftInputs.Remove(inp)">
+                                                            @Text["BomRemoveRowBtn"]
+                                                        </BitButton>
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+
+                        <div class="audit-modal-title-row">
+                            <h3 class="audit-section-heading">@Text["BomOutputsSection"]</h3>
+                            @if (isDraftEditable)
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!verSaving)" OnClick="AddDraftOutputRow">
+                                    @Text["BomAddOutputBtn"]
+                                </BitButton>
+                            }
+                        </div>
+                        @if (draftOutputs.Count == 0)
+                        {
+                            <p class="read-empty">@Text["ReadEmpty"]</p>
+                        }
+                        else
+                        {
+                            <div class="audit-fields-box" style="overflow-x:auto;">
+                                <table class="audit-fields-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">#</th>
+                                            <th scope="col">@Text["BomLineItemColumn"]</th>
+                                            <th scope="col">@Text["BomOutputTypeColumn"]</th>
+                                            <th scope="col">@Text["BomQuantityColumn"]</th>
+                                            <th scope="col">@Text["BomLineUnitColumn"]</th>
+                                            @if (isDraftEditable) { <th scope="col"></th> }
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var outLine in draftOutputs)
+                                        {
+                                            <tr>
+                                                <td><input type="number" min="1" dir="ltr" style="width:60px;" @bind="outLine.Sequence" disabled="@(!isDraftEditable || verSaving)" /></td>
+                                                <td>
+                                                    <select @bind="outLine.ItemId" disabled="@(!isDraftEditable || verSaving)">
+                                                        @foreach (var it in allActiveItems)
+                                                        {
+                                                            <option value="@it.Id">@it.Code — @it.Name</option>
+                                                        }
+                                                    </select>
+                                                </td>
+                                                <td>
+                                                    <select @bind="outLine.OutputType" disabled="@(!isDraftEditable || verSaving)">
+                                                        @foreach (var ot in AllOutputTypes)
+                                                        {
+                                                            <option value="@ot">@Text[OutputTypeKey(ot)]</option>
+                                                        }
+                                                    </select>
+                                                </td>
+                                                <td><input type="text" inputmode="decimal" dir="ltr" style="width:90px;" @bind="outLine.QuantityText" disabled="@(!isDraftEditable || verSaving)" /></td>
+                                                <td>
+                                                    <select @bind="outLine.UnitId" disabled="@(!isDraftEditable || verSaving)">
+                                                        @foreach (var u in activeUnits)
+                                                        {
+                                                            <option value="@u.Id">@u.Code (@u.Symbol)</option>
+                                                        }
+                                                    </select>
+                                                </td>
+                                                @if (isDraftEditable)
+                                                {
+                                                    <td>
+                                                        <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => draftOutputs.Remove(outLine)">
+                                                            @Text["BomRemoveRowBtn"]
+                                                        </BitButton>
+                                                    </td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+
+                        @if (isDraftEditable)
+                        {
+                            <div class="write-actions">
+                                <BitButton Size="BitSize.Small" IsEnabled="@(!verSaving)" OnClick="SaveDraftLinesAsync">
+                                    @(verSaving ? Text["WriteSaving"] : Text["BomSaveLinesBtn"])
+                                </BitButton>
+                            </div>
+                        }
+                    </div>
+
+                    @* Applicability Section *@
+                    <div class="item-sub-card">
+                        <div class="audit-modal-title-row">
+                            <h3 class="audit-section-heading">@Text["BomApplicabilityColumn"]</h3>
+                            @if (isDraftEditable && appEnabled)
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                                           IsEnabled="@(!verSaving && activeDimensions.Count > 0)" OnClick="AddDraftConditionRow">
+                                    @Text["BomAddConditionBtn"]
+                                </BitButton>
+                            }
+                        </div>
+
+                        <label class="write-check">
+                            <input type="checkbox" @bind="appEnabled" disabled="@(!isDraftEditable || verSaving)" />
+                            <span>@Text["BomEnableApplicabilityLabel"]</span>
+                        </label>
+
+                        @if (appEnabled)
+                        {
+                            <div class="write-grid">
+                                <div class="write-field">
+                                    <label for="app-name">@Text["ReadName"]</label>
+                                    <input id="app-name" type="text" maxlength="200" @bind="appName" disabled="@(!isDraftEditable || verSaving)" />
+                                </div>
+                                <label class="write-check">
+                                    <input type="checkbox" @bind="appIsActive" disabled="@(!isDraftEditable || verSaving)" />
+                                    <span>@Text["ReadActive"]</span>
+                                </label>
+                            </div>
+
+                            @foreach (var cond in draftConditions)
+                            {
+                                <div class="bom-cond-row">
+                                    <select @bind="cond.DimensionId" disabled="@(!isDraftEditable || verSaving)">
+                                        @foreach (var dim in activeDimensions)
+                                        {
+                                            <option value="@dim.Id">@RolePermissionLocalization.ContextDimensionDisplayName(dim.Code, dim.Name, Text) (@dim.Code)</option>
+                                        }
+                                    </select>
+                                    <select @bind="cond.Operator" disabled="@(!isDraftEditable || verSaving)">
+                                        @foreach (var op in AllOperators)
+                                        {
+                                            <option value="@op">@Text[OperatorKey(op)]</option>
+                                        }
+                                    </select>
+                                    <input type="text" dir="ltr" maxlength="400" @bind="cond.Value"
+                                           placeholder="@Text["BomConditionValuePlaceholder"]" disabled="@(!isDraftEditable || verSaving)" />
+                                    @if (isDraftEditable)
+                                    {
+                                        <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => draftConditions.Remove(cond)">
+                                            @Text["BomRemoveRowBtn"]
+                                        </BitButton>
+                                    }
+                                </div>
+                            }
+                        }
+
+                        @if (isDraftEditable)
+                        {
+                            <div class="write-actions">
+                                <BitButton Size="BitSize.Small" IsEnabled="@(!verSaving)" OnClick="SaveDraftApplicabilityAsync">
+                                    @(verSaving ? Text["WriteSaving"] : Text["BomSaveApplicabilityBtn"])
+                                </BitButton>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </Body>
+    </BitDialog>
+
+    @* Create Context Dimension Modal *@
+    <BitDialog @bind-IsOpen="createDimOpen" Title="@Text["BomDimCreateHeading"]" Width="520px" MaxWidth="calc(100vw - 24px)"
+               Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]">
+        <Body>
+            <div class="audit-modal-body">
+                <div class="write-field">
+                    <label for="dim-create-code">@Text["ReadCode"]</label>
+                    <input id="dim-create-code" type="text" dir="ltr" maxlength="32" @bind="createDimCode" disabled="@dimSaving" />
+                </div>
+                <div class="write-field">
+                    <label for="dim-create-name">@Text["ReadName"]</label>
+                    <input id="dim-create-name" type="text" maxlength="200" @bind="createDimName" disabled="@dimSaving" />
+                </div>
+                @if (dimError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[dimError]</p>
+                }
+                <div class="write-actions">
+                    <BitButton IsEnabled="@(!dimSaving)" OnClick="SubmitCreateDimAsync">
+                        @(dimSaving ? Text["WriteSaving"] : Text["BomDimCreateButton"])
+                    </BitButton>
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => createDimOpen = false">@Text["WriteCancel"]</BitButton>
+                </div>
+            </div>
+        </Body>
+    </BitDialog>
+
+    @* Edit Context Dimension Modal *@
+    <BitDialog @bind-IsOpen="editDimOpen" Title="@Text["BomDimEditHeading"]" Width="520px" MaxWidth="calc(100vw - 24px)"
+               Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]">
+        <Body>
+            @if (selectedDim is not null)
+            {
+                <div class="audit-modal-body">
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["ReadCode"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@selectedDim.Code</bdi>
+                        </div>
+                    </div>
+                    <div class="write-field">
+                        <label for="dim-edit-name">@Text["ReadName"]</label>
+                        <input id="dim-edit-name" type="text" maxlength="200" @bind="editDimName" disabled="@dimSaving" />
+                    </div>
+                    @if (dimError is not null)
+                    {
+                        <p role="alert" class="write-error">@Text[dimError]</p>
+                    }
+                    <div class="write-actions">
+                        <BitButton IsEnabled="@(!dimSaving)" OnClick="SubmitUpdateDimAsync">
+                            @(dimSaving ? Text["WriteSaving"] : Text["WriteSave"])
+                        </BitButton>
+                        <BitButton Variant="BitVariant.Outline" IsEnabled="@(!dimSaving)" OnClick="ToggleDimActiveAsync">
+                            @(selectedDim.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
+                        </BitButton>
+                        <BitButton Variant="BitVariant.Text" OnClick="() => editDimOpen = false">@Text["ReadClose"]</BitButton>
+                    </div>
+                </div>
+            }
+        </Body>
+    </BitDialog>
+</section>
+
+@code {
+    [Parameter] public long? OrganizationId { get; set; }
+
+    private const byte TabBoms = 0;
+    private const byte TabDimensions = 1;
+    private const byte TabSimulator = 2;
+
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+    private static readonly BomOutputType[] AllOutputTypes = Enum.GetValues<BomOutputType>();
+    private static readonly ApplicabilityOperator[] AllOperators = Enum.GetValues<ApplicabilityOperator>();
+    private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
+    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
+    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
+    private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
+    private BitIconInfo NextNavIcon => BitIconInfo.Css(Culture.Direction == "rtl" ? "ff-icon ff-icon--chevron-prev" : "ff-icon ff-icon--chevron-next");
+    private BitIconInfo PrevNavIcon => BitIconInfo.Css(Culture.Direction == "rtl" ? "ff-icon ff-icon--chevron-next" : "ff-icon ff-icon--chevron-prev");
+    private BitIconInfo NextYearIcon => BitIconInfo.Css(Culture.Direction == "rtl" ? "ff-icon ff-icon--chevrons-prev" : "ff-icon ff-icon--chevrons-next");
+    private BitIconInfo PrevYearIcon => BitIconInfo.Css(Culture.Direction == "rtl" ? "ff-icon ff-icon--chevrons-next" : "ff-icon ff-icon--chevrons-prev");
+    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
+
+    private DateTimeOffset? SimDateOffset
+    {
+        get => ToDateTimeOffset(simDate);
+        set { if (value.HasValue) simDate = DateOnly.FromDateTime(value.Value.Date); }
+    }
+    private DateTimeOffset? NewVerFromOffset
+    {
+        get => ToDateTimeOffset(newVerFromDate);
+        set { if (value.HasValue) newVerFromDate = DateOnly.FromDateTime(value.Value.Date); }
+    }
+    private DateTimeOffset? NewVerToOffset
+    {
+        get => newVerToDate.HasValue ? ToDateTimeOffset(newVerToDate.Value) : null;
+        set => newVerToDate = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+    }
+    private DateTimeOffset? EditVerFromOffset
+    {
+        get => ToDateTimeOffset(editVerFromDate);
+        set { if (value.HasValue) editVerFromDate = DateOnly.FromDateTime(value.Value.Date); }
+    }
+    private DateTimeOffset? EditVerToOffset
+    {
+        get => editVerToDate.HasValue ? ToDateTimeOffset(editVerToDate.Value) : null;
+        set => editVerToDate = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+    }
+    private static DateTimeOffset ToDateTimeOffset(DateOnly date) =>
+        new(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+
+    private BitDataGrid<BomSummary>? bomsGrid;
+    private BitDataGrid<ContextDimensionSummary>? dimsGrid;
+
+    private IReadOnlyList<OrganizationScope> available = [];
+    private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
+        new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+    private int scopeIndex;
+    private bool initialLoading = true;
+    private bool scopeCanManage;
+    private string? pageError;
+    private string? pageNotice;
+
+    private byte activeTab = TabBoms;
+    private string search = string.Empty;
+    private bool includeInactive;
+    private string bomItemFilter = string.Empty;
+
+    private List<UnitSummary> activeUnits = [];
+    private List<ItemSummary> allActiveItems = [];
+    private List<ItemSummary> manufacturableItems = [];
+    private List<ItemSummary> consumableItems = [];
+    private List<ContextDimensionSummary> activeDimensions = [];
+
+    private bool createBomOpen, bomEditOpen, bomVersionsOpen, bomSaving;
+    private string createBomCode = string.Empty, createBomName = string.Empty, editBomName = string.Empty;
+    private long createBomPrimaryItemId;
+    private bool? bomConfirmToggle;
+    private BomDetails? selectedBom;
+    private string? bomError, bomVersionListError;
+
+    private int newVerNumber = 1;
+    private string newVerQtyText = "1", newVerNotes = string.Empty;
+    private long newVerUnitId;
+    private DateOnly newVerFromDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly? newVerToDate;
+
+    private bool versionModalOpen, verSaving;
+    private BomVersionDetails? selectedVersion;
+    private string? verError, verNotice;
+    private string editVerQtyText = "1", editVerNotes = string.Empty;
+    private long editVerUnitId;
+    private DateOnly editVerFromDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly? editVerToDate;
+    private readonly List<InputRowModel> draftInputs = [];
+    private readonly List<OutputRowModel> draftOutputs = [];
+    private bool appEnabled, appIsActive = true;
+    private string appName = string.Empty;
+    private readonly List<ConditionRowModel> draftConditions = [];
+
+    private bool createDimOpen, editDimOpen, dimSaving, seedingDimensions;
+    private string createDimCode = string.Empty, createDimName = string.Empty, editDimName = string.Empty;
+    private ContextDimensionSummary? selectedDim;
+    private string? dimError;
+
+    private long simItemId, simUnitId;
+    private DateOnly simDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    private string simQtyText = "1";
+    private readonly List<SimContextPair> simContextPairs = [];
+    private bool simRunning;
+    private string? simError;
+    private BomResolutionResultDto? simResolution;
+    private BomExplosionResultDto? simExplosion;
+
+    private OrganizationScope? CurrentScope => scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
+    private long CurrentOrgId => CurrentScope switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site s => s.OrganizationId,
+        _ => 0
+    };
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["Boms"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    protected override async Task OnParametersSetAsync() => await LoadAllAsync();
+
+    private async Task LoadAllAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        pageNotice = null;
+        try
+        {
+            available = await Scopes.LoadBomScopesAsync();
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+        }
+        catch when (OrganizationId is long requestedOrgId)
+        {
+            available = [new OrganizationScope.Organization(requestedOrgId)];
+        }
+        catch
+        {
+            pageError = "ReadError";
+            initialLoading = false;
+            return;
+        }
+
+        if (available.Count == 0)
+        {
+            if (OrganizationId is long requestedOrgId)
+            {
+                available = [new OrganizationScope.Organization(requestedOrgId)];
+                scopeIndex = 0;
+            }
+            else
+            {
+                pageError = "ReadDenied";
+                initialLoading = false;
+                return;
+            }
+        }
+        else if (OrganizationId is long orgId)
+        {
+            var idx = -1;
+            for (var i = 0; i < available.Count; i++)
+            {
+                var scopeOrg = available[i] switch
+                {
+                    OrganizationScope.Organization o => o.OrganizationId,
+                    OrganizationScope.Site s => s.OrganizationId,
+                    _ => 0
+                };
+                if (scopeOrg == orgId) { idx = i; break; }
+            }
+            if (idx >= 0) scopeIndex = idx;
+            else
+            {
+                available = [new OrganizationScope.Organization(orgId)];
+                scopeIndex = 0;
+            }
+        }
+        else
+        {
+            scopeIndex = Math.Clamp(scopeIndex, 0, available.Count - 1);
+        }
+
+        await RefreshScopeContextAsync();
+        initialLoading = false;
+    }
+
+    private async Task RefreshScopeContextAsync()
+    {
+        scopeCanManage = false;
+        activeUnits = [];
+        allActiveItems = [];
+        manufacturableItems = [];
+        consumableItems = [];
+        activeDimensions = [];
+        if (CurrentScope is null || CurrentOrgId <= 0) return;
+
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is not null && CurrentScope is OrganizationScope.Organization orgScope)
+            scopeCanManage = (await Permissions.EvaluateAsync(actor, orgScope, BomPermissions.BomsManage, default)).IsAllowed;
+
+        var probe = await BomService.ListBoms(CurrentScope, CurrentOrgId, new BomListQuery(Page: 1, PageSize: 1));
+        if (!probe.Succeeded)
+        {
+            pageError = RolePermissionLocalization.FailureKey(probe.Error!.Code);
+            return;
+        }
+
+        var unitRes = await UnitService.ListActiveUnits(CurrentScope, CurrentOrgId);
+        if (unitRes.Succeeded && unitRes.Value is not null)
+        {
+            activeUnits = unitRes.Value.ToList();
+            if (newVerUnitId == 0 && activeUnits.Count > 0) newVerUnitId = activeUnits[0].Id;
+        }
+
+        var itemRes = await ItemService.ListActiveItems(CurrentScope, CurrentOrgId);
+        if (itemRes.Succeeded && itemRes.Value is not null)
+        {
+            allActiveItems = itemRes.Value.ToList();
+            manufacturableItems = allActiveItems.Where(x => x.CanBeManufactured).ToList();
+            consumableItems = allActiveItems.Where(x => x.CanBeConsumed).ToList();
+            if (createBomPrimaryItemId == 0 && manufacturableItems.Count > 0) createBomPrimaryItemId = manufacturableItems[0].Id;
+            if (simItemId == 0 && manufacturableItems.Count > 0) simItemId = manufacturableItems[0].Id;
+        }
+
+        var dimRes = await BomService.ListActiveContextDimensions(CurrentScope, CurrentOrgId);
+        if (dimRes.Succeeded && dimRes.Value is not null)
+            activeDimensions = dimRes.Value.ToList();
+    }
+
+    private Task ReloadScopeAsync() => LoadAllAsync();
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx) && idx >= 0 && idx < available.Count)
+        {
+            scopeIndex = idx;
+            pageError = null;
+            pageNotice = null;
+            await RefreshScopeContextAsync();
+            await RefreshActiveGridAsync();
+        }
+    }
+
+    private async Task SwitchTabAsync(byte tab)
+    {
+        if (activeTab == tab) return;
+        activeTab = tab;
+        pageNotice = null;
+        await RefreshActiveGridAsync();
+    }
+
+    private Task ChangeBomItemFilterAsync(ChangeEventArgs e)
+    {
+        bomItemFilter = e.Value?.ToString() ?? string.Empty;
+        return RefreshActiveGridAsync();
+    }
+
+    private Task ApplySearchAsync() => RefreshActiveGridAsync();
+
+    private async Task RefreshActiveGridAsync()
+    {
+        if (activeTab == TabBoms && bomsGrid is not null)
+        {
+            if (bomsGrid.CurrentPage <= 1) await bomsGrid.RefreshAsync();
+            else await bomsGrid.GoToPageAsync(1);
+        }
+        else if (activeTab == TabDimensions && dimsGrid is not null)
+        {
+            if (dimsGrid.CurrentPage <= 1) await dimsGrid.RefreshAsync();
+            else await dimsGrid.GoToPageAsync(1);
+        }
+    }
+
+    private async Task<BitDataGridReadResult<BomSummary>> ReadBomsGridAsync(BitDataGridReadRequest req)
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0)
+            return new([], 0);
+
+        long? primaryItemId = long.TryParse(bomItemFilter, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0 ? parsed : null;
+        var pageSize = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / pageSize) + 1;
+        var res = await BomService.ListBoms(CurrentScope, CurrentOrgId,
+            new BomListQuery(search, primaryItemId, includeInactive, page, pageSize), req.CancellationToken);
+        if (!res.Succeeded)
+        {
+            pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+            StateHasChanged();
+            return new([], 0);
+        }
+        return res.Value is not null ? new(res.Value.Items.ToList(), res.Value.Total) : new([], 0);
+    }
+
+    private async Task<BitDataGridReadResult<ContextDimensionSummary>> ReadDimsGridAsync(BitDataGridReadRequest req)
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0)
+            return new([], 0);
+
+        var pageSize = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / pageSize) + 1;
+        var res = await BomService.ListContextDimensions(CurrentScope, CurrentOrgId,
+            new ContextDimensionListQuery(search, includeInactive, page, pageSize), req.CancellationToken);
+        if (!res.Succeeded)
+        {
+            pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+            StateHasChanged();
+            return new([], 0);
+        }
+        return res.Value is not null ? new(res.Value.Items.ToList(), res.Value.Total) : new([], 0);
+    }
+
+    private void OpenCreateBom()
+    {
+        createBomCode = string.Empty;
+        createBomName = string.Empty;
+        createBomPrimaryItemId = manufacturableItems.Count > 0 ? manufacturableItems[0].Id : 0;
+        bomError = null;
+        createBomOpen = true;
+    }
+
+    private async Task SubmitCreateBomAsync()
+    {
+        if (CurrentScope is null) return;
+        bomSaving = true;
+        bomError = null;
+        try
+        {
+            var res = await BomService.CreateBom(CurrentScope,
+                new CreateBomRequest(CurrentOrgId, createBomCode, createBomName, createBomPrimaryItemId));
+            if (!res.Succeeded)
+            {
+                bomError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            createBomOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshActiveGridAsync();
+            await OpenBomDetailsAsync(res.Value!.Summary.Id);
+        }
+        finally { bomSaving = false; }
+    }
+
+    private async Task OpenBomEditModalAsync(long bomId)
+    {
+        if (CurrentScope is null) return;
+        bomError = null;
+        bomConfirmToggle = null;
+        var res = await BomService.GetBom(CurrentScope, CurrentOrgId, bomId);
+        if (!res.Succeeded)
+        {
+            pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+            return;
+        }
+        selectedBom = res.Value;
+        editBomName = selectedBom!.Summary.Name;
+        bomEditOpen = true;
+    }
+
+    private async Task SubmitUpdateBomAsync()
+    {
+        if (CurrentScope is null || selectedBom is null) return;
+        bomSaving = true;
+        bomError = null;
+        try
+        {
+            var res = await BomService.UpdateBom(CurrentScope,
+                new UpdateBomRequest(CurrentOrgId, selectedBom.Summary.Id, editBomName, selectedBom.Summary.RowVersion));
+            if (!res.Succeeded)
+            {
+                bomError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            selectedBom = res.Value;
+            bomEditOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshActiveGridAsync();
+        }
+        finally { bomSaving = false; }
+    }
+
+    private async Task ConfirmToggleBomAsync()
+    {
+        if (CurrentScope is null || selectedBom is null || bomConfirmToggle is null) return;
+        bomSaving = true;
+        bomError = null;
+        try
+        {
+            var res = await BomService.SetBomActive(CurrentScope,
+                new SetBomActiveRequest(CurrentOrgId, selectedBom.Summary.Id, bomConfirmToggle.Value, selectedBom.Summary.RowVersion));
+            if (!res.Succeeded)
+            {
+                bomError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            selectedBom = res.Value;
+            bomConfirmToggle = null;
+            bomEditOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshActiveGridAsync();
+        }
+        finally { bomSaving = false; }
+    }
+
+    private async Task OpenBomDetailsAsync(long bomId)
+    {
+        if (CurrentScope is null) return;
+        bomVersionListError = null;
+        var res = await BomService.GetBom(CurrentScope, CurrentOrgId, bomId);
+        if (!res.Succeeded)
+        {
+            pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+            return;
+        }
+        selectedBom = res.Value;
+        var nextVer = selectedBom!.Versions.Count > 0 ? selectedBom.Versions.Max(v => v.VersionNumber) + 1 : 1;
+        newVerNumber = nextVer;
+        newVerQtyText = "1";
+        newVerNotes = string.Empty;
+        newVerFromDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        newVerToDate = null;
+        var primaryItem = allActiveItems.FirstOrDefault(x => x.Id == selectedBom.Summary.PrimaryOutputItemId);
+        newVerUnitId = primaryItem?.BaseUnitId ?? (activeUnits.Count > 0 ? activeUnits[0].Id : 0);
+        bomVersionsOpen = true;
+    }
+
+    private async Task SubmitCreateVersionAsync()
+    {
+        if (CurrentScope is null || selectedBom is null) return;
+        if (!TryParsePositiveDecimal(newVerQtyText, out var qty))
+        {
+            bomVersionListError = "BomErrorQuantityInvalid";
+            return;
+        }
+        bomSaving = true;
+        bomVersionListError = null;
+        try
+        {
+            var res = await BomService.CreateBomVersion(CurrentScope,
+                new CreateBomVersionRequest(CurrentOrgId, selectedBom.Summary.Id, newVerNumber, qty, newVerUnitId, newVerFromDate, newVerToDate, newVerNotes));
+            if (!res.Succeeded)
+            {
+                bomVersionListError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            await OpenBomDetailsAsync(selectedBom.Summary.Id);
+            await RefreshActiveGridAsync();
+            await OpenVersionWorkbenchAsync(res.Value!.Summary.Id);
+        }
+        finally { bomSaving = false; }
+    }
+
+    private async Task OpenVersionWorkbenchAsync(long versionId)
+    {
+        if (CurrentScope is null) return;
+        verError = null;
+        verNotice = null;
+        var res = await BomService.GetBomVersion(CurrentScope, CurrentOrgId, versionId);
+        if (!res.Succeeded)
+        {
+            bomVersionListError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+            return;
+        }
+        LoadVersionState(res.Value!);
+        versionModalOpen = true;
+    }
+
+    private void LoadVersionState(BomVersionDetails details)
+    {
+        selectedVersion = details;
+        editVerQtyText = details.Summary.BaseOutputQuantity.ToString("G29", CultureInfo.InvariantCulture);
+        editVerUnitId = details.Summary.BaseOutputUnitId;
+        editVerFromDate = details.Summary.EffectiveFromDate;
+        editVerToDate = details.Summary.EffectiveToDate;
+        editVerNotes = details.Summary.Notes ?? string.Empty;
+
+        draftInputs.Clear();
+        foreach (var inp in details.Inputs)
+        {
+            draftInputs.Add(new InputRowModel
+            {
+                Sequence = inp.Sequence,
+                ItemId = inp.ItemId,
+                QuantityText = inp.Quantity.ToString("G29", CultureInfo.InvariantCulture),
+                UnitId = inp.UnitId,
+                ScrapText = inp.ScrapPercentage.ToString("G29", CultureInfo.InvariantCulture),
+                IsOptional = inp.IsOptional,
+                Notes = inp.Notes
+            });
+        }
+
+        draftOutputs.Clear();
+        foreach (var outLine in details.Outputs)
+        {
+            draftOutputs.Add(new OutputRowModel
+            {
+                Sequence = outLine.Sequence,
+                ItemId = outLine.ItemId,
+                OutputType = outLine.OutputType,
+                QuantityText = outLine.Quantity.ToString("G29", CultureInfo.InvariantCulture),
+                UnitId = outLine.UnitId
+            });
+        }
+        if (draftOutputs.Count == 0 && selectedBom is not null)
+        {
+            draftOutputs.Add(new OutputRowModel
+            {
+                Sequence = 1,
+                ItemId = selectedBom.Summary.PrimaryOutputItemId,
+                OutputType = BomOutputType.MainProduct,
+                QuantityText = details.Summary.BaseOutputQuantity.ToString("G29", CultureInfo.InvariantCulture),
+                UnitId = details.Summary.BaseOutputUnitId
+            });
+        }
+
+        draftConditions.Clear();
+        if (details.Applicability is not null)
+        {
+            appEnabled = true;
+            appName = details.Applicability.Name;
+            appIsActive = details.Applicability.IsActive;
+            foreach (var c in details.Applicability.Conditions)
+            {
+                draftConditions.Add(new ConditionRowModel
+                {
+                    DimensionId = c.ContextDimensionId,
+                    Operator = c.Operator,
+                    Value = c.Value
+                });
+            }
+        }
+        else
+        {
+            appEnabled = false;
+            appName = string.Empty;
+            appIsActive = true;
+        }
+    }
+
+    private void AddDraftInputRow()
+    {
+        var defaultItem = consumableItems.FirstOrDefault() ?? allActiveItems.FirstOrDefault();
+        if (defaultItem is null) return;
+        draftInputs.Add(new InputRowModel
+        {
+            Sequence = draftInputs.Count > 0 ? draftInputs.Max(x => x.Sequence) + 1 : 1,
+            ItemId = defaultItem.Id,
+            QuantityText = "1",
+            UnitId = defaultItem.BaseUnitId,
+            ScrapText = "0"
+        });
+    }
+
+    private void AddDraftOutputRow()
+    {
+        var defaultItem = allActiveItems.FirstOrDefault();
+        if (defaultItem is null) return;
+        draftOutputs.Add(new OutputRowModel
+        {
+            Sequence = draftOutputs.Count > 0 ? draftOutputs.Max(x => x.Sequence) + 1 : 1,
+            ItemId = defaultItem.Id,
+            OutputType = draftOutputs.Count == 0 ? BomOutputType.MainProduct : BomOutputType.CoProduct,
+            QuantityText = "1",
+            UnitId = defaultItem.BaseUnitId
+        });
+    }
+
+    private void AddDraftConditionRow()
+    {
+        if (activeDimensions.Count == 0) return;
+        draftConditions.Add(new ConditionRowModel
+        {
+            DimensionId = activeDimensions[0].Id,
+            Operator = ApplicabilityOperator.Equals,
+            Value = string.Empty
+        });
+    }
+
+    private async Task SaveDraftHeaderAsync()
+    {
+        if (CurrentScope is null || selectedVersion is null) return;
+        if (!TryParsePositiveDecimal(editVerQtyText, out var qty))
+        {
+            verError = "BomErrorQuantityInvalid";
+            return;
+        }
+        verSaving = true;
+        verError = null;
+        verNotice = null;
+        try
+        {
+            var res = await BomService.UpdateDraftBomVersion(CurrentScope,
+                new UpdateDraftBomVersionRequest(CurrentOrgId, selectedVersion.Summary.Id, qty, editVerUnitId, editVerFromDate, editVerToDate, editVerNotes, selectedVersion.Summary.RowVersion));
+            if (!res.Succeeded)
+            {
+                verError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            LoadVersionState(res.Value!);
+            verNotice = Text["WriteSaved"];
+            if (selectedBom is not null) await OpenBomDetailsAsync(selectedBom.Summary.Id);
+        }
+        finally { verSaving = false; }
+    }
+
+    private async Task SaveDraftLinesAsync()
+    {
+        if (CurrentScope is null || selectedVersion is null) return;
+        var inputLines = new List<BomInputLineInput>(draftInputs.Count);
+        foreach (var inp in draftInputs)
+        {
+            if (!TryParsePositiveDecimal(inp.QuantityText, out var q)) { verError = "BomErrorQuantityInvalid"; return; }
+            if (!decimal.TryParse(inp.ScrapText, NumberStyles.Number, CultureInfo.InvariantCulture, out var scrap) || scrap < 0m || scrap >= 100m)
+            {
+                verError = "BomErrorScrapInvalid";
+                return;
+            }
+            inputLines.Add(new BomInputLineInput(inp.Sequence, inp.ItemId, q, inp.UnitId, scrap, inp.IsOptional, inp.Notes));
+        }
+
+        var outputLines = new List<BomOutputLineInput>(draftOutputs.Count);
+        foreach (var outLine in draftOutputs)
+        {
+            if (!TryParsePositiveDecimal(outLine.QuantityText, out var q)) { verError = "BomErrorQuantityInvalid"; return; }
+            outputLines.Add(new BomOutputLineInput(outLine.Sequence, outLine.ItemId, outLine.OutputType, q, outLine.UnitId));
+        }
+
+        verSaving = true;
+        verError = null;
+        verNotice = null;
+        try
+        {
+            var res = await BomService.SaveDraftBomLines(CurrentScope,
+                new SaveDraftBomLinesRequest(CurrentOrgId, selectedVersion.Summary.Id, inputLines, outputLines, selectedVersion.Summary.RowVersion));
+            if (!res.Succeeded)
+            {
+                verError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            LoadVersionState(res.Value!);
+            verNotice = Text["WriteSaved"];
+            if (selectedBom is not null) await OpenBomDetailsAsync(selectedBom.Summary.Id);
+        }
+        finally { verSaving = false; }
+    }
+
+    private async Task SaveDraftApplicabilityAsync()
+    {
+        if (CurrentScope is null || selectedVersion is null) return;
+        verSaving = true;
+        verError = null;
+        verNotice = null;
+        try
+        {
+            var conds = draftConditions
+                .Select(c => new BomApplicabilityConditionInput(c.DimensionId, c.Operator, c.Value))
+                .ToList();
+            var res = await BomService.SaveDraftBomApplicability(CurrentScope,
+                new SaveDraftBomApplicabilityRequest(CurrentOrgId, selectedVersion.Summary.Id, appEnabled, appName, appIsActive, conds, selectedVersion.Summary.RowVersion));
+            if (!res.Succeeded)
+            {
+                verError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            LoadVersionState(res.Value!);
+            verNotice = Text["WriteSaved"];
+            if (selectedBom is not null) await OpenBomDetailsAsync(selectedBom.Summary.Id);
+        }
+        finally { verSaving = false; }
+    }
+
+    private async Task TransitionVersionAsync(BomVersionStatus targetStatus)
+    {
+        if (CurrentScope is null || selectedVersion is null) return;
+        verSaving = true;
+        verError = null;
+        verNotice = null;
+        try
+        {
+            var res = await BomService.TransitionBomVersionStatus(CurrentScope,
+                new TransitionBomVersionStatusRequest(CurrentOrgId, selectedVersion.Summary.Id, targetStatus, selectedVersion.Summary.RowVersion));
+            if (!res.Succeeded)
+            {
+                verError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            LoadVersionState(res.Value!);
+            verNotice = Text["WriteSaved"];
+            if (selectedBom is not null) await OpenBomDetailsAsync(selectedBom.Summary.Id);
+        }
+        finally { verSaving = false; }
+    }
+
+    private void OpenCreateDim()
+    {
+        createDimCode = string.Empty;
+        createDimName = string.Empty;
+        dimError = null;
+        createDimOpen = true;
+    }
+
+    private async Task SubmitCreateDimAsync()
+    {
+        if (CurrentScope is null) return;
+        dimSaving = true;
+        dimError = null;
+        try
+        {
+            var res = await BomService.CreateContextDimension(CurrentScope,
+                new CreateContextDimensionRequest(CurrentOrgId, createDimCode, createDimName));
+            if (!res.Succeeded)
+            {
+                dimError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            createDimOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshScopeContextAsync();
+            await RefreshActiveGridAsync();
+        }
+        finally { dimSaving = false; }
+    }
+
+    private void OpenEditDim(ContextDimensionSummary dim)
+    {
+        selectedDim = dim;
+        editDimName = dim.Name;
+        dimError = null;
+        editDimOpen = true;
+    }
+
+    private async Task SubmitUpdateDimAsync()
+    {
+        if (CurrentScope is null || selectedDim is null) return;
+        dimSaving = true;
+        dimError = null;
+        try
+        {
+            var res = await BomService.UpdateContextDimension(CurrentScope,
+                new UpdateContextDimensionRequest(CurrentOrgId, selectedDim.Id, editDimName, selectedDim.RowVersion));
+            if (!res.Succeeded)
+            {
+                dimError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            editDimOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshScopeContextAsync();
+            await RefreshActiveGridAsync();
+        }
+        finally { dimSaving = false; }
+    }
+
+    private async Task ToggleDimActiveAsync()
+    {
+        if (CurrentScope is null || selectedDim is null) return;
+        dimSaving = true;
+        dimError = null;
+        try
+        {
+            var next = !selectedDim.IsActive;
+            var res = await BomService.SetContextDimensionActive(CurrentScope,
+                new SetContextDimensionActiveRequest(CurrentOrgId, selectedDim.Id, next, selectedDim.RowVersion));
+            if (!res.Succeeded)
+            {
+                dimError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            editDimOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshScopeContextAsync();
+            await RefreshActiveGridAsync();
+        }
+        finally { dimSaving = false; }
+    }
+
+    private async Task SeedStandardDimensionsAsync()
+    {
+        if (CurrentScope is null) return;
+        seedingDimensions = true;
+        pageNotice = null;
+        try
+        {
+            var res = await BomService.SeedStandardContextDimensions(CurrentScope, CurrentOrgId);
+            if (!res.Succeeded)
+            {
+                pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            pageNotice = Text["BomDimSeededNotice", res.Value!.CreatedCount];
+            await RefreshScopeContextAsync();
+            await RefreshActiveGridAsync();
+        }
+        finally { seedingDimensions = false; }
+    }
+
+    private void AddSimulatorContextPair()
+    {
+        if (activeDimensions.Count == 0) return;
+        simContextPairs.Add(new SimContextPair { DimensionCode = activeDimensions[0].Code, Value = string.Empty });
+    }
+
+    private Dictionary<string, string>? BuildSimulatorContext()
+    {
+        if (simContextPairs.Count == 0) return null;
+        var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in simContextPairs)
+        {
+            if (!string.IsNullOrWhiteSpace(pair.DimensionCode) && !string.IsNullOrWhiteSpace(pair.Value))
+                dict[pair.DimensionCode] = pair.Value.Trim();
+        }
+        return dict.Count == 0 ? null : dict;
+    }
+
+    private async Task RunResolveAsync()
+    {
+        if (CurrentScope is null || simItemId <= 0) return;
+        simRunning = true;
+        simError = null;
+        simExplosion = null;
+        try
+        {
+            var res = await BomService.ResolveBom(CurrentScope,
+                new ResolveBomRequest(CurrentOrgId, simItemId, simDate, BuildSimulatorContext()));
+            if (!res.Succeeded)
+            {
+                simResolution = null;
+                simError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            simResolution = res.Value;
+        }
+        finally { simRunning = false; }
+    }
+
+    private async Task RunExplodeAsync()
+    {
+        if (CurrentScope is null || simItemId <= 0) return;
+        if (!TryParsePositiveDecimal(simQtyText, out var qty))
+        {
+            simError = "BomErrorQuantityInvalid";
+            return;
+        }
+        simRunning = true;
+        simError = null;
+        try
+        {
+            long? unitId = simUnitId > 0 ? simUnitId : null;
+            var res = await BomService.ExplodeBom(CurrentScope,
+                new ExplodeBomRequest(CurrentOrgId, simItemId, simDate, qty, unitId, BuildSimulatorContext()));
+            if (!res.Succeeded)
+            {
+                simExplosion = null;
+                simError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            simExplosion = res.Value;
+            var resolveRes = await BomService.ResolveBom(CurrentScope,
+                new ResolveBomRequest(CurrentOrgId, simItemId, simDate, BuildSimulatorContext()));
+            simResolution = resolveRes.Succeeded ? resolveRes.Value : null;
+        }
+        finally { simRunning = false; }
+    }
+
+    private static bool TryParsePositiveDecimal(string raw, out decimal value) =>
+        decimal.TryParse(raw?.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out value) && value > 0m;
+
+    private string ScopeLabel(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o when scopeLabels.TryGetValue(scope, out var info) && info.OrgCode is not null
+            => $"{info.OrgCode} — {info.OrgName}",
+        OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId],
+        OrganizationScope.Site s when scopeLabels.TryGetValue(scope, out var info) && info.SiteCode is not null
+            => $"{info.OrgCode} / {info.SiteCode} — {info.SiteName}",
+        OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
+        _ => string.Empty
+    };
+
+    private static string VersionStatusKey(BomVersionStatus status) => status switch
+    {
+        BomVersionStatus.Draft => "BomStatusDraft",
+        BomVersionStatus.Approved => "BomStatusApproved",
+        BomVersionStatus.Active => "BomStatusActive",
+        BomVersionStatus.Superseded => "BomStatusSuperseded",
+        BomVersionStatus.Obsolete => "BomStatusObsolete",
+        _ => "BomStatusDraft"
+    };
+
+    private static string VersionStatusCss(BomVersionStatus status) => status switch
+    {
+        BomVersionStatus.Draft => "bom-status-draft",
+        BomVersionStatus.Approved => "bom-status-approved",
+        BomVersionStatus.Active => "bom-status-active",
+        BomVersionStatus.Superseded => "bom-status-archived",
+        BomVersionStatus.Obsolete => "bom-status-obsolete",
+        _ => "bom-status-draft"
+    };
+
+    private static string OutputTypeKey(BomOutputType outputType) => outputType switch
+    {
+        BomOutputType.MainProduct => "BomOutMainProduct",
+        BomOutputType.CoProduct => "BomOutCoProduct",
+        BomOutputType.ByProduct => "BomOutByProduct",
+        BomOutputType.Waste => "BomOutWaste",
+        _ => "BomOutMainProduct"
+    };
+
+    private static string OutputTypeCss(BomOutputType outputType) => outputType switch
+    {
+        BomOutputType.MainProduct => "bom-out-main",
+        BomOutputType.CoProduct => "bom-out-coproduct",
+        BomOutputType.ByProduct => "bom-out-byproduct",
+        BomOutputType.Waste => "bom-out-waste",
+        _ => "bom-out-main"
+    };
+
+    private static string OperatorKey(ApplicabilityOperator op) => op switch
+    {
+        ApplicabilityOperator.Equals => "BomOpEquals",
+        ApplicabilityOperator.NotEquals => "BomOpNotEquals",
+        ApplicabilityOperator.In => "BomOpIn",
+        ApplicabilityOperator.NotIn => "BomOpNotIn",
+        _ => "BomOpEquals"
+    };
+
+    private sealed class InputRowModel
+    {
+        public int Sequence { get; set; }
+        public long ItemId { get; set; }
+        public string QuantityText { get; set; } = "1";
+        public long UnitId { get; set; }
+        public string ScrapText { get; set; } = "0";
+        public bool IsOptional { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    private sealed class OutputRowModel
+    {
+        public int Sequence { get; set; }
+        public long ItemId { get; set; }
+        public BomOutputType OutputType { get; set; } = BomOutputType.MainProduct;
+        public string QuantityText { get; set; } = "1";
+        public long UnitId { get; set; }
+    }
+
+    private sealed class ConditionRowModel
+    {
+        public long DimensionId { get; set; }
+        public ApplicabilityOperator Operator { get; set; } = ApplicabilityOperator.Equals;
+        public string Value { get; set; } = string.Empty;
+    }
+
+    private sealed class SimContextPair
+    {
+        public string DimensionCode { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+    }
+}

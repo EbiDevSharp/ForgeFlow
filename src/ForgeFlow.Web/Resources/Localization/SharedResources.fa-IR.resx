@@ -753,4 +753,670 @@
   <data name="AuditSystemActor" xml:space="preserve">
     <value>سیستم / ناشناس</value>
   </data>
+  <data name="MasterDataNavGroup" xml:space="preserve">
+    <value>اطلاعات پایه و مهندسی</value>
+  </data>
+  <data name="PermPageUnits" xml:space="preserve">
+    <value>واحدهای سنجش</value>
+  </data>
+  <data name="PermPageSelectLabel" xml:space="preserve">
+    <value>صفحه / بخش</value>
+  </data>
+  <data name="PermModuleSummary" xml:space="preserve">
+    <value>{0} ({1}/{2})</value>
+  </data>
+  <data name="PermOpManageUnits" xml:space="preserve">
+    <value>مدیریت واحدها و تبدیل‌ها</value>
+  </data>
+  <data name="Units" xml:space="preserve">
+    <value>واحدهای سنجش</value>
+  </data>
+  <data name="UnitsCaption" xml:space="preserve">
+    <value>مدیریت واحدهای سنجش سازمانی و ضرایب تبدیل چندمرحله‌ای</value>
+  </data>
+  <data name="UnitsTab" xml:space="preserve">
+    <value>واحدها</value>
+  </data>
+  <data name="UnitConversionsTab" xml:space="preserve">
+    <value>تبدیل واحدها</value>
+  </data>
+  <data name="UnitCreateButton" xml:space="preserve">
+    <value>واحد جدید</value>
+  </data>
+  <data name="UnitCreateTitle" xml:space="preserve">
+    <value>ایجاد واحد سنجش</value>
+  </data>
+  <data name="UnitEditTitle" xml:space="preserve">
+    <value>ویرایش واحد سنجش</value>
+  </data>
+  <data name="UnitDetailTitle" xml:space="preserve">
+    <value>جزئیات واحد سنجش</value>
+  </data>
+  <data name="UnitConversionCreateButton" xml:space="preserve">
+    <value>تبدیل جدید</value>
+  </data>
+  <data name="UnitConversionCreateTitle" xml:space="preserve">
+    <value>ایجاد تبدیل واحد</value>
+  </data>
+  <data name="UnitConversionEditTitle" xml:space="preserve">
+    <value>ویرایش تبدیل واحد</value>
+  </data>
+  <data name="UnitConversionDetailTitle" xml:space="preserve">
+    <value>جزئیات تبدیل واحد</value>
+  </data>
+  <data name="UnitsSeedButton" xml:space="preserve">
+    <value>افزودن واحدهای استاندارد</value>
+  </data>
+  <data name="UnitsSeededNotice" xml:space="preserve">
+    <value>{0} واحد و {1} ضریب تبدیل استاندارد اضافه شد.</value>
+  </data>
+  <data name="UnitConverterButton" xml:space="preserve">
+    <value>محاسبه‌گر تبدیل</value>
+  </data>
+  <data name="UnitConverterTitle" xml:space="preserve">
+    <value>محاسبه‌گر تبدیل چندمرحله‌ای واحدها</value>
+  </data>
+  <data name="UnitConverterQuantityLabel" xml:space="preserve">
+    <value>مقدار</value>
+  </data>
+  <data name="UnitConverterCalculate" xml:space="preserve">
+    <value>محاسبه</value>
+  </data>
+  <data name="UnitConverterHops" xml:space="preserve">
+    <value>طول مسیر: {0} مرحله، ضریب مؤثر: {1}</value>
+  </data>
+  <data name="UnitSymbolLabel" xml:space="preserve">
+    <value>نماد</value>
+  </data>
+  <data name="UnitDimensionLabel" xml:space="preserve">
+    <value>بُعد سنجش</value>
+  </data>
+  <data name="UnitDimensionAll" xml:space="preserve">
+    <value>همه ابعاد</value>
+  </data>
+  <data name="UnitDimensionMass" xml:space="preserve">
+    <value>جرم</value>
+  </data>
+  <data name="UnitDimensionVolume" xml:space="preserve">
+    <value>حجم</value>
+  </data>
+  <data name="UnitDimensionLength" xml:space="preserve">
+    <value>طول</value>
+  </data>
+  <data name="UnitDimensionArea" xml:space="preserve">
+    <value>مساحت</value>
+  </data>
+  <data name="UnitDimensionCount" xml:space="preserve">
+    <value>تعداد</value>
+  </data>
+  <data name="UnitDimensionTime" xml:space="preserve">
+    <value>زمان</value>
+  </data>
+  <data name="UnitPrecisionLabel" xml:space="preserve">
+    <value>دقت اعشار</value>
+  </data>
+  <data name="UnitConversionFromLabel" xml:space="preserve">
+    <value>از واحد</value>
+  </data>
+  <data name="UnitConversionToLabel" xml:space="preserve">
+    <value>به واحد</value>
+  </data>
+  <data name="UnitConversionFactorLabel" xml:space="preserve">
+    <value>ضریب تبدیل</value>
+  </data>
+  <data name="UnitConversionRelationLabel" xml:space="preserve">
+    <value>رابطه تبدیل</value>
+  </data>
+  <data name="UnitFilterAll" xml:space="preserve">
+    <value>همه واحدها</value>
+  </data>
+  <data name="UnitSearchPlaceholder" xml:space="preserve">
+    <value>جستجو بر اساس کد، نام یا نماد</value>
+  </data>
+  <data name="UnitCreatedSucceeded" xml:space="preserve">
+    <value>واحد سنجش {0} ایجاد شد.</value>
+  </data>
+  <data name="UnitConversionCreatedSucceeded" xml:space="preserve">
+    <value>ضریب تبدیل واحد با موفقیت ثبت شد.</value>
+  </data>
+  <data name="UnitErrorSymbolInvalid" xml:space="preserve">
+    <value>نماد معتبر وارد کنید (۱ تا ۳۲ نویسه).</value>
+  </data>
+  <data name="UnitErrorDimensionInvalid" xml:space="preserve">
+    <value>بُعد سنجش معتبر انتخاب کنید.</value>
+  </data>
+  <data name="UnitErrorPrecisionInvalid" xml:space="preserve">
+    <value>دقت اعشار باید بین ۰ تا ۶ رقم باشد.</value>
+  </data>
+  <data name="UnitErrorInactive" xml:space="preserve">
+    <value>واحد یا تبدیل غیرفعال تا پیش از فعال‌سازی مجدد قابل ویرایش نیست.</value>
+  </data>
+  <data name="UnitErrorConversionDuplicate" xml:space="preserve">
+    <value>تبدیل مستقیم بین این دو واحد از قبل وجود دارد.</value>
+  </data>
+  <data name="UnitErrorConversionSameUnit" xml:space="preserve">
+    <value>واحد مبدأ و واحد مقصد باید متفاوت باشند.</value>
+  </data>
+  <data name="UnitErrorConversionFactorInvalid" xml:space="preserve">
+    <value>ضریب تبدیل مثبت با حداکثر ۶ رقم اعشار وارد کنید.</value>
+  </data>
+  <data name="UnitErrorConversionPathNotFound" xml:space="preserve">
+    <value>هیچ مسیر تبدیل فعالی بین واحدهای انتخاب‌شده وجود ندارد.</value>
+  </data>
+  <data name="UnitErrorConversionConflictingPath" xml:space="preserve">
+    <value>این ضریب تبدیل با مسیر چندمرحله‌ای موجود در سازمان مغایرت دارد.</value>
+  </data>
+  <data name="UnitErrorConversionQuantityInvalid" xml:space="preserve">
+    <value>مقدار باید بزرگ‌تر از صفر باشد.</value>
+  </data>
+  <data name="PermPageItems" xml:space="preserve">
+    <value>کاتالوگ کالا و طبقه‌بندی</value>
+  </data>
+  <data name="PermOpManageItems" xml:space="preserve">
+    <value>مدیریت کالاها، طبقه‌بندی‌ها و ویژگی‌ها</value>
+  </data>
+  <data name="Items" xml:space="preserve">
+    <value>کاتالوگ کالا</value>
+  </data>
+  <data name="ItemsCaption" xml:space="preserve">
+    <value>مدیریت یکپارچه کالاها، طبقه‌بندی‌ها، قابلیت‌های عملیاتی، تبدیل واحدها و ویژگی‌ها</value>
+  </data>
+  <data name="ItemsTab" xml:space="preserve">
+    <value>کالاها</value>
+  </data>
+  <data name="ItemsClassificationsTab" xml:space="preserve">
+    <value>طبقه‌بندی‌ها</value>
+  </data>
+  <data name="ItemsAttributesTab" xml:space="preserve">
+    <value>ویژگی‌ها</value>
+  </data>
+  <data name="ItemCreateButton" xml:space="preserve">
+    <value>کالای جدید</value>
+  </data>
+  <data name="ItemCreateTitle" xml:space="preserve">
+    <value>ایجاد کالا</value>
+  </data>
+  <data name="ItemEditTitle" xml:space="preserve">
+    <value>ویرایش کالا</value>
+  </data>
+  <data name="ItemDetailTitle" xml:space="preserve">
+    <value>جزئیات کالا</value>
+  </data>
+  <data name="ItemDescriptionLabel" xml:space="preserve">
+    <value>توضیحات</value>
+  </data>
+  <data name="ItemBaseUnitLabel" xml:space="preserve">
+    <value>واحد پایه</value>
+  </data>
+  <data name="ItemCapabilitiesLabel" xml:space="preserve">
+    <value>قابلیت‌های عملیاتی</value>
+  </data>
+  <data name="ItemCapFilterAll" xml:space="preserve">
+    <value>همه قابلیت‌ها</value>
+  </data>
+  <data name="ItemCapPurchase" xml:space="preserve">
+    <value>خرید</value>
+  </data>
+  <data name="ItemCapManufacture" xml:space="preserve">
+    <value>تولید</value>
+  </data>
+  <data name="ItemCapSell" xml:space="preserve">
+    <value>فروش</value>
+  </data>
+  <data name="ItemCapConsume" xml:space="preserve">
+    <value>مصرف</value>
+  </data>
+  <data name="ItemSearchPlaceholder" xml:space="preserve">
+    <value>جستجو بر اساس کد یا نام</value>
+  </data>
+  <data name="ItemCreatedSucceeded" xml:space="preserve">
+    <value>کالای {0} ایجاد شد.</value>
+  </data>
+  <data name="ItemSectionGeneral" xml:space="preserve">
+    <value>اطلاعات کلی</value>
+  </data>
+  <data name="ItemSectionClassifications" xml:space="preserve">
+    <value>طبقه‌بندی</value>
+  </data>
+  <data name="ItemSectionConversions" xml:space="preserve">
+    <value>تبدیل واحد کالا</value>
+  </data>
+  <data name="ItemSectionAttributes" xml:space="preserve">
+    <value>ویژگی‌ها</value>
+  </data>
+  <data name="ClassificationSetCreateButton" xml:space="preserve">
+    <value>ساختار طبقه‌بندی جدید</value>
+  </data>
+  <data name="ClassificationCreateButton" xml:space="preserve">
+    <value>گره طبقه‌بندی جدید</value>
+  </data>
+  <data name="ClassificationSetLabel" xml:space="preserve">
+    <value>مجموعه طبقه‌بندی</value>
+  </data>
+  <data name="ClassificationSetAll" xml:space="preserve">
+    <value>همه مجموعه‌ها</value>
+  </data>
+  <data name="ClassificationSetAllowMultiple" xml:space="preserve">
+    <value>امکان انتخاب هم‌زمان چند طبقه‌بندی از این مجموعه</value>
+  </data>
+  <data name="ClassificationParentLabel" xml:space="preserve">
+    <value>طبقه‌بندی والد</value>
+  </data>
+  <data name="ClassificationFilterAll" xml:space="preserve">
+    <value>همه طبقه‌بندی‌ها</value>
+  </data>
+  <data name="AttributeCreateButton" xml:space="preserve">
+    <value>ویژگی جدید</value>
+  </data>
+  <data name="AttributeDataTypeLabel" xml:space="preserve">
+    <value>نوع داده</value>
+  </data>
+  <data name="AttributeDataTypeAll" xml:space="preserve">
+    <value>همه انواع</value>
+  </data>
+  <data name="AttributeDataTypeText" xml:space="preserve">
+    <value>متنی</value>
+  </data>
+  <data name="AttributeDataTypeDecimal" xml:space="preserve">
+    <value>عددی اعشاری</value>
+  </data>
+  <data name="AttributeDataTypeBoolean" xml:space="preserve">
+    <value>بله / خیر</value>
+  </data>
+  <data name="AttributeRequiredLabel" xml:space="preserve">
+    <value>الزامی</value>
+  </data>
+  <data name="AttributeRequiredYes" xml:space="preserve">
+    <value>الزامی</value>
+  </data>
+  <data name="AttributeRequiredNo" xml:space="preserve">
+    <value>اختیاری</value>
+  </data>
+  <data name="AttributeBoolTrue" xml:space="preserve">
+    <value>بله</value>
+  </data>
+  <data name="AttributeBoolFalse" xml:space="preserve">
+    <value>خیر</value>
+  </data>
+  <data name="ItemErrorDescriptionInvalid" xml:space="preserve">
+    <value>توضیحات حداکثر ۵۰۰ نویسه و بدون نویسه‌های کنترلی باشد.</value>
+  </data>
+  <data name="ItemErrorBaseUnitInvalid" xml:space="preserve">
+    <value>یک واحد پایه فعال در همین سازمان انتخاب کنید.</value>
+  </data>
+  <data name="ItemErrorCapabilityRequired" xml:space="preserve">
+    <value>حداقل یکی از قابلیت‌های عملیاتی کالا باید انتخاب شود.</value>
+  </data>
+  <data name="ItemErrorClassificationParentInvalid" xml:space="preserve">
+    <value>طبقه‌بندی والد یا انتخاب‌شده با قوانین مجموعه هم‌خوانی ندارد.</value>
+  </data>
+  <data name="ItemErrorClassificationCircularParent" xml:space="preserve">
+    <value>یک طبقه‌بندی نمی‌تواند والد خودش یا در حلقه سلسله‌مراتبی باشد.</value>
+  </data>
+  <data name="ItemErrorAttributeValueInvalid" xml:space="preserve">
+    <value>مقدار ویژگی با نوع داده و محدوده مجاز تعریف‌شده مطابقت ندارد.</value>
+  </data>
+  <data name="ItemErrorAttributeRequired" xml:space="preserve">
+    <value>مقدار یکی از ویژگی‌های الزامی وارد نشده است.</value>
+  </data>
+  <data name="Boms" xml:space="preserve">
+    <value>ساختارهای محصول (BOM)</value>
+  </data>
+  <data name="BomsCaption" xml:space="preserve">
+    <value>مدیریت فرمول‌های ساخت، نسخه‌بندی، قوانین کاربردپذیری زمینه‌ای و تجزیه چندسطحی</value>
+  </data>
+  <data name="PermPageBoms" xml:space="preserve">
+    <value>ساختارهای محصول (BOM)</value>
+  </data>
+  <data name="PermOpManageBoms" xml:space="preserve">
+    <value>مدیریت BOM و نسخه‌ها</value>
+  </data>
+  <data name="BomsTab" xml:space="preserve">
+    <value>فهرست BOM و نسخه‌ها</value>
+  </data>
+  <data name="BomDimensionsTab" xml:space="preserve">
+    <value>ابعاد زمینه‌ای</value>
+  </data>
+  <data name="BomSimulatorTab" xml:space="preserve">
+    <value>تشخیص و تجزیه BOM</value>
+  </data>
+  <data name="BomCreateButton" xml:space="preserve">
+    <value>ایجاد BOM جدید</value>
+  </data>
+  <data name="BomDimCreateButton" xml:space="preserve">
+    <value>بعد جدید</value>
+  </data>
+  <data name="BomDimSeedButton" xml:space="preserve">
+    <value>درج ابعاد استاندارد</value>
+  </data>
+  <data name="BomPrimaryItemLabel" xml:space="preserve">
+    <value>کالای خروجی اصلی</value>
+  </data>
+  <data name="BomPrimaryItemAll" xml:space="preserve">
+    <value>همه کالاهای قابل تولید</value>
+  </data>
+  <data name="BomSearchPlaceholder" xml:space="preserve">
+    <value>جست‌وجو با کد یا نام BOM</value>
+  </data>
+  <data name="BomVersionCountColumn" xml:space="preserve">
+    <value>تعداد نسخه</value>
+  </data>
+  <data name="BomVersionsAction" xml:space="preserve">
+    <value>نسخه‌ها</value>
+  </data>
+  <data name="BomSimulatorHeading" xml:space="preserve">
+    <value>تشخیص‌دهنده و شبیه‌ساز تجزیه چندسطحی BOM</value>
+  </data>
+  <data name="BomSimulatorHint" xml:space="preserve">
+    <value>کالای تولیدی، تاریخ تولید، مقدار و شرایط زمینه‌ای را برای یافتن نسخه فعال و تجزیه مواد اولیه انتخاب کنید.</value>
+  </data>
+  <data name="BomSelectItemOption" xml:space="preserve">
+    <value>یک کالای قابل تولید انتخاب کنید...</value>
+  </data>
+  <data name="BomProductionDateLabel" xml:space="preserve">
+    <value>تاریخ تولید</value>
+  </data>
+  <data name="BomRequestedQtyLabel" xml:space="preserve">
+    <value>مقدار درخواستی</value>
+  </data>
+  <data name="BomRequestedUnitLabel" xml:space="preserve">
+    <value>واحد درخواستی</value>
+  </data>
+  <data name="BomDefaultBaseUnitOption" xml:space="preserve">
+    <value>واحد پایه کالا</value>
+  </data>
+  <data name="BomContextPairsLabel" xml:space="preserve">
+    <value>زمینه تولید</value>
+  </data>
+  <data name="BomAddContextPairBtn" xml:space="preserve">
+    <value>افزودن شرط زمینه</value>
+  </data>
+  <data name="BomNoContextPairsHint" xml:space="preserve">
+    <value>شرط زمینه‌ای تنظیم نشده است؛ فقط نسخه‌های بدون شرط بررسی می‌شوند.</value>
+  </data>
+  <data name="BomDimLabel" xml:space="preserve">
+    <value>بعد زمینه‌ای</value>
+  </data>
+  <data name="BomConditionValuePlaceholder" xml:space="preserve">
+    <value>مقدار (برای مجموعه با ویرگول جدا کنید)</value>
+  </data>
+  <data name="BomRemoveRowBtn" xml:space="preserve">
+    <value>حذف</value>
+  </data>
+  <data name="BomResolveBtn" xml:space="preserve">
+    <value>تشخیص نسخه فعال</value>
+  </data>
+  <data name="BomExplodeBtn" xml:space="preserve">
+    <value>تجزیه چندسطحی BOM</value>
+  </data>
+  <data name="BomBaseOutputSummary" xml:space="preserve">
+    <value>خروجی مبنا: {0} {1} · بازه اعتبار: {2} تا {3}</value>
+  </data>
+  <data name="BomExplosionInputsHeading" xml:space="preserve">
+    <value>مواد مصرفی و نیمه‌ساخته‌های موردنیاز</value>
+  </data>
+  <data name="BomExplosionOutputsHeading" xml:space="preserve">
+    <value>خروجی‌های تولیدی و جانبی</value>
+  </data>
+  <data name="BomLevelColumn" xml:space="preserve">
+    <value>سطح</value>
+  </data>
+  <data name="BomParentItemColumn" xml:space="preserve">
+    <value>کالای والد</value>
+  </data>
+  <data name="BomLineItemColumn" xml:space="preserve">
+    <value>کالا</value>
+  </data>
+  <data name="BomNetQtyColumn" xml:space="preserve">
+    <value>مقدار خالص</value>
+  </data>
+  <data name="BomScrapColumn" xml:space="preserve">
+    <value>ضایعات ٪</value>
+  </data>
+  <data name="BomGrossQtyColumn" xml:space="preserve">
+    <value>مقدار ناخالص</value>
+  </data>
+  <data name="BomLineUnitColumn" xml:space="preserve">
+    <value>واحد</value>
+  </data>
+  <data name="BomSubAssemblyBadge" xml:space="preserve">
+    <value>نیمه‌ساخته</value>
+  </data>
+  <data name="BomOptionalBadge" xml:space="preserve">
+    <value>اختیاری</value>
+  </data>
+  <data name="BomOutputTypeColumn" xml:space="preserve">
+    <value>نوع خروجی</value>
+  </data>
+  <data name="BomProducedQtyColumn" xml:space="preserve">
+    <value>مقدار تولیدی</value>
+  </data>
+  <data name="BomCreateHeading" xml:space="preserve">
+    <value>ایجاد ساختار محصول (BOM)</value>
+  </data>
+  <data name="BomCreateHint" xml:space="preserve">
+    <value>کد باید با حرف یا رقم لاتین آغاز شود و فقط شامل حروف لاتین بزرگ، ارقام، _ یا - باشد.</value>
+  </data>
+  <data name="BomEditHeading" xml:space="preserve">
+    <value>ویرایش BOM</value>
+  </data>
+  <data name="BomVersionsHeading" xml:space="preserve">
+    <value>جزئیات و نسخه‌های BOM</value>
+  </data>
+  <data name="BomNoVersionsEmpty" xml:space="preserve">
+    <value>هنوز نسخه‌ای برای این BOM ایجاد نشده است.</value>
+  </data>
+  <data name="BomVersionNumberLabel" xml:space="preserve">
+    <value>شماره نسخه</value>
+  </data>
+  <data name="BomBaseOutputColumn" xml:space="preserve">
+    <value>خروجی مبنا</value>
+  </data>
+  <data name="BomEffectiveDatesColumn" xml:space="preserve">
+    <value>بازه اعتبار</value>
+  </data>
+  <data name="BomApplicabilityColumn" xml:space="preserve">
+    <value>قوانین کاربردپذیری</value>
+  </data>
+  <data name="BomRulesCountBadge" xml:space="preserve">
+    <value>{0} شرط</value>
+  </data>
+  <data name="BomUnconditionalLabel" xml:space="preserve">
+    <value>بدون شرط</value>
+  </data>
+  <data name="BomOpenVersionBtn" xml:space="preserve">
+    <value>باز کردن نسخه</value>
+  </data>
+  <data name="BomCreateVersionHeading" xml:space="preserve">
+    <value>ایجاد نسخه پیش‌نویس جدید</value>
+  </data>
+  <data name="BomBaseOutputQtyLabel" xml:space="preserve">
+    <value>مقدار خروجی مبنا</value>
+  </data>
+  <data name="BomBaseOutputUnitLabel" xml:space="preserve">
+    <value>واحد خروجی مبنا</value>
+  </data>
+  <data name="BomEffectiveFromLabel" xml:space="preserve">
+    <value>تاریخ شروع اعتبار</value>
+  </data>
+  <data name="BomEffectiveToLabel" xml:space="preserve">
+    <value>تاریخ پایان اعتبار (اختیاری)</value>
+  </data>
+  <data name="BomNotesLabel" xml:space="preserve">
+    <value>توضیحات</value>
+  </data>
+  <data name="BomCreateVersionBtn" xml:space="preserve">
+    <value>ایجاد نسخه پیش‌نویس</value>
+  </data>
+  <data name="BomVersionWorkbenchTitle" xml:space="preserve">
+    <value>میز کار نسخه BOM</value>
+  </data>
+  <data name="BomVersionImmutableNotice" xml:space="preserve">
+    <value>نسخه‌های تاییدشده، فعال، جایگزین‌شده و منسوخ تغییرناپذیر هستند.</value>
+  </data>
+  <data name="BomActionApprove" xml:space="preserve">
+    <value>تایید نسخه</value>
+  </data>
+  <data name="BomActionActivate" xml:space="preserve">
+    <value>فعال‌سازی</value>
+  </data>
+  <data name="BomActionSupersede" xml:space="preserve">
+    <value>جایگزین‌شدن</value>
+  </data>
+  <data name="BomActionObsolete" xml:space="preserve">
+    <value>منسوخ‌کردن</value>
+  </data>
+  <data name="BomVersionHeaderSection" xml:space="preserve">
+    <value>سربرگ نسخه</value>
+  </data>
+  <data name="BomSaveHeaderBtn" xml:space="preserve">
+    <value>ذخیره سربرگ</value>
+  </data>
+  <data name="BomInputsSection" xml:space="preserve">
+    <value>مواد ورودی (Inputs)</value>
+  </data>
+  <data name="BomAddInputBtn" xml:space="preserve">
+    <value>افزودن ردیف ورودی</value>
+  </data>
+  <data name="BomQuantityColumn" xml:space="preserve">
+    <value>مقدار</value>
+  </data>
+  <data name="BomOutputsSection" xml:space="preserve">
+    <value>خروجی‌ها (اصلی / مشترک / جانبی / ضایعات)</value>
+  </data>
+  <data name="BomAddOutputBtn" xml:space="preserve">
+    <value>افزودن ردیف خروجی</value>
+  </data>
+  <data name="BomSaveLinesBtn" xml:space="preserve">
+    <value>ذخیره ورودی‌ها و خروجی‌ها</value>
+  </data>
+  <data name="BomAddConditionBtn" xml:space="preserve">
+    <value>افزودن شرط</value>
+  </data>
+  <data name="BomEnableApplicabilityLabel" xml:space="preserve">
+    <value>فعال‌سازی قواعد کاربردپذیری زمینه‌ای برای این نسخه</value>
+  </data>
+  <data name="BomSaveApplicabilityBtn" xml:space="preserve">
+    <value>ذخیره قواعد کاربردپذیری</value>
+  </data>
+  <data name="BomDimCreateHeading" xml:space="preserve">
+    <value>ایجاد بعد زمینه‌ای</value>
+  </data>
+  <data name="BomDimEditHeading" xml:space="preserve">
+    <value>ویرایش بعد زمینه‌ای</value>
+  </data>
+  <data name="BomDimSeededNotice" xml:space="preserve">
+    <value>ابعاد زمینه‌ای استاندارد بررسی شدند؛ {0} مورد جدید ایجاد شد.</value>
+  </data>
+  <data name="BomStatusDraft" xml:space="preserve">
+    <value>پیش‌نویس</value>
+  </data>
+  <data name="BomStatusApproved" xml:space="preserve">
+    <value>تاییدشده</value>
+  </data>
+  <data name="BomStatusActive" xml:space="preserve">
+    <value>فعال</value>
+  </data>
+  <data name="BomStatusSuperseded" xml:space="preserve">
+    <value>جایگزین‌شده</value>
+  </data>
+  <data name="BomStatusObsolete" xml:space="preserve">
+    <value>منسوخ</value>
+  </data>
+  <data name="BomOutMainProduct" xml:space="preserve">
+    <value>محصول اصلی</value>
+  </data>
+  <data name="BomOutCoProduct" xml:space="preserve">
+    <value>محصول مشترک</value>
+  </data>
+  <data name="BomOutByProduct" xml:space="preserve">
+    <value>محصول فرعی</value>
+  </data>
+  <data name="BomOutWaste" xml:space="preserve">
+    <value>ضایعات</value>
+  </data>
+  <data name="BomOpEquals" xml:space="preserve">
+    <value>برابر با</value>
+  </data>
+  <data name="BomOpNotEquals" xml:space="preserve">
+    <value>نامساوی با</value>
+  </data>
+  <data name="BomOpIn" xml:space="preserve">
+    <value>عضوِ</value>
+  </data>
+  <data name="BomOpNotIn" xml:space="preserve">
+    <value>غیرعضوِ</value>
+  </data>
+  <data name="BomErrorItemInvalid" xml:space="preserve">
+    <value>کالای انتخاب‌شده یافت نشد یا در این سازمان غیرفعال است.</value>
+  </data>
+  <data name="BomErrorPrimaryNotManufacturable" xml:space="preserve">
+    <value>کالای خروجی اصلی باید قابلیت تولید (Manufacturable) داشته باشد.</value>
+  </data>
+  <data name="BomErrorVersionNumberInvalid" xml:space="preserve">
+    <value>شماره نسخه باید عددی صحیح و بزرگ‌تر از صفر باشد.</value>
+  </data>
+  <data name="BomErrorVersionImmutable" xml:space="preserve">
+    <value>فقط نسخه‌های پیش‌نویس قابل ویرایش ساختاری هستند.</value>
+  </data>
+  <data name="BomErrorVersionTransitionInvalid" xml:space="preserve">
+    <value>تغییر وضعیت درخواستی برای این نسخه BOM مجاز نیست.</value>
+  </data>
+  <data name="BomErrorQuantityInvalid" xml:space="preserve">
+    <value>مقدار باید عددی مثبت و بزرگ‌تر از صفر باشد.</value>
+  </data>
+  <data name="BomErrorEffectiveDatesInvalid" xml:space="preserve">
+    <value>تاریخ پایان اعتبار باید برابر یا پس از تاریخ شروع اعتبار باشد.</value>
+  </data>
+  <data name="BomErrorMainOutputRequired" xml:space="preserve">
+    <value>پیش از تایید یا فعال‌سازی، وجود دقیقاً یک ردیف خروجی اصلی منطبق با کالای خروجی BOM الزامی است.</value>
+  </data>
+  <data name="BomErrorInputsRequired" xml:space="preserve">
+    <value>پیش از تایید یا فعال‌سازی، ثبت حداقل یک ردیف ماده ورودی الزامی است.</value>
+  </data>
+  <data name="BomErrorScrapInvalid" xml:space="preserve">
+    <value>درصد ضایعات باید بین ۰ تا کمتر از ۱۰۰ باشد.</value>
+  </data>
+  <data name="BomErrorUnitInvalid" xml:space="preserve">
+    <value>واحد اندازه‌گیری انتخاب‌شده یافت نشد یا غیرفعال است.</value>
+  </data>
+  <data name="BomErrorDirectSelfCycle" xml:space="preserve">
+    <value>یک BOM نمی‌تواند کالای خروجی اصلی خود را به عنوان ماده ورودی مصرف کند.</value>
+  </data>
+  <data name="BomErrorCircularDependency" xml:space="preserve">
+    <value>وابستگی چرخه‌ای (حلقه) در ساختار چندسطحی BOM شناسایی شد.</value>
+  </data>
+  <data name="BomErrorApplicabilityInvalid" xml:space="preserve">
+    <value>قانون کاربردپذیری نیازمند نام معتبر و شرط‌های بدون تعارض با ابعاد زمینه‌ای فعال است.</value>
+  </data>
+  <data name="BomErrorNoActiveBomFound" xml:space="preserve">
+    <value>هیچ BOM فعال و معتبری برای این کالا، تاریخ تولید و شرایط زمینه‌ای یافت نشد.</value>
+  </data>
+  <data name="BomErrorAmbiguousResolution" xml:space="preserve">
+    <value>چند نسخه فعال با اختصاصیت برابر منطبق شدند و برنده یکتا قابل تشخیص نیست.</value>
+  </data>
+  <data name="BomDateToday" xml:space="preserve">
+    <value>امروز</value>
+  </data>
+  <data name="BomDateClear" xml:space="preserve">
+    <value>پاک‌کردن تاریخ</value>
+  </data>
+  <data name="BomDimStdPlant" xml:space="preserve">
+    <value>کارخانه / سایت</value>
+  </data>
+  <data name="BomDimStdProductionLine" xml:space="preserve">
+    <value>خط تولید</value>
+  </data>
+  <data name="BomDimStdMarket" xml:space="preserve">
+    <value>بازار هدف</value>
+  </data>
+  <data name="BomDimStdCustomer" xml:space="preserve">
+    <value>مشتری</value>
+  </data>
+  <data name="BomDimStdManufacturingMethod" xml:space="preserve">
+    <value>روش تولید</value>
+  </data>
+  <data name="UserAccountSubtitle" xml:space="preserve">
+    <value>حساب کاربری</value>
+  </data>
 </root>

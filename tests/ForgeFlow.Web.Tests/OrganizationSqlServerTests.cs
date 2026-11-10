@@ -29,12 +29,12 @@ public sealed class OrganizationSqlServerTests
         await using var database = await DisposableDatabase.Create();
         await using var db = database.Context();
         Assert.False(db.Database.HasPendingModelChanges());
-        Assert.Equal(3, await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id = SCHEMA_ID('organization')").SingleAsync());
+        Assert.Equal(19, await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id = SCHEMA_ID('organization')").SingleAsync());
         await db.GetService<IMigrator>().MigrateAsync("0");
         Assert.Equal(0, await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id = SCHEMA_ID('organization')").SingleAsync());
         await db.Database.MigrateAsync();
-        Assert.Equal(3, await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id = SCHEMA_ID('organization')").SingleAsync());
-        Assert.Single(await db.Database.GetAppliedMigrationsAsync());
+        Assert.Equal(19, await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id = SCHEMA_ID('organization')").SingleAsync());
+        Assert.Equal(4, (await db.Database.GetAppliedMigrationsAsync()).Count());
     }
 
     [OrganizationSqlServerFact]

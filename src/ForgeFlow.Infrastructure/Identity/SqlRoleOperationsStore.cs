@@ -59,24 +59,35 @@ public sealed class SqlRoleOperationsStore(
                 return new OrganizationPage<RoleSummary>([], total, query.Page, query.PageSize);
 
             var roleIds = pageRows.Select(r => r.Id).ToArray();
-            var counts = await db.RolePermissions.AsNoTracking()
+            var dbPermMap = await db.RolePermissions.AsNoTracking()
                 .Where(p => roleIds.Contains(p.RoleId) && p.IsActive)
                 .GroupBy(p => p.RoleId)
-                .Select(g => new { RoleId = g.Key, Count = g.Count() })
-                .ToDictionaryAsync(x => x.RoleId, x => x.Count, ct);
-            var orgAdminHasAuditRow = roleIds.Contains(FixedAccessRoles.OrganizationAdministrator)
-                && await db.RolePermissions.AsNoTracking().AnyAsync(
-                    p => p.RoleId == FixedAccessRoles.OrganizationAdministrator && p.IsActive && p.PermissionCode == AuditPermissions.AuditRead, ct);
+                .Select(g => new { RoleId = g.Key, Codes = g.Select(x => x.PermissionCode).ToList() })
+                .ToDictionaryAsync(x => x.RoleId, x => x.Codes, ct);
 
-            var items = pageRows.Select(r => new RoleSummary(
-                r.Id,
-                r.OrganizationId,
-                r.Name,
-                r.IsSystem,
-                (RoleScopeTarget)r.ScopeKind,
-                r.IsActive,
-                counts.GetValueOrDefault(r.Id) + (r.Id == FixedAccessRoles.OrganizationAdministrator && !orgAdminHasAuditRow ? 1 : 0),
-                Convert.ToBase64String(r.RowVersion))).ToArray();
+            var items = pageRows.Select(r =>
+            {
+                var codes = dbPermMap.TryGetValue(r.Id, out var list)
+                    ? new HashSet<string>(list, StringComparer.Ordinal)
+                    : new HashSet<string>(StringComparer.Ordinal);
+                if (r.Id == FixedAccessRoles.OrganizationAdministrator)
+                {
+                    foreach (var desc in PermissionCatalog.All)
+                    {
+                        if (PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(desc.Code, 1))
+                            codes.Add(desc.Code);
+                    }
+                }
+                return new RoleSummary(
+                    r.Id,
+                    r.OrganizationId,
+                    r.Name,
+                    r.IsSystem,
+                    (RoleScopeTarget)r.ScopeKind,
+                    r.IsActive,
+                    codes.Count,
+                    Convert.ToBase64String(r.RowVersion));
+            }).ToArray();
 
             return new OrganizationPage<RoleSummary>(items, total, query.Page, query.PageSize);
         }, ct);
@@ -600,8 +611,16 @@ public sealed class SqlRoleOperationsStore(
             .OrderBy(p => p.PermissionCode)
             .Select(p => p.PermissionCode)
             .ToArrayAsync(ct);
-        if (role.Id == FixedAccessRoles.OrganizationAdministrator && !perms.Contains(AuditPermissions.AuditRead, StringComparer.Ordinal))
-            perms = perms.Append(AuditPermissions.AuditRead).OrderBy(p => p, StringComparer.Ordinal).ToArray();
+        if (role.Id == FixedAccessRoles.OrganizationAdministrator)
+        {
+            var merged = new HashSet<string>(perms, StringComparer.Ordinal);
+            foreach (var desc in PermissionCatalog.All)
+            {
+                if (PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(desc.Code, 1))
+                    merged.Add(desc.Code);
+            }
+            perms = merged.OrderBy(p => p, StringComparer.Ordinal).ToArray();
+        }
 
         return new RoleDetails(
             role.Id,

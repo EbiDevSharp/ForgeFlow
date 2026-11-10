@@ -6,7 +6,10 @@ public enum PermissionModule : byte
     Sites = 2,
     Users = 3,
     Roles = 4,
-    Audit = 5
+    Audit = 5,
+    Units = 6,
+    Items = 7,
+    Boms = 8
 }
 
 public enum PermissionScopeApplicability : byte
@@ -55,7 +58,16 @@ public static class PermissionCatalog
         new("Roles.Manage", PermissionModule.Roles, "Manage", PermissionScopeApplicability.OrganizationOnly),
         new("Permissions.Assign", PermissionModule.Roles, "AssignPermissions", PermissionScopeApplicability.OrganizationOnly),
 
-        new("Audit.Read", PermissionModule.Audit, "Read", PermissionScopeApplicability.OrganizationOrSite)
+        new("Audit.Read", PermissionModule.Audit, "Read", PermissionScopeApplicability.OrganizationOrSite),
+
+        new("Units.Read", PermissionModule.Units, "Read", PermissionScopeApplicability.OrganizationOrSite),
+        new("Units.Manage", PermissionModule.Units, "ManageUnits", PermissionScopeApplicability.OrganizationOnly),
+
+        new("Items.Read", PermissionModule.Items, "Read", PermissionScopeApplicability.OrganizationOrSite),
+        new("Items.Manage", PermissionModule.Items, "ManageItems", PermissionScopeApplicability.OrganizationOnly),
+
+        new("Boms.Read", PermissionModule.Boms, "Read", PermissionScopeApplicability.OrganizationOrSite),
+        new("Boms.Manage", PermissionModule.Boms, "ManageBoms", PermissionScopeApplicability.OrganizationOnly)
     ];
 
     private static readonly Dictionary<string, PermissionDescriptor> ByCode =
@@ -107,5 +119,19 @@ public static class PermissionCatalog
     {
         if (actorUserId == targetUserId && roleId == OrganizationAdministratorRoleId)
             throw new RoleRuleException(RolePermissionErrors.SelfDeactivationForbidden);
+    }
+
+    public static bool IsGrantedToBuiltInOrganizationAdmin(string permissionCode, byte scopeKind)
+    {
+        if (!TryGet(permissionCode, out var descriptor))
+            return false;
+
+        return scopeKind switch
+        {
+            1 => descriptor.Applicability != PermissionScopeApplicability.PlatformOnly,
+            2 => descriptor.Applicability == PermissionScopeApplicability.OrganizationOrSite
+                 && descriptor.Module is PermissionModule.Sites or PermissionModule.Audit or PermissionModule.Units or PermissionModule.Items or PermissionModule.Boms,
+            _ => false
+        };
     }
 }

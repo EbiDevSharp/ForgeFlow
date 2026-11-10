@@ -4,30 +4,75 @@
     <Authorized Context="auth">
         @{
             var userName = auth.User.Identity?.Name ?? string.Empty;
+            var initials = Initial(userName);
         }
         <div class="user-menu" data-authenticated-content @onkeydown="OnKeyDown">
-            <button type="button" class="user-menu-trigger" aria-haspopup="true" aria-expanded="@open.ToString().ToLowerInvariant()"
-                    aria-controls="user-menu-panel" aria-label="@Text["UserMenu"]" title="@userName" @onclick="Toggle">
-                <span class="user-menu-initial" aria-hidden="true">@Initial(userName)</span>
+            <button type="button"
+                    id="user-menu-trigger"
+                    class="user-menu-trigger @(open ? "is-open" : string.Empty)"
+                    aria-haspopup="true"
+                    aria-expanded="@open.ToString().ToLowerInvariant()"
+                    aria-controls="user-menu-panel"
+                    aria-label="@Text["UserMenu"]"
+                    title="@userName"
+                    @onclick="Toggle">
+                <BitPersona HidePersonaDetails="true"
+                            Size="BitPersonaSize.Size32"
+                            CoinSize="36"
+                            ImageInitials="@initials"
+                            Presence="BitPersonaPresence.None"
+                            Class="user-menu-persona-sm" />
+                <span class="ff-icon @(open ? "ff-icon--chevron-up" : "ff-icon--chevron-down") user-menu-caret" aria-hidden="true"></span>
             </button>
+
             @if (open)
             {
                 <div class="user-menu-backdrop" @onclick="Close"></div>
             }
+
             <div id="user-menu-panel" class="user-menu-panel" role="group" aria-label="@Text["UserMenu"]" hidden="@(!open)">
-                <p class="user-menu-name-full" dir="auto">@userName</p>
-                <a class="user-menu-link" href="/account/change-password" @onclick="Close">@Text["ChangePasswordLink"]</a>
-                <form action="/account/logout" method="post" data-auth-logout>
-                    <input type="hidden" name="returnUrl" value="/" />
-                    <input type="hidden" name="__RequestVerificationToken" value="" />
-                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" ButtonType="BitButtonType.Submit" data-auth-submit="true">@Text["Logout"]</BitButton>
-                </form>
+                <div class="user-menu-header">
+                    <BitPersona Size="BitPersonaSize.Size48"
+                                CoinSize="44"
+                                ImageInitials="@initials"
+                                PrimaryText="@userName"
+                                SecondaryText="@Text["UserAccountSubtitle"]"
+                                Presence="BitPersonaPresence.None"
+                                Class="user-menu-persona-hdr" />
+                </div>
+
+                <div class="user-menu-actions">
+                    <BitButton Variant="BitVariant.Text"
+                               Href="/account/change-password"
+                               Icon="@KeyIcon"
+                               Class="user-menu-item"
+                               OnClick="Close">
+                        @Text["ChangePasswordLink"]
+                    </BitButton>
+
+                    <div class="user-menu-divider" role="separator"></div>
+
+                    <form action="/account/logout" method="post" data-auth-logout>
+                        <input type="hidden" name="returnUrl" value="/" />
+                        <input type="hidden" name="__RequestVerificationToken" value="" />
+                        <BitButton Variant="BitVariant.Text"
+                                   ButtonType="BitButtonType.Submit"
+                                   Icon="@LogoutIcon"
+                                   Class="user-menu-item user-menu-item--danger"
+                                   data-auth-submit="true">
+                            @Text["Logout"]
+                        </BitButton>
+                    </form>
+                </div>
             </div>
         </div>
     </Authorized>
 </AuthorizeView>
 
 @code {
+    private static readonly BitIconInfo KeyIcon = BitIconInfo.Css("ff-icon ff-icon--key");
+    private static readonly BitIconInfo LogoutIcon = BitIconInfo.Css("ff-icon ff-icon--logout");
+
     private bool open;
     private void Toggle() => open = !open;
     private void Close() => open = false;

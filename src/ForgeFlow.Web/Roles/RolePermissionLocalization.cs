@@ -1,7 +1,10 @@
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Audit;
+using ForgeFlow.Domain.Boms;
+using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.Roles;
+using ForgeFlow.Domain.Units;
 using ForgeFlow.Domain.Users;
 using ForgeFlow.Web.Localization;
 using Microsoft.Extensions.Localization;
@@ -16,7 +19,10 @@ public static class RolePermissionLocalization
         PermissionModule.Sites,
         PermissionModule.Users,
         PermissionModule.Roles,
-        PermissionModule.Audit
+        PermissionModule.Audit,
+        PermissionModule.Units,
+        PermissionModule.Items,
+        PermissionModule.Boms
     ];
 
     public static readonly IReadOnlyList<PermissionDescriptor> OrganizationScopePermissions =
@@ -36,12 +42,15 @@ public static class RolePermissionLocalization
         PermissionModule.Users => "PermPageUsers",
         PermissionModule.Roles => "PermPageRoles",
         PermissionModule.Audit => "PermPageAudit",
+        PermissionModule.Units => "PermPageUnits",
+        PermissionModule.Items => "PermPageItems",
+        PermissionModule.Boms => "PermPageBoms",
         _ => "PermPageOrganizations"
     };
 
     public static string OperationLabelKey(string permissionCode) => permissionCode switch
     {
-        "Organizations.Read" or "Sites.Read" or "Users.Read" or "Roles.Read" or "Audit.Read" => "PermOpRead",
+        "Organizations.Read" or "Sites.Read" or "Users.Read" or "Roles.Read" or "Audit.Read" or "Units.Read" or "Items.Read" or "Boms.Read" => "PermOpRead",
         "Organizations.Create" or "Sites.Create" or "Users.Create" => "PermOpCreate",
         "Organizations.Update" or "Sites.Update" => "PermOpUpdate",
         "Organizations.SetActive" or "Sites.SetActive" or "Users.SetActive" => "PermOpSetActive",
@@ -51,6 +60,9 @@ public static class RolePermissionLocalization
         "Roles.AssignFixed" => "PermOpAssignFixedRoles",
         "Roles.Manage" => "PermOpManageRoles",
         "Permissions.Assign" => "PermOpAssignPermissions",
+        "Units.Manage" => "PermOpManageUnits",
+        "Items.Manage" => "PermOpManageItems",
+        "Boms.Manage" => "PermOpManageBoms",
         _ => "PermOpRead"
     };
 
@@ -66,6 +78,16 @@ public static class RolePermissionLocalization
         };
     }
 
+    public static string ContextDimensionDisplayName(string code, string storedName, IStringLocalizer<SharedResources> text) => (code, storedName) switch
+    {
+        ("PLANT", "Plant / Site") => text["BomDimStdPlant"],
+        ("PRODUCTION_LINE", "Production Line") => text["BomDimStdProductionLine"],
+        ("MARKET", "Target Market") => text["BomDimStdMarket"],
+        ("CUSTOMER", "Customer") => text["BomDimStdCustomer"],
+        ("MANUFACTURING_METHOD", "Manufacturing Method") => text["BomDimStdManufacturingMethod"],
+        _ => storedName
+    };
+
     public static string FailureKey(string code) => code switch
     {
         RolePermissionErrors.NameInvalid => "RoleErrorInvalidName",
@@ -77,15 +99,60 @@ public static class RolePermissionLocalization
         RolePermissionErrors.MembershipRequired or UserManagementErrors.OrganizationMembershipRequired => "UserErrorOrgMembershipRequired",
         RolePermissionErrors.LastOrganizationAdminRequired or UserManagementErrors.LastOrganizationAdminRequired => "UserErrorLastOrgAdmin",
         RolePermissionErrors.SelfDeactivationForbidden or UserManagementErrors.SelfDeactivationForbidden => "UserErrorSelfDeactivation",
-        RolePermissionErrors.ParentOrganizationInactive or UserManagementErrors.ParentOrganizationInactive or OrganizationSiteErrors.OrganizationInactive => "WriteParentInactive",
+        RolePermissionErrors.ParentOrganizationInactive or UserManagementErrors.ParentOrganizationInactive or OrganizationSiteErrors.OrganizationInactive or UnitErrors.ParentOrganizationInactive or ItemErrors.ParentOrganizationInactive or BomErrors.ParentOrganizationInactive => "WriteParentInactive",
         RolePermissionErrors.ParentSiteInactive or UserManagementErrors.ParentSiteInactive => "UserErrorParentSiteInactive",
-        RolePermissionErrors.ConcurrencyConflict or UserManagementErrors.ConcurrencyConflict or OrganizationAccessErrors.ConcurrencyConflict => "WriteConflict",
-        RolePermissionErrors.OutcomeUnknown or UserManagementErrors.OutcomeUnknown or OrganizationAccessErrors.OutcomeUnknown => "WriteOutcomeUnknown",
+        RolePermissionErrors.ConcurrencyConflict or UserManagementErrors.ConcurrencyConflict or OrganizationAccessErrors.ConcurrencyConflict or UnitErrors.ConcurrencyConflict or ItemErrors.ConcurrencyConflict or BomErrors.ConcurrencyConflict => "WriteConflict",
+        RolePermissionErrors.OutcomeUnknown or UserManagementErrors.OutcomeUnknown or OrganizationAccessErrors.OutcomeUnknown or UnitErrors.OutcomeUnknown or ItemErrors.OutcomeUnknown or BomErrors.OutcomeUnknown => "WriteOutcomeUnknown",
         RolePermissionErrors.AccessDenied or RolePermissionErrors.ActorRequired or RolePermissionErrors.ScopeRequired
             or UserManagementErrors.AccessDenied or UserManagementErrors.ActorRequired or UserManagementErrors.ScopeRequired
-            or AuditErrors.AccessDenied or AuditErrors.ActorRequired or AuditErrors.ScopeRequired => "ReadDenied",
+            or AuditErrors.AccessDenied or AuditErrors.ActorRequired or AuditErrors.ScopeRequired
+            or UnitErrors.AccessDenied or UnitErrors.ActorRequired or UnitErrors.ScopeRequired
+            or ItemErrors.AccessDenied or ItemErrors.ActorRequired or ItemErrors.ScopeRequired
+            or BomErrors.AccessDenied or BomErrors.ActorRequired or BomErrors.ScopeRequired => "ReadDenied",
         RolePermissionErrors.NotFound or UserManagementErrors.NotFound or OrganizationSiteErrors.OrganizationNotFound or OrganizationSiteErrors.SiteNotFound
-            or AuditErrors.NotFound => "ReadNotFound",
+            or AuditErrors.NotFound or UnitErrors.NotFound or UnitErrors.ConversionNotFound
+            or ItemErrors.NotFound or ItemErrors.ClassificationSetNotFound or ItemErrors.ClassificationNotFound
+            or ItemErrors.AttributeDefinitionNotFound or ItemErrors.ItemUnitConversionNotFound
+            or BomErrors.NotFound or BomErrors.VersionNotFound or BomErrors.ContextDimensionNotFound => "ReadNotFound",
+        UnitErrors.CodeInvalid or ItemErrors.CodeInvalid or BomErrors.CodeInvalid => "CreateCodeInvalid",
+        UnitErrors.CodeDuplicate or ItemErrors.CodeDuplicate or ItemErrors.ClassificationSetCodeDuplicate or ItemErrors.ClassificationCodeDuplicate or ItemErrors.AttributeCodeDuplicate
+            or BomErrors.CodeDuplicate or BomErrors.VersionDuplicate or BomErrors.ContextDimensionCodeDuplicate => "CreateCodeDuplicate",
+        UnitErrors.NameInvalid or ItemErrors.NameInvalid or BomErrors.NameInvalid => "WriteNameInvalid",
+        ItemErrors.DescriptionInvalid => "ItemErrorDescriptionInvalid",
+        ItemErrors.BaseUnitNotFound or ItemErrors.BaseUnitInactive => "ItemErrorBaseUnitInvalid",
+        ItemErrors.CapabilityRequired => "ItemErrorCapabilityRequired",
+        ItemErrors.ItemInactive or ItemErrors.ClassificationInactive or BomErrors.BomInactive => "UnitErrorInactive",
+        ItemErrors.ClassificationParentInvalid => "ItemErrorClassificationParentInvalid",
+        ItemErrors.ClassificationCircularParent => "ItemErrorClassificationCircularParent",
+        ItemErrors.AttributeDataTypeInvalid or ItemErrors.AttributeValueInvalid or ItemErrors.AttributeUnitNotFound or ItemErrors.AttributeUnitInactive => "ItemErrorAttributeValueInvalid",
+        ItemErrors.AttributeRequired => "ItemErrorAttributeRequired",
+        ItemErrors.ItemUnitConversionDuplicate => "UnitErrorConversionDuplicate",
+        UnitErrors.SymbolInvalid => "UnitErrorSymbolInvalid",
+        UnitErrors.DimensionInvalid => "UnitErrorDimensionInvalid",
+        UnitErrors.PrecisionInvalid => "UnitErrorPrecisionInvalid",
+        UnitErrors.UnitInactive => "UnitErrorInactive",
+        UnitErrors.ConversionDuplicate => "UnitErrorConversionDuplicate",
+        UnitErrors.ConversionSameUnit => "UnitErrorConversionSameUnit",
+        UnitErrors.ConversionFactorInvalid => "UnitErrorConversionFactorInvalid",
+        UnitErrors.ConversionPathNotFound => "UnitErrorConversionPathNotFound",
+        UnitErrors.ConversionConflictingPath => "UnitErrorConversionConflictingPath",
+        UnitErrors.ConversionQuantityInvalid => "UnitErrorConversionQuantityInvalid",
+        BomErrors.PrimaryItemInvalid or BomErrors.InputItemInvalid or BomErrors.OutputItemInvalid => "BomErrorItemInvalid",
+        BomErrors.PrimaryItemNotManufacturable => "BomErrorPrimaryNotManufacturable",
+        BomErrors.VersionNumberInvalid => "BomErrorVersionNumberInvalid",
+        BomErrors.VersionImmutable => "BomErrorVersionImmutable",
+        BomErrors.VersionTransitionInvalid => "BomErrorVersionTransitionInvalid",
+        BomErrors.BaseOutputQuantityInvalid or BomErrors.QuantityInvalid => "BomErrorQuantityInvalid",
+        BomErrors.EffectiveDatesInvalid => "BomErrorEffectiveDatesInvalid",
+        BomErrors.MainOutputRequired => "BomErrorMainOutputRequired",
+        BomErrors.InputsRequired => "BomErrorInputsRequired",
+        BomErrors.ScrapInvalid => "BomErrorScrapInvalid",
+        BomErrors.UnitInvalid => "BomErrorUnitInvalid",
+        BomErrors.DirectSelfCycle => "BomErrorDirectSelfCycle",
+        BomErrors.CircularDependency => "BomErrorCircularDependency",
+        BomErrors.ApplicabilityInvalid => "BomErrorApplicabilityInvalid",
+        BomErrors.NoActiveBomFound => "BomErrorNoActiveBomFound",
+        BomErrors.AmbiguousResolution => "BomErrorAmbiguousResolution",
         AuditErrors.InvalidQuery => "ReadError",
         _ => "WriteUnavailable"
     };

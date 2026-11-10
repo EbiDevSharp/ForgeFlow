@@ -2,7 +2,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using ForgeFlow.Application.Boms;
+using ForgeFlow.Application.Items;
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Application.Units;
 
 namespace ForgeFlow.Infrastructure.Organizations;
 
@@ -23,6 +26,16 @@ public static class OrganizationPersistenceRegistration
         // Lazy persistence resolution lets missing trusted adapters fail closed before requesting a connection.
         services.AddScoped<OrganizationUseCases>(provider => new OrganizationUseCases(
             new OrganizationOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
+        services.AddScoped<UnitUseCases>(provider => new UnitUseCases(
+            new UnitOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
+        services.AddScoped<ItemUseCases>(provider => new ItemUseCases(
+            new ItemOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
+            new UnitOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
+        services.AddScoped<BomUseCases>(provider => new BomUseCases(
+            new BomOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>()));
         return services;
     }
