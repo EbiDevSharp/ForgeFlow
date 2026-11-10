@@ -2,6 +2,7 @@
 **/bin/
 **/obj/
 TestResults/
+verification/
 .vs/
 **/.local/
 **/node_modules/
@@ -24,3 +25,4 @@ TestResults/
 **/*.p7b
 **/*.p7c
 **/*.snk
+.aider*

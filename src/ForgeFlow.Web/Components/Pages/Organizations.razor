@@ -1,0 +1,4 @@
+@page "/organizations"
+@page "/organizations/{OrganizationId:long}"
+<OrganizationReader @key="OrganizationId" OrganizationId="OrganizationId" />
+@code { [Parameter] public long OrganizationId { get; set; } }

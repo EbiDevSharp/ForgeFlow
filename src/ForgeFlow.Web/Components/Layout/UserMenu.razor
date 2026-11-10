@@ -1,0 +1,40 @@
+@inject IStringLocalizer<SharedResources> Text
+
+<AuthorizeView>
+    <Authorized Context="auth">
+        @{
+            var userName = auth.User.Identity?.Name ?? string.Empty;
+        }
+        <div class="user-menu" data-authenticated-content @onkeydown="OnKeyDown">
+            <button type="button" class="user-menu-trigger" aria-haspopup="true" aria-expanded="@open.ToString().ToLowerInvariant()"
+                    aria-controls="user-menu-panel" aria-label="@Text["UserMenu"]" title="@userName" @onclick="Toggle">
+                <span class="user-menu-initial" aria-hidden="true">@Initial(userName)</span>
+            </button>
+            @if (open)
+            {
+                <div class="user-menu-backdrop" @onclick="Close"></div>
+            }
+            <div id="user-menu-panel" class="user-menu-panel" role="group" aria-label="@Text["UserMenu"]" hidden="@(!open)">
+                <p class="user-menu-name-full" dir="auto">@userName</p>
+                <form action="/account/logout" method="post" data-auth-logout>
+                    <input type="hidden" name="returnUrl" value="/" />
+                    <input type="hidden" name="__RequestVerificationToken" value="" />
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" ButtonType="BitButtonType.Submit" data-auth-submit="true">@Text["Logout"]</BitButton>
+                </form>
+            </div>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private bool open;
+    private void Toggle() => open = !open;
+    private void Close() => open = false;
+    private void OnKeyDown(KeyboardEventArgs e) { if (e.Key == "Escape") open = false; }
+
+    private static string Initial(string? name)
+    {
+        var trimmed = name?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? "?" : char.ToUpperInvariant(trimmed[0]).ToString();
+    }
+}

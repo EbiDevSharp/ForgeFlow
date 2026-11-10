@@ -3,7 +3,8 @@
 @inject IStringLocalizer<SharedResources> Text
 @inject AuthenticationStateProvider AuthProvider
 @inject Microsoft.JSInterop.IJSRuntime JS
-@inject NavigationManager Navigation
+@inject ForgeFlow.Web.Organizations.ReadScopes ReadScopes
+@inject CulturePolicy Culture
 
 <AuthorizeView Context="shellAuth">
 <Authorized>
@@ -27,28 +28,24 @@
                  Class="app-nav-panel" />
     <main id="main-content">
         <div id="auth-ui-notice" class="auth-ui-notice" role="status" hidden></div>
-        <AuthorizeView>
-            <Authorized Context="auth">
-                <div class="auth-user-bar" data-authenticated-content>
-                    <span>@Text["AuthenticatedAs", new object[] { auth.User.Identity?.Name ?? string.Empty }]</span>
-                    <form action="/account/logout" method="post" data-auth-logout>
-                        <input type="hidden" name="returnUrl" value="/" />
-                        <input type="hidden" name="__RequestVerificationToken" value="" />
-                        <BitButton ButtonType="BitButtonType.Submit" data-auth-submit="true">@Text["Logout"]</BitButton>
-                    </form>
-                </div>
-            </Authorized>
-            <NotAuthorized>
-                @if (!IsLoginPage)
-                {
-                    <a class="auth-login-link" href="/account/login" data-enhance-nav="false">@Text["LoginLink"]</a>
+        <header class="app-header">
+            <div class="app-header-start">
+                <button class="nav-drawer-toggle" type="button" aria-expanded="@drawerOpen.ToString().ToLowerInvariant()"
+                        aria-controls="primary-navigation" @onclick="ToggleDrawer">
+                    @Text["OpenNavigation"]
+                </button>
+                @{
+                    var targetCulture = Culture.Language == CulturePolicy.Persian ? CulturePolicy.English : CulturePolicy.Persian;
+                    var targetLabel = Culture.Language == CulturePolicy.Persian ? Text["LanguageEnglish"] : Text["LanguagePersian"];
                 }
-            </NotAuthorized>
-        </AuthorizeView>
-        <button class="nav-drawer-toggle" type="button" aria-expanded="@drawerOpen.ToString().ToLowerInvariant()"
-                aria-controls="primary-navigation" @onclick="ToggleDrawer">
-            @Text["OpenNavigation"]
-        </button>
+                <button type="button" class="header-lang-btn" data-auth-culture="@targetCulture"
+                        aria-label="@Text["SwitchLanguageTo", targetLabel]">
+                    <span class="ff-icon ff-icon--globe" aria-hidden="true"></span>
+                    <span>@targetLabel</span>
+                </button>
+            </div>
+            <UserMenu />
+        </header>
         @Body
     </main>
 </div>
@@ -63,8 +60,6 @@
     private bool drawerOpen;
     private bool wasAuthenticated;
     private Microsoft.JSInterop.IJSObjectReference? authUi;
-    private bool IsLoginPage => Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0]
-        .TrimEnd('/').Equals("account/login", StringComparison.OrdinalIgnoreCase);
 
     protected override void OnInitialized() => AuthProvider.AuthenticationStateChanged += AuthenticationStateChanged;
 
@@ -74,6 +69,8 @@
         authUi = await JS.InvokeAsync<Microsoft.JSInterop.IJSObjectReference>("import", "./auth-ui.mjs");
         var state = await AuthProvider.GetAuthenticationStateAsync();
         wasAuthenticated = state.User.Identity?.IsAuthenticated == true;
+        try { readScopes = await ReadScopes.Load(); } catch { readScopes = []; }
+        StateHasChanged();
     }
 
     private async void AuthenticationStateChanged(Task<AuthenticationState> stateTask)
@@ -100,16 +97,21 @@
         }
     }
 
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> readScopes = [];
+
+    // The framework stylesheet ships only a few glyphs, so the shell uses its own CSS-mask icons (app.css, .ff-icon--*).
+    private static BitIconInfo Icon(string name) => BitIconInfo.Css("ff-icon ff-icon--" + name);
+
     private IList<BitNavItem> NavigationItems =>
     [
-        new()
-        {
-            Text = Text["SampleNavigation"],
-            AriaLabel = Text["SampleNavigation"],
-            Url = "/",
-            Match = BitNavMatch.Exact
-        }
+        new() { Text = Text["Home"], AriaLabel = Text["Home"], Icon = Icon("home"), Url = "/", Match = BitNavMatch.Exact },
+        new() { Text = Text["Settings"], Icon = Icon("settings"), IsExpanded = true, IsDisabled = readScopes.Count == 0, ChildItems = SettingsItems }
     ];
+
+    private List<BitNavItem> SettingsItems => readScopes.Count == 0 ? [] :
+        readScopes.Any(x => x is ForgeFlow.Application.Organizations.OrganizationScope.Organization)
+        ? [new() { Text = Text["Organizations"], Icon = Icon("org"), Url = "/organizations", Match = BitNavMatch.Exact }, new() { Text = Text["Sites"], Icon = Icon("site"), Url = "/sites", Match = BitNavMatch.Exact }]
+        : [new() { Text = Text["Sites"], Icon = Icon("site"), Url = "/sites", Match = BitNavMatch.Exact }];
 
     private void ToggleDrawer() => drawerOpen = !drawerOpen;
 }

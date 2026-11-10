@@ -1,0 +1,17 @@
+@page "/account/access-denied"
+@using ForgeFlow.Web.Components.Layout
+@inject IStringLocalizer<SharedResources> Text
+
+<AuthorizeView>
+    <Authorized>
+        <PageTitle>@Text["AccessDeniedTitle"]</PageTitle>
+        <section class="denied-page" aria-labelledby="denied-title">
+            <h1 id="denied-title">@Text["AccessDeniedTitle"]</h1>
+            <p role="alert">@Text["AccessDeniedMessage"]</p>
+            <a href="/">@Text["Reload"]</a>
+        </section>
+    </Authorized>
+    <NotAuthorized>
+        <AnonymousRedirect />
+    </NotAuthorized>
+</AuthorizeView>

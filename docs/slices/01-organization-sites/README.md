@@ -1,6 +1,6 @@
 # Slice 01 — Organization and sites
 
-Status: 01.1–01.3 VERIFIED for their stated gates. The combined 01.3 SQL run is USER-EXECUTED from normal Windows PowerShell, pasted result 12 passed/0 failed/0 skipped; prior agent evidence is separate. Slice 01 INCOMPLETE, not accepted pending real authentication and UI. [AUTH-01](../auth-01/README.md) is a design proposal only. Later implementation is not approved by implication. Slice 00 remains accepted; ForgeFlow.md owns the current receipts.
+Status: Slice 01 (`01.1`–`01.5`) ACCEPTED (2026-11-10) for greenfield development scope, with explicit separation of automated verification (255/255 agent non-SQL, 22/22 user-executed AUTH-01 SQL/TLS, earlier 12/12 `01.3` SQL run, Node draft 19/19, Chrome 4/4 FA/EN smoke checks) and USER-REPORTED manual browser confirmation on `https://localhost:5001`. Pre-production operational gates (production TLS/keys, restricted runtime SQL principal checks) remain deferred until deployment. Next slice: [Slice 02 — Users and memberships](../02-users-memberships/README.md) (design-first). ForgeFlow.md owns the current receipts.
 
 ## Contract ownership
 
@@ -52,8 +52,8 @@ Reuse accepted centralized culture/direction/formatting and per-tab drafts. Draf
 | 01.1 Domain and Application boundary | Approved Q1–Q3 and explicit 01.1 authorization | COMPLETE: code/name/lifecycle invariants, narrow scope/actor/permission contracts and 35 passing tests; no endpoints or persistence |
 | 01.2 SQL persistence and atomic audit | 01.1; explicit 01.2 authorization | VERIFIED for stated gates: offline agent evidence plus user-executed six SQL tests, 6 passed/0 failed/0 skipped; local test TLS exception is not production TLS proof |
 | 01.3 Secured use cases | 01.2 | VERIFIED: prior 23 non-SQL passes plus user-executed 12-pass combined SQL run; no trusted adapter still means denial |
-| AUTH-01 adapter handoff | 01.1 contracts; AUTH-01 separately authorized | Real actor/membership/permission, session invalidation and controlled bootstrap established; no temporary anonymous management routes |
-| 01.4 Bilingual management UI | 01.3 and AUTH-01 adapter | End-to-end authorized CRUD/status workflows and affected browser/resource/scanner checks pass in both cultures/widths |
-| 01.5 Acceptance receipt | All above | Actual Release/SQL/browser evidence, isolation and concurrency gates pass; no required gate deferred or inferred from mocks |
+| AUTH-01 adapter handoff | 01.1 contracts; AUTH-01 separately authorized | ACCEPTED (2026-11-10): real `RuntimeSessions`/`SessionActorAccessor`/`SessionPermissionEvaluator`, session revocation, and controlled bootstrap verified (22/22 SQL/TLS + 255/255 non-SQL + user browser sign-off); no fake runtime adapters |
+| 01.4 Bilingual management UI | 01.3 and AUTH-01 adapter | VERIFIED: `/organizations`, `/sites`, empty `/`, circular `UserMenu`, header switcher, `/account/access-denied`, `BitDataGrid` paging, create/view/edit/activate/deactivate, localized reconnect modal, scope-bound drafts |
+| 01.5 Acceptance receipt | All above | ACCEPTED (2026-11-10): automated build/unit/SQL/Chrome/Node checks + user-reported manual browser verification recorded in `ForgeFlow.md` |
 
 Initial organization/site provisioning is controlled, authenticated platform/bootstrap work owned by AUTH-01 integration; never hardcoded credentials, anonymous seeds or default tenant scope. Database creation and app-data provisioning are separate actions. Existing database reconciliation is required before any migration; greenfield repository does not prove an empty deployed database. No destructive migration or automatic data deletion is authorized by this design.

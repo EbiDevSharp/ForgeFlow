@@ -1,0 +1,8 @@
+@page "/sites"
+@page "/organizations/{OrganizationId:long}/sites"
+@page "/organizations/{OrganizationId:long}/sites/{SiteId:long}"
+<OrganizationReader @key="(OrganizationId, SiteId)" IsSites="true" OrganizationId="OrganizationId" SiteId="SiteId" />
+@code {
+[Parameter] public long OrganizationId { get; set; }
+[Parameter] public long SiteId { get; set; }
+}

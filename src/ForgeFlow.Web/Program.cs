@@ -1,4 +1,4 @@
-using Bit.BlazorUI;
+﻿using Bit.BlazorUI;
 using ForgeFlow.Web.Components;
 using ForgeFlow.Web.Localization;
 using ForgeFlow.Web.Hosting;
@@ -13,6 +13,7 @@ builder.Services.AddBitBlazorUIServices();
 builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 builder.Services.Configure<Microsoft.AspNetCore.Builder.RequestLocalizationOptions>(CulturePolicy.Configure);
 builder.Services.AddScoped<CulturePolicy>();
+builder.Services.AddScoped<ForgeFlow.Web.Organizations.ReadScopes>();
 builder.Services.AddScoped<DisplayFormatter>();
 builder.Services.AddScoped<DraftCoordinator>();
 builder.Services.AddOrganizationPersistence(builder.Configuration);
@@ -36,6 +37,7 @@ app.UseStatusCodePagesWithReExecute("/not-found");
 app.UseAuthentication();
 app.Use(async (context, next) =>
 {
+    await CulturePolicy.ApplyProfileFallbackAsync(context);
     if (EntryRouting.RedirectAnonymousRoot(context)) return;
     await next(context);
 });
@@ -50,3 +52,4 @@ await ForgeFlow.Infrastructure.Identity.AuthFailureDiagnostics.InspectStoreAsync
 app.Run();
 
 public partial class Program;
+

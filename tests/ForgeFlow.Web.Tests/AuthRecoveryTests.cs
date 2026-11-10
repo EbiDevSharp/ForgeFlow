@@ -64,4 +64,22 @@ public sealed class AuthRecoveryTests
         }
         finally { CultureInfo.CurrentUICulture = previous; }
     }
+
+    [Fact]
+    public void Guard_allows_identity_updates_with_unchanged_username_and_blocks_username_changes()
+    {
+        var guard = typeof(AuthDbContext).GetMethod("Guard", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        using var db = new AuthDbContext(new DbContextOptionsBuilder<AuthDbContext>()
+            .UseSqlServer("Server=invalid.invalid;Database=DesignOnly;Integrated Security=True;Encrypt=True").Options);
+        var user = new ApplicationAccount { Id = 42, UserName = "ebrahim", NormalizedUserName = "EBRAHIM", PasswordHash = "h", SecurityStamp = "s", ConcurrencyStamp = "c" };
+        db.Attach(user);
+        // Simulate Identity UserOnlyStore.UpdateAsync marking all properties modified without changing UserName.
+        db.Entry(user).State = EntityState.Modified;
+        user.AccessFailedCount = 1;
+        guard.Invoke(db, null);
+
+        user.UserName = "other";
+        var ex = Assert.Throws<System.Reflection.TargetInvocationException>(() => guard.Invoke(db, null));
+        Assert.Equal("Auth.ImmutableHistory", ex.InnerException!.Message);
+    }
 }

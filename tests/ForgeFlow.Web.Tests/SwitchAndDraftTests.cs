@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using ForgeFlow.Web.Authentication;
 using ForgeFlow.Web.Components.Pages;
 using ForgeFlow.Web.Drafts;
 using ForgeFlow.Web.Localization;
@@ -102,6 +103,30 @@ public sealed class SwitchAndDraftTests
             Assert.Contains("expires=", cookie);
         }
         else Assert.Equal(0, context.Response.Headers.SetCookie.Count);
+    }
+
+    [Fact]
+    public async Task Authenticated_culture_switch_applies_cookie_even_when_profile_save_fails_and_warns_truthfully()
+    {
+        using var provider = new ServiceCollection()
+            .AddLogging()
+            .AddLocalization(o => o.ResourcesPath = "Resources")
+            .AddAuthenticationBackend(new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build())
+            .BuildServiceProvider();
+        var context = new DefaultHttpContext { RequestServices = provider };
+        context.Response.Body = new MemoryStream();
+        context.User = ForgeFlow.Web.Authentication.SessionClaims.Create(new(42, Guid.NewGuid(), "stamp"));
+        context.Request.ContentType = "application/x-www-form-urlencoded";
+        context.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes("culture=en-US&returnUrl=%2F"));
+        var result = await CultureEndpoint.SwitchAsync(context, new AntiforgeryFixture(true));
+        Assert.Equal(200, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Contains(".AspNetCore.Culture=", context.Response.Headers.SetCookie.ToString());
+        await result.ExecuteAsync(context);
+        context.Response.Body.Position = 0;
+        var json = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        Assert.Contains("\"cookieApplied\":true", json);
+        Assert.Contains("\"profileSaved\":false", json);
+        Assert.Contains("Culture.ProfileSyncFailed", json);
     }
 
     private sealed class AntiforgeryFixture(bool valid) : IAntiforgery

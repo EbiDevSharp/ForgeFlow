@@ -1,34 +1,330 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root>
-  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
-  <resheader name="version"><value>2.0</value></resheader>
-  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
-  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="Navigation" xml:space="preserve"><value>Main navigation</value></data>
-  <data name="SampleNavigation" xml:space="preserve"><value>Localization sample</value></data>
-  <data name="AppTitle" xml:space="preserve"><value>ForgeFlow</value></data>
-  <data name="OpenNavigation" xml:space="preserve"><value>Open navigation</value></data>
-  <data name="CloseNavigation" xml:space="preserve"><value>Close navigation</value></data>
-  <data name="CollapseNavigation" xml:space="preserve"><value>Collapse navigation</value></data>
-  <data name="ErrorTitle" xml:space="preserve"><value>Something went wrong</value></data>
-  <data name="UnexpectedError" xml:space="preserve"><value>An unexpected error occurred. Reload the page to try again.</value></data>
-  <data name="Reload" xml:space="preserve"><value>Return to the sample</value></data>
-  <data name="NotFoundTitle" xml:space="preserve"><value>Page not found</value></data>
-  <data name="NotFoundMessage" xml:space="preserve"><value>The requested page could not be found.</value></data>
-  <data name="LoginTitle" xml:space="preserve"><value>Sign in to ForgeFlow</value></data>
-  <data name="LoginIntroduction" xml:space="preserve"><value>Use your account to continue to the workspace.</value></data>
-  <data name="UsernameLabel" xml:space="preserve"><value>Username</value></data>
-  <data name="PasswordLabel" xml:space="preserve"><value>Password</value></data>
-  <data name="PasswordVisibilityToggle" xml:space="preserve"><value>Show or hide password</value></data>
-  <data name="LoginSubmit" xml:space="preserve"><value>Sign in</value></data>
-  <data name="LoginLoading" xml:space="preserve"><value>Signing in</value></data>
-  <data name="LoginRequired" xml:space="preserve"><value>Enter your username and password.</value></data>
-  <data name="LoginUnavailable" xml:space="preserve"><value>Sign-in is unavailable. Reload this page and try again.</value></data>
-  <data name="LoginLanguageLabel" xml:space="preserve"><value>Language</value></data>
-  <data name="LanguagePersian" xml:space="preserve"><value>Persian</value></data>
-  <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
-  <data name="LoginLink" xml:space="preserve"><value>Sign in</value></data>
-  <data name="AuthenticatedAs" xml:space="preserve"><value>Signed in as {0}</value></data>
-  <data name="Logout" xml:space="preserve"><value>Sign out</value></data>
-  <data name="LogoutUnavailable" xml:space="preserve"><value>Sign-out could not be confirmed. Reload the page to refresh your session.</value></data>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Navigation" xml:space="preserve">
+    <value>Main navigation</value>
+  </data>
+  <data name="Home" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="AppTitle" xml:space="preserve">
+    <value>ForgeFlow</value>
+  </data>
+  <data name="OpenNavigation" xml:space="preserve">
+    <value>Open navigation</value>
+  </data>
+  <data name="CloseNavigation" xml:space="preserve">
+    <value>Close navigation</value>
+  </data>
+  <data name="CollapseNavigation" xml:space="preserve">
+    <value>Collapse navigation</value>
+  </data>
+  <data name="ErrorTitle" xml:space="preserve">
+    <value>Something went wrong</value>
+  </data>
+  <data name="UnexpectedError" xml:space="preserve">
+    <value>An unexpected error occurred. Reload the page to try again.</value>
+  </data>
+  <data name="ServerUnavailable" xml:space="preserve">
+    <value>The server is currently unavailable. Please try again shortly.</value>
+  </data>
+  <data name="ReconnectTitle" xml:space="preserve">
+    <value>Connection lost</value>
+  </data>
+  <data name="ReconnectShowing" xml:space="preserve">
+    <value>Attempting to reconnect to the server…</value>
+  </data>
+  <data name="ReconnectRetrying" xml:space="preserve">
+    <value>Could not reach the server. Retrying automatically…</value>
+  </data>
+  <data name="ReconnectAttemptLabel" xml:space="preserve">
+    <value>Attempt</value>
+  </data>
+  <data name="ReconnectSeconds" xml:space="preserve">
+    <value>s</value>
+  </data>
+  <data name="ReconnectFailedTitle" xml:space="preserve">
+    <value>Server unreachable</value>
+  </data>
+  <data name="ReconnectFailed" xml:space="preserve">
+    <value>Could not reconnect to the server. Retry or reload the page.</value>
+  </data>
+  <data name="ReconnectRetry" xml:space="preserve">
+    <value>Retry</value>
+  </data>
+  <data name="ReconnectReload" xml:space="preserve">
+    <value>Reload page</value>
+  </data>
+  <data name="ReconnectPausedTitle" xml:space="preserve">
+    <value>Session paused</value>
+  </data>
+  <data name="ReconnectPaused" xml:space="preserve">
+    <value>The connection was paused by the server.</value>
+  </data>
+  <data name="ReconnectResume" xml:space="preserve">
+    <value>Resume</value>
+  </data>
+  <data name="ReconnectResumeFailed" xml:space="preserve">
+    <value>Could not resume your session. Reload the page.</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>Return home</value>
+  </data>
+  <data name="NotFoundTitle" xml:space="preserve">
+    <value>Page not found</value>
+  </data>
+  <data name="NotFoundMessage" xml:space="preserve">
+    <value>The requested page could not be found.</value>
+  </data>
+  <data name="AccessDeniedTitle" xml:space="preserve">
+    <value>Access denied</value>
+  </data>
+  <data name="AccessDeniedMessage" xml:space="preserve">
+    <value>You do not have permission to view this page.</value>
+  </data>
+  <data name="LoginTitle" xml:space="preserve">
+    <value>Sign in to ForgeFlow</value>
+  </data>
+  <data name="LoginIntroduction" xml:space="preserve">
+    <value>Use your account to continue to the workspace.</value>
+  </data>
+  <data name="UsernameLabel" xml:space="preserve">
+    <value>Username</value>
+  </data>
+  <data name="PasswordLabel" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="PasswordVisibilityToggle" xml:space="preserve">
+    <value>Show or hide password</value>
+  </data>
+  <data name="LoginSubmit" xml:space="preserve">
+    <value>Sign in</value>
+  </data>
+  <data name="LoginLoading" xml:space="preserve">
+    <value>Signing in</value>
+  </data>
+  <data name="LoginRequired" xml:space="preserve">
+    <value>Enter your username and password.</value>
+  </data>
+  <data name="LoginUnavailable" xml:space="preserve">
+    <value>Sign-in is unavailable. Reload this page and try again.</value>
+  </data>
+  <data name="LoginLanguageLabel" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="SwitchLanguageTo" xml:space="preserve">
+    <value>Switch language to {0}</value>
+  </data>
+  <data name="LanguagePersian" xml:space="preserve">
+    <value>Persian</value>
+  </data>
+  <data name="LanguageEnglish" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="UserMenu" xml:space="preserve">
+    <value>User account</value>
+  </data>
+  <data name="Logout" xml:space="preserve">
+    <value>Sign out</value>
+  </data>
+  <data name="LogoutUnavailable" xml:space="preserve">
+    <value>Sign-out could not be confirmed. Reload the page to refresh your session.</value>
+  </data>
+  <data name="Sites" xml:space="preserve">
+    <value>Sites</value>
+  </data>
+  <data name="ReadDenied" xml:space="preserve">
+    <value>Access denied for this scope.</value>
+  </data>
+  <data name="ReadActive" xml:space="preserve">
+    <value>Active</value>
+  </data>
+  <data name="ReadOrganizationScope" xml:space="preserve">
+    <value>Organization {0}</value>
+  </data>
+  <data name="ReadClose" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="ReadScope" xml:space="preserve">
+    <value>Scope</value>
+  </data>
+  <data name="ReadStatus" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="ReadInactive" xml:space="preserve">
+    <value>Include inactive</value>
+  </data>
+  <data name="ReadEmpty" xml:space="preserve">
+    <value>No records in this scope.</value>
+  </data>
+  <data name="ReadNotFound" xml:space="preserve">
+    <value>Record not found in your authorized scope.</value>
+  </data>
+  <data name="ReadCode" xml:space="preserve">
+    <value>Code</value>
+  </data>
+  <data name="ReadInactiveStatus" xml:space="preserve">
+    <value>Inactive</value>
+  </data>
+  <data name="ReadError" xml:space="preserve">
+    <value>Records could not be loaded. Try again.</value>
+  </data>
+  <data name="Organizations" xml:space="preserve">
+    <value>Organizations</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="ReadName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="ReadLoading" xml:space="preserve">
+    <value>Loading authorized records…</value>
+  </data>
+  <data name="ReadActions" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="ReadDetails" xml:space="preserve">
+    <value>View details</value>
+  </data>
+  <data name="ReadEdit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="ReadSiteScope" xml:space="preserve">
+    <value>Organization {0} · Site {1}</value>
+  </data>
+  <data name="ReadSearch" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="ReadSearchPlaceholder" xml:space="preserve">
+    <value>Name or code</value>
+  </data>
+  <data name="GridPagerRange" xml:space="preserve">
+    <value>{0}–{1} of {2}</value>
+  </data>
+  <data name="GridPagerPage" xml:space="preserve">
+    <value>Page {0} of {1}</value>
+  </data>
+  <data name="GridPerPage" xml:space="preserve">
+    <value>{0} / page</value>
+  </data>
+  <data name="GridRowsPerPage" xml:space="preserve">
+    <value>Rows per page</value>
+  </data>
+  <data name="GridFirstPage" xml:space="preserve">
+    <value>First page</value>
+  </data>
+  <data name="GridPreviousPage" xml:space="preserve">
+    <value>Previous page</value>
+  </data>
+  <data name="GridNextPage" xml:space="preserve">
+    <value>Next page</value>
+  </data>
+  <data name="GridLastPage" xml:space="preserve">
+    <value>Last page</value>
+  </data>
+  <data name="CreateOrganizationButton" xml:space="preserve">
+    <value>Create organization</value>
+  </data>
+  <data name="CreateSiteButton" xml:space="preserve">
+    <value>Create site</value>
+  </data>
+  <data name="CreateOrganizationTitle" xml:space="preserve">
+    <value>Create organization</value>
+  </data>
+  <data name="CreateSiteTitle" xml:space="preserve">
+    <value>Create site</value>
+  </data>
+  <data name="CreateCodeHint" xml:space="preserve">
+    <value>1–32 ASCII letters or digits (_ or - after the first character).</value>
+  </data>
+  <data name="CreateSubmit" xml:space="preserve">
+    <value>Create</value>
+  </data>
+  <data name="CreateCodeInvalid" xml:space="preserve">
+    <value>Enter a valid code (1–32 ASCII letters or digits; _ or - after the first character).</value>
+  </data>
+  <data name="CreateCodeDuplicate" xml:space="preserve">
+    <value>A record with this code already exists.</value>
+  </data>
+  <data name="CreateOrgSucceeded" xml:space="preserve">
+    <value>Organization “{0}” created.</value>
+  </data>
+  <data name="CreateSiteSucceeded" xml:space="preserve">
+    <value>Site “{0}” created.</value>
+  </data>
+  <data name="CreateOrgNoReadScope" xml:space="preserve">
+    <value>You do not have read access to any organization yet, though you can create one.</value>
+  </data>
+  <data name="WriteSave" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="WriteSaving" xml:space="preserve">
+    <value>Saving…</value>
+  </data>
+  <data name="WriteSaved" xml:space="preserve">
+    <value>Changes saved.</value>
+  </data>
+  <data name="WriteActivate" xml:space="preserve">
+    <value>Activate</value>
+  </data>
+  <data name="WriteDeactivate" xml:space="preserve">
+    <value>Deactivate</value>
+  </data>
+  <data name="WriteConfirm" xml:space="preserve">
+    <value>Confirm</value>
+  </data>
+  <data name="WriteCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="WriteConfirmActivate" xml:space="preserve">
+    <value>Activate “{0}”?</value>
+  </data>
+  <data name="WriteConfirmDeactivate" xml:space="preserve">
+    <value>Deactivate “{0}”? It will no longer appear in the default lists.</value>
+  </data>
+  <data name="WriteReload" xml:space="preserve">
+    <value>Reload latest values</value>
+  </data>
+  <data name="WriteReloadConfirm" xml:space="preserve">
+    <value>Reloading will discard your unsaved name changes. Continue?</value>
+  </data>
+  <data name="WriteDiscardConfirm" xml:space="preserve">
+    <value>You have unsaved changes. Discard them?</value>
+  </data>
+  <data name="WriteDiscard" xml:space="preserve">
+    <value>Discard changes</value>
+  </data>
+  <data name="WriteKeepEditing" xml:space="preserve">
+    <value>Keep editing</value>
+  </data>
+  <data name="WriteNameInvalid" xml:space="preserve">
+    <value>Enter a name of 1 to 200 characters without control characters.</value>
+  </data>
+  <data name="WriteConflict" xml:space="preserve">
+    <value>This record was changed by someone else. Reload the latest values before editing again.</value>
+  </data>
+  <data name="WriteOutcomeUnknown" xml:space="preserve">
+    <value>The outcome of the change is unknown. Reload to check the current values before trying again.</value>
+  </data>
+  <data name="WriteParentInactive" xml:space="preserve">
+    <value>The parent organization is inactive, so this change is not allowed.</value>
+  </data>
+  <data name="WriteHasActiveSites" xml:space="preserve">
+    <value>Deactivate this organization’s active sites first.</value>
+  </data>
+  <data name="WriteUnavailable" xml:space="preserve">
+    <value>The change could not be saved. Try again.</value>
+  </data>
 </root>

@@ -7,4 +7,5 @@
   <data name="Auth.LogoutRevocationIncomplete" xml:space="preserve"><value>This browser was signed out, but server session revocation could not be confirmed.</value></data>
   <data name="Auth.RequestRejected" xml:space="preserve"><value>The request could not be verified. Reload the page and try again.</value></data>
   <data name="Auth.LoginThrottled" xml:space="preserve"><value>Too many sign-in attempts. Try again later.</value></data>
+  <data name="Culture.ProfileSyncFailed" xml:space="preserve"><value>Language updated in this browser, but saving it to your account profile failed.</value></data>
 </root>

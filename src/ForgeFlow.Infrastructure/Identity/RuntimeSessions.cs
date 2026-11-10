@@ -148,6 +148,59 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
         }
         catch (Exception e) when (AvailableFailure(e)) { Unavailable(); return "Auth.LogoutRevocationIncomplete"; }
     }
+    public async Task<string> SetPreferredCultureAsync(SessionReference reference, string culture, CancellationToken ct = default)
+    {
+        if (culture is not ("fa-IR" or "en-US")) return "Culture.ProfileSyncFailed";
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope(); var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var correlation = Guid.NewGuid();
+            var eligible = await Eligible(db, reference, correlation, ct);
+            if (!eligible) { await db.SaveChangesAsync(ct); await Commit(tx, ct); return "Auth.SessionInvalid"; }
+            var user = await db.Users.SingleAsync(u => u.Id == reference.UserId, ct);
+            if (!string.Equals(user.PreferredCulture, culture, StringComparison.Ordinal))
+            {
+                var now = Now < user.CreatedAtUtc ? user.CreatedAtUtc : Now;
+                user.PreferredCulture = culture;
+                user.UpdatedAtUtc = now;
+                db.SecurityEvents.Add(new SecurityEvent
+                {
+                    EventCode = "CulturePreferenceChanged",
+                    OccurredAtUtc = now,
+                    CorrelationId = correlation,
+                    ActorKind = 1,
+                    ActorUserId = user.Id,
+                    SubjectUserId = user.Id,
+                    SessionId = reference.SessionId,
+                    Outcome = 0,
+                    DataJson = $"{{\"culture\":\"{culture}\"}}"
+                });
+            }
+            await db.SaveChangesAsync(ct);
+            return await Commit(tx, ct) ? "Culture.ProfileSaved" : "Culture.ProfileSyncFailed";
+        }
+        catch (Exception e) when (AvailableFailure(e)) { Failure("culture-preference", e, reference.SecurityStamp); Unavailable(); return "Culture.ProfileSyncFailed"; }
+    }
+
+    public async Task<string?> GetPreferredCultureAsync(SessionReference reference, CancellationToken ct = default)
+    {
+        if (reference.UserId <= 0 || reference.SessionId == Guid.Empty) return null;
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope(); var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var now = Now;
+            var culture = await (from u in db.Users.AsNoTracking()
+                                 join s in db.Sessions.AsNoTracking() on u.Id equals s.UserId
+                                 where u.Id == reference.UserId && u.IsActive
+                                       && s.Id == reference.SessionId && s.RevokedAtUtc == null
+                                       && s.ExpiresAtUtc > now && s.SecurityStampSnapshot == u.SecurityStamp
+                                 select u.PreferredCulture).SingleOrDefaultAsync(ct);
+            return culture is "fa-IR" or "en-US" ? culture : null;
+        }
+        catch (Exception e) when (AvailableFailure(e)) { Failure("culture-lookup", e, reference.SecurityStamp); return null; }
+    }
+
     public async Task<bool> PermissionAsync(SessionReference reference, OrganizationScope scope, string permission, CancellationToken ct)
     {
         try

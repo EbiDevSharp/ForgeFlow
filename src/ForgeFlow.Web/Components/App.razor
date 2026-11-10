@@ -3,7 +3,8 @@
 <!DOCTYPE html>
 <html lang="@Culture.Language" dir="@Culture.Direction"
       data-auth-login-unavailable="@Text["LoginUnavailable"]"
-      data-auth-logout-unavailable="@Text["LogoutUnavailable"]">
+      data-auth-logout-unavailable="@Text["LogoutUnavailable"]"
+      data-server-unavailable="@Text["ServerUnavailable"]">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -17,8 +18,48 @@
 </head>
 <body>
     <Routes @rendermode="InteractiveServer" />
+    <div id="components-reconnect-modal" class="reconnect-modal" role="alertdialog" aria-modal="true" aria-labelledby="reconnect-title">
+        <div class="reconnect-card">
+            <div class="components-reconnect-first-attempt-visible">
+                <h2 id="reconnect-title">@Text["ReconnectTitle"]</h2>
+                <p>@Text["ReconnectShowing"]</p>
+            </div>
+            <div class="components-reconnect-repeated-attempt-visible">
+                <h2>@Text["ReconnectTitle"]</h2>
+                <p>@Text["ReconnectRetrying"]</p>
+                <p class="reconnect-meta">
+                    <span>@Text["ReconnectAttemptLabel"]</span>
+                    <span dir="ltr"><span id="components-reconnect-current-attempt"></span>/<span id="components-reconnect-max-retries"></span> · <span id="components-seconds-to-next-attempt"></span></span>
+                    <span>@Text["ReconnectSeconds"]</span>
+                </p>
+            </div>
+            <div class="components-reconnect-failed-visible">
+                <h2>@Text["ReconnectFailedTitle"]</h2>
+                <p>@Text["ReconnectFailed"]</p>
+                <div class="reconnect-actions">
+                    <button type="button" class="reconnect-btn" data-reconnect-action="retry">@Text["ReconnectRetry"]</button>
+                    <button type="button" class="reconnect-btn reconnect-btn-secondary" data-reconnect-action="reload">@Text["ReconnectReload"]</button>
+                </div>
+            </div>
+            <div class="components-reconnect-paused-visible">
+                <h2>@Text["ReconnectPausedTitle"]</h2>
+                <p>@Text["ReconnectPaused"]</p>
+                <div class="reconnect-actions">
+                    <button type="button" class="reconnect-btn" data-reconnect-action="resume">@Text["ReconnectResume"]</button>
+                </div>
+            </div>
+            <div class="components-reconnect-resume-failed-visible">
+                <h2>@Text["ReconnectFailedTitle"]</h2>
+                <p>@Text["ReconnectResumeFailed"]</p>
+                <div class="reconnect-actions">
+                    <button type="button" class="reconnect-btn" data-reconnect-action="reload">@Text["ReconnectReload"]</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <div id="blazor-error-ui" role="alert">
-        @Text["UnexpectedError"]
+        <span>@Text["UnexpectedError"]</span>
+        <button type="button" class="error-ui-reload" data-reconnect-action="reload">@Text["ReconnectReload"]</button>
         <a href="/">@Text["Reload"]</a>
     </div>
     <script src="@Assets["_content/Bit.BlazorUI/scripts/bit.blazorui.js"]"></script>

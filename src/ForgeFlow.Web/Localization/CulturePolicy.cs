@@ -37,4 +37,20 @@ public sealed class CulturePolicy
             return supported is null ? null : new ProviderCultureResult(supported, supported);
         }
     }
+
+    public static async Task ApplyProfileFallbackAsync(HttpContext context)
+    {
+        var feature = context.Features.Get<IRequestCultureFeature>();
+        if (feature?.Provider is ConsistentCookieCultureProvider) return;
+        var reference = ForgeFlow.Web.Authentication.SessionClaims.Read(context.User);
+        if (reference is null) return;
+        var sessions = context.RequestServices.GetService<ForgeFlow.Infrastructure.Identity.RuntimeSessions>();
+        if (sessions is null) return;
+        var preferred = Normalize(await sessions.GetPreferredCultureAsync(reference, context.RequestAborted));
+        if (preferred is null) return;
+        var info = CultureInfo.GetCultureInfo(preferred);
+        CultureInfo.CurrentCulture = info;
+        CultureInfo.CurrentUICulture = info;
+        context.Response.Headers.ContentLanguage = preferred;
+    }
 }

@@ -1,5 +1,204 @@
 # Slice index and shared boundaries — 01 design
 
+## Slice 02 (02.0) design increment & AUTH-01 A5 / Slice 01 (01.5) acceptance closure (2026-11-10)
+
+### 1. AUTH-01 A5 & Slice 01 (`01.5`) closure
+User confirmed local browser verification in full ("خوب همه چی درسته") and authorized advancing to Slice 02. Recorded status separates verification provenance strictly:
+- **Build**: `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS (8 projects, 0 warnings, 0 errors; unchanged since last code edit).
+- **Agent automated suite**: `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore` — 255 passed, 0 failed, 34 skipped (SQL tests remain skipped in agent sandbox).
+- **JS draft tests & Chrome smoke check**: `node .\scripts\drafts.test.mjs` (19 passed) and `node .\verification\slice01-ui\browser-check.cjs` (4/4 PASS for `fa-IR` / `en-US` at `1440px` / `320px`).
+- **User-executed SQL/TLS suite (after final `AuthDbContext.Guard()` fix)**: `AuthRecoverySqlTests|AuthSession|AuthHttpTests` — **22 passed, 0 failed, 0 skipped** (11.5s) against disposable SQL Server databases (`FORGEFLOW_TEST_SQLSERVER` + `FORGEFLOW_AUTH_HTTP_TESTS='1'`).
+- **Earlier SQL suites (predating `AuthDbContext.Guard()` relaxation)**: `OrganizationUseCaseSqlTests|OrganizationSqlServerTests` (12 passed, 0 failed) and `AuthBootstrapSqlTests` (13 passed + native CLI `Auth.Initialized` exit 0). Note: `OrganizationDbContext` is independent of `AuthDbContext`, while `AuthDbContext.Guard()` only relaxed unchanged `UserName`/`NormalizedUserName` updates.
+- **User-reported manual browser verification**: Confirmed all live flows at `https://localhost:5001` ("خوب همه چی درسته").
+- **Pre-production deferred caveats (explicitly preserved, not hidden)**: local-only `TrustServerCertificate=True`, production TLS certificate/DataProtection key persistence, restricted runtime SQL principal verification on deployment target, and standalone interactive `HostRecovery` CLI run on a separate disposable database.
+- **Housekeeping**: Deleted accidental 0-byte `MainLayout.razor` found at repository root; `src/ForgeFlow.Web/Components/Layout/MainLayout.razor` untouched.
+
+### 2. Slice 02 (`02-users-memberships`, `02.0`) — design approved for `02.1`
+Created and finalized the design-first slice package under `docs/slices/02-users-memberships/`:
+- [README.md](docs/slices/02-users-memberships/README.md): full 10-section contract (`۰۰.۵`) aligning roadmap item `03` (`Users and memberships`) after `AUTH-01` (`02`) and Slice 01, defining scoped user/membership/fixed-role use cases, error codes (`Users.*`), lock order (`Organization` -> `Site` -> `ApplicationAccount` -> memberships -> roles -> sessions), fail-closed `SecurityEvent` logging, and bilingual/mobile UI rules.
+- [decisions.md](docs/slices/02-users-memberships/decisions.md): inherited boundaries `FF-U01`–`FF-U05` and approved `02.0` decisions **`Q-U01`–`Q-U05`** (initial password at creation without `DisplayName`/`MustChangePassword` schema migration, fixed `OrganizationAdministrator`/`SiteOperator` assignment in Slice 02 while custom roles remain in Slice 03, strict tenant isolation with single-org `SetUserActiveAsync` vs multi-org `OrganizationMembership` toggle, `UnlockUserAsync` without tenant credential takeover, self/last-active-admin protection).
+- [physical-erd.md](docs/slices/02-users-memberships/physical-erd.md): grounded in verified `AuthDbContext` tables (`auth.User`, `auth.OrganizationMembership`, `auth.SiteMembership`, `auth.ScopedRoleAssignment`, `auth.Session`, `auth.SecurityEvent`), composite FKs, SQL check constraints, with zero DDL migration required for Slice 02.
+- [test-plan.md](docs/slices/02-users-memberships/test-plan.md): unit (`U01`–`U06`), disposable SQL/barrier-race (`S01`–`S07`), and bilingual `fa-IR`/`en-US` desktop/`320px` browser gates (`B01`–`B06`).
+
+**Design-first gate (`02.0`) closed**: Ready for increment `02.1` (Domain & Application user/membership contracts and tests). Also added `verification/` to `.gitignore` and untracked legacy cached `verification/` artifacts from Git index per user policy.
+
+## AUTH-01 22-case SQL & TLS suite — USER-EXECUTED PASS (2026-11-10)
+
+User executed in normal Windows PowerShell against the freshly built Release binaries (`FORGEFLOW_AUTH_HTTP_TESTS='1'` and `FORGEFLOW_TEST_SQLSERVER` targeting disposable `ForgeFlow_Slice01_Test_*` databases; environment variables removed afterward):
+
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~AuthRecoverySqlTests|FullyQualifiedName~AuthSession|FullyQualifiedName~AuthHttpTests' --logger 'console;verbosity=normal'` — **PASS: 22 passed, 0 failed, 0 skipped** (11.5s):
+  - 9 `AuthRecoverySqlTests`: credential rotation, session revocation, audit rollback, fault-injected rollback, uncertain-commit resolution, unknown subject, concurrent same-operation reset, preservation of other sessions.
+  - 11 `AuthSessionSqlTests`: real credentials/sessions/adapters/use cases, `Preferred_culture_updates_without_rotating_security_stamp_and_audits_change`, lockout & atomic revocation, disabled/stamp/expired invalidation, required event rollback, explicit platform grant isolation, site-operator double-membership & revocation.
+  - 1 `AuthSessionHttpSqlTests`: real HTTPS login/logout, `__Host-ForgeFlow.Auth` cookie, antiforgery, server revocation & cookie replay rejection.
+  - 1 `AuthHttpTests`: loopback TLS, antiforgery, safe local redirect, outage denial.
+
+Local test `TrustServerCertificate=True` remains local-test-session evidence only, not production TLS validation. `AuthDbContext.Guard()` changed since the earlier `AuthBootstrapSqlTests` (13 passed) run; re-running `AuthBootstrapSqlTests` against the current binaries is quick and optional before A5.
+
+Remaining gaps before closing AUTH-01 A5 & Slice 01 01.5:
+1. Authenticated browser acceptance (`B01`–`B06`) on https://localhost:5001 in `fa-IR` (RTL) and `en-US` (LTR) at desktop and `320px` (Create/View/Edit/Deactivate/Paging, unsaved-change confirmation, scope-bound drafts, header language switch, circular `UserMenu`, `/account/access-denied`, multi-tab logout).
+2. Supervised native recovery CLI gate on a disposable installation (if required before A5).
+3. Formal A5 handoff receipt and Slice 01 `01.5` acceptance receipt. AUTH-01 and Slice 01 remain NOT ACCEPTED until those checks complete; Slice 02 waits for acceptance.
+
+## AuthDbContext.Guard() Identity-update bugfix from user SQL run (2026-11-10)
+
+User-executed SQL run (`FORGEFLOW_AUTH_HTTP_TESTS='1'` + `FORGEFLOW_TEST_SQLSERVER`) returned **13 passed, 9 failed, 0 skipped**:
+- Passed (13): `AuthHttpTests.Real_http_enforces_antiforgery_local_targets_cookie_security_and_outage_denial`, `AuthSessionHttpSqlTests.Real_http_login_and_logout_use_protected_cookies_antiforgery_and_server_revocation`, all 9 passing `AuthSessionSqlTests` (including new `Preferred_culture_updates_without_rotating_security_stamp_and_audits_change`), and `AuthRecoverySqlTests.Unknown_subject_does_not_change_any_account_or_event`.
+- Failed (9): 8 `AuthRecoverySqlTests` threw `InvalidOperationException: Auth.ImmutableHistory` inside `UserManager.ResetPasswordAsync` -> `UserOnlyStore.UpdateAsync`; `AuthSessionSqlTests.Failed_credentials_lock_account_and_revoke_existing_sessions_atomically` returned `Auth.ServiceUnavailable` because `UserManager.AccessFailedAsync` -> `UserOnlyStore.UpdateAsync` hit the same `Auth.ImmutableHistory` guard.
+
+Root cause: `AuthDbContext.Guard()` checked `p.IsModified` on `UserName`/`NormalizedUserName`/`ScopedRoleAssignment` scope keys without comparing `!Equals(p.OriginalValue, p.CurrentValue)`. ASP.NET Core Identity's `UserOnlyStore.UpdateAsync` calls `Context.Update(user)` and marks every property `IsModified = true` even when `UserName` and `NormalizedUserName` did not change.
+
+Fix: added `ValueChanged(PropertyEntry)` (`property.IsModified && !Equals(property.OriginalValue, property.CurrentValue)`) in `src/ForgeFlow.Infrastructure/Identity/AuthDbContext.cs` and added regression test `AuthRecoveryTests.Guard_allows_identity_updates_with_unchanged_username_and_blocks_username_changes`.
+
+Fresh agent verification after fix:
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+- `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore` — PASS: 255 passed, 0 failed, 34 skipped (SQL tests remain skipped in agent sandbox).
+- Relaunched Development Web at https://localhost:5001 (`GET /account/login` HTTP 200).
+
+Next step: re-run the 22-case SQL/TLS command in normal Windows PowerShell to confirm all 22 pass.
+
+## 01.4 increment 8 — Authorized scope Code/Name labels, deep-link NotFound fix, and bilingual shell rendering tests (2026-11-10)
+
+Scope:
+- Added `ReadScopes.LoadDisplayInfoAsync` in `ReadScopes.cs` (using existing secured `OrganizationUseCases.GetOrganization` / `GetSite` only for already-authorized scopes) and updated `OrganizationReader.razor` `ScopeLabel` to display `Code — Name` (or `OrgCode · SiteCode — SiteName`) with localized numeric fallback when a scope has no read-org grant (e.g., `SiteOperator`).
+- Fixed deep-link edge case in `OrganizationReader.razor`: when an explicit `OrganizationId > 0` route yields `available.Count == 0`, display `ReadNotFound` (even if `canCreate` is true for a Platform provisioner), and render a localized return link to `/organizations` or `/sites` below deep-link error alerts.
+- Added `tests/ForgeFlow.Web.Tests/ShellRenderingTests.cs` using ASP.NET `HtmlRenderer` to verify bilingual (`fa-IR` / `en-US`) rendering of `AccessDenied`, `UserMenu` (single-initial circular trigger + full username + logout form), and empty `Home`.
+
+Actual commands and results (this session, Release, no restore):
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger "console;verbosity=minimal"` — PASS: 253 passed, 0 failed, 35 skipped (SQL-dependent tests remain skipped in the agent environment).
+- Relaunched Development Web at https://localhost:5001 (`GET /account/login` HTTP 200). No migration, bootstrap, or recovery was run.
+
+Remaining blockers to closing AUTH-01 A5 & Slice 01 01.5 (NOT executed in agent sandbox):
+1. User-executed SQL/TLS suite in normal Windows PowerShell (`FORGEFLOW_TEST_SQLSERVER` + `FORGEFLOW_AUTH_HTTP_TESTS='1'`, expecting 22 passed / 0 failed / 0 skipped) + supervised native recovery test on a disposable installation.
+2. Authenticated browser acceptance (B01–B06) on https://localhost:5001 in `fa-IR` (RTL) and `en-US` (LTR) at desktop and `320px`.
+Per AGENTS.md, Slice 02 cannot begin until AUTH-01 and Slice 01 are accepted.
+
+## AUTH-01 HTTP TLS fixture fix & verification (2026-11-10)
+
+Root cause of user-observed `AuthHttpTests` `SslStream` EOF (`Received an unexpected EOF or 0 bytes from the transport stream`): `AuthHttpHost.Start` previously passed an ephemeral `CreateSelfSigned` certificate without SAN/ServerAuth EKU or a Windows Schannel-usable key container, causing Kestrel TLS handshake termination on Windows. Fixed `AuthHttpHost.Start` in `tests/ForgeFlow.Web.Tests/AuthHttpTests.cs` to add `localhost`/`127.0.0.1` SAN, key usage, ServerAuth EKU (`1.3.6.1.5.5.7.3.1`), and load the PFX with `X509KeyStorageFlags.UserKeySet` on Windows (`EphemeralKeySet` elsewhere).
+
+Actual commands and results:
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+- `$env:FORGEFLOW_AUTH_HTTP_TESTS='1'; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --filter 'FullyQualifiedName~AuthHttpTests'` — PASS: 1 passed, 0 failed, 0 skipped (`Real_http_enforces_antiforgery_local_targets_cookie_security_and_outage_denial`, 485 ms). (In-memory test cert only; not production TLS validation.)
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore` (without opt-in env vars) — PASS: 247 passed, 0 failed, 35 skipped.
+- Relaunched Development Web at https://localhost:5001 (`GET /account/login` HTTP 200).
+
+User's pasted run showed the 16 SQL test groups skipped because `FORGEFLOW_TEST_SQLSERVER` was not set in that PowerShell session; those 16 SQL groups (plus `AuthHttpTests` re-run) still require execution in normal Windows PowerShell with `FORGEFLOW_TEST_SQLSERVER` pointing to disposable test DB creation rights before AUTH-01 A5 / Slice 01 01.5 acceptance.
+
+## 01.4 / A4 increment 7 — Scope-bound drafts, cross-tab logout signal, and Chrome verification (2026-11-10)
+
+Scope:
+- Integrated `DraftCoordinator` into `OrganizationReader.razor` for both Create (`org-create-form`) and Edit (`org-edit-form`) modal forms. Draft keys include actor ID, scope (`OrganizationId` / `SiteId` / `Platform`), and operation (`BuildDraftScope`); unsaved edits restore after re-opening or culture reload within the same actor/scope without overriding server `RowVersion` or authorization, and clear on save, discard, or conflict reload.
+- Added cross-tab identity/logout cleanup signal (`BroadcastChannel("forgeflow.identity")` + `notifyIdentityCleared()` in `wwwroot/auth-ui.mjs`): signing out in one tab clears `forgeflow.draft:*` in `sessionStorage` and broadcasts `{ type: "signed-out", nonce }`, causing other open authenticated tabs to immediately hide `[data-authenticated-content]`, clear their own drafts, and redirect to `/`. No `localStorage`, credentials, or grants are stored/broadcast.
+- Added `AuthSessionSqlTests.Preferred_culture_updates_without_rotating_security_stamp_and_audits_change` (disposable SQL test for `SetPreferredCultureAsync`, `GetPreferredCultureAsync`, `CulturePreferenceChanged` security event, and unchanged `SecurityStamp`), `OrganizationReaderRegressionTests.Draft_scope_isolates_actor_organization_site_and_operation`, and `AuthUiContractTests` `BroadcastChannel` assertion.
+- Added `verification/slice01-ui/browser-check.cjs` headless Chrome check against the running Development HTTPS host (`ignoreHTTPSErrors` solely for the local dev cert; anonymous/unauthenticated flows only).
+
+Actual commands and results (this session, Release, no restore):
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger "console;verbosity=minimal"` — PASS: 247 passed, 0 failed, 35 skipped (SQL-dependent tests remain skipped in the agent environment).
+- `node .\scripts\drafts.test.mjs` — PASS: 19 passed, 0 failed.
+- `node .\verification\slice01-ui\browser-check.cjs` — PASS in headless Chrome for `fa-IR`/`en-US` at `1440px` and `320px`: anonymous `/` → `/account/login`, RTL/LTR attributes, zero horizontal overflow, zero page errors, localized `#components-reconnect-modal` states (`show`, `retrying`, `failed`, `paused`), and `/culture` switch + reload.
+- Launched freshly built Web in Development at https://localhost:5001 with process-only `ConnectionStrings__ForgeFlow` (localhost/testforgflow, Integrated Security, Encrypt=True, local-only TrustServerCertificate=True); `GET /account/login` returned HTTP 200 (length 15699). No migration, bootstrap, or recovery was run.
+
+Remaining gaps before closing AUTH-01 A5 & Slice 01 (01.5) (NOT verified / cannot run from agent sandbox):
+- **Authenticated browser acceptance (B01–B06):** sign in on https://localhost:5001/account/login and verify `/`, header language switch, circular `UserMenu`, `/account/access-denied`, `/organizations`, `/sites` (Create/View/Edit/Deactivate/Paging, unsaved-change confirmation, draft restoration, multi-tab logout) in `fa-IR` and `en-US` at desktop and `320px`.
+- **SQL & TLS acceptance (user-executed in normal Windows PowerShell with `FORGEFLOW_TEST_SQLSERVER` on disposable test DBs):** run the prepared 22-case command (`AuthRecoverySqlTests|AuthSession|AuthHttpTests`) plus supervised native recovery test, then complete A5 and 01.5 receipts. AUTH-01 and Slice 01 remain NOT ACCEPTED.
+
+## 01.4 / A4 increment 6 — Localized server-unavailable reconnect modal & authenticated profile culture persistence (2026-11-10)
+
+Scope:
+- Localized Blazor Server circuit disconnect/rejoin/failed/paused UI by adding `#components-reconnect-modal` to `Components/App.razor` with the exact `.NET 10` `blazor.web.js` state classes (`components-reconnect-show`, `retrying`, `failed`, `rejected`, `paused`, `resume-failed`), localized action handlers (`[data-reconnect-action]` calling `window.Blazor.reconnect()` / `resumeCircuit()` / `location.reload()`) in `wwwroot/auth-ui.mjs`, and `ServerUnavailable` notice fallback for culture-switch network/server failures. Styled `#components-reconnect-modal` and `#blazor-error-ui` reload button in `wwwroot/app.css`.
+- Implemented A4 authenticated profile language persistence (`PreferredCulture`):
+  - Added `RuntimeSessions.SetPreferredCultureAsync` (updates `ApplicationAccount.PreferredCulture` without rotating `SecurityStamp` and appends `CulturePreferenceChanged` `SecurityEvent` in the same serializable transaction) and `GetPreferredCultureAsync`.
+  - Updated `CultureEndpoint.SwitchAsync` so authenticated switches apply the `.AspNetCore.Culture` cookie and save `PreferredCulture`; if profile save fails, it still applies the browser cookie and returns HTTP 200 `{ cookieApplied: true, profileSaved: false, code: "Culture.ProfileSyncFailed", message }` (`auth-ui.mjs` persists the localized warning in `sessionStorage` across reload without claiming profile sync).
+  - Added `CulturePolicy.ApplyProfileFallbackAsync` in `Program.cs` right after `UseAuthentication()`: preserves FF-A016 precedence (`ConsistentCookieCultureProvider` cookie → authenticated profile preference → `Accept-Language` → `fa-IR`) per request without mutating process-wide defaults.
+- Added 14 keys in `SharedResources` catalogs (`ServerUnavailable`, `Reconnect*`) and `Culture.ProfileSyncFailed` in `AuthenticationResources` catalogs. Added tests in `AuthBackendTests`, `SwitchAndDraftTests`, and `ResourceContractTests`.
+
+Actual commands and results (this session, Release, no restore):
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger "console;verbosity=minimal"` — PASS: 246 passed, 0 failed, 34 skipped (SQL-dependent tests remain skipped in the agent environment).
+- Launched freshly built Web in Development at https://localhost:5001 with process-only `ConnectionStrings__ForgeFlow` (localhost/testforgflow, Integrated Security, Encrypt=True, local-only TrustServerCertificate=True); `GET /account/login` returned HTTP 200 (length 15716, `components-reconnect-modal` present). No migration, bootstrap, or recovery was run.
+
+Remaining gaps (NOT verified / open in AUTH-01 A4 + Slice 01):
+- Authenticated browser verification in `fa-IR`/`en-US`, RTL/LTR, 320px/desktop, keyboard/focus for all 01.4/A4 screens, `#components-reconnect-modal`, and live profile-culture persistence.
+- Scope-bound `DraftCoordinator` integration in `OrganizationReader.razor` and cross-tab identity/logout cleanup signal.
+- Deferred AUTH-01 SQL/TLS/native recovery gates (21-case suite + native recovery) and A5 handoff / 01.5 acceptance receipt. AUTH-01 and Slice 01 remain NOT ACCEPTED.
+
+Next small step: integrate scope-bound `DraftCoordinator` + cross-tab identity/logout signal in `OrganizationReader.razor`/`auth-ui.mjs`, or run browser/SQL acceptance on the current build.
+
+## 01.4 / A4 increment 5 — Unsaved-change / conflict-reload confirmation & AccessDenied page (2026-11-10)
+
+Scope:
+- Added `BitDialog.OnDismissing` (`BitDialogDismissArgs`) unsaved-change confirmation to both Edit and Create dialogs in `OrganizationReader.razor` (`OnEditDismissing`, `OnCreateDismissing`), plus explicit reload confirmation (`RequestReload` / `WriteReloadConfirm`) when `WriteConflict` or `WriteOutcomeUnknown` occurs with unsaved name edits.
+- Added A4 `/account/access-denied` page (`Components/Pages/AccessDenied.razor`), rendering localized `AccessDeniedTitle`/`AccessDeniedMessage` without exposing forbidden resource names for authenticated users, and `AnonymousRedirect` for unauthenticated visitors.
+- Added 6 localization keys (`AccessDeniedTitle`, `AccessDeniedMessage`, `WriteReloadConfirm`, `WriteDiscardConfirm`, `WriteDiscard`, `WriteKeepEditing`) in both `SharedResources` catalogs and updated `ResourceContractTests` and `OrganizationReaderRegressionTests`.
+
+Actual commands and results (this session, Release, no restore):
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger "console;verbosity=minimal"` — PASS: 245 passed, 0 failed, 34 skipped (SQL-dependent tests remain skipped in the agent environment).
+- Stopped earlier workspace Development process, launched freshly built Web in Development at https://localhost:5001 with process-only `ConnectionStrings__ForgeFlow` (localhost/testforgflow, Integrated Security, Encrypt=True, local-only TrustServerCertificate=True); `GET /account/login` returned HTTP 200 (length 11270). No migration, bootstrap, or recovery was run.
+
+Remaining gaps (NOT verified / open in AUTH-01 A4 + Slice 01):
+- Authenticated browser verification in `fa-IR`/`en-US`, RTL/LTR, 320px/desktop, keyboard/focus for all 01.4/A4 screens.
+- A4 profile language persistence (`Culture.ProfileSyncFailed` warning + cookie/profile precedence), identity/scope-bound `DraftCoordinator` integration in `OrganizationReader`, and cross-tab identity/logout cleanup signal.
+- Deferred AUTH-01 SQL/TLS/native recovery gates (21-case suite + native recovery) and A5 handoff / 01.5 acceptance receipt. AUTH-01 and Slice 01 remain NOT ACCEPTED.
+
+Next small step: implement A4 authenticated profile language persistence + `Culture.ProfileSyncFailed` warning and scope-bound `DraftCoordinator` integration in `OrganizationReader.razor`, or run browser/SQL acceptance on the current UI.
+
+## 01.4 increment 4 — Empty Home, header language switcher, circular avatar trigger, and Create Organization/Site UI (2026-11-10)
+
+Scope:
+- Emptied `Home.razor` (`/` renders `<PageTitle>` and visually hidden `<h1>` for focus navigation only).
+- Added a compact single-option language switcher (`.header-lang-btn` with `.ff-icon--globe` and `data-auth-culture`) on the start side of `<header class="app-header">` in `MainLayout.razor`, opposite `UserMenu`, showing only the target language to switch to.
+- Updated `UserMenu.razor` trigger to a 38px circular avatar button showing only the first character of the username (`Initial(userName)`), revealing the wrapped full username and Sign Out form in the popover panel.
+- Added authorized **Create Organization** (`OrganizationPermissions.OrganizationsCreate` against `OrganizationScope.Platform`) and **Create Site** (`OrganizationPermissions.SitesCreate` against selected `OrganizationScope.Organization`) modal workflows to `OrganizationReader.razor`, consuming 01.3 `OrganizationUseCases.CreateOrganization`/`CreateSite`. Per Slice 01 contract (`docs/slices/01-organization-sites/README.md`), hard delete is not permitted; lifecycle removal remains soft deactivation (`SetOrganizationActive`/`SetSiteActive`) inside the Edit modal.
+- Added 11 localization keys (`SwitchLanguageTo`, `Create*`) in both `SharedResources` catalogs and removed 4 unused keys (`HomeTitle`, `HomeSubtitle`, `HomeNoScopes`, `AuthenticatedAs`). Added `OrganizationReaderRegressionTests` for `CreateOrganization`/`CreateSite` dispatch and `CodeInvalid`/`CodeDuplicate` mappings.
+
+Actual commands and results (this session, Release, no restore):
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger "console;verbosity=minimal"` — PASS: 244 passed, 0 failed, 34 skipped (SQL-dependent tests remain skipped in the agent environment).
+- Stopped earlier workspace Development process, launched freshly built Web in Development at https://localhost:5001 with process-only `ConnectionStrings__ForgeFlow` (localhost/testforgflow, Integrated Security, Encrypt=True, local-only TrustServerCertificate=True); `GET /account/login` returned HTTP 200 (length 11250). No migration, bootstrap, or recovery was run.
+
+Remaining gaps (NOT verified): authenticated browser verification in fa-IR/en-US, RTL/LTR, 320px/desktop, keyboard/focus for empty Home, header language switch, circular UserMenu, and Create/Edit/Deactivate Organization/Site flows; live SQL verification (skipped in agent environment); unsaved-change confirmation on modal close; A4/A5/01.5 acceptance gates. AUTH-01 and Slice 01 remain NOT ACCEPTED.
+
+Next small step: verify all updated pages and Create/Edit/Deactivate flows in the browser at https://localhost:5001 in both `fa-IR` and `en-US` (desktop & 320px), then work on remaining A4 (access-denied page, identity/scope-bound drafts) and unsaved-change confirmation.
+
+## 01.4 increment 3 — Home page, UserMenu, BitDataGrid paging, and separate view/edit modals (2026-11-10)
+
+Scope: addressed user review feedback on the authenticated shell and `OrganizationReader.razor` using installed Bit BlazorUI 10.7 / Bit.BlazorUI.Extras 10.7.0 (no package changes):
+- Removed `Sample.razor` (`/` localization test page) and replaced `/` with `Components/Pages/Home.razor` (localized workspace welcome, quick language switch via `/culture`, and authorized `Organizations`/`Sites` cards). Kept `SampleResources`/`SampleFormState`/`SampleMode` out of the live UI while preserving Slice 00 formatting/draft regression unit tests; `ResourceContractTests` checks `Explicit_catalogs_have_complete_keys_and_matching_placeholder_contracts` for both catalogs and `Every_Razor_key_is_registered_and_every_registered_key_is_used` for `SharedResources`.
+- Added `Components/Layout/UserMenu.razor` in `<header class="app-header">` (`MainLayout.razor`), removing the standalone header logout button and putting the signed-in username and logout form inside a click/Escape-toggleable popover menu. Updated `AuthUiContractTests` accordingly.
+- Added self-authored CSS-mask icons (`.ff-icon--home`, `--org`, `--site`, `--settings`, `--edit`, `--user` in `wwwroot/app.css`) for `MainLayout` `BitNavPanel` items, `UserMenu`, and the grid Edit button; verified `BitButton` (`Icon="BitIconInfo.Css(...)"`) renders without `.bit-icon` font interference.
+- Replaced manual Previous/Next pagination in `OrganizationReader.razor` with `BitDataGrid` server-side paging (`OnRead="ReadGridAsync"`, `Pageable="true"`, `PageSize="25"`, `PageSizeOptions="[10, 25, 50, 100]"`, localized `BitDataGridStrings`, `EmptyTemplate`).
+- Split grid row actions into View (`IconName="View"`, read-only modal) and Edit (`Icon="@EditIcon"`, rendered when `scopeCanRename || scopeCanSetActive`), reduced `BitDialog` width to `380px`, removed the redundant bottom `Close` footer button (`ShowCancelButton="false"` while keeping header X `ShowCloseButton="true"`), and placed compact `BitSize.Small` Save and Activate/Deactivate buttons side by side in one `.write-actions` row.
+
+Actual commands and results (this session, Release, no restore):
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 8 projects, 0 warnings, 0 errors.
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore --logger "console;verbosity=minimal"` — PASS: 238 passed, 0 failed, 34 skipped (SQL-dependent tests remain skipped in the agent environment).
+- Stopped earlier workspace Development PID 12036, launched freshly built Web in Development at https://localhost:5001 with process-only `ConnectionStrings__ForgeFlow` (localhost/testforgflow, Integrated Security, Encrypt=True, local-only TrustServerCertificate=True); `GET /account/login` returned HTTP 200 (length 11321). No migration, bootstrap, or recovery was run.
+
+Remaining gaps (NOT verified): authenticated browser verification in fa-IR/en-US, RTL/LTR, 320px/desktop, keyboard/focus for `Home`, `UserMenu`, `BitDataGrid` pager, and view/edit modals is still required; SQL suites remain skipped from agent environment; Create Organization/Site UI, unsaved-change confirmation, and A4/A5/01.5 acceptance gates remain open. AUTH-01 and Slice 01 remain NOT ACCEPTED.
+
+Next small step: verify `/` (`Home`), `UserMenu`, `/organizations`, and `/sites` in the browser in both `fa-IR` and `en-US` (desktop & 320px), then add Create Site (`Sites.Create`, organization scope, code + name, duplicate-code message).
+
+## 01.4 increment 2 — Organization/Site rename and activate/deactivate from the detail dialog (2026-11-10)
+
+Scope: the already-existing authenticated read-only list/detail UI (`OrganizationReader.razor`, used by `/organizations` and `/sites` routes) gained write actions inside the detail dialog, consuming the implemented 01.3 secured use cases (RenameOrganization/RenameSite, SetOrganizationActive/SetSiteActive). Create Organization/Site is NOT part of this increment. Built on the installed Bit BlazorUI 10.7; no package change.
+
+Behavior: after the detail loads, the component asks the trusted actor accessor and permission evaluator (same scope the use case will check) whether Update and SetActive are allowed; the rename field/Save and the Activate/Deactivate buttons render only when allowed. The server-side use case still enforces authorization. The opaque rowversion from the detail read is sent as the expected version and replaced by the returned one after success. Deactivate/Activate requires a localized confirmation naming the entity. Failure codes map to explicit localized messages: concurrency conflict (with reload action), unknown outcome (with reload action), name invalid, parent inactive, organization has active sites, denied, not found, unavailable. Success updates the dialog and the list row in place. Resources: 16 new keys in both `SharedResources` catalogs. Fixed pre-existing defect: the two last fa-IR entries (`ReadSearchPlaceholder`, `ReadPageCount`) contained literal `?` characters; they now hold real Persian text. Removed the unused orphan key `ReadRefresh` from both catalogs.
+
+Test registry: `ResourceContractTests` was already failing at baseline (2 failures: registry lacked the Read*/Organizations/Sites/Settings keys). The registry now lists every `SharedResources` key with placeholder counts and the variable-selected keys. New `OrganizationReaderRegressionTests` cover rename/toggle for both organizations and sites (version, mutation, name, in-place update) and the failure-code → resource-key mapping.
+
+Actual commands and results (this session, Release, no restore):
+
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — PASS, 0 warnings, 0 errors.
+- `dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore` — PASS: 237 passed, 0 failed, 34 skipped (the SQL-dependent suites remain skipped in the agent environment; baseline had 2 resource-contract failures, now fixed).
+- Local startup per AGENTS.md: no pre-existing ForgeFlow.Web process/listener on 5001; launched the fresh Release build in Development at https://localhost:5001 with process-only `ConnectionStrings__ForgeFlow` (localhost/testforgflow, Integrated Security, Encrypt=True, local-only TrustServerCertificate=True). `GET /account/login` returned 200. No migration, bootstrap or recovery was run.
+
+Remaining gaps (NOT verified): no authenticated browser session was exercised by the agent, so the new write UI has no browser evidence in fa-IR/en-US, RTL/LTR, 320px, keyboard/focus; no live SQL write was run (agent SQL access fails with SSPI error); unsaved-name confirmation on dialog close is not implemented; Create Organization/Site UI, scope selector polish and the A4/A5/01.5 gates remain open. Slice 01 and AUTH-01 remain NOT ACCEPTED.
+
+Next small step: sign in at https://localhost:5001/account/login and manually try rename/deactivate on `/sites` in both languages; then add Create Site (Sites.Create, organization scope, code + name, duplicate-code message).
+
 ## AUTH-01 manual login/logout receipt — USER-REPORTED verification
 
 The user reports the following manual results with the newly created local test account. This is USER-REPORTED local application verification, not agent-executed or automated evidence. No credentials are recorded.
@@ -140,9 +339,10 @@ Current increment: AUTH-01 A4 login/logout UI implemented; basic real sign-in, r
 | Slice | Current status | Contract owner / dependency |
 |---|---|---|
 | 00 | ACCEPTED | 00-R6 and finalized acceptance receipt below; passing evidence preserved |
-| 01 Organization and sites | 01.1–01.3 verified for stated gates; overall slice incomplete, not accepted | [Slice contract](docs/slices/01-organization-sites/README.md); trusted authentication and actual management UI still required |
-| AUTH-01 Authentication and Identity | A1 VERIFIED; A2 remaining gates DEFERRED; A3 backend implemented/integration DEFERRED; A4 login/logout UI implemented, acceptance incomplete | [AUTH-01 contract](docs/slices/auth-01/README.md); [consolidated acceptance checklist](docs/slices/auth-01/test-plan.md) |
-| Later catalog/units/manufacturing slices | Not started | Historical 06-A/B/C business context; subject to the proposed ownership policy in Slice 01 when approved |
+| 01 Organization and sites | ACCEPTED (2026-11-10, greenfield scope) | [Slice contract](docs/slices/01-organization-sites/README.md); automated 255/255 non-SQL + 12/12 `01.3` SQL + Chrome/Node + user manual browser sign-off; pre-production deployment gates preserved as operational caveats |
+| AUTH-01 Authentication and Identity | ACCEPTED / HANDOFF COMPLETE (2026-11-10) | [AUTH-01 contract](docs/slices/auth-01/README.md); [test-plan](docs/slices/auth-01/test-plan.md); 22/22 SQL/TLS user-executed pass + user manual browser sign-off; earlier A1 13/13 predated `Guard()` relaxation; operational TLS/CLI caveats preserved |
+| 02 Users and memberships | DESIGN APPROVED (02.0 -> ready for 02.1) | [Slice 02 contract](docs/slices/02-users-memberships/README.md); `Q-U01`–`Q-U05` closed in [decisions.md](docs/slices/02-users-memberships/decisions.md) |
+| Later roles/audit & catalog/units/BOM slices | Not started | Roadmap items `04` (roles/permissions), `05` (audit viewer), and `06` (Item/Unit/BOM) |
 
 ## Shared architecture decisions and proposals
 
@@ -2950,3 +3150,25 @@ The implementation was updated from the Day 9 milestone. The environment used fo
 ## Next Step — Day 11
 
 Next we should define the **Production Order / Manufacturing Order boundary**: when an explosion becomes a committed production requirement, how the resolved BOM Version and explosion snapshot are persisted, and how later BOM changes are prevented from rewriting historical production decisions.
+
+## Slice 01.4 read-only UI increment — 2026-11-09
+
+Implemented Organization/Site secured lists and freshly authorized detail dialogs, Settings navigation, permission-filtered scope discovery, search, inactive filter, paging, grid single selection and localized icon actions. Inspected installed Bit 10.7.0 XML APIs before implementation. No writes/migrations/seeds/Git operations. Uses existing trusted actor and permission evaluator, short-lived grant discovery context and secured OrganizationUseCases for all displayed records.
+
+Actual Release command: dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1 -p:OutputPath=D:\Projects\ForgeFlow\.tools\slice014-output\ — PASS, zero warnings/errors. Intermediate nav IList/List compile error corrected. Checks: dotnet vstest .\.tools\slice014-output\ForgeFlow.Web.Tests.dll --TestCaseFilter:"FullyQualifiedName~Organization|FullyQualifiedName~DisplayText|FullyQualifiedName~AuthBackendTests" — 102 passed, 13 SQL-dependent skipped, zero failed. Existing checks do not establish rendered UI acceptance.
+
+Startup blocker: Get-NetTCPConnection -LocalPort 5001 -State Listen and Get-CimInstance Win32_Process both returned Access denied, HRESULT 0x80041003. No process stopped or restrictions bypassed. curl.exe --silent --show-error --insecure --output NUL --write-out "%{http_code}" https://localhost:5001/account/login failed: curl (7), could not connect, HTTP 000. Fresh build is not running. Manual fallback: normal PowerShell must verify workspace executable/listener and Development before restart; launch fresh .tools/slice014-output/ForgeFlow.Web.dll with src/ForgeFlow.Web content root, Development, process-only existing localhost/testforgflow connection and HTTPS localhost:5001. Never migrate/recover/initialize during startup.
+
+No browser tool available. FA/EN RTL/LTR desktop/320px, real authorized data, row selection accessibility, dialog spacing/focus/Escape/restoration remain unverified. Scope selector uses authorized IDs; authorized display names remain a usability gap. Mobile grid containment needs visual acceptance. Read-only increment and Slice 01 remain NOT ACCEPTED; deferred AUTH-01 gates unchanged. Next: live bilingual/mobile read-only acceptance and corrections before mutation UI.
+
+## Slice 01.4 routing and reference layout correction — 2026-11-09
+
+Inspected verification/screen/modol.png and verification/screen/site organisation.png. Traced shared five-route component: page kind depended on mutable Navigation.Uri; retained route parameters and mutable selected state could disagree with pending query results. Replaced with distinct Organizations/Sites route owners and explicit IsSites parameter, keyed RouteView/reader instances, captured query scope/type and revision guards on asynchronous responses. Disposal clears records/dialog selection; grid is keyed to loaded rows. Details revalidate through existing secured use cases using selected row ID.
+
+Reference styling: unified labeled toolbar, search placeholder, inactive filter, no redundant refresh action; card grid, status badges, outlined compact actions and page count; outlined logout/username ellipsis; BitDialog part classes for 480px viewport-safe width, 16px corners, padded sections, neutral close target, tinted overlay. Installed Bit XML part/variant APIs inspected. FA/EN resources retained and extended; logical CSS and existing font/brand preserved. No database or Git changes.
+
+Final verification commands: dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1 -p:OutputPath=D:\Projects\ForgeFlow\.tools\slice014-fix-output\ ; dotnet vstest .\.tools\slice014-fix-output\ForgeFlow.Web.Tests.dll --TestCaseFilter:"FullyQualifiedName~OrganizationReaderRegressionTests|FullyQualifiedName~DisplayText|FullyQualifiedName~OrganizationUseCaseTests". Release zero warnings/errors. Focused checks 29 passed, zero failed/skipped after correcting disposal cleanup exposed by new tests. Route ownership and selected ID/query kind tested with offline ports; these are not browser or SQL evidence.
+
+Startup inspection: Get-NetTCPConnection -LocalPort 5001 -State Listen and Get-CimInstance Win32_Process returned Access denied (HRESULT 0x80041003). No process stopped/restarted. curl login probe returned (35) schannel AcquireCredentialsHandle SEC_E_NO_CREDENTIALS (0x8009030E), HTTP 000. No verified fresh preview. Manual fallback: normal PowerShell verify workspace executable and Development listener, then run fresh .tools/slice014-fix-output/ForgeFlow.Web.dll with src/ForgeFlow.Web content root, Development, process-only existing localhost/testforgflow connection and HTTPS 5001; no migrations/bootstrap/recovery.
+
+Browser tools unavailable: in-app/direct/refresh/back-forward/rapid-switch rendered behavior, FA/EN desktop/320px, active styling and dialog focus/layout remain pending live acceptance. Live SQL checks explicitly pending. Deferred AUTH-01 gates unchanged; Slice 01.4 NOT ACCEPTED. Next: live navigation and visual verification/corrections before new CRUD.

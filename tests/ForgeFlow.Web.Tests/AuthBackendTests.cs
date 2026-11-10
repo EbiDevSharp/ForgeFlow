@@ -125,6 +125,9 @@ public sealed class AuthBackendTests
         Assert.Equal("Auth.ServiceUnavailable",(await sessions.LoginAsync("synthetic",AuthBootstrapTests.Password())).Code);
         Assert.Equal("Auth.ServiceUnavailable",await sessions.ValidateAsync(reference));
         Assert.Equal("Auth.LogoutRevocationIncomplete",await sessions.LogoutAsync(reference));
+        Assert.Equal("Culture.ProfileSyncFailed",await sessions.SetPreferredCultureAsync(reference,"en-US"));
+        Assert.Equal("Culture.ProfileSyncFailed",await sessions.SetPreferredCultureAsync(reference,"xx-XX"));
+        Assert.Null(await sessions.GetPreferredCultureAsync(reference));
         var source=new Source(reference);
         Assert.Null(await new SessionActorAccessor(source,sessions).ResolveAsync(default));
         Assert.False((await new SessionPermissionEvaluator(source,sessions).EvaluateAsync(new(42,ActorProvenance.ControlledBootstrap,reference.SessionId,Guid.NewGuid()),new OrganizationScope.Platform(),OrganizationPermissions.OrganizationsCreate,default)).IsAllowed);
@@ -148,7 +151,7 @@ public sealed class AuthBackendTests
             CultureInfo.CurrentUICulture=CultureInfo.GetCultureInfo(culture);
             using var provider=new ServiceCollection().AddLogging().AddLocalization(o=>o.ResourcesPath="Resources").BuildServiceProvider();
             var text=provider.GetRequiredService<IStringLocalizer<AuthenticationResources>>();
-            foreach(var code in new[]{"Auth.LoginRejected","Auth.SessionInvalid","Auth.AccessDenied","Auth.ServiceUnavailable","Auth.LogoutRevocationIncomplete","Auth.RequestRejected","Auth.LoginThrottled"})
+            foreach(var code in new[]{"Auth.LoginRejected","Auth.SessionInvalid","Auth.AccessDenied","Auth.ServiceUnavailable","Auth.LogoutRevocationIncomplete","Auth.RequestRejected","Auth.LoginThrottled","Culture.ProfileSyncFailed"})
             { Assert.False(text[code].ResourceNotFound); Assert.False(string.IsNullOrWhiteSpace(text[code])); }
         } finally { CultureInfo.CurrentUICulture=previous; }
     }

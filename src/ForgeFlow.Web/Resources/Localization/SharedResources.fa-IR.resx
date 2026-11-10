@@ -1,34 +1,330 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root>
-  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
-  <resheader name="version"><value>2.0</value></resheader>
-  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
-  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="Navigation" xml:space="preserve"><value>ناوبری اصلی</value></data>
-  <data name="SampleNavigation" xml:space="preserve"><value>نمونهٔ بومی‌سازی</value></data>
-  <data name="AppTitle" xml:space="preserve"><value>ForgeFlow</value></data>
-  <data name="OpenNavigation" xml:space="preserve"><value>باز کردن پیمایش</value></data>
-  <data name="CloseNavigation" xml:space="preserve"><value>بستن پیمایش</value></data>
-  <data name="CollapseNavigation" xml:space="preserve"><value>جمع کردن پیمایش</value></data>
-  <data name="ErrorTitle" xml:space="preserve"><value>خطایی رخ داد</value></data>
-  <data name="UnexpectedError" xml:space="preserve"><value>خطای پیش‌بینی‌نشده‌ای رخ داد. برای تلاش دوباره صفحه را بارگیری کنید.</value></data>
-  <data name="Reload" xml:space="preserve"><value>بازگشت به نمونه</value></data>
-  <data name="NotFoundTitle" xml:space="preserve"><value>صفحه پیدا نشد</value></data>
-  <data name="NotFoundMessage" xml:space="preserve"><value>صفحهٔ درخواستی پیدا نشد.</value></data>
-  <data name="LoginTitle" xml:space="preserve"><value>ورود به ForgeFlow</value></data>
-  <data name="LoginIntroduction" xml:space="preserve"><value>برای ادامه به فضای کاری، با حساب خود وارد شوید.</value></data>
-  <data name="UsernameLabel" xml:space="preserve"><value>نام کاربری</value></data>
-  <data name="PasswordLabel" xml:space="preserve"><value>گذرواژه</value></data>
-  <data name="PasswordVisibilityToggle" xml:space="preserve"><value>نمایش یا پنهان‌کردن گذرواژه</value></data>
-  <data name="LoginSubmit" xml:space="preserve"><value>ورود</value></data>
-  <data name="LoginLoading" xml:space="preserve"><value>در حال ورود</value></data>
-  <data name="LoginRequired" xml:space="preserve"><value>نام کاربری و گذرواژه را وارد کنید.</value></data>
-  <data name="LoginUnavailable" xml:space="preserve"><value>ورود در دسترس نیست. صفحه را تازه‌سازی و دوباره تلاش کنید.</value></data>
-  <data name="LoginLanguageLabel" xml:space="preserve"><value>زبان</value></data>
-  <data name="LanguagePersian" xml:space="preserve"><value>فارسی</value></data>
-  <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
-  <data name="LoginLink" xml:space="preserve"><value>ورود</value></data>
-  <data name="AuthenticatedAs" xml:space="preserve"><value>واردشده با نام {0}</value></data>
-  <data name="Logout" xml:space="preserve"><value>خروج</value></data>
-  <data name="LogoutUnavailable" xml:space="preserve"><value>تأیید خروج ممکن نشد. برای تازه‌سازی نشست، صفحه را بارگذاری کنید.</value></data>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Navigation" xml:space="preserve">
+    <value>ناوبری اصلی</value>
+  </data>
+  <data name="Home" xml:space="preserve">
+    <value>خانه</value>
+  </data>
+  <data name="AppTitle" xml:space="preserve">
+    <value>ForgeFlow</value>
+  </data>
+  <data name="OpenNavigation" xml:space="preserve">
+    <value>باز کردن پیمایش</value>
+  </data>
+  <data name="CloseNavigation" xml:space="preserve">
+    <value>بستن پیمایش</value>
+  </data>
+  <data name="CollapseNavigation" xml:space="preserve">
+    <value>جمع کردن پیمایش</value>
+  </data>
+  <data name="ErrorTitle" xml:space="preserve">
+    <value>خطایی رخ داد</value>
+  </data>
+  <data name="UnexpectedError" xml:space="preserve">
+    <value>خطای پیش‌بینی‌نشده‌ای رخ داد. برای تلاش دوباره صفحه را بارگیری کنید.</value>
+  </data>
+  <data name="ServerUnavailable" xml:space="preserve">
+    <value>سرور در حال حاضر در دسترس نیست. لطفاً چند لحظه بعد دوباره تلاش کنید.</value>
+  </data>
+  <data name="ReconnectTitle" xml:space="preserve">
+    <value>قطع ارتباط با سرور</value>
+  </data>
+  <data name="ReconnectShowing" xml:space="preserve">
+    <value>در حال تلاش برای اتصال دوباره به سرور…</value>
+  </data>
+  <data name="ReconnectRetrying" xml:space="preserve">
+    <value>ارتباط با سرور برقرار نشد. تلاش خودکار ادامه دارد…</value>
+  </data>
+  <data name="ReconnectAttemptLabel" xml:space="preserve">
+    <value>تلاش</value>
+  </data>
+  <data name="ReconnectSeconds" xml:space="preserve">
+    <value>ثانیه</value>
+  </data>
+  <data name="ReconnectFailedTitle" xml:space="preserve">
+    <value>عدم دسترسی به سرور</value>
+  </data>
+  <data name="ReconnectFailed" xml:space="preserve">
+    <value>اتصال به سرور برقرار نشد. دوباره تلاش کنید یا صفحه را بارگذاری کنید.</value>
+  </data>
+  <data name="ReconnectRetry" xml:space="preserve">
+    <value>تلاش دوباره</value>
+  </data>
+  <data name="ReconnectReload" xml:space="preserve">
+    <value>بارگذاری مجدد</value>
+  </data>
+  <data name="ReconnectPausedTitle" xml:space="preserve">
+    <value>توقف موقت نشست</value>
+  </data>
+  <data name="ReconnectPaused" xml:space="preserve">
+    <value>اتصال از سوی سرور موقتاً متوقف شد.</value>
+  </data>
+  <data name="ReconnectResume" xml:space="preserve">
+    <value>ادامهٔ نشست</value>
+  </data>
+  <data name="ReconnectResumeFailed" xml:space="preserve">
+    <value>ادامهٔ نشست ممکن نشد. لطفاً صفحه را بارگذاری کنید.</value>
+  </data>
+  <data name="Reload" xml:space="preserve">
+    <value>بازگشت به خانه</value>
+  </data>
+  <data name="NotFoundTitle" xml:space="preserve">
+    <value>صفحه پیدا نشد</value>
+  </data>
+  <data name="NotFoundMessage" xml:space="preserve">
+    <value>صفحهٔ درخواستی پیدا نشد.</value>
+  </data>
+  <data name="AccessDeniedTitle" xml:space="preserve">
+    <value>دسترسی غیرمجاز</value>
+  </data>
+  <data name="AccessDeniedMessage" xml:space="preserve">
+    <value>شما مجوز مشاهدهٔ این صفحه را ندارید.</value>
+  </data>
+  <data name="LoginTitle" xml:space="preserve">
+    <value>ورود به ForgeFlow</value>
+  </data>
+  <data name="LoginIntroduction" xml:space="preserve">
+    <value>برای ادامه به فضای کاری، با حساب خود وارد شوید.</value>
+  </data>
+  <data name="UsernameLabel" xml:space="preserve">
+    <value>نام کاربری</value>
+  </data>
+  <data name="PasswordLabel" xml:space="preserve">
+    <value>گذرواژه</value>
+  </data>
+  <data name="PasswordVisibilityToggle" xml:space="preserve">
+    <value>نمایش یا پنهان‌کردن گذرواژه</value>
+  </data>
+  <data name="LoginSubmit" xml:space="preserve">
+    <value>ورود</value>
+  </data>
+  <data name="LoginLoading" xml:space="preserve">
+    <value>در حال ورود</value>
+  </data>
+  <data name="LoginRequired" xml:space="preserve">
+    <value>نام کاربری و گذرواژه را وارد کنید.</value>
+  </data>
+  <data name="LoginUnavailable" xml:space="preserve">
+    <value>ورود در دسترس نیست. صفحه را تازه‌سازی و دوباره تلاش کنید.</value>
+  </data>
+  <data name="LoginLanguageLabel" xml:space="preserve">
+    <value>زبان</value>
+  </data>
+  <data name="SwitchLanguageTo" xml:space="preserve">
+    <value>تغییر زبان به {0}</value>
+  </data>
+  <data name="LanguagePersian" xml:space="preserve">
+    <value>فارسی</value>
+  </data>
+  <data name="LanguageEnglish" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="UserMenu" xml:space="preserve">
+    <value>حساب کاربری</value>
+  </data>
+  <data name="Logout" xml:space="preserve">
+    <value>خروج</value>
+  </data>
+  <data name="LogoutUnavailable" xml:space="preserve">
+    <value>تأیید خروج ممکن نشد. برای تازه‌سازی نشست، صفحه را بارگذاری کنید.</value>
+  </data>
+  <data name="Sites" xml:space="preserve">
+    <value>سایت‌ها</value>
+  </data>
+  <data name="ReadDenied" xml:space="preserve">
+    <value>دسترسی به این محدوده مجاز نیست.</value>
+  </data>
+  <data name="ReadActive" xml:space="preserve">
+    <value>فعال</value>
+  </data>
+  <data name="ReadOrganizationScope" xml:space="preserve">
+    <value>سازمان {0}</value>
+  </data>
+  <data name="ReadClose" xml:space="preserve">
+    <value>بستن</value>
+  </data>
+  <data name="ReadScope" xml:space="preserve">
+    <value>محدوده</value>
+  </data>
+  <data name="ReadStatus" xml:space="preserve">
+    <value>وضعیت</value>
+  </data>
+  <data name="ReadInactive" xml:space="preserve">
+    <value>نمایش غیرفعال‌ها</value>
+  </data>
+  <data name="ReadEmpty" xml:space="preserve">
+    <value>رکوردی در این محدوده وجود ندارد.</value>
+  </data>
+  <data name="ReadNotFound" xml:space="preserve">
+    <value>رکورد در محدوده مجاز شما یافت نشد.</value>
+  </data>
+  <data name="ReadCode" xml:space="preserve">
+    <value>کد</value>
+  </data>
+  <data name="ReadInactiveStatus" xml:space="preserve">
+    <value>غیرفعال</value>
+  </data>
+  <data name="ReadError" xml:space="preserve">
+    <value>بارگذاری رکوردها ممکن نشد. دوباره تلاش کنید.</value>
+  </data>
+  <data name="Organizations" xml:space="preserve">
+    <value>سازمان‌ها</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>تنظیمات</value>
+  </data>
+  <data name="ReadName" xml:space="preserve">
+    <value>نام</value>
+  </data>
+  <data name="ReadLoading" xml:space="preserve">
+    <value>در حال بارگذاری رکوردهای مجاز…</value>
+  </data>
+  <data name="ReadActions" xml:space="preserve">
+    <value>عملیات</value>
+  </data>
+  <data name="ReadDetails" xml:space="preserve">
+    <value>نمایش جزئیات</value>
+  </data>
+  <data name="ReadEdit" xml:space="preserve">
+    <value>ویرایش</value>
+  </data>
+  <data name="ReadSiteScope" xml:space="preserve">
+    <value>سازمان {0} · سایت {1}</value>
+  </data>
+  <data name="ReadSearch" xml:space="preserve">
+    <value>جستجو</value>
+  </data>
+  <data name="ReadSearchPlaceholder" xml:space="preserve">
+    <value>نام یا کد</value>
+  </data>
+  <data name="GridPagerRange" xml:space="preserve">
+    <value>{0} تا {1} از {2}</value>
+  </data>
+  <data name="GridPagerPage" xml:space="preserve">
+    <value>صفحهٔ {0} از {1}</value>
+  </data>
+  <data name="GridPerPage" xml:space="preserve">
+    <value>{0} در صفحه</value>
+  </data>
+  <data name="GridRowsPerPage" xml:space="preserve">
+    <value>تعداد در صفحه</value>
+  </data>
+  <data name="GridFirstPage" xml:space="preserve">
+    <value>صفحهٔ اول</value>
+  </data>
+  <data name="GridPreviousPage" xml:space="preserve">
+    <value>صفحهٔ قبل</value>
+  </data>
+  <data name="GridNextPage" xml:space="preserve">
+    <value>صفحهٔ بعد</value>
+  </data>
+  <data name="GridLastPage" xml:space="preserve">
+    <value>صفحهٔ آخر</value>
+  </data>
+  <data name="CreateOrganizationButton" xml:space="preserve">
+    <value>سازمان جدید</value>
+  </data>
+  <data name="CreateSiteButton" xml:space="preserve">
+    <value>سایت جدید</value>
+  </data>
+  <data name="CreateOrganizationTitle" xml:space="preserve">
+    <value>ایجاد سازمان جدید</value>
+  </data>
+  <data name="CreateSiteTitle" xml:space="preserve">
+    <value>ایجاد سایت جدید</value>
+  </data>
+  <data name="CreateCodeHint" xml:space="preserve">
+    <value>۱ تا ۳۲ حرف یا رقم انگلیسی (و _ یا - پس از نویسهٔ اول).</value>
+  </data>
+  <data name="CreateSubmit" xml:space="preserve">
+    <value>ایجاد</value>
+  </data>
+  <data name="CreateCodeInvalid" xml:space="preserve">
+    <value>کد معتبر وارد کنید (۱ تا ۳۲ حرف یا رقم انگلیسی؛ _ یا - پس از نویسهٔ اول).</value>
+  </data>
+  <data name="CreateCodeDuplicate" xml:space="preserve">
+    <value>رکوردی با این کد از قبل وجود دارد.</value>
+  </data>
+  <data name="CreateOrgSucceeded" xml:space="preserve">
+    <value>سازمان «{0}» ایجاد شد.</value>
+  </data>
+  <data name="CreateSiteSucceeded" xml:space="preserve">
+    <value>سایت «{0}» ایجاد شد.</value>
+  </data>
+  <data name="CreateOrgNoReadScope" xml:space="preserve">
+    <value>هنوز دسترسی مشاهدهٔ هیچ سازمانی را ندارید، اما می‌توانید سازمان جدید ایجاد کنید.</value>
+  </data>
+  <data name="WriteSave" xml:space="preserve">
+    <value>ذخیره</value>
+  </data>
+  <data name="WriteSaving" xml:space="preserve">
+    <value>در حال ذخیره…</value>
+  </data>
+  <data name="WriteSaved" xml:space="preserve">
+    <value>تغییرات ذخیره شد.</value>
+  </data>
+  <data name="WriteActivate" xml:space="preserve">
+    <value>فعال‌سازی</value>
+  </data>
+  <data name="WriteDeactivate" xml:space="preserve">
+    <value>غیرفعال‌سازی</value>
+  </data>
+  <data name="WriteConfirm" xml:space="preserve">
+    <value>تأیید</value>
+  </data>
+  <data name="WriteCancel" xml:space="preserve">
+    <value>انصراف</value>
+  </data>
+  <data name="WriteConfirmActivate" xml:space="preserve">
+    <value>«{0}» فعال شود؟</value>
+  </data>
+  <data name="WriteConfirmDeactivate" xml:space="preserve">
+    <value>«{0}» غیرفعال شود؟ دیگر در فهرست‌های پیش‌فرض نمایش داده نمی‌شود.</value>
+  </data>
+  <data name="WriteReload" xml:space="preserve">
+    <value>بازخوانی آخرین مقادیر</value>
+  </data>
+  <data name="WriteReloadConfirm" xml:space="preserve">
+    <value>بازخوانی باعث از دست رفتن تغییرات ذخیره‌نشدهٔ نام می‌شود. ادامه می‌دهید؟</value>
+  </data>
+  <data name="WriteDiscardConfirm" xml:space="preserve">
+    <value>تغییرات ذخیره‌نشده دارید. نادیده گرفته شوند؟</value>
+  </data>
+  <data name="WriteDiscard" xml:space="preserve">
+    <value>نادیده‌گرفتن تغییرات</value>
+  </data>
+  <data name="WriteKeepEditing" xml:space="preserve">
+    <value>ادامهٔ ویرایش</value>
+  </data>
+  <data name="WriteNameInvalid" xml:space="preserve">
+    <value>نامی بین ۱ تا ۲۰۰ نویسه و بدون نویسهٔ کنترلی وارد کنید.</value>
+  </data>
+  <data name="WriteConflict" xml:space="preserve">
+    <value>این رکورد را شخص دیگری تغییر داده است. پیش از ویرایش دوباره، آخرین مقادیر را بازخوانی کنید.</value>
+  </data>
+  <data name="WriteOutcomeUnknown" xml:space="preserve">
+    <value>نتیجهٔ تغییر مشخص نیست. پیش از تلاش دوباره، مقادیر فعلی را بازخوانی و بررسی کنید.</value>
+  </data>
+  <data name="WriteParentInactive" xml:space="preserve">
+    <value>سازمان والد غیرفعال است؛ بنابراین این تغییر مجاز نیست.</value>
+  </data>
+  <data name="WriteHasActiveSites" xml:space="preserve">
+    <value>ابتدا سایت‌های فعال این سازمان را غیرفعال کنید.</value>
+  </data>
+  <data name="WriteUnavailable" xml:space="preserve">
+    <value>ذخیرهٔ تغییر ممکن نشد. دوباره تلاش کنید.</value>
+  </data>
 </root>

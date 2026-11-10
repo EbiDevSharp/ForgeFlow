@@ -133,6 +133,21 @@ public sealed class AuthSessionSqlTests
         await using(var db=Auth(connection)) await db.Database.ExecuteSqlRawAsync("UPDATE [auth].[SiteMembership] SET IsActive=0");
         Assert.False((await permissions.EvaluateAsync(actor!,new OrganizationScope.Site(initial.OrganizationId.Value,initial.SiteId.Value),OrganizationPermissions.SitesRead,default)).IsAllowed);
     }
+    [OrganizationSqlServerFact]
+    public async Task Preferred_culture_updates_without_rotating_security_stamp_and_audits_change()
+    {
+        await using var database=await OrganizationSqlServerTests.DisposableDatabase.Create(); var(connection,password,_)=await Seed(database);
+        await using var provider=Provider(connection,new()); var sessions=provider.GetRequiredService<RuntimeSessions>();
+        var login=await sessions.LoginAsync("initial.admin",password); var session=login.Session!;
+        Assert.Equal("Culture.ProfileSaved",await sessions.SetPreferredCultureAsync(session,"en-US"));
+        Assert.Equal("en-US",await sessions.GetPreferredCultureAsync(session));
+        Assert.Equal("Auth.Valid",await sessions.ValidateAsync(session));
+        await using var verify=Auth(connection);
+        var user=await verify.Users.SingleAsync();
+        Assert.Equal("en-US",user.PreferredCulture);
+        Assert.Equal(session.SecurityStamp,user.SecurityStamp);
+        Assert.Equal(1,await verify.SecurityEvents.CountAsync(e=>e.EventCode=="CulturePreferenceChanged"));
+    }
 }
 
 public sealed class AuthSessionHttpSqlTests

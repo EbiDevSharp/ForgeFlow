@@ -1,0 +1,543 @@
+﻿@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Domain.Organizations
+@using ForgeFlow.Web.Drafts
+@inject OrganizationUseCases Queries
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@implements IDisposable
+@inject IStringLocalizer<SharedResources> Text
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject DraftCoordinator Drafts
+@inject CulturePolicy Culture
+
+<PageTitle>@Text[IsSites ? "Sites" : "Organizations"]</PageTitle>
+<section class="organization-reader">
+<div class="read-page-head">
+<h1 id="reader-title">@Text[IsSites ? "Sites" : "Organizations"]</h1>
+@if (!initialLoading && error is null && canCreate)
+{
+<BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreate">
+@Text[IsSites ? "CreateSiteButton" : "CreateOrganizationButton"]
+</BitButton>
+}
+</div>
+@if (pageNotice is not null) { <p role="status" class="write-saved read-page-notice">@pageNotice</p> }
+@if (initialLoading) { <p role="status">@Text["ReadLoading"]</p> }
+else if (error is not null)
+{
+<p role="alert">@Text[error]</p>
+@if (OrganizationId > 0 || SiteId > 0)
+{
+<p><a href="@(IsSites ? "/sites" : "/organizations")">@Text[IsSites ? "Sites" : "Organizations"]</a></p>
+}
+}
+else if (available.Count == 0)
+{
+<p role="status" class="read-empty">@Text["CreateOrgNoReadScope"]</p>
+}
+else
+{
+<div class="read-toolbar-card">
+<div class="read-field"><label for="read-scope">@Text["ReadScope"]</label>
+<select id="read-scope" value="@scopeIndex" @onchange="ChangeScope">
+@for (var i = 0; i < available.Count; i++)
+{
+<option value="@i">@ScopeLabel(available[i])</option>
+}
+</select></div>
+<div class="read-field">
+<label for="read-search">@Text["ReadSearch"]</label><input id="read-search" @bind="search" @bind:after="Search" maxlength="100" placeholder="@Text["ReadSearchPlaceholder"]" /></div>
+<label class="read-inactive"><input type="checkbox" @bind="inactive" @bind:after="Search" /> @Text["ReadInactive"]</label>
+</div>
+<div class="read-grid-card">
+<div class="read-grid">
+<BitDataGrid @ref="grid" TItem="ReadRow" OnRead="ReadGridAsync" Pageable="true" PageSize="25" PageSizeOptions="@PageSizeOptions"
+             Strings="@GridStrings" SelectionMode="BitSelectionMode.Single" AriaLabelledBy="reader-title" WrapCellText="true">
+<EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+<Columns>
+<BitDataGridColumn TItem="ReadRow" Field="Code" Title="@Text["ReadCode"]" />
+<BitDataGridColumn TItem="ReadRow" Field="Name" Title="@Text["ReadName"]" />
+<BitDataGridColumn TItem="ReadRow" Title="@Text["ReadStatus"]">
+<Template Context="row"><span class="read-badge @(row.Active ? "active" : "inactive")">@Text[row.Active ? "ReadActive" : "ReadInactiveStatus"]</span></Template>
+</BitDataGridColumn>
+<BitDataGridColumn TItem="ReadRow" Title="@Text["ReadActions"]">
+<Template Context="row">
+<div class="read-row-actions">
+<BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+<BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action" IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]" OnClick="() => Detail(row)" />
+</BitTooltip>
+@if (scopeCanRename || scopeCanSetActive)
+{
+<BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+<BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action" Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]" OnClick="() => Edit(row)" />
+</BitTooltip>
+}
+</div>
+</Template>
+</BitDataGridColumn>
+</Columns>
+</BitDataGrid>
+</div>
+</div>
+}
+</section>
+<BitDialog Width="380px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailOpen"
+           OnDismissing="OnEditDismissing"
+           Title="@Text[editMode ? "ReadEdit" : "ReadDetails"]" AriaLabel="@Text[editMode ? "ReadEdit" : "ReadDetails"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+@if (selected is not null)
+{
+@if (!editMode)
+{
+<dl class="read-detail"><dt>@Text["ReadCode"]</dt><dd dir="ltr">@selected.Code</dd>
+<dt>@Text["ReadName"]</dt><dd>@selected.Name</dd>
+<dt>@Text["ReadStatus"]</dt><dd><span class="read-badge @(selected.Active ? "active" : "inactive")">@Text[selected.Active ? "ReadActive" : "ReadInactiveStatus"]</span></dd></dl>
+}
+else
+{
+<form id="org-edit-form" class="write-panel" @onsubmit:preventDefault>
+<div class="write-meta">
+<span class="write-code" dir="ltr">@selected.Code</span>
+<span class="read-badge @(selected.Active ? "active" : "inactive")">@Text[selected.Active ? "ReadActive" : "ReadInactiveStatus"]</span>
+</div>
+@if (canRename)
+{
+<div class="read-field"><label for="write-name">@Text["ReadName"]</label>
+<input id="write-name" @bind="editName" @bind:event="oninput" maxlength="200" disabled="@saving" /></div>
+}
+@if (!confirming && (canRename || canSetActive))
+{
+<div class="write-actions">
+@if (canRename)
+{
+<BitButton Size="BitSize.Small" IsEnabled="@(!saving && NameDirty)" OnClick="SaveName">@Text["WriteSave"]</BitButton>
+}
+@if (canSetActive)
+{
+@if (selected.Active) { <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)" OnClick="AskConfirm">@Text["WriteDeactivate"]</BitButton> }
+else { <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)" OnClick="AskConfirm">@Text["WriteActivate"]</BitButton> }
+}
+</div>
+}
+@if (canSetActive && confirming)
+{
+<div class="write-confirm" role="alertdialog" aria-labelledby="write-confirm-text">
+@if (selected.Active) { <p id="write-confirm-text">@Text["WriteConfirmDeactivate", selected.Name]</p> }
+else { <p id="write-confirm-text">@Text["WriteConfirmActivate", selected.Name]</p> }
+<div class="write-actions">
+<BitButton Size="BitSize.Small" IsEnabled="@(!saving)" OnClick="ConfirmToggle">@Text["WriteConfirm"]</BitButton>
+<BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)" OnClick="CancelConfirm">@Text["WriteCancel"]</BitButton>
+</div></div>
+}
+@if (saving) { <p role="status">@Text["WriteSaving"]</p> }
+@if (saved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+@if (writeError is not null)
+{
+<p role="alert" class="write-error">@Text[writeError]</p>
+@if ((writeError == "WriteConflict" || writeError == "WriteOutcomeUnknown") && !reloadConfirm)
+{
+<div class="write-actions"><BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="RequestReload">@Text["WriteReload"]</BitButton></div>
+}
+@if (reloadConfirm)
+{
+<div class="write-confirm" role="alertdialog" aria-labelledby="reload-confirm-text">
+<p id="reload-confirm-text">@Text["WriteReloadConfirm"]</p>
+<div class="write-actions">
+<BitButton Size="BitSize.Small" OnClick="ReloadSelected">@Text["WriteConfirm"]</BitButton>
+<BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CancelReloadConfirm">@Text["WriteCancel"]</BitButton>
+</div></div>
+}
+}
+@if (discardConfirm)
+{
+<div class="write-confirm" role="alertdialog" aria-labelledby="edit-discard-text">
+<p id="edit-discard-text">@Text["WriteDiscardConfirm"]</p>
+<div class="write-actions"><BitButton Size="BitSize.Small" OnClick="DiscardEdit">@Text["WriteDiscard"]</BitButton>
+<BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CancelDiscardEdit">@Text["WriteKeepEditing"]</BitButton>
+</div></div>
+}
+</form>
+}
+}
+</Body>
+</BitDialog>
+<BitDialog Width="380px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createOpen"
+           OnDismissing="OnCreateDismissing"
+           Title="@Text[IsSites ? "CreateSiteTitle" : "CreateOrganizationTitle"]"
+           AriaLabel="@Text[IsSites ? "CreateSiteTitle" : "CreateOrganizationTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+<form id="org-create-form" class="write-panel" @onsubmit:preventDefault>
+<div class="read-field">
+<label for="create-code">@Text["ReadCode"]</label>
+<input id="create-code" dir="ltr" @bind="createCode" @bind:event="oninput" maxlength="32" disabled="@creating" aria-describedby="create-code-hint" />
+<span id="create-code-hint" class="write-hint">@Text["CreateCodeHint"]</span>
+</div>
+<div class="read-field">
+<label for="create-name">@Text["ReadName"]</label>
+<input id="create-name" @bind="createName" @bind:event="oninput" maxlength="200" disabled="@creating" />
+</div>
+<div class="write-actions">
+<BitButton Size="BitSize.Small" IsEnabled="@(!creating && !string.IsNullOrWhiteSpace(createCode) && !string.IsNullOrWhiteSpace(createName))" OnClick="SubmitCreate">@Text["CreateSubmit"]</BitButton>
+</div>
+@if (creating) { <p role="status">@Text["WriteSaving"]</p> }
+@if (createError is not null) { <p role="alert" class="write-error">@Text[createError]</p> }
+@if (createDiscardConfirm)
+{
+<div class="write-confirm" role="alertdialog" aria-labelledby="create-discard-text">
+<p id="create-discard-text">@Text["WriteDiscardConfirm"]</p>
+<div class="write-actions">
+<BitButton Size="BitSize.Small" OnClick="DiscardCreate">@Text["WriteDiscard"]</BitButton>
+<BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CancelDiscardCreate">@Text["WriteKeepEditing"]</BitButton>
+</div></div>
+}
+</form>
+</Body>
+</BitDialog>
+
+@code {
+[Parameter] public long OrganizationId { get; set; }
+[Parameter] public long SiteId { get; set; }
+[Parameter] public bool IsSites { get; set; }
+private BitDataGrid<ReadRow>? grid;
+private int revision;
+private bool disposed;
+private bool Current(int value) => !disposed && value == revision;
+public void Dispose() { disposed=true; revision++; selected=null; detailOpen=false; createOpen=false; rows=[]; }
+private IReadOnlyList<OrganizationScope> available = [];
+private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels = new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+private List<ReadRow> rows = [];
+private int scopeIndex;
+private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
+private static readonly BitDialogClassStyles DialogClasses = new() {
+ Container="read-dialog", Header="read-dialog-header", Body="read-dialog-body",
+ CloseButton="read-dialog-close", Overlay="read-dialog-overlay"
+};
+private BitDataGridStrings GridStrings => new()
+{
+ GridLabel = Text[IsSites ? "Sites" : "Organizations"],
+ EmptyText = Text["ReadEmpty"],
+ NoMatchesText = Text["ReadEmpty"],
+ LoadingText = Text["ReadLoading"],
+ PagerRangeFormat = Text["GridPagerRange"],
+ PagerPageFormat = Text["GridPagerPage"],
+ PerPageFormat = Text["GridPerPage"],
+ RowsPerPageLabel = Text["GridRowsPerPage"],
+ FirstPageLabel = Text["GridFirstPage"],
+ PreviousPageLabel = Text["GridPreviousPage"],
+ NextPageLabel = Text["GridNextPage"],
+ LastPageLabel = Text["GridLastPage"],
+ AnnouncementPage = Text["GridPagerPage"]
+};
+private bool initialLoading = true, inactive, detailOpen, editMode, scopeCanRename, scopeCanSetActive, canCreate;
+private string? error, pageNotice;
+private string? search;
+private ReadRow? selected;
+private sealed record ReadRow(long Id, string Code, string Name, bool Active);
+private OrganizationScope Scope => available[scopeIndex];
+private static long Org(OrganizationScope scope) => scope is OrganizationScope.Organization o ? o.OrganizationId : ((OrganizationScope.Site)scope).OrganizationId;
+private string ScopeLabel(OrganizationScope scope)
+{
+ if (scopeLabels.TryGetValue(scope, out var info))
+ {
+  if (scope is OrganizationScope.Organization && !string.IsNullOrEmpty(info.OrgCode))
+      return $"{info.OrgCode} — {info.OrgName}";
+  if (scope is OrganizationScope.Site && !string.IsNullOrEmpty(info.SiteCode))
+      return string.IsNullOrEmpty(info.OrgCode)
+          ? $"{info.SiteCode} — {info.SiteName}"
+          : $"{info.OrgCode} · {info.SiteCode} — {info.SiteName}";
+ }
+ return scope is OrganizationScope.Site s
+     ? Text["ReadSiteScope", Org(scope), s.SiteId] : Text["ReadOrganizationScope", Org(scope)];
+}
+protected override async Task OnParametersSetAsync()
+{
+ var request = ++revision;
+ initialLoading = true; rows = []; selected = null; detailOpen = false; createOpen = false; editMode = false;
+ error = null; pageNotice = null; scopeCanRename = false; scopeCanSetActive = false; canCreate = false;
+ scopeLabels = new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+ try {
+ var scopes = await Scopes.Load();
+ if (!Current(request)) return;
+ available = scopes.Where(s => (IsSites || s is OrganizationScope.Organization) && (OrganizationId == 0 || Org(s) == OrganizationId)).ToList();
+ scopeIndex = 0;
+ var createAllowed = IsSites
+     ? (available.Count > 0 && Scope is OrganizationScope.Organization && await Can(OrganizationPermissions.SitesCreate, Scope))
+     : await Can(OrganizationPermissions.OrganizationsCreate, new OrganizationScope.Platform());
+ if (!Current(request)) return;
+ canCreate = createAllowed;
+ if (available.Count == 0)
+ {
+  if (OrganizationId > 0) error = "ReadNotFound";
+  else if (!canCreate) error = "ReadDenied";
+  return;
+ }
+ scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+ if (!Current(request)) return;
+ await RefreshScopeWriteFlags(request);
+ if (!Current(request)) return;
+ if (SiteId > 0 || (!IsSites && OrganizationId > 0))
+     await Detail(new ReadRow(IsSites ? SiteId : OrganizationId, "", "", false));
+ } catch { if (Current(request)) error = "ReadError"; } finally { if (Current(request)) initialLoading = false; }
+}
+private async Task RefreshScopeWriteFlags(int request)
+{
+ var scope = Scope;
+ var rename = await Can(IsSites ? OrganizationPermissions.SitesUpdate : OrganizationPermissions.OrganizationsUpdate, scope);
+ var setActive = await Can(IsSites ? OrganizationPermissions.SitesSetActive : OrganizationPermissions.OrganizationsSetActive, scope);
+ var create = IsSites
+     ? (scope is OrganizationScope.Organization && await Can(OrganizationPermissions.SitesCreate, scope))
+     : canCreate;
+ if (!Current(request)) return;
+ scopeCanRename = rename; scopeCanSetActive = setActive; canCreate = create;
+}
+private async Task Search() => await ReloadGridFromFirstPage();
+private async Task ChangeScope(ChangeEventArgs e)
+{
+ if (int.TryParse(e.Value?.ToString(), out var i) && i >= 0 && i < available.Count)
+ {
+  scopeIndex = i;
+  var request = ++revision;
+  await RefreshScopeWriteFlags(request);
+  if (!Current(request)) return;
+  await ReloadGridFromFirstPage();
+ }
+}
+private async Task ReloadGridFromFirstPage()
+{
+ if (grid is null) return;
+ if (grid.CurrentPage <= 1) await grid.RefreshAsync();
+ else await grid.GoToPageAsync(1);
+}
+private string Failure(string code) => code.EndsWith("NotFound") ? "ReadNotFound" : code == OrganizationAccessErrors.PersistenceUnavailable ? "ReadError" : "ReadDenied";
+private async Task<BitDataGridReadResult<ReadRow>> ReadGridAsync(BitDataGridReadRequest request)
+{
+ if (disposed || available.Count == 0) return new([], 0);
+ var token = ++revision;
+ var scope = Scope;
+ var sites = IsSites;
+ error = null; selected = null; detailOpen = false;
+ var pageSize = Math.Clamp(request.Take ?? 25, 1, 100);
+ var page = (request.Skip / pageSize) + 1;
+ try {
+ var query = new OrganizationListQuery(Search: search, IncludeInactive: inactive, Page: page, PageSize: pageSize);
+ if (sites) {
+ var result = await Queries.ListSites(scope, Org(scope), query, request.CancellationToken);
+ if (!Current(token)) return new([], 0);
+ if (!result.Succeeded) { error = Failure(result.Error!.Code); StateHasChanged(); return new([], 0); }
+ rows = result.Value!.Items.Select(x => new ReadRow(x.Id, x.Code, x.Name, x.IsActive)).ToList();
+ return new(rows, result.Value.Total);
+ } else {
+ var result = await Queries.ListOrganizations(scope, query, request.CancellationToken);
+ if (!Current(token)) return new([], 0);
+ if (!result.Succeeded) { error = Failure(result.Error!.Code); StateHasChanged(); return new([], 0); }
+ rows = result.Value!.Items.Select(x => new ReadRow(x.Id, x.Code, x.Name, x.IsActive)).ToList();
+ return new(rows, result.Value.Total);
+ }
+ } catch (OperationCanceledException) { return new([], 0); }
+ catch { if (Current(token)) { error = "ReadError"; StateHasChanged(); } return new([], 0); }
+}
+private string? selectedVersion, editName, writeError;
+private bool canRename, canSetActive, confirming, saving, saved, discardConfirm, reloadConfirm;
+private bool createOpen, creating, createDiscardConfirm, draftInitialized;
+private string? createCode, createName, createError;
+private long currentActorId;
+private DraftDefinition? pendingDraft;
+private bool NameDirty => selected is not null && editName is not null && editName.Trim() != selected.Name;
+private bool CreateDirty => !string.IsNullOrWhiteSpace(createCode) || !string.IsNullOrWhiteSpace(createName);
+private void ResetWrite() { selectedVersion=null; editName=null; writeError=null; canRename=canSetActive=confirming=saving=saved=discardConfirm=reloadConfirm=false; }
+public static string BuildDraftScope(long actorId, bool sites, long? organizationId, long? siteId, bool create) => create
+    ? (sites ? $"actor:{actorId}:org:{organizationId}:create-site" : $"actor:{actorId}:platform:create-org")
+    : (sites ? $"actor:{actorId}:org:{organizationId}:site:{siteId}" : $"actor:{actorId}:org:{organizationId}");
+protected override async Task OnAfterRenderAsync(bool firstRender)
+{
+ if (disposed || pendingDraft is null || Drafts is null) return;
+ var def = pendingDraft; pendingDraft = null;
+ try
+ {
+  var result = await Drafts.InitializeAsync(def);
+  draftInitialized = true;
+  if (disposed || result.Snapshot is null) return;
+  if (def.FormId == "org-edit-form" && detailOpen && editMode && canRename && result.Snapshot.Fields.TryGetValue("Name", out var n))
+  {
+   editName = n.Raw;
+   StateHasChanged();
+  }
+  else if (def.FormId == "org-create-form" && createOpen)
+  {
+   if (result.Snapshot.Fields.TryGetValue("Code", out var c)) createCode = c.Raw;
+   if (result.Snapshot.Fields.TryGetValue("Name", out var cn)) createName = cn.Raw;
+   StateHasChanged();
+  }
+ }
+ catch { draftInitialized = false; }
+}
+private async Task ClearActiveDraftAsync()
+{
+ if (!draftInitialized || Drafts is null) return;
+ draftInitialized = false;
+ try { await Drafts.ClearAsync(); } catch { }
+}
+private void OnEditDismissing(BitDialogDismissArgs args)
+{
+ if (editMode && NameDirty && !saving) { args.Cancel = true; discardConfirm = true; }
+}
+private async Task DiscardEdit() { discardConfirm = false; editName = selected?.Name; detailOpen = false; await ClearActiveDraftAsync(); }
+private void CancelDiscardEdit() => discardConfirm = false;
+private void OnCreateDismissing(BitDialogDismissArgs args)
+{
+ if (CreateDirty && !creating) { args.Cancel = true; createDiscardConfirm = true; }
+}
+private async Task DiscardCreate() { createDiscardConfirm = false; createCode = string.Empty; createName = string.Empty; createOpen = false; await ClearActiveDraftAsync(); }
+private void CancelDiscardCreate() => createDiscardConfirm = false;
+private async Task RequestReload()
+{
+ if (NameDirty) { reloadConfirm = true; return; }
+ await ReloadSelected();
+}
+private void CancelReloadConfirm() => reloadConfirm = false;
+private void OpenCreate()
+{
+ if (!canCreate) return;
+ createCode = string.Empty; createName = string.Empty; createError = null; createDiscardConfirm = false;
+ detailOpen = false; createOpen = true;
+ if (currentActorId > 0)
+ {
+  var orgId = IsSites && available.Count > 0 ? Org(Scope) : (long?)null;
+  pendingDraft = new("org-create-form", BuildDraftScope(currentActorId, IsSites, orgId, null, create: true),
+   1, [new("Code", "create-code", 32), new("Name", "create-name", 200)], CulturePolicy.Supported);
+ }
+}
+private async Task SubmitCreate()
+{
+ if (creating || !canCreate) return;
+ var token = revision; var sites = IsSites;
+ var code = createCode; var name = createName;
+ var scope = sites ? Scope : new OrganizationScope.Platform();
+ creating = true; createError = null; pageNotice = null;
+ try {
+ string? failure = null; string? createdCode = null;
+ if (sites)
+ {
+  var result = await Queries.CreateSite(scope, new CreateSite(Org(scope), code, name));
+  if (!Current(token)) return;
+  if (!result.Succeeded) failure = result.Error!.Code;
+  else createdCode = result.Value!.Code;
+ }
+ else
+ {
+  var result = await Queries.CreateOrganization(scope, new CreateOrganization(code, name));
+  if (!Current(token)) return;
+  if (!result.Succeeded) failure = result.Error!.Code;
+  else createdCode = result.Value!.Code;
+ }
+ if (failure is not null) { createError = WriteFailure(failure); return; }
+ createDiscardConfirm = false; createOpen = false;
+ await ClearActiveDraftAsync();
+ pageNotice = Text[sites ? "CreateSiteSucceeded" : "CreateOrgSucceeded", createdCode!];
+ await ReloadGridFromFirstPage();
+ } catch { if (Current(token)) createError = "WriteUnavailable"; }
+ finally { if (Current(token)) creating = false; }
+}
+private async Task<bool> Can(string permission, OrganizationScope scope)
+{
+  if (Actors is null || Permissions is null) return false;
+  var actor = await Actors.ResolveAsync(default);
+  if (actor is null) return false;
+  currentActorId = actor.ActorId;
+  return (await Permissions.EvaluateAsync(actor, scope, permission, default)).IsAllowed;
+}
+private static string WriteFailure(string code) => code switch
+{
+  OrganizationAccessErrors.ConcurrencyConflict => "WriteConflict",
+  OrganizationAccessErrors.OutcomeUnknown => "WriteOutcomeUnknown",
+  OrganizationAccessErrors.AccessDenied or OrganizationAccessErrors.ActorRequired or OrganizationAccessErrors.ScopeRequired => "ReadDenied",
+  OrganizationSiteErrors.OrganizationCodeInvalid or OrganizationSiteErrors.SiteCodeInvalid => "CreateCodeInvalid",
+  OrganizationSiteErrors.OrganizationCodeDuplicate or OrganizationSiteErrors.SiteCodeDuplicate => "CreateCodeDuplicate",
+  OrganizationSiteErrors.OrganizationNameInvalid or OrganizationSiteErrors.SiteNameInvalid => "WriteNameInvalid",
+  OrganizationSiteErrors.OrganizationInactive => "WriteParentInactive",
+  OrganizationSiteErrors.OrganizationHasActiveSites => "WriteHasActiveSites",
+  _ when code.EndsWith("NotFound") => "ReadNotFound",
+  _ => "WriteUnavailable"
+};
+private void AskConfirm() { confirming = true; saved = false; writeError = null; }
+private void CancelConfirm() => confirming = false;
+private async Task ReloadSelected()
+{
+ await ClearActiveDraftAsync();
+ if (selected is not null) await OpenDialog(selected, edit: true);
+}
+private Task SaveName() => Write(rename: true);
+private Task ConfirmToggle() => Write(rename: false);
+private async Task Write(bool rename)
+{
+  if (selected is null || saving || selectedVersion is null || (rename && !canRename) || (!rename && !canSetActive)) return;
+  var token = revision; var scope = Scope; var sites = IsSites; var current = selected;
+  var version = selectedVersion; var name = editName; var target = !current.Active;
+  saving = true; saved = false; writeError = null; confirming = false; discardConfirm = false; reloadConfirm = false;
+  try {
+  string? failure = null; ReadRow? updated = null; string? newVersion = null;
+  if (sites) {
+    var result = rename
+      ? await Queries.RenameSite(scope, new RenameSite(Org(scope), current.Id, name, version))
+      : await Queries.SetSiteActive(scope, new SetSiteActive(Org(scope), current.Id, target, version));
+    if (!Current(token)) return;
+    if (!result.Succeeded) failure = result.Error!.Code;
+    else { var x = result.Value!; updated = new(x.Id, x.Code, x.Name, x.IsActive); newVersion = x.RowVersion; }
+  } else {
+    var result = rename
+      ? await Queries.RenameOrganization(scope, new RenameOrganization(current.Id, name, version))
+      : await Queries.SetOrganizationActive(scope, new SetOrganizationActive(current.Id, target, version));
+    if (!Current(token)) return;
+    if (!result.Succeeded) failure = result.Error!.Code;
+    else { var x = result.Value!; updated = new(x.Id, x.Code, x.Name, x.IsActive); newVersion = x.RowVersion; }
+  }
+  if (failure is not null) { writeError = WriteFailure(failure); return; }
+  selected = updated; selectedVersion = newVersion; editName = updated!.Name; saved = true;
+  if (rename) await ClearActiveDraftAsync();
+  rows = rows.Select(r => r.Id == updated.Id ? updated : r).ToList();
+  if (grid is not null) await grid.RefreshAsync();
+  } catch { if (Current(token)) writeError = "WriteUnavailable"; }
+  finally { if (Current(token)) saving = false; }
+}
+private Task Detail(ReadRow row) => OpenDialog(row, edit: false);
+private Task Edit(ReadRow row) => OpenDialog(row, edit: true);
+private async Task OpenDialog(ReadRow row, bool edit)
+{
+ if (disposed) return;
+ var request = ++revision; var scope = Scope; var sites = IsSites;
+ selected = null; detailOpen = false; createOpen = false; editMode = edit; ResetWrite();
+ try {
+ string version;
+ if (sites) {
+ var result = await Queries.GetSite(scope, Org(scope), row.Id);
+ if (!Current(request)) return;
+ if (!result.Succeeded) { error = Failure(result.Error!.Code); return; }
+ var x = result.Value!; selected = new(x.Id, x.Code, x.Name, x.IsActive); version = x.RowVersion;
+ } else {
+ var result = await Queries.GetOrganization(scope, row.Id);
+ if (!Current(request)) return;
+ if (!result.Succeeded) { error = Failure(result.Error!.Code); return; }
+ var x = result.Value!; selected = new(x.Id, x.Code, x.Name, x.IsActive); version = x.RowVersion;
+ }
+ if (edit)
+ {
+  var rename = await Can(sites ? OrganizationPermissions.SitesUpdate : OrganizationPermissions.OrganizationsUpdate, scope);
+  var setActive = await Can(sites ? OrganizationPermissions.SitesSetActive : OrganizationPermissions.OrganizationsSetActive, scope);
+  if (!Current(request)) return;
+  if (!rename && !setActive) { error = "ReadDenied"; return; }
+  selectedVersion = version; editName = selected.Name; canRename = rename; canSetActive = setActive;
+  if (rename && currentActorId > 0)
+  {
+   pendingDraft = new("org-edit-form", BuildDraftScope(currentActorId, sites, Org(scope), sites ? selected.Id : null, create: false),
+    1, [new("Name", "write-name", 200)], CulturePolicy.Supported);
+  }
+ }
+ detailOpen = true;
+ } catch { if (Current(request)) error = "ReadError"; }
+}
+}

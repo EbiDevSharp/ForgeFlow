@@ -36,14 +36,36 @@ public sealed class ResourceContractTests
         },
         [nameof(SharedResources)] = new()
         {
-            ["Navigation"] = 0, ["SampleNavigation"] = 0, ["AppTitle"] = 0,
-            ["OpenNavigation"] = 0, ["CloseNavigation"] = 0, ["CollapseNavigation"] = 0, ["ErrorTitle"] = 0,
-            ["UnexpectedError"] = 0, ["Reload"] = 0, ["NotFoundTitle"] = 0, ["NotFoundMessage"] = 0,
+            ["Navigation"] = 0, ["Home"] = 0,
+            ["AppTitle"] = 0, ["OpenNavigation"] = 0, ["CloseNavigation"] = 0, ["CollapseNavigation"] = 0,
+            ["ErrorTitle"] = 0, ["UnexpectedError"] = 0, ["ServerUnavailable"] = 0,
+            ["ReconnectTitle"] = 0, ["ReconnectShowing"] = 0, ["ReconnectRetrying"] = 0,
+            ["ReconnectAttemptLabel"] = 0, ["ReconnectSeconds"] = 0,
+            ["ReconnectFailedTitle"] = 0, ["ReconnectFailed"] = 0, ["ReconnectRetry"] = 0, ["ReconnectReload"] = 0,
+            ["ReconnectPausedTitle"] = 0, ["ReconnectPaused"] = 0, ["ReconnectResume"] = 0, ["ReconnectResumeFailed"] = 0,
+            ["Reload"] = 0, ["NotFoundTitle"] = 0, ["NotFoundMessage"] = 0,
+            ["AccessDeniedTitle"] = 0, ["AccessDeniedMessage"] = 0,
             ["LoginTitle"] = 0, ["LoginIntroduction"] = 0, ["UsernameLabel"] = 0, ["PasswordLabel"] = 0,
             ["PasswordVisibilityToggle"] = 0, ["LoginSubmit"] = 0, ["LoginLoading"] = 0,
-            ["LoginRequired"] = 0, ["LoginUnavailable"] = 0, ["LoginLanguageLabel"] = 0, ["LanguagePersian"] = 0,
-            ["LanguageEnglish"] = 0, ["LoginLink"] = 0, ["AuthenticatedAs"] = 1, ["Logout"] = 0,
-            ["LogoutUnavailable"] = 0
+            ["LoginRequired"] = 0, ["LoginUnavailable"] = 0, ["LoginLanguageLabel"] = 0, ["SwitchLanguageTo"] = 1,
+            ["LanguagePersian"] = 0, ["LanguageEnglish"] = 0, ["UserMenu"] = 0, ["Logout"] = 0,
+            ["LogoutUnavailable"] = 0, ["Sites"] = 0, ["ReadDenied"] = 0, ["ReadActive"] = 0,
+            ["ReadOrganizationScope"] = 1, ["ReadClose"] = 0, ["ReadScope"] = 0, ["ReadStatus"] = 0,
+            ["ReadInactive"] = 0, ["ReadEmpty"] = 0, ["ReadNotFound"] = 0, ["ReadCode"] = 0, ["ReadInactiveStatus"] = 0,
+            ["ReadError"] = 0, ["Organizations"] = 0, ["Settings"] = 0, ["ReadName"] = 0, ["ReadLoading"] = 0,
+            ["ReadActions"] = 0, ["ReadDetails"] = 0, ["ReadEdit"] = 0, ["ReadSiteScope"] = 2,
+            ["ReadSearch"] = 0, ["ReadSearchPlaceholder"] = 0,
+            ["GridPagerRange"] = 3, ["GridPagerPage"] = 2, ["GridPerPage"] = 1, ["GridRowsPerPage"] = 0,
+            ["GridFirstPage"] = 0, ["GridPreviousPage"] = 0, ["GridNextPage"] = 0, ["GridLastPage"] = 0,
+            ["CreateOrganizationButton"] = 0, ["CreateSiteButton"] = 0, ["CreateOrganizationTitle"] = 0,
+            ["CreateSiteTitle"] = 0, ["CreateCodeHint"] = 0, ["CreateSubmit"] = 0, ["CreateCodeInvalid"] = 0,
+            ["CreateCodeDuplicate"] = 0, ["CreateOrgSucceeded"] = 1, ["CreateSiteSucceeded"] = 1, ["CreateOrgNoReadScope"] = 0,
+            ["WriteSave"] = 0, ["WriteSaving"] = 0, ["WriteSaved"] = 0, ["WriteActivate"] = 0,
+            ["WriteDeactivate"] = 0, ["WriteConfirm"] = 0, ["WriteCancel"] = 0, ["WriteConfirmActivate"] = 1,
+            ["WriteConfirmDeactivate"] = 1, ["WriteReload"] = 0, ["WriteReloadConfirm"] = 0,
+            ["WriteDiscardConfirm"] = 0, ["WriteDiscard"] = 0, ["WriteKeepEditing"] = 0,
+            ["WriteNameInvalid"] = 0, ["WriteConflict"] = 0,
+            ["WriteOutcomeUnknown"] = 0, ["WriteParentInactive"] = 0, ["WriteHasActiveSites"] = 0, ["WriteUnavailable"] = 0
         }
     };
 
@@ -91,10 +113,13 @@ public sealed class ResourceContractTests
                 used[resourceName].Add(key);
             }
         }
-        used[nameof(SampleResources)].UnionWith(
-            ["CurrencyUsd", "CurrencyEur", "CurrencyIrr", "SampleModeSummary", "SampleModeDetailed"]);
-        foreach (var (resource, keys) in used)
-            Assert.Equal(Contracts[resource].Keys.Order(), keys.Order());
+        // Keys selected by variable or ternary (status/failure/mode mapping) rather than a literal Text["..."] reference.
+        used[nameof(SharedResources)].UnionWith(
+            ["ReadDenied", "ReadActive", "ReadNotFound", "ReadInactiveStatus", "ReadError", "CreateCodeInvalid",
+             "CreateCodeDuplicate", "CreateOrganizationButton", "CreateSiteButton", "CreateOrganizationTitle",
+             "CreateSiteTitle", "CreateOrgSucceeded", "CreateSiteSucceeded", "WriteNameInvalid", "WriteConflict",
+             "WriteOutcomeUnknown", "WriteParentInactive", "WriteHasActiveSites", "WriteUnavailable"]);
+        Assert.Equal(Contracts[nameof(SharedResources)].Keys.Order(), used[nameof(SharedResources)].Order());
     }
 
     [Fact]

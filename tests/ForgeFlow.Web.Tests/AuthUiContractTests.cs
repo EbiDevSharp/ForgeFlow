@@ -25,12 +25,17 @@ public sealed class AuthUiContractTests
     public void Shell_logout_uses_HTTP_post_and_only_localized_notice_text_is_session_stored()
     {
         var shell=Source(Path.Combine("Sources","Layout","MainLayout.razor"));
+        var userMenu=Source(Path.Combine("Sources","Layout","UserMenu.razor"));
         var script=Source(Path.Combine("ApplicationSources","wwwroot","auth-ui.mjs"));
-        Assert.Contains("action=\"/account/logout\"",shell);
-        Assert.Contains("method=\"post\"",shell);
-        Assert.Contains("<AuthorizeView>",shell);
+        Assert.Contains("<UserMenu />",shell);
+        Assert.Contains("<AuthorizeView",shell);
+        Assert.DoesNotContain("action=\"/account/logout\"",shell);
+        Assert.Contains("action=\"/account/logout\"",userMenu);
+        Assert.Contains("method=\"post\"",userMenu);
+        Assert.Contains("<AuthorizeView>",userMenu);
         Assert.Contains("new FormData(form)",script);
         Assert.Contains("forgeflow.draft:",script);
+        Assert.Contains("BroadcastChannel",script);
         Assert.Contains("sessionStorage.setItem('auth-ui-notice', message)",script);
         Assert.DoesNotContain("sessionStorage.setItem('password'",script,StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("localStorage",script,StringComparison.OrdinalIgnoreCase);

@@ -1,4 +1,6 @@
 const tokenPath = '/account/antiforgery';
+const identityChannelName = 'forgeflow.identity';
+const identityChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel(identityChannelName) : null;
 
 export function clearDrafts() {
     try {
@@ -7,6 +9,24 @@ export function clearDrafts() {
             if (key?.startsWith('forgeflow.draft:')) sessionStorage.removeItem(key);
         }
     } catch { /* Storage may be disabled; server authorization remains authoritative. */ }
+}
+
+export function notifyIdentityCleared() {
+    clearDrafts();
+    try {
+        identityChannel?.postMessage({ type: 'signed-out', nonce: crypto.randomUUID?.() || String(Date.now()) });
+    } catch { /* Cross-tab channel is best-effort cleanup; server session state remains authoritative. */ }
+}
+
+if (identityChannel) {
+    identityChannel.addEventListener('message', event => {
+        if (event.data?.type !== 'signed-out') return;
+        clearDrafts();
+        if (document.querySelector('[data-authenticated-content]')) {
+            document.querySelectorAll('[data-authenticated-content]').forEach(node => node.hidden = true);
+            location.assign('/');
+        }
+    });
 }
 
 async function getRequestToken() {
@@ -98,7 +118,7 @@ function bind() {
                 }
             } else if (form.matches('[data-auth-logout]')) {
                 event.preventDefault();
-                clearDrafts();
+                notifyIdentityCleared();
                 setBusy(form, true);
                 document.querySelectorAll('[data-authenticated-content]').forEach(node => node.hidden = true);
                 try {
@@ -122,10 +142,32 @@ function bind() {
         }, true);
 
         document.addEventListener('click', async event => {
+            const reconnectButton = event.target.closest('[data-reconnect-action]');
+            if (reconnectButton) {
+                event.preventDefault();
+                const action = reconnectButton.dataset.reconnectAction;
+                if (action === 'reload') {
+                    location.reload();
+                    return;
+                }
+                reconnectButton.disabled = true;
+                try {
+                    const ok = action === 'resume'
+                        ? await window.Blazor?.resumeCircuit?.()
+                        : (await window.Blazor?.reconnect?.()) || (await window.Blazor?.resumeCircuit?.());
+                    if (!ok) location.reload();
+                } catch {
+                    location.reload();
+                } finally {
+                    reconnectButton.disabled = false;
+                }
+                return;
+            }
             const button = event.target.closest('[data-auth-culture]');
             if (!button) return;
             event.preventDefault();
             document.querySelectorAll('[data-auth-culture]').forEach(item => item.disabled = true);
+            const fallback = document.documentElement.dataset.serverUnavailable || document.documentElement.dataset.authLoginUnavailable || '';
             try {
                 const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
                 if (!token) await getRequestToken();
@@ -138,9 +180,18 @@ function bind() {
                     location.reload();
                     return;
                 }
-                showNotice(document.documentElement.dataset.authLoginUnavailable || '');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data?.cookieApplied) {
+                        if (typeof data.message === 'string' && data.message)
+                            sessionStorage.setItem('auth-ui-notice', data.message);
+                        location.reload();
+                        return;
+                    }
+                }
+                showNotice(fallback);
             } catch {
-                showNotice(document.documentElement.dataset.authLoginUnavailable || '');
+                showNotice(fallback);
             } finally {
                 document.querySelectorAll('[data-auth-culture]').forEach(item => item.disabled = false);
             }

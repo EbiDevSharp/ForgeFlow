@@ -7,4 +7,5 @@
   <data name="Auth.LogoutRevocationIncomplete" xml:space="preserve"><value>از این مرورگر خارج شدید، اما لغو نشست در سرور تأیید نشد.</value></data>
   <data name="Auth.RequestRejected" xml:space="preserve"><value>درخواست تأیید نشد. صفحه را دوباره بارگذاری و تلاش کنید.</value></data>
   <data name="Auth.LoginThrottled" xml:space="preserve"><value>تعداد تلاش‌های ورود زیاد است. بعداً دوباره تلاش کنید.</value></data>
+  <data name="Culture.ProfileSyncFailed" xml:space="preserve"><value>زبان در این مرورگر تغییر یافت، اما ذخیرهٔ آن در نمایهٔ حساب کاربری انجام نشد.</value></data>
 </root>

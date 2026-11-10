@@ -132,14 +132,17 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         entity.Property<DateTime?>("UpdatedAtUtc").HasColumnType("datetime2(7)").HasConversion(Utc);
         entity.Property<long?>("UpdatedByActorId"); Version(entity);
     }
+    private static bool ValueChanged(Microsoft.EntityFrameworkCore.ChangeTracking.PropertyEntry property)
+        => property.IsModified && !Equals(property.OriginalValue, property.CurrentValue);
+
     private void Guard()
     {
         ChangeTracker.DetectChanges();
         if (ChangeTracker.Entries().Any(e => e.State == EntityState.Deleted ||
             (e.Entity is SecurityEvent && e.State == EntityState.Modified) ||
             (e.Entity is BootstrapState && e.State == EntityState.Modified && (byte)e.OriginalValues[nameof(BootstrapState.State)]! == 1) ||
-            (e.Entity is ApplicationAccount && e.State == EntityState.Modified && e.Properties.Any(p => p.IsModified && p.Metadata.Name is "UserName" or "NormalizedUserName")) ||
-            (e.Entity is ScopedRoleAssignment && e.State == EntityState.Modified && e.Properties.Any(p => p.IsModified && p.Metadata.Name is "UserId" or "RoleId" or "ScopeKind" or "OrganizationId" or "SiteId"))))
+            (e.Entity is ApplicationAccount && e.State == EntityState.Modified && e.Properties.Any(p => p.Metadata.Name is "UserName" or "NormalizedUserName" && ValueChanged(p))) ||
+            (e.Entity is ScopedRoleAssignment && e.State == EntityState.Modified && e.Properties.Any(p => p.Metadata.Name is "UserId" or "RoleId" or "ScopeKind" or "OrganizationId" or "SiteId" && ValueChanged(p)))))
             throw new InvalidOperationException("Auth.ImmutableHistory");
     }
     public override int SaveChanges(bool acceptAllChangesOnSuccess) { Guard(); return base.SaveChanges(acceptAllChangesOnSuccess); }
