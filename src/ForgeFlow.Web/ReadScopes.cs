@@ -65,20 +65,38 @@ public sealed class ReadScopes(IServiceScopeFactory scopes, ITrustedActorAccesso
     public Task<IReadOnlyList<OrganizationScope>> LoadReportScopesAsync() =>
         LoadOrganizationOrSitePermissionScopesAsync(ForgeFlow.Application.Reporting.ReportingPermissions.ReportsRead);
 
+    public Task<IReadOnlyList<OrganizationScope>> LoadQualityScopesAsync() =>
+        LoadOrganizationOrSitePermissionScopesAsync(ForgeFlow.Application.Quality.QualityPermissions.QualityRead);
+
     public async Task<IReadOnlyList<OrganizationScope>> LoadDiagnosticScopesAsync()
     {
         var actor = await actors.ResolveAsync(default);
         if (actor is null) return [];
         await using var operation = scopes.CreateAsyncScope();
         var db = operation.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var result = new List<OrganizationScope>();
         var hasPlatform = await db.ScopedRoleAssignments.AsNoTracking()
             .AnyAsync(x => x.UserId == actor.ActorId && x.IsActive && x.ScopeKind == 0);
-        if (!hasPlatform) return [];
+        if (hasPlatform)
+        {
+            var platform = new OrganizationScope.Platform();
+            if ((await permissions.EvaluateAsync(actor, platform, ForgeFlow.Application.Diagnostics.DiagnosticPermissions.ErrorLogsRead, default)).IsAllowed)
+                result.Add(platform);
+        }
 
-        var platform = new OrganizationScope.Platform();
-        return (await permissions.EvaluateAsync(actor, platform, ForgeFlow.Application.Diagnostics.DiagnosticPermissions.ErrorLogsRead, default)).IsAllowed
-            ? [platform]
-            : [];
+        var roleOrgIds = await db.ScopedRoleAssignments.AsNoTracking()
+            .Where(x => x.UserId == actor.ActorId && x.IsActive && x.OrganizationId != null && x.ScopeKind == 1)
+            .Select(x => x.OrganizationId!.Value).Distinct().ToListAsync();
+        var directOrgIds = await db.UserPermissionGrants.AsNoTracking()
+            .Where(x => x.UserId == actor.ActorId && x.IsActive && x.ScopeKind == 1)
+            .Select(x => x.OrganizationId).Distinct().ToListAsync();
+        foreach (var orgId in roleOrgIds.Concat(directOrgIds).Distinct().OrderBy(id => id))
+        {
+            var scope = new OrganizationScope.Organization(orgId);
+            if ((await permissions.EvaluateAsync(actor, scope, ForgeFlow.Application.Diagnostics.DiagnosticPermissions.ErrorLogsRead, default)).IsAllowed)
+                result.Add(scope);
+        }
+        return result;
     }
 
     public async Task<IReadOnlyList<OrganizationScope>> LoadAuditScopesAsync()

@@ -1065,6 +1065,155 @@ BEGIN
     VALUES (N'20261110210556_DiagnosticsErrorAndOperationLogs', N'10.0.14');
 END;
 
+IF COL_LENGTH(N'organization.Item', N'RequiresLotTracking') IS NULL
+BEGIN
+    ALTER TABLE [organization].[Item] ADD [RequiresLotTracking] bit NOT NULL CONSTRAINT [DF_Item_RequiresLotTracking] DEFAULT 0;
+    ALTER TABLE [organization].[Item] ADD [QualityControlMode] tinyint NOT NULL CONSTRAINT [DF_Item_QualityControlMode] DEFAULT 0;
+    EXEC(N'ALTER TABLE [organization].[Item] ADD CONSTRAINT [CK_Item_QualityControlMode] CHECK ([QualityControlMode] BETWEEN 0 AND 3);');
+END;
+
+IF COL_LENGTH(N'organization.InventoryBalance', N'BlockedBaseQuantity') IS NULL
+BEGIN
+    ALTER TABLE [organization].[InventoryBalance] ADD [BlockedBaseQuantity] decimal(18,6) NOT NULL CONSTRAINT [DF_InventoryBalance_BlockedBaseQuantity] DEFAULT 0;
+    EXEC(N'ALTER TABLE [organization].[InventoryBalance] ADD CONSTRAINT [CK_InventoryBalance_Blocked] CHECK ([BlockedBaseQuantity] >= 0 AND [BlockedBaseQuantity] <= [OnHandBaseQuantity]);');
+END;
+
+IF OBJECT_ID(N'organization.ItemLot', N'U') IS NULL
+BEGIN
+    CREATE TABLE [organization].[ItemLot] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [LotCode] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [ManufactureDate] date NULL,
+        [ExpirationDate] date NULL,
+        [Notes] nvarchar(500) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_ItemLot] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ItemLot_Dates] CHECK ([ManufactureDate] IS NULL OR [ExpirationDate] IS NULL OR [ExpirationDate] >= [ManufactureDate]),
+        CONSTRAINT [CK_ItemLot_LotCode] CHECK (DATALENGTH([LotCode]) BETWEEN 1 AND 32 AND DATALENGTH([LotCode]) = LEN([LotCode]) AND [LotCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([LotCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_ItemLot_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [FK_ItemLot_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ItemLot_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id])
+    );
+    CREATE UNIQUE INDEX [UX_ItemLot_Org_Item_Lot] ON [organization].[ItemLot] ([OrganizationId], [ItemId], [LotCode]);
+    CREATE INDEX [IX_ItemLot_Org_Expiration] ON [organization].[ItemLot] ([OrganizationId], [ExpirationDate]);
+END;
+
+IF OBJECT_ID(N'organization.QualityInspection', N'U') IS NULL
+BEGIN
+    CREATE TABLE [organization].[QualityInspection] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [SiteId] bigint NOT NULL,
+        [WarehouseId] bigint NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [LotCode] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL CONSTRAINT [DF_QualityInspection_LotCode] DEFAULT '',
+        [InspectionNumber] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [SourceType] tinyint NOT NULL,
+        [SourceTransactionId] bigint NULL,
+        [ProductionOrderId] bigint NULL,
+        [BaseUnitId] bigint NOT NULL,
+        [InspectedBaseQuantity] decimal(18,6) NOT NULL,
+        [AcceptedBaseQuantity] decimal(18,6) NOT NULL,
+        [RejectedBaseQuantity] decimal(18,6) NOT NULL,
+        [RemainingBlockedBaseQuantity] decimal(18,6) NOT NULL,
+        [Status] tinyint NOT NULL,
+        [DefectReasonCode] varchar(64) COLLATE Latin1_General_100_BIN2 NULL,
+        [Notes] nvarchar(1000) NULL,
+        [InspectedAtUtc] datetime2(7) NULL,
+        [InspectedByActorId] bigint NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_QualityInspection] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_QualityInspection_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_QualityInspection_LotCode] CHECK (([LotCode] = '' OR (DATALENGTH([LotCode]) BETWEEN 1 AND 32 AND DATALENGTH([LotCode]) = LEN([LotCode]) AND [LotCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([LotCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'))),
+        CONSTRAINT [CK_QualityInspection_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_QualityInspection_Number] CHECK (DATALENGTH([InspectionNumber]) BETWEEN 1 AND 32 AND DATALENGTH([InspectionNumber]) = LEN([InspectionNumber]) AND [InspectionNumber] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([InspectionNumber], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_QualityInspection_Quantities] CHECK ([InspectedBaseQuantity] > 0 AND [AcceptedBaseQuantity] >= 0 AND [RejectedBaseQuantity] >= 0 AND [RemainingBlockedBaseQuantity] >= 0 AND ([AcceptedBaseQuantity] + [RejectedBaseQuantity] + [RemainingBlockedBaseQuantity]) <= [InspectedBaseQuantity]),
+        CONSTRAINT [CK_QualityInspection_SourceType] CHECK ([SourceType] BETWEEN 1 AND 3),
+        CONSTRAINT [CK_QualityInspection_Status] CHECK ([Status] BETWEEN 1 AND 4),
+        CONSTRAINT [FK_QualityInspection_BaseUnit] FOREIGN KEY ([OrganizationId], [BaseUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_QualityInspection_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_QualityInspection_Order] FOREIGN KEY ([OrganizationId], [ProductionOrderId]) REFERENCES [organization].[ProductionOrder] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_QualityInspection_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id]),
+        CONSTRAINT [FK_QualityInspection_Site] FOREIGN KEY ([OrganizationId], [SiteId]) REFERENCES [organization].[Site] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_QualityInspection_SourceTxn] FOREIGN KEY ([OrganizationId], [SourceTransactionId]) REFERENCES [organization].[InventoryTransaction] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_QualityInspection_Warehouse] FOREIGN KEY ([OrganizationId], [WarehouseId]) REFERENCES [organization].[Warehouse] ([OrganizationId], [Id])
+    );
+    CREATE UNIQUE INDEX [UX_QualityInspection_Org_Number] ON [organization].[QualityInspection] ([OrganizationId], [InspectionNumber]);
+    CREATE INDEX [IX_QualityInspection_Org_Site_Status] ON [organization].[QualityInspection] ([OrganizationId], [SiteId], [Status], [Id]);
+    CREATE INDEX [IX_QualityInspection_Org_Item_Lot] ON [organization].[QualityInspection] ([OrganizationId], [ItemId], [LotCode]);
+    CREATE INDEX [IX_QualityInspection_OrganizationId_BaseUnitId] ON [organization].[QualityInspection] ([OrganizationId], [BaseUnitId]);
+    CREATE INDEX [IX_QualityInspection_OrganizationId_ProductionOrderId] ON [organization].[QualityInspection] ([OrganizationId], [ProductionOrderId]);
+    CREATE INDEX [IX_QualityInspection_OrganizationId_SourceTransactionId] ON [organization].[QualityInspection] ([OrganizationId], [SourceTransactionId]);
+    CREATE INDEX [IX_QualityInspection_OrganizationId_WarehouseId] ON [organization].[QualityInspection] ([OrganizationId], [WarehouseId]);
+END;
+
+IF OBJECT_ID(N'organization.QualityInspectionLine', N'U') IS NULL
+BEGIN
+    CREATE TABLE [organization].[QualityInspectionLine] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [QualityInspectionId] bigint NOT NULL,
+        [LineNumber] int NOT NULL,
+        [ParameterName] nvarchar(100) NOT NULL,
+        [ExpectedSpec] nvarchar(100) NULL,
+        [MeasuredValue] nvarchar(100) NULL,
+        [IsPassed] bit NOT NULL,
+        [Notes] nvarchar(300) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_QualityInspectionLine] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_QualityInspectionLine_LineNum] CHECK ([LineNumber] > 0),
+        CONSTRAINT [CK_QualityInspectionLine_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_QualityInspectionLine_Param] CHECK (DATALENGTH(LTRIM(RTRIM([ParameterName]))) > 0),
+        CONSTRAINT [FK_QualityInspectionLine_Inspection] FOREIGN KEY ([OrganizationId], [QualityInspectionId]) REFERENCES [organization].[QualityInspection] ([OrganizationId], [Id])
+    );
+    CREATE UNIQUE INDEX [UX_QualityInspectionLine_Org_Insp_Line] ON [organization].[QualityInspectionLine] ([OrganizationId], [QualityInspectionId], [LineNumber]);
+END;
+
+IF COL_LENGTH(N'organization.InventoryTransaction', N'QualityInspectionId') IS NULL
+BEGIN
+    ALTER TABLE [organization].[InventoryTransaction] ADD [QualityInspectionId] bigint NULL;
+    EXEC(N'ALTER TABLE [organization].[InventoryTransaction] ADD CONSTRAINT [FK_InventoryTransaction_QualityInspection] FOREIGN KEY ([OrganizationId], [QualityInspectionId]) REFERENCES [organization].[QualityInspection] ([OrganizationId], [Id]);');
+    EXEC(N'CREATE INDEX [IX_InventoryTransaction_OrganizationId_QualityInspectionId] ON [organization].[InventoryTransaction] ([OrganizationId], [QualityInspectionId]);');
+END;
+
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_InventoryTransaction_Type' AND parent_object_id = OBJECT_ID(N'organization.InventoryTransaction'))
+    ALTER TABLE [organization].[InventoryTransaction] DROP CONSTRAINT [CK_InventoryTransaction_Type];
+ALTER TABLE [organization].[InventoryTransaction] ADD CONSTRAINT [CK_InventoryTransaction_Type] CHECK ([TransactionType] BETWEEN 1 AND 9);
+
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrganizationChange_Event' AND parent_object_id = OBJECT_ID(N'organization.OrganizationChange'))
+    ALTER TABLE [organization].[OrganizationChange] DROP CONSTRAINT [CK_OrganizationChange_Event];
+ALTER TABLE [organization].[OrganizationChange] ADD CONSTRAINT [CK_OrganizationChange_Event] CHECK (DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved','ItemLot.Updated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled'))));
+
+IF DATABASE_PRINCIPAL_ID(N'ForgeFlowOrganizationRuntime') IS NOT NULL
+BEGIN
+    GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[ItemLot] TO [ForgeFlowOrganizationRuntime];
+    GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[QualityInspection] TO [ForgeFlowOrganizationRuntime];
+    GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[QualityInspectionLine] TO [ForgeFlowOrganizationRuntime];
+    DENY DELETE ON OBJECT::[organization].[ItemLot] TO [ForgeFlowOrganizationRuntime];
+    DENY DELETE ON OBJECT::[organization].[QualityInspection] TO [ForgeFlowOrganizationRuntime];
+END;
+
+IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [dbo].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261111041945_QualityControlAndLotTraceability')
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261111041945_QualityControlAndLotTraceability', N'10.0.14');
+END;
+
 COMMIT;
 "@
 
@@ -1074,7 +1223,7 @@ try {
     $cmd = $cn.CreateCommand()
     $cmd.CommandText = $sql
     [void]$cmd.ExecuteNonQuery()
-    Write-Host "testforgflow database upgraded to 20261110210556_DiagnosticsErrorAndOperationLogs." -ForegroundColor Green
+    Write-Host "testforgflow database upgraded to 20261111041945_QualityControlAndLotTraceability." -ForegroundColor Green
 }
 finally {
     $cn.Dispose()

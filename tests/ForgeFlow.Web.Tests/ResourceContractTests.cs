@@ -262,7 +262,34 @@ public sealed class ResourceContractTests
             ["ErrorLogsSrcHttp"] = 0, ["ErrorLogsSrcCircuit"] = 0, ["ErrorLogsSrcComponent"] = 0,
             ["ErrorLogsSrcStore"] = 0, ["ErrorLogsSrcHost"] = 0,
             ["ErrorLogsPurgeBtn"] = 0, ["ErrorLogsPurgeDaysLabel"] = 0, ["ErrorLogsPurgeSuccess"] = 1,
-            ["UserMenuLastLoginTitle"] = 0, ["UserMenuFirstLoginNotice"] = 0
+            ["UserMenuLastLoginTitle"] = 0, ["UserMenuFirstLoginNotice"] = 0,
+            ["PermPageQuality"] = 0, ["PermOpManageQuality"] = 0,
+            ["QualityNavGroup"] = 0, ["QualityControl"] = 0, ["LotTraceability"] = 0, ["QualityCaption"] = 0,
+            ["ItemLotTrackedBadge"] = 0, ["ItemQcRequiredBadge"] = 0, ["ItemRequiresLotTrackingLabel"] = 0,
+            ["ItemQcModeLabel"] = 0, ["ItemQcModeNone"] = 0, ["ItemQcModeIncoming"] = 0,
+            ["ItemQcModeProduction"] = 0, ["ItemQcModeAll"] = 0, ["ItemErrorQcModeInvalid"] = 0,
+            ["InvBlockedLabel"] = 0, ["InvAvailableLabel"] = 0, ["InvBlockedShort"] = 1,
+            ["InvTypeQualityScrap"] = 0, ["InvErrorLotRequired"] = 0, ["InvErrorLotExpired"] = 0,
+            ["RptBlockedSubLabel"] = 2,
+            ["QcCreateHoldBtn"] = 0, ["QcLotUpsertBtn"] = 0, ["QcTabInspections"] = 0, ["QcTabLots"] = 0,
+            ["QcOnlyExpiringLabel"] = 0, ["QcNumberColumn"] = 0, ["QcSourceColumn"] = 0, ["QcQuantitiesColumn"] = 0,
+            ["QcQtyBreakdown"] = 3, ["QcLotMfgDateLabel"] = 0, ["QcLotExpDateLabel"] = 0,
+            ["QcLotExpiredBadge"] = 0, ["QcLotExpiringBadge"] = 0, ["QcCreateHoldTitle"] = 0,
+            ["QcDefectCodeLabel"] = 0, ["QcDetailsTitle"] = 0, ["QcMeasurementsSection"] = 0, ["QcAddLineBtn"] = 0,
+            ["QcParamNamePlaceholder"] = 0, ["QcExpectedSpecPlaceholder"] = 0, ["QcMeasuredValPlaceholder"] = 0,
+            ["QcPassedCheck"] = 0, ["QcFailedLabel"] = 0, ["QcSaveMeasurementsBtn"] = 0,
+            ["QcDispositionSection"] = 0, ["QcAcceptQtyLabel"] = 0, ["QcRejectScrapQtyLabel"] = 0,
+            ["QcScrapDocLabel"] = 0, ["QcRecordDispositionBtn"] = 0, ["QcCancelHoldBtn"] = 0,
+            ["QcHoldCreatedNotice"] = 0, ["QcDispositionSavedNotice"] = 0, ["QcHoldCancelledNotice"] = 0,
+            ["QcLotUpsertTitle"] = 0, ["QcStatusPending"] = 0, ["QcStatusInReview"] = 0,
+            ["QcStatusCompleted"] = 0, ["QcStatusCancelled"] = 0,
+            ["QcSourceReceipt"] = 0, ["QcSourceProdReceipt"] = 0, ["QcSourceManualHold"] = 0,
+            ["QcErrorTerminal"] = 0, ["QcErrorHasDispositions"] = 0, ["QcErrorDispositionExceeds"] = 0,
+            ["QcErrorDefectReasonInvalid"] = 0, ["QcErrorParameterInvalid"] = 0, ["QcErrorLotDatesInvalid"] = 0,
+            ["LotTraceCaption"] = 0, ["LotTraceDirectionLabel"] = 0, ["LotTraceDirBoth"] = 0,
+            ["LotTraceDirBackward"] = 0, ["LotTraceDirForward"] = 0, ["LotTraceRunBtn"] = 0,
+            ["LotTraceBackwardTitle"] = 0, ["LotTraceForwardTitle"] = 0,
+            ["LotTraceSourceLotCol"] = 0, ["LotTraceTargetLotCol"] = 0, ["LotTraceMovementsTitle"] = 0
         }.Concat(ForgeFlow.Application.Audit.AuditEventCatalog.All.ToDictionary(d => d.ResourceKey, _ => 0))
          .ToDictionary(kv => kv.Key, kv => kv.Value)
     };
@@ -360,7 +387,12 @@ public sealed class ResourceContractTests
              "InvErrorOrderStateInvalid", "InvErrorInsufficientStock", "InvErrorIdempotencyInvalid",
              "PermPageReports", "PermOpExportReports", "RptErrorOrderNotFound", "RptErrorExportInvalid",
              "PermPageDiagnostics", "PermOpExportAudit", "PermOpReadErrorLogs", "PermOpManageErrorLogs",
-             "DiagErrorRetentionInvalid"]);
+             "DiagErrorRetentionInvalid",
+             "PermPageQuality", "PermOpManageQuality",
+             "ItemErrorQcModeInvalid", "InvErrorLotRequired", "InvErrorLotExpired",
+             "QcErrorTerminal", "QcErrorHasDispositions", "QcErrorDispositionExceeds",
+             "QcErrorDefectReasonInvalid", "QcErrorParameterInvalid", "QcErrorLotDatesInvalid",
+             "QcFailedLabel"]);
         used[nameof(SharedResources)].UnionWith(ForgeFlow.Application.Audit.AuditEventCatalog.All.Select(d => d.ResourceKey));
         Assert.Equal(Contracts[nameof(SharedResources)].Keys.Order(), used[nameof(SharedResources)].Order());
     }

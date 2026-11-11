@@ -44,7 +44,9 @@ public sealed record MaterialShortageItemSummary(
     decimal ExcessBaseQuantity,
     decimal CoveragePercent,
     int OpenOrderCount,
-    IReadOnlyList<MaterialShortageOrderDetail> Orders);
+    IReadOnlyList<MaterialShortageOrderDetail> Orders,
+    decimal BlockedBaseQuantity = 0m,
+    decimal AvailableBaseQuantity = 0m);
 
 public sealed record MaterialShortageReport(
     int OpenOrderCount,
@@ -53,7 +55,9 @@ public sealed record MaterialShortageReport(
     decimal TotalRequiredBaseQuantity,
     decimal TotalOnHandBaseQuantity,
     decimal TotalShortageBaseQuantity,
-    IReadOnlyList<MaterialShortageItemSummary> Items);
+    IReadOnlyList<MaterialShortageItemSummary> Items,
+    decimal TotalBlockedBaseQuantity = 0m,
+    decimal TotalAvailableBaseQuantity = 0m);
 
 public sealed record ProductionVarianceQuery(
     long? SiteId = null,
@@ -168,7 +172,8 @@ public sealed record ReportOpenOrderInputRow(
 public sealed record ReportStockBalanceRow(
     long SiteId,
     long ItemId,
-    decimal OnHandBaseQuantity);
+    decimal OnHandBaseQuantity,
+    decimal BlockedBaseQuantity = 0m);
 
 public sealed record ShortageDataset(
     IReadOnlyList<ReportOpenOrderRow> Orders,

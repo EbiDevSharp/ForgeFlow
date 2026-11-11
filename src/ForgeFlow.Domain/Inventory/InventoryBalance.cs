@@ -26,6 +26,7 @@ public sealed class InventoryBalance
         LotCode = InventoryText.LotCode(lotCode);
         BaseUnitId = baseUnitId;
         OnHandBaseQuantity = 0m;
+        BlockedBaseQuantity = 0m;
         LastMovedAtUtc = createdAtUtc;
     }
 
@@ -37,6 +38,8 @@ public sealed class InventoryBalance
     public string LotCode { get; private set; } = string.Empty;
     public long BaseUnitId { get; private set; }
     public decimal OnHandBaseQuantity { get; private set; }
+    public decimal BlockedBaseQuantity { get; private set; }
+    public decimal AvailableBaseQuantity => decimal.Round(OnHandBaseQuantity - BlockedBaseQuantity, 6, MidpointRounding.AwayFromZero);
     public DateTime LastMovedAtUtc { get; private set; }
 
     public static InventoryBalance CreateZero(
@@ -49,13 +52,58 @@ public sealed class InventoryBalance
         DateTime createdAtUtc) =>
         new(organizationId, siteId, warehouseId, itemId, lotCode ?? string.Empty, baseUnitId, createdAtUtc);
 
-    public void ApplyDelta(decimal baseQuantityDelta, DateTime movedAtUtc)
+    public void ApplyDelta(decimal baseQuantityDelta, DateTime movedAtUtc, bool enforceAvailableOnOutbound = true)
     {
         var next = decimal.Round(OnHandBaseQuantity + baseQuantityDelta, 6, MidpointRounding.AwayFromZero);
         if (next < 0m)
-            throw new InventoryRuleException(InventoryErrors.InsufficientStock, ("available", OnHandBaseQuantity), ("requestedDelta", baseQuantityDelta));
+            throw new InventoryRuleException(InventoryErrors.InsufficientStock, ("available", AvailableBaseQuantity), ("requestedDelta", baseQuantityDelta));
+
+        if (enforceAvailableOnOutbound && baseQuantityDelta < 0m)
+        {
+            var nextAvailable = decimal.Round(AvailableBaseQuantity + baseQuantityDelta, 6, MidpointRounding.AwayFromZero);
+            if (nextAvailable < 0m)
+                throw new InventoryRuleException(InventoryErrors.InsufficientStock, ("available", AvailableBaseQuantity), ("blocked", BlockedBaseQuantity), ("requestedDelta", baseQuantityDelta));
+        }
+
+        if (next < BlockedBaseQuantity)
+            throw new InventoryRuleException(InventoryErrors.InsufficientStock, ("available", AvailableBaseQuantity), ("blocked", BlockedBaseQuantity), ("requestedDelta", baseQuantityDelta));
 
         OnHandBaseQuantity = next;
+        LastMovedAtUtc = movedAtUtc;
+    }
+
+    public void BlockQuantity(decimal positiveBaseQuantity, DateTime movedAtUtc)
+    {
+        var qty = InventoryText.ValidatePositiveQuantity(positiveBaseQuantity);
+        var nextBlocked = decimal.Round(BlockedBaseQuantity + qty, 6, MidpointRounding.AwayFromZero);
+        if (nextBlocked > OnHandBaseQuantity)
+            throw new InventoryRuleException(InventoryErrors.InsufficientStock, ("available", AvailableBaseQuantity), ("requestedDelta", -qty));
+
+        BlockedBaseQuantity = nextBlocked;
+        LastMovedAtUtc = movedAtUtc;
+    }
+
+    public void ReleaseBlockedQuantity(decimal positiveBaseQuantity, DateTime movedAtUtc)
+    {
+        var qty = InventoryText.ValidatePositiveQuantity(positiveBaseQuantity);
+        var nextBlocked = decimal.Round(BlockedBaseQuantity - qty, 6, MidpointRounding.AwayFromZero);
+        if (nextBlocked < 0m)
+            throw new InventoryRuleException(InventoryErrors.QuantityInvalid);
+
+        BlockedBaseQuantity = nextBlocked;
+        LastMovedAtUtc = movedAtUtc;
+    }
+
+    public void ScrapBlockedQuantity(decimal positiveBaseQuantity, DateTime movedAtUtc)
+    {
+        var qty = InventoryText.ValidatePositiveQuantity(positiveBaseQuantity);
+        var nextBlocked = decimal.Round(BlockedBaseQuantity - qty, 6, MidpointRounding.AwayFromZero);
+        var nextOnHand = decimal.Round(OnHandBaseQuantity - qty, 6, MidpointRounding.AwayFromZero);
+        if (nextBlocked < 0m || nextOnHand < 0m)
+            throw new InventoryRuleException(InventoryErrors.InsufficientStock, ("available", AvailableBaseQuantity), ("blocked", BlockedBaseQuantity), ("requestedDelta", -qty));
+
+        BlockedBaseQuantity = nextBlocked;
+        OnHandBaseQuantity = nextOnHand;
         LastMovedAtUtc = movedAtUtc;
     }
 }

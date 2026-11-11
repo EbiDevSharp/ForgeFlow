@@ -89,6 +89,11 @@ public static class AuditEventCatalog
         Biz("Warehouse.Deactivated"),
         Biz("InventoryTransaction.Posted"),
         Biz("InventoryTransaction.Reversed"),
+        Biz("QualityInspection.Created"),
+        Biz("QualityInspection.Updated"),
+        Biz("QualityInspection.Disposed"),
+        Biz("QualityInspection.Cancelled"),
+        Biz("ItemLot.Updated"),
 
         // Security & authentication events (auth.SecurityEvent)
         Sec("BootstrapCompleted"),
@@ -119,7 +124,8 @@ public static class AuditEventCatalog
         Op(UserOperationCatalog.InventoryActionRejected),
         Op(UserOperationCatalog.UserActionRejected),
         Op(UserOperationCatalog.RoleActionRejected),
-        Op(UserOperationCatalog.ReportingActionRejected)
+        Op(UserOperationCatalog.ReportingActionRejected),
+        Op(UserOperationCatalog.QualityActionRejected)
     ];
 
     private static readonly Dictionary<string, AuditEventDescriptor> ByCode =

@@ -1,5 +1,6 @@
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Inventory;
+using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Units;
 
@@ -68,7 +69,13 @@ public sealed record InventoryBalanceSummary(
     string BaseUnitSymbol,
     decimal OnHandBaseQuantity,
     DateTime LastMovedAtUtc,
-    string RowVersion);
+    string RowVersion,
+    decimal BlockedBaseQuantity = 0m,
+    decimal AvailableBaseQuantity = 0m,
+    DateOnly? ManufactureDate = null,
+    DateOnly? ExpirationDate = null,
+    bool IsExpired = false,
+    bool IsExpiringSoon = false);
 
 public sealed record InventoryBalanceListQuery(
     long? SiteId = null,
@@ -118,7 +125,9 @@ public sealed record InventoryTransactionSummary(
     bool IsReversed,
     string? ReferenceNote,
     DateTime PostedAtUtc,
-    int LineCount);
+    int LineCount,
+    long? QualityInspectionId = null,
+    string? QualityInspectionNumber = null);
 
 public sealed record InventoryTransactionDetails(
     InventoryTransactionSummary Summary,
@@ -138,7 +147,9 @@ public sealed record InventoryLineInput(
     string? LotCode,
     decimal Quantity,
     long? UnitId = null,
-    string? Notes = null);
+    string? Notes = null,
+    DateOnly? ManufactureDate = null,
+    DateOnly? ExpirationDate = null);
 
 public sealed record PostInventoryTransactionRequest(
     long OrganizationId,
@@ -171,7 +182,9 @@ public sealed record InventoryItemConversionContext(
     long ItemId,
     bool ItemIsActive,
     long BaseUnitId,
-    IReadOnlyList<UnitConversionEdge> Edges);
+    IReadOnlyList<UnitConversionEdge> Edges,
+    bool RequiresLotTracking = false,
+    QualityControlMode QualityControlMode = QualityControlMode.None);
 
 public sealed record InventoryProductionOrderLookup(
     long Id,
@@ -189,7 +202,10 @@ public sealed record ResolvedInventoryLineWrite(
     long EnteredUnitId,
     decimal BaseQuantityDelta,
     long BaseUnitId,
-    string? Notes);
+    string? Notes,
+    bool TriggersQualityControl = false,
+    DateOnly? ManufactureDate = null,
+    DateOnly? ExpirationDate = null);
 
 public sealed class InventoryStoreUnavailableException(Exception inner)
     : Exception(InventoryErrors.PersistenceUnavailable, inner);

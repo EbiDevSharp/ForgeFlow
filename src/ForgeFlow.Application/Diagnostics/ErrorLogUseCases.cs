@@ -4,8 +4,9 @@ using ForgeFlow.Domain.Diagnostics;
 namespace ForgeFlow.Application.Diagnostics;
 
 /// <summary>
-/// Platform-only read and retention management use cases for sanitized technical error logs.
-/// Never exposes raw technical error stacks to tenant or site scopes.
+/// Read and retention management use cases for sanitized technical error logs.
+/// Read queries support Platform (all logs) or Organization (strictly tenant-isolated logs);
+/// retention purge remains Platform-only.
 /// </summary>
 public sealed class ErrorLogUseCases(
     IErrorLogStore store,
@@ -19,7 +20,7 @@ public sealed class ErrorLogUseCases(
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(query);
-        var auth = await AuthorizePlatformAsync(scope, DiagnosticPermissions.ErrorLogsRead, ct);
+        var auth = await AuthorizeReadAsync(scope, DiagnosticPermissions.ErrorLogsRead, ct);
         if (!auth.Ok) return OrganizationResult<OrganizationPage<ErrorLogSummary>>.Failure(auth.Error!);
 
         if ((query.Severity.HasValue && !Enum.IsDefined(query.Severity.Value))
@@ -36,7 +37,7 @@ public sealed class ErrorLogUseCases(
         var normalized = query with { Search = search };
         try
         {
-            var page = await store.ListAsync(normalized, ct);
+            var page = await store.ListAsync(scope!, normalized, ct);
             return OrganizationResult<OrganizationPage<ErrorLogSummary>>.Success(page);
         }
         catch (DiagnosticStoreUnavailableException)
@@ -50,13 +51,13 @@ public sealed class ErrorLogUseCases(
         long id,
         CancellationToken ct = default)
     {
-        var auth = await AuthorizePlatformAsync(scope, DiagnosticPermissions.ErrorLogsRead, ct);
+        var auth = await AuthorizeReadAsync(scope, DiagnosticPermissions.ErrorLogsRead, ct);
         if (!auth.Ok) return OrganizationResult<ErrorLogDetails>.Failure(auth.Error!);
         if (id <= 0) return OrganizationResult<ErrorLogDetails>.Failure(DiagnosticErrors.NotFound);
 
         try
         {
-            var details = await store.GetAsync(id, ct);
+            var details = await store.GetAsync(scope!, id, ct);
             return details is null
                 ? OrganizationResult<ErrorLogDetails>.Failure(DiagnosticErrors.NotFound)
                 : OrganizationResult<ErrorLogDetails>.Success(details);
@@ -71,13 +72,13 @@ public sealed class ErrorLogUseCases(
         OrganizationScope? scope,
         CancellationToken ct = default)
     {
-        var auth = await AuthorizePlatformAsync(scope, DiagnosticPermissions.ErrorLogsRead, ct);
+        var auth = await AuthorizeReadAsync(scope, DiagnosticPermissions.ErrorLogsRead, ct);
         if (!auth.Ok) return OrganizationResult<ErrorLogStats>.Failure(auth.Error!);
 
         try
         {
             var now = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
-            var stats = await store.GetStatsAsync(now, ct);
+            var stats = await store.GetStatsAsync(scope!, now, ct);
             return OrganizationResult<ErrorLogStats>.Success(stats);
         }
         catch (DiagnosticStoreUnavailableException)
@@ -108,17 +109,40 @@ public sealed class ErrorLogUseCases(
         }
     }
 
-    private async Task<(bool Ok, string? Error)> AuthorizePlatformAsync(
+    private Task<(bool Ok, string? Error)> AuthorizeReadAsync(
         OrganizationScope? scope,
+        string permission,
+        CancellationToken ct)
+    {
+        if (scope is OrganizationScope.Platform or OrganizationScope.Organization)
+            return AuthorizeAuthorizedScopeAsync(scope, permission, ct);
+
+        if (scope is null)
+            return Task.FromResult<(bool, string?)>((false, DiagnosticErrors.ScopeRequired));
+
+        return Task.FromResult<(bool, string?)>((false, DiagnosticErrors.AccessDenied));
+    }
+
+    private Task<(bool Ok, string? Error)> AuthorizePlatformAsync(
+        OrganizationScope? scope,
+        string permission,
+        CancellationToken ct)
+    {
+        if (scope is null)
+            return Task.FromResult<(bool, string?)>((false, DiagnosticErrors.ScopeRequired));
+        if (scope is not OrganizationScope.Platform)
+            return Task.FromResult<(bool, string?)>((false, DiagnosticErrors.AccessDenied));
+
+        return AuthorizeAuthorizedScopeAsync(scope, permission, ct);
+    }
+
+    private async Task<(bool Ok, string? Error)> AuthorizeAuthorizedScopeAsync(
+        OrganizationScope scope,
         string permission,
         CancellationToken ct)
     {
         if (actors is null || permissions is null)
             return (false, DiagnosticErrors.ActorRequired);
-        if (scope is null)
-            return (false, DiagnosticErrors.ScopeRequired);
-        if (scope is not OrganizationScope.Platform)
-            return (false, DiagnosticErrors.AccessDenied);
 
         TrustedActor? actor;
         try { actor = await actors.ResolveAsync(ct); }

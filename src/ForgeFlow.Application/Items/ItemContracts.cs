@@ -26,7 +26,9 @@ public sealed record ItemSummary(
     bool CanBeSold,
     bool CanBeConsumed,
     bool IsActive,
-    string RowVersion);
+    string RowVersion,
+    bool RequiresLotTracking = false,
+    QualityControlMode QualityControlMode = QualityControlMode.None);
 
 public sealed record ItemClassificationSummary(
     long ClassificationId,
@@ -90,7 +92,9 @@ public sealed record CreateItemRequest(
     bool CanBePurchased,
     bool CanBeManufactured,
     bool CanBeSold,
-    bool CanBeConsumed);
+    bool CanBeConsumed,
+    bool RequiresLotTracking = false,
+    QualityControlMode QualityControlMode = QualityControlMode.None);
 
 public sealed record UpdateItemRequest(
     long OrganizationId,
@@ -102,7 +106,9 @@ public sealed record UpdateItemRequest(
     bool CanBeManufactured,
     bool CanBeSold,
     bool CanBeConsumed,
-    string? ExpectedRowVersion);
+    string? ExpectedRowVersion,
+    bool RequiresLotTracking = false,
+    QualityControlMode QualityControlMode = QualityControlMode.None);
 
 public sealed record SetItemActiveRequest(
     long OrganizationId,

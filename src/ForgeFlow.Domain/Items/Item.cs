@@ -1,5 +1,13 @@
 namespace ForgeFlow.Domain.Items;
 
+public enum QualityControlMode : byte
+{
+    None = 0,
+    IncomingReceipts = 1,
+    ProductionReceipts = 2,
+    AllReceipts = 3
+}
+
 /// <summary>Organization-shared universal Item Master with operational capabilities.</summary>
 public sealed class Item
 {
@@ -18,12 +26,16 @@ public sealed class Item
         bool canBePurchased,
         bool canBeManufactured,
         bool canBeSold,
-        bool canBeConsumed)
+        bool canBeConsumed,
+        bool requiresLotTracking,
+        QualityControlMode qualityControlMode)
     {
         if (organizationId <= 0)
             throw new ItemRuleException(ItemErrors.NotFound);
         if (baseUnitId <= 0)
             throw new ItemRuleException(ItemErrors.BaseUnitNotFound, ("field", "BaseUnitId"));
+        if (!Enum.IsDefined(qualityControlMode))
+            throw new ItemRuleException(ItemErrors.QualityControlModeInvalid, ("field", "QualityControlMode"));
         EnsureHasCapability(canBePurchased, canBeManufactured, canBeSold, canBeConsumed);
 
         OrganizationId = organizationId;
@@ -35,6 +47,8 @@ public sealed class Item
         CanBeManufactured = canBeManufactured;
         CanBeSold = canBeSold;
         CanBeConsumed = canBeConsumed;
+        RequiresLotTracking = requiresLotTracking;
+        QualityControlMode = qualityControlMode;
         IsActive = true;
     }
 
@@ -48,6 +62,8 @@ public sealed class Item
     public bool CanBeManufactured { get; private set; }
     public bool CanBeSold { get; private set; }
     public bool CanBeConsumed { get; private set; }
+    public bool RequiresLotTracking { get; private set; }
+    public QualityControlMode QualityControlMode { get; private set; }
     public bool IsActive { get; private set; } = true;
 
     public static Item Create(
@@ -59,8 +75,10 @@ public sealed class Item
         bool canBePurchased,
         bool canBeManufactured,
         bool canBeSold,
-        bool canBeConsumed)
-        => new(organizationId, code, name, description, baseUnitId, canBePurchased, canBeManufactured, canBeSold, canBeConsumed);
+        bool canBeConsumed,
+        bool requiresLotTracking = false,
+        QualityControlMode qualityControlMode = QualityControlMode.None)
+        => new(organizationId, code, name, description, baseUnitId, canBePurchased, canBeManufactured, canBeSold, canBeConsumed, requiresLotTracking, qualityControlMode);
 
     public bool Update(
         string? name,
@@ -69,12 +87,16 @@ public sealed class Item
         bool canBePurchased,
         bool canBeManufactured,
         bool canBeSold,
-        bool canBeConsumed)
+        bool canBeConsumed,
+        bool requiresLotTracking = false,
+        QualityControlMode qualityControlMode = QualityControlMode.None)
     {
         if (!IsActive)
             throw new ItemRuleException(ItemErrors.ItemInactive);
         if (baseUnitId <= 0)
             throw new ItemRuleException(ItemErrors.BaseUnitNotFound, ("field", "BaseUnitId"));
+        if (!Enum.IsDefined(qualityControlMode))
+            throw new ItemRuleException(ItemErrors.QualityControlModeInvalid, ("field", "QualityControlMode"));
         EnsureHasCapability(canBePurchased, canBeManufactured, canBeSold, canBeConsumed);
 
         var normalizedName = ItemText.Name(name);
@@ -86,7 +108,9 @@ public sealed class Item
             && CanBePurchased == canBePurchased
             && CanBeManufactured == canBeManufactured
             && CanBeSold == canBeSold
-            && CanBeConsumed == canBeConsumed)
+            && CanBeConsumed == canBeConsumed
+            && RequiresLotTracking == requiresLotTracking
+            && QualityControlMode == qualityControlMode)
         {
             return false;
         }
@@ -98,6 +122,8 @@ public sealed class Item
         CanBeManufactured = canBeManufactured;
         CanBeSold = canBeSold;
         CanBeConsumed = canBeConsumed;
+        RequiresLotTracking = requiresLotTracking;
+        QualityControlMode = qualityControlMode;
         return true;
     }
 

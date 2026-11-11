@@ -3,7 +3,9 @@ using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Diagnostics;
 using ForgeFlow.Domain.Inventory;
+using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.ProductionOrders;
+using ForgeFlow.Domain.Quality;
 using ForgeFlow.Domain.Units;
 
 namespace ForgeFlow.Application.Inventory;
@@ -268,7 +270,7 @@ public sealed class InventoryUseCases(
             return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.AccessDenied);
         if (request.WarehouseId <= 0)
             return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.WarehouseNotFound);
-        if (request.TransactionType is InventoryTransactionType.Reversal or InventoryTransactionType.TransferIn)
+        if (request.TransactionType is InventoryTransactionType.Reversal or InventoryTransactionType.TransferIn or InventoryTransactionType.QualityScrap)
             return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.TransactionNotFound);
         if (request.Lines is null || request.Lines.Count == 0)
             return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.LinesRequired);
@@ -339,6 +341,14 @@ public sealed class InventoryUseCases(
                     return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.ItemInvalid);
 
                 var lotCode = InventoryText.LotCode(line.LotCode);
+                if (itemCtx.RequiresLotTracking && string.IsNullOrEmpty(lotCode))
+                    return OrganizationResult<InventoryTransactionDetails>.Failure(
+                        InventoryErrors.LotRequired,
+                        new Dictionary<string, object> { ["itemId"] = line.ItemId });
+
+                if (line.ManufactureDate.HasValue && line.ExpirationDate.HasValue && line.ExpirationDate.Value < line.ManufactureDate.Value)
+                    return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.LotCodeInvalid);
+
                 var note = InventoryText.OptionalNote(line.Notes, InventoryText.MaxLineNoteLength);
                 var enteredQty = request.TransactionType == InventoryTransactionType.Adjustment
                     ? InventoryText.ValidateNonZeroQuantity(line.Quantity)
@@ -354,10 +364,15 @@ public sealed class InventoryUseCases(
                     : UnitConversionGraph.ConvertQuantity(absQty, enteredUnitId, itemCtx.BaseUnitId, itemCtx.Edges).ConvertedQuantity;
                 absBaseQty = InventoryText.ValidatePositiveQuantity(absBaseQty);
 
+                var triggersQc = (request.TransactionType == InventoryTransactionType.Receipt
+                                  && itemCtx.QualityControlMode is QualityControlMode.IncomingReceipts or QualityControlMode.AllReceipts)
+                              || (request.TransactionType == InventoryTransactionType.ProductionReceipt
+                                  && itemCtx.QualityControlMode is QualityControlMode.ProductionReceipts or QualityControlMode.AllReceipts);
+
                 if (destWh is not null)
                 {
-                    resolvedLines.Add(new(wh.SiteId, wh.Id, line.ItemId, lotCode, -enteredQty, enteredUnitId, -absBaseQty, itemCtx.BaseUnitId, note));
-                    resolvedLines.Add(new(destWh.SiteId, destWh.Id, line.ItemId, lotCode, enteredQty, enteredUnitId, absBaseQty, itemCtx.BaseUnitId, note));
+                    resolvedLines.Add(new(wh.SiteId, wh.Id, line.ItemId, lotCode, -enteredQty, enteredUnitId, -absBaseQty, itemCtx.BaseUnitId, note, false, line.ManufactureDate, line.ExpirationDate));
+                    resolvedLines.Add(new(destWh.SiteId, destWh.Id, line.ItemId, lotCode, enteredQty, enteredUnitId, absBaseQty, itemCtx.BaseUnitId, note, false, line.ManufactureDate, line.ExpirationDate));
                 }
                 else
                 {
@@ -369,7 +384,7 @@ public sealed class InventoryUseCases(
                         _ => throw new InventoryRuleException(InventoryErrors.TransactionNotFound)
                     };
                     var signedEntered = request.TransactionType == InventoryTransactionType.Adjustment ? enteredQty : sign * absQty;
-                    resolvedLines.Add(new(wh.SiteId, wh.Id, line.ItemId, lotCode, signedEntered, enteredUnitId, sign * absBaseQty, itemCtx.BaseUnitId, note));
+                    resolvedLines.Add(new(wh.SiteId, wh.Id, line.ItemId, lotCode, signedEntered, enteredUnitId, sign * absBaseQty, itemCtx.BaseUnitId, note, triggersQc && sign > 0m, line.ManufactureDate, line.ExpirationDate));
                 }
             }
 

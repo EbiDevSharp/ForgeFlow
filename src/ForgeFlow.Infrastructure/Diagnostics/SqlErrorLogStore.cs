@@ -127,12 +127,13 @@ public sealed class SqlErrorLogStore(
         }
     }
 
-    public async Task<OrganizationPage<ErrorLogSummary>> ListAsync(ErrorLogListQuery query, CancellationToken ct = default)
+    public async Task<OrganizationPage<ErrorLogSummary>> ListAsync(OrganizationScope scope, ErrorLogListQuery query, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(scope);
         try
         {
             await using var db = await factory.CreateDbContextAsync(ct);
-            var q = db.ErrorLogs.AsNoTracking().AsQueryable();
+            var q = ApplyScopeFilter(db.ErrorLogs.AsNoTracking(), scope);
 
             if (query.Severity is ErrorSeverity sev)
                 q = q.Where(e => e.Severity == sev);
@@ -205,12 +206,14 @@ public sealed class SqlErrorLogStore(
         }
     }
 
-    public async Task<ErrorLogDetails?> GetAsync(long id, CancellationToken ct = default)
+    public async Task<ErrorLogDetails?> GetAsync(OrganizationScope scope, long id, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(scope);
         try
         {
             await using var db = await factory.CreateDbContextAsync(ct);
-            var e = await db.ErrorLogs.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+            var e = await ApplyScopeFilter(db.ErrorLogs.AsNoTracking(), scope)
+                .SingleOrDefaultAsync(x => x.Id == id, ct);
             if (e is null) return null;
 
             var names = await ResolveUserNamesAsync([e.ActorUserId], ct);
@@ -239,13 +242,14 @@ public sealed class SqlErrorLogStore(
         }
     }
 
-    public async Task<ErrorLogStats> GetStatsAsync(DateTime utcNow, CancellationToken ct = default)
+    public async Task<ErrorLogStats> GetStatsAsync(OrganizationScope scope, DateTime utcNow, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(scope);
         try
         {
             await using var db = await factory.CreateDbContextAsync(ct);
             var since = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc).AddHours(-24);
-            var recent = await db.ErrorLogs.AsNoTracking()
+            var recent = await ApplyScopeFilter(db.ErrorLogs.AsNoTracking(), scope)
                 .Where(e => e.OccurredAtUtc >= since)
                 .Select(e => new { e.Severity, e.SqlErrorNumber, e.Source })
                 .ToListAsync(ct);
@@ -344,6 +348,13 @@ public sealed class SqlErrorLogStore(
         var hex = Convert.ToHexString(bytes);
         return $"FF-{utcNow.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}-{hex}";
     }
+
+    private static IQueryable<ErrorLogRecord> ApplyScopeFilter(IQueryable<ErrorLogRecord> q, OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Platform => q,
+        OrganizationScope.Organization org => q.Where(e => e.OrganizationId == org.OrganizationId),
+        _ => q.Where(_ => false)
+    };
 
     private static bool IsUnavailable(Exception ex) =>
         ex is DbException or SqlException or InvalidOperationException or TimeoutException;

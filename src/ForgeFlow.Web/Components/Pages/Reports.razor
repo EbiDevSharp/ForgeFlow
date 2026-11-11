@@ -212,7 +212,13 @@
                             </BitDataGridColumn>
                             <BitDataGridColumn TItem="MaterialShortageItemSummary" Title="@Text["RptColOnHandQty"]">
                                 <Template Context="m">
-                                    <bdi dir="ltr">@FormatQty(m.OnHandBaseQuantity) @m.BaseUnitSymbol</bdi>
+                                    <div>
+                                        <div class="read-primary-cell"><bdi dir="ltr">@FormatQty(m.AvailableBaseQuantity) @m.BaseUnitSymbol</bdi></div>
+                                        @if (m.BlockedBaseQuantity > 0m)
+                                        {
+                                            <div class="read-sub-cell"><bdi dir="ltr">@Text["RptBlockedSubLabel", FormatQty(m.BlockedBaseQuantity), FormatQty(m.OnHandBaseQuantity)]</bdi></div>
+                                        }
+                                    </div>
                                 </Template>
                             </BitDataGridColumn>
                             <BitDataGridColumn TItem="MaterialShortageItemSummary" Title="@Text["RptColShortageQty"]">
@@ -353,6 +359,8 @@
                         <div><span class="audit-meta-label">@Text["RptColMaterial"]</span><span class="audit-meta-val">@selectedShortageItem.ItemName (<bdi dir="ltr">@selectedShortageItem.ItemCode</bdi>)</span></div>
                         <div><span class="audit-meta-label">@Text["RptColRequiredQty"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.RequiredBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
                         <div><span class="audit-meta-label">@Text["RptColOnHandQty"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.OnHandBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
+                        <div><span class="audit-meta-label">@Text["InvBlockedLabel"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.BlockedBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
+                        <div><span class="audit-meta-label">@Text["InvAvailableLabel"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.AvailableBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
                         <div><span class="audit-meta-label">@Text["RptColShortageQty"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.ShortageBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
                     </div>
 
@@ -808,7 +816,7 @@
                 var cols = new CsvExportColumnHeaders(
                     [
                         Text["RptColMaterial"], Text["RptColItemName"], Text["RptColBaseUnit"],
-                        Text["RptColRequiredQty"], Text["RptColOnHandQty"], Text["RptColShortageQty"],
+                        Text["RptColRequiredQty"], Text["RptColOnHandQty"], Text["InvBlockedLabel"], Text["InvAvailableLabel"], Text["RptColShortageQty"],
                         Text["RptColExcessQty"], Text["RptColCoveragePct"], Text["RptColOpenOrdersCount"],
                         Text["RptCsvHeaderDemandOrders"]
                     ],

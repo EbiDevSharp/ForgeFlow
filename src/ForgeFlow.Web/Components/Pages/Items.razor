@@ -180,6 +180,8 @@
                                         @if (row.CanBeManufactured) { <span class="cap-badge">@Text["ItemCapManufacture"]</span> }
                                         @if (row.CanBeSold) { <span class="cap-badge">@Text["ItemCapSell"]</span> }
                                         @if (row.CanBeConsumed) { <span class="cap-badge">@Text["ItemCapConsume"]</span> }
+                                        @if (row.RequiresLotTracking) { <span class="cap-badge">@Text["ItemLotTrackedBadge"]</span> }
+                                        @if (row.QualityControlMode != QualityControlMode.None) { <span class="cap-badge">@Text["ItemQcRequiredBadge"]</span> }
                                     </div>
                                 </Template>
                             </BitDataGridColumn>
@@ -372,6 +374,19 @@
                         <label class="perm-check"><input type="checkbox" @bind="createCapConsume" disabled="@itemSaving" /><span>@Text["ItemCapConsume"]</span></label>
                     </div>
                 </div>
+                <label class="perm-check">
+                    <input type="checkbox" @bind="createRequiresLotTracking" disabled="@itemSaving" />
+                    <span>@Text["ItemRequiresLotTrackingLabel"]</span>
+                </label>
+                <div class="read-field">
+                    <label for="create-item-qc">@Text["ItemQcModeLabel"]</label>
+                    <select id="create-item-qc" @bind="createQualityControlMode" disabled="@itemSaving">
+                        <option value="@QualityControlMode.None">@Text["ItemQcModeNone"]</option>
+                        <option value="@QualityControlMode.IncomingReceipts">@Text["ItemQcModeIncoming"]</option>
+                        <option value="@QualityControlMode.ProductionReceipts">@Text["ItemQcModeProduction"]</option>
+                        <option value="@QualityControlMode.AllReceipts">@Text["ItemQcModeAll"]</option>
+                    </select>
+                </div>
 
                 @if (createItemDiscardConfirm)
                 {
@@ -452,6 +467,14 @@
                                     @if (selectedItem.Summary.CanBeConsumed) { <span class="cap-badge">@Text["ItemCapConsume"]</span> }
                                 </div>
                             </div>
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["ItemRequiresLotTrackingLabel"]</span>
+                                <span class="audit-meta-val">@Text[selectedItem.Summary.RequiresLotTracking ? "AttributeRequiredYes" : "AttributeRequiredNo"]</span>
+                            </div>
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["ItemQcModeLabel"]</span>
+                                <span class="audit-meta-val">@QcModeLabel(selectedItem.Summary.QualityControlMode)</span>
+                            </div>
                         </div>
                     }
                     else
@@ -484,6 +507,19 @@
                                     <label class="perm-check"><input type="checkbox" @bind="editCapSell" disabled="@(!selectedItem.Summary.IsActive || itemSaving)" /><span>@Text["ItemCapSell"]</span></label>
                                     <label class="perm-check"><input type="checkbox" @bind="editCapConsume" disabled="@(!selectedItem.Summary.IsActive || itemSaving)" /><span>@Text["ItemCapConsume"]</span></label>
                                 </div>
+                            </div>
+                            <label class="perm-check">
+                                <input type="checkbox" @bind="editRequiresLotTracking" disabled="@(!selectedItem.Summary.IsActive || itemSaving)" />
+                                <span>@Text["ItemRequiresLotTrackingLabel"]</span>
+                            </label>
+                            <div class="read-field">
+                                <label for="edit-item-qc">@Text["ItemQcModeLabel"]</label>
+                                <select id="edit-item-qc" @bind="editQualityControlMode" disabled="@(!selectedItem.Summary.IsActive || itemSaving)">
+                                    <option value="@QualityControlMode.None">@Text["ItemQcModeNone"]</option>
+                                    <option value="@QualityControlMode.IncomingReceipts">@Text["ItemQcModeIncoming"]</option>
+                                    <option value="@QualityControlMode.ProductionReceipts">@Text["ItemQcModeProduction"]</option>
+                                    <option value="@QualityControlMode.AllReceipts">@Text["ItemQcModeAll"]</option>
+                                </select>
                             </div>
 
                             @if (itemConfirmToggle is null)
@@ -1045,13 +1081,15 @@
     private byte itemModalTab;
     private string createItemCode = string.Empty, createItemName = string.Empty, createItemDescription = string.Empty;
     private long createItemBaseUnitId;
-    private bool createCapPurchase = true, createCapManufacture, createCapSell, createCapConsume;
+    private bool createCapPurchase = true, createCapManufacture, createCapSell, createCapConsume, createRequiresLotTracking;
+    private QualityControlMode createQualityControlMode = QualityControlMode.None;
     private string? itemError;
     private bool? itemConfirmToggle;
     private ItemDetails? selectedItem;
     private string editItemName = string.Empty, editItemDescription = string.Empty;
     private long editItemBaseUnitId;
-    private bool editCapPurchase, editCapManufacture, editCapSell, editCapConsume;
+    private bool editCapPurchase, editCapManufacture, editCapSell, editCapConsume, editRequiresLotTracking;
+    private QualityControlMode editQualityControlMode = QualityControlMode.None;
     private readonly HashSet<long> editItemClassIds = [];
     private long newItemConvFromId, newItemConvToId;
     private string newItemConvFactorText = "1";
@@ -1321,7 +1359,8 @@
         createItemDescription = string.Empty;
         if (activeUnits.Count > 0 && createItemBaseUnitId == 0) createItemBaseUnitId = activeUnits[0].Id;
         createCapPurchase = true;
-        createCapManufacture = createCapSell = createCapConsume = false;
+        createCapManufacture = createCapSell = createCapConsume = createRequiresLotTracking = false;
+        createQualityControlMode = QualityControlMode.None;
         itemError = null;
         createItemDiscardConfirm = false;
         createItemOpen = true;
@@ -1336,7 +1375,8 @@
         {
             var res = await ItemService.CreateItem(CurrentScope, new CreateItemRequest(
                 CurrentOrgId, createItemCode, createItemName, createItemDescription, createItemBaseUnitId,
-                createCapPurchase, createCapManufacture, createCapSell, createCapConsume));
+                createCapPurchase, createCapManufacture, createCapSell, createCapConsume,
+                createRequiresLotTracking, createQualityControlMode));
             if (!res.Succeeded || res.Value is null)
             {
                 itemError = RolePermissionLocalization.FailureKey(res.Error!.Code);
@@ -1381,6 +1421,8 @@
         editCapManufacture = details.Summary.CanBeManufactured;
         editCapSell = details.Summary.CanBeSold;
         editCapConsume = details.Summary.CanBeConsumed;
+        editRequiresLotTracking = details.Summary.RequiresLotTracking;
+        editQualityControlMode = details.Summary.QualityControlMode;
         editItemClassIds.Clear();
         foreach (var c in details.Classifications) editItemClassIds.Add(c.ClassificationId);
 
@@ -1411,7 +1453,8 @@
         {
             var res = await ItemService.UpdateItem(CurrentScope, new UpdateItemRequest(
                 selectedItem.Summary.OrganizationId, selectedItem.Summary.Id, editItemName, editItemDescription, editItemBaseUnitId,
-                editCapPurchase, editCapManufacture, editCapSell, editCapConsume, selectedItem.Summary.RowVersion));
+                editCapPurchase, editCapManufacture, editCapSell, editCapConsume, selectedItem.Summary.RowVersion,
+                editRequiresLotTracking, editQualityControlMode));
             if (!res.Succeeded || res.Value is null) { itemError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
             ApplySelectedItem(res.Value);
             itemSaved = true;
@@ -1788,6 +1831,14 @@
         AttributeDataType.Decimal => "AttributeDataTypeDecimal",
         AttributeDataType.Boolean => "AttributeDataTypeBoolean",
         _ => "AttributeDataTypeText"
+    };
+
+    private string QcModeLabel(QualityControlMode mode) => mode switch
+    {
+        QualityControlMode.IncomingReceipts => Text["ItemQcModeIncoming"],
+        QualityControlMode.ProductionReceipts => Text["ItemQcModeProduction"],
+        QualityControlMode.AllReceipts => Text["ItemQcModeAll"],
+        _ => Text["ItemQcModeNone"]
     };
 
     private string ScopeLabel(OrganizationScope scope) => scope switch

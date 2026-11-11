@@ -423,4 +423,16 @@ dd { margin-inline-start: 0; margin-block-start: .4rem; }
 .diag-sev-warn { background:#fef3c7; color:#92400e; }
 .diag-sev-err { background:#fdecea; color:#991b1b; }
 .diag-sev-crit { background:#7f1d1d; color:#ffffff; }
+.ff-icon--quality { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3 4 7v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V7l-8-4z'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E"); }
+.ff-icon--trace { --ff-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='6' cy='6' r='3'/%3E%3Ccircle cx='18' cy='6' r='3'/%3E%3Ccircle cx='12' cy='18' r='3'/%3E%3Cpath d='M8.5 7.5 11 15.5M15.5 7.5 13 15.5M9 6h6'/%3E%3C/svg%3E"); }
+.qc-status-pending { background:#fef3c7; color:#92400e; }
+.qc-status-review { background:#e2eff5; color:#14607f; }
+.qc-status-completed { background:#dcfce7; color:#166534; }
+.qc-status-cancelled { background:#eef2f6; color:#475569; }
+.qc-lot-link { color:#0f6cbd; text-decoration:none; font-weight:600; }
+.qc-lot-link:hover { text-decoration:underline; }
+.qc-trace-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; }
+.qc-trace-card { background:#ffffff; border:1px solid #dce5ed; border-radius:12px; padding:14px 16px; display:flex; flex-direction:column; gap:8px; }
+.qc-line-row { display:grid; grid-template-columns:minmax(120px,1.2fr) minmax(90px,.9fr) minmax(90px,.9fr) auto auto; gap:8px; align-items:center; }
+@media (max-width:720px) { .qc-line-row { grid-template-columns:1fr; } }
 

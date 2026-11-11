@@ -2166,4 +2166,90 @@
   <data name="AuditEv_ReportingActionRejected" xml:space="preserve"><value>Report Export Rejected</value></data>
   <data name="UserMenuLastLoginTitle" xml:space="preserve"><value>Last sign-in</value></data>
   <data name="UserMenuFirstLoginNotice" xml:space="preserve"><value>This is your first sign-in</value></data>
+  <data name="PermPageQuality" xml:space="preserve"><value>Quality Control &amp; Traceability</value></data>
+  <data name="PermOpManageQuality" xml:space="preserve"><value>Manage Quality Holds &amp; Dispositions</value></data>
+  <data name="QualityNavGroup" xml:space="preserve"><value>Quality</value></data>
+  <data name="QualityControl" xml:space="preserve"><value>Quality Control</value></data>
+  <data name="LotTraceability" xml:space="preserve"><value>Lot Traceability</value></data>
+  <data name="QualityCaption" xml:space="preserve"><value>Quarantine holds, inspection measurements, partial dispositions, and lot expiration tracking.</value></data>
+  <data name="ItemLotTrackedBadge" xml:space="preserve"><value>Lot Tracked</value></data>
+  <data name="ItemQcRequiredBadge" xml:space="preserve"><value>QC Required</value></data>
+  <data name="ItemRequiresLotTrackingLabel" xml:space="preserve"><value>Require Lot Code on Movements</value></data>
+  <data name="ItemQcModeLabel" xml:space="preserve"><value>Quality Control Policy</value></data>
+  <data name="ItemQcModeNone" xml:space="preserve"><value>No Automatic Inspection</value></data>
+  <data name="ItemQcModeIncoming" xml:space="preserve"><value>Inspect Incoming Receipts</value></data>
+  <data name="ItemQcModeProduction" xml:space="preserve"><value>Inspect Production Receipts</value></data>
+  <data name="ItemQcModeAll" xml:space="preserve"><value>Inspect All Receipts</value></data>
+  <data name="ItemErrorQcModeInvalid" xml:space="preserve"><value>Invalid quality control policy selected.</value></data>
+  <data name="InvBlockedLabel" xml:space="preserve"><value>Blocked (QC)</value></data>
+  <data name="InvAvailableLabel" xml:space="preserve"><value>Available</value></data>
+  <data name="InvBlockedShort" xml:space="preserve"><value>Blocked: {0}</value></data>
+  <data name="InvTypeQualityScrap" xml:space="preserve"><value>Quality Scrap</value></data>
+  <data name="InvErrorLotRequired" xml:space="preserve"><value>A lot code is required for this lot-tracked item.</value></data>
+  <data name="InvErrorLotExpired" xml:space="preserve"><value>The selected lot has expired and cannot be issued or consumed.</value></data>
+  <data name="RptBlockedSubLabel" xml:space="preserve"><value>Blocked: {0} / On-Hand: {1}</value></data>
+  <data name="QcCreateHoldBtn" xml:space="preserve"><value>Create QC Hold</value></data>
+  <data name="QcLotUpsertBtn" xml:space="preserve"><value>Set Lot Dates</value></data>
+  <data name="QcTabInspections" xml:space="preserve"><value>Inspections &amp; Holds</value></data>
+  <data name="QcTabLots" xml:space="preserve"><value>Lot Dates &amp; Expiry</value></data>
+  <data name="QcOnlyExpiringLabel" xml:space="preserve"><value>Only Expired or Expiring Soon</value></data>
+  <data name="QcNumberColumn" xml:space="preserve"><value>Inspection #</value></data>
+  <data name="QcSourceColumn" xml:space="preserve"><value>Source</value></data>
+  <data name="QcQuantitiesColumn" xml:space="preserve"><value>Quantities</value></data>
+  <data name="QcQtyBreakdown" xml:space="preserve"><value>Accepted: {0} · Rejected: {1} · Blocked: {2}</value></data>
+  <data name="QcLotMfgDateLabel" xml:space="preserve"><value>Manufacture Date</value></data>
+  <data name="QcLotExpDateLabel" xml:space="preserve"><value>Expiration Date</value></data>
+  <data name="QcLotExpiredBadge" xml:space="preserve"><value>Expired</value></data>
+  <data name="QcLotExpiringBadge" xml:space="preserve"><value>Expiring Soon</value></data>
+  <data name="QcCreateHoldTitle" xml:space="preserve"><value>Place Stock on QC Hold</value></data>
+  <data name="QcDefectCodeLabel" xml:space="preserve"><value>Defect / Reason Code</value></data>
+  <data name="QcDetailsTitle" xml:space="preserve"><value>Quality Inspection Details</value></data>
+  <data name="QcMeasurementsSection" xml:space="preserve"><value>Inspection Measurements</value></data>
+  <data name="QcAddLineBtn" xml:space="preserve"><value>Add Check</value></data>
+  <data name="QcParamNamePlaceholder" xml:space="preserve"><value>Parameter</value></data>
+  <data name="QcExpectedSpecPlaceholder" xml:space="preserve"><value>Specification</value></data>
+  <data name="QcMeasuredValPlaceholder" xml:space="preserve"><value>Measured</value></data>
+  <data name="QcPassedCheck" xml:space="preserve"><value>Pass</value></data>
+  <data name="QcFailedLabel" xml:space="preserve"><value>Fail</value></data>
+  <data name="QcSaveMeasurementsBtn" xml:space="preserve"><value>Save Measurements</value></data>
+  <data name="QcDispositionSection" xml:space="preserve"><value>Record Disposition</value></data>
+  <data name="QcAcceptQtyLabel" xml:space="preserve"><value>Accept / Release Quantity</value></data>
+  <data name="QcRejectScrapQtyLabel" xml:space="preserve"><value>Reject / Scrap Quantity</value></data>
+  <data name="QcScrapDocLabel" xml:space="preserve"><value>Scrap Document #</value></data>
+  <data name="QcRecordDispositionBtn" xml:space="preserve"><value>Apply Disposition</value></data>
+  <data name="QcCancelHoldBtn" xml:space="preserve"><value>Cancel Hold</value></data>
+  <data name="QcHoldCreatedNotice" xml:space="preserve"><value>Quality hold created and stock blocked.</value></data>
+  <data name="QcDispositionSavedNotice" xml:space="preserve"><value>Quality disposition recorded successfully.</value></data>
+  <data name="QcHoldCancelledNotice" xml:space="preserve"><value>Quality hold cancelled and stock released.</value></data>
+  <data name="QcLotUpsertTitle" xml:space="preserve"><value>Lot Dates &amp; Metadata</value></data>
+  <data name="QcStatusPending" xml:space="preserve"><value>Pending</value></data>
+  <data name="QcStatusInReview" xml:space="preserve"><value>In Review</value></data>
+  <data name="QcStatusCompleted" xml:space="preserve"><value>Completed</value></data>
+  <data name="QcStatusCancelled" xml:space="preserve"><value>Cancelled</value></data>
+  <data name="QcSourceReceipt" xml:space="preserve"><value>Warehouse Receipt</value></data>
+  <data name="QcSourceProdReceipt" xml:space="preserve"><value>Production Receipt</value></data>
+  <data name="QcSourceManualHold" xml:space="preserve"><value>Manual Hold</value></data>
+  <data name="QcErrorTerminal" xml:space="preserve"><value>This inspection is already completed or cancelled.</value></data>
+  <data name="QcErrorHasDispositions" xml:space="preserve"><value>Cannot cancel an inspection that already has accepted or rejected quantities.</value></data>
+  <data name="QcErrorDispositionExceeds" xml:space="preserve"><value>Accepted and rejected quantities exceed the remaining blocked quantity.</value></data>
+  <data name="QcErrorDefectReasonInvalid" xml:space="preserve"><value>Defect reason code must be alphanumeric (with _ or -) up to 64 characters.</value></data>
+  <data name="QcErrorParameterInvalid" xml:space="preserve"><value>Inspection parameter name or value is invalid.</value></data>
+  <data name="QcErrorLotDatesInvalid" xml:space="preserve"><value>Expiration date cannot be earlier than manufacture date.</value></data>
+  <data name="LotTraceCaption" xml:space="preserve"><value>Multi-level forward and backward lot genealogy across production orders and stock movements.</value></data>
+  <data name="LotTraceDirectionLabel" xml:space="preserve"><value>Direction</value></data>
+  <data name="LotTraceDirBoth" xml:space="preserve"><value>Backward &amp; Forward</value></data>
+  <data name="LotTraceDirBackward" xml:space="preserve"><value>Backward (Sources)</value></data>
+  <data name="LotTraceDirForward" xml:space="preserve"><value>Forward (Usage)</value></data>
+  <data name="LotTraceRunBtn" xml:space="preserve"><value>Trace Lot</value></data>
+  <data name="LotTraceBackwardTitle" xml:space="preserve"><value>Upstream Source Lots (Backward Genealogy)</value></data>
+  <data name="LotTraceForwardTitle" xml:space="preserve"><value>Downstream Produced Lots (Forward Genealogy)</value></data>
+  <data name="LotTraceSourceLotCol" xml:space="preserve"><value>Input Lot</value></data>
+  <data name="LotTraceTargetLotCol" xml:space="preserve"><value>Output Lot</value></data>
+  <data name="LotTraceMovementsTitle" xml:space="preserve"><value>Lot Ledger Timeline</value></data>
+  <data name="AuditEv_QualityInspectionCreated" xml:space="preserve"><value>Quality Inspection Created</value></data>
+  <data name="AuditEv_QualityInspectionUpdated" xml:space="preserve"><value>Quality Inspection Updated</value></data>
+  <data name="AuditEv_QualityInspectionDisposed" xml:space="preserve"><value>Quality Disposition Recorded</value></data>
+  <data name="AuditEv_QualityInspectionCancelled" xml:space="preserve"><value>Quality Inspection Cancelled</value></data>
+  <data name="AuditEv_ItemLotUpdated" xml:space="preserve"><value>Lot Metadata Updated</value></data>
+  <data name="AuditEv_QualityActionRejected" xml:space="preserve"><value>Quality Action Rejected</value></data>
 </root>

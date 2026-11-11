@@ -84,7 +84,8 @@ public sealed class SqlReportingQueryStore(
             .Select(g => new ReportStockBalanceRow(
                 g.Key.SiteId,
                 g.Key.ItemId,
-                g.Sum(x => x.OnHandBaseQuantity)))
+                g.Sum(x => x.OnHandBaseQuantity),
+                g.Sum(x => x.BlockedBaseQuantity)))
             .ToListAsync(ct);
 
         var itemIds = inputs.Select(i => i.ItemId)

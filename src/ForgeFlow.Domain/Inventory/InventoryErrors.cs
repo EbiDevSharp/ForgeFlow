@@ -20,6 +20,8 @@ public static class InventoryErrors
     public const string UnitInvalid = "Inventory.UnitInvalid";
     public const string QuantityInvalid = "Inventory.QuantityInvalid";
     public const string LotCodeInvalid = "Inventory.LotCodeInvalid";
+    public const string LotRequired = "Inventory.LotRequired";
+    public const string LotExpired = "Inventory.LotExpired";
     public const string DestinationWarehouseInvalid = "Inventory.DestinationWarehouseInvalid";
     public const string TransferSameWarehouse = "Inventory.TransferSameWarehouse";
     public const string ProductionOrderInvalid = "Inventory.ProductionOrderInvalid";

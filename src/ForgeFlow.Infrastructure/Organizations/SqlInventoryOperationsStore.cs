@@ -3,6 +3,7 @@ using ForgeFlow.Application.Inventory;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.ProductionOrders;
+using ForgeFlow.Domain.Quality;
 using ForgeFlow.Domain.Units;
 using ForgeFlow.Infrastructure.Diagnostics;
 using Microsoft.Data.SqlClient;
@@ -148,13 +149,28 @@ public sealed class SqlInventoryOperationsStore(
         InventoryBalanceListQuery query,
         CancellationToken ct) => Read(async db =>
     {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var soonCutoff = today.AddDays(30);
+
         var baseQuery = from bal in db.InventoryBalances.AsNoTracking()
                         join s in db.Sites.AsNoTracking() on new { bal.OrganizationId, SiteId = bal.SiteId } equals new { s.OrganizationId, SiteId = s.Id }
                         join w in db.Warehouses.AsNoTracking() on new { bal.OrganizationId, WarehouseId = bal.WarehouseId } equals new { w.OrganizationId, WarehouseId = w.Id }
                         join it in db.Items.AsNoTracking() on new { bal.OrganizationId, ItemId = bal.ItemId } equals new { it.OrganizationId, ItemId = it.Id }
                         join u in db.Units.AsNoTracking() on new { bal.OrganizationId, UnitId = bal.BaseUnitId } equals new { u.OrganizationId, UnitId = u.Id }
+                        join lot in db.ItemLots.AsNoTracking() on new { bal.OrganizationId, bal.ItemId, bal.LotCode } equals new { lot.OrganizationId, lot.ItemId, lot.LotCode } into lotJoin
+                        from lot in lotJoin.DefaultIfEmpty()
                         where bal.OrganizationId == organizationId
-                        select new { bal, s, w, it, u, RowVersion = EF.Property<byte[]>(bal, "RowVersion") };
+                        select new
+                        {
+                            bal,
+                            s,
+                            w,
+                            it,
+                            u,
+                            ManufactureDate = lot != null ? lot.ManufactureDate : null,
+                            ExpirationDate = lot != null ? lot.ExpirationDate : null,
+                            RowVersion = EF.Property<byte[]>(bal, "RowVersion")
+                        };
 
         if (query.SiteId is long siteId && siteId > 0)
             baseQuery = baseQuery.Where(x => x.bal.SiteId == siteId);
@@ -186,7 +202,13 @@ public sealed class SqlInventoryOperationsStore(
             r.bal.ItemId, r.it.Code, r.it.Name, r.bal.LotCode,
             r.bal.BaseUnitId, r.u.Code, r.u.Symbol,
             r.bal.OnHandBaseQuantity, r.bal.LastMovedAtUtc,
-            Convert.ToBase64String(r.RowVersion))).ToArray();
+            Convert.ToBase64String(r.RowVersion),
+            r.bal.BlockedBaseQuantity,
+            decimal.Round(r.bal.OnHandBaseQuantity - r.bal.BlockedBaseQuantity, 6, MidpointRounding.AwayFromZero),
+            r.ManufactureDate,
+            r.ExpirationDate,
+            r.ExpirationDate.HasValue && r.ExpirationDate.Value < today,
+            r.ExpirationDate.HasValue && r.ExpirationDate.Value >= today && r.ExpirationDate.Value <= soonCutoff)).ToArray();
 
         return new OrganizationPage<InventoryBalanceSummary>(items, total, query.Page, query.PageSize);
     }, ct);
@@ -203,6 +225,8 @@ public sealed class SqlInventoryOperationsStore(
                         from dw in destJoin.DefaultIfEmpty()
                         join po in db.ProductionOrders.AsNoTracking() on new { t.OrganizationId, PoId = t.ProductionOrderId } equals new { po.OrganizationId, PoId = (long?)po.Id } into poJoin
                         from po in poJoin.DefaultIfEmpty()
+                        join qi in db.QualityInspections.AsNoTracking() on new { t.OrganizationId, QiId = t.QualityInspectionId } equals new { qi.OrganizationId, QiId = (long?)qi.Id } into qiJoin
+                        from qi in qiJoin.DefaultIfEmpty()
                         where t.OrganizationId == organizationId
                         select new
                         {
@@ -211,6 +235,7 @@ public sealed class SqlInventoryOperationsStore(
                             w,
                             DestCode = dw != null ? dw.Code : null,
                             PoNumber = po != null ? po.OrderNumber : null,
+                            QiNumber = qi != null ? qi.InspectionNumber : null,
                             IsReversed = db.InventoryTransactions.Any(r => r.OrganizationId == organizationId && r.ReversedTransactionId == t.Id),
                             LineCount = db.InventoryLedgerEntries.Count(l => l.OrganizationId == organizationId && l.InventoryTransactionId == t.Id)
                         };
@@ -243,7 +268,8 @@ public sealed class SqlInventoryOperationsStore(
             r.t.DocumentNumber, r.t.TransactionType,
             r.t.ProductionOrderId, r.PoNumber,
             r.t.ReversedTransactionId, r.IsReversed,
-            r.t.ReferenceNote, r.t.PostedAtUtc, r.LineCount)).ToArray();
+            r.t.ReferenceNote, r.t.PostedAtUtc, r.LineCount,
+            r.t.QualityInspectionId, r.QiNumber)).ToArray();
 
         return new OrganizationPage<InventoryTransactionSummary>(items, total, query.Page, query.PageSize);
     }, ct);
@@ -266,7 +292,7 @@ public sealed class SqlInventoryOperationsStore(
     {
         var items = await db.Items.AsNoTracking()
             .Where(i => i.OrganizationId == organizationId && itemIds.Contains(i.Id))
-            .Select(i => new { i.Id, i.IsActive, i.BaseUnitId })
+            .Select(i => new { i.Id, i.IsActive, i.BaseUnitId, i.RequiresLotTracking, i.QualityControlMode })
             .ToListAsync(ct);
 
         var globalEdges = await db.UnitConversions.AsNoTracking()
@@ -289,7 +315,9 @@ public sealed class SqlInventoryOperationsStore(
                 i.BaseUnitId,
                 edgesByItem.TryGetValue(i.Id, out var specific)
                     ? specific.Concat(globalEdges).ToArray()
-                    : globalEdges));
+                    : globalEdges,
+                i.RequiresLotTracking,
+                i.QualityControlMode));
     }, ct);
 
     public Task<IReadOnlyHashSetLike> LoadActiveUnitIds(
@@ -336,6 +364,31 @@ public sealed class SqlInventoryOperationsStore(
                     (await BuildTransactionDetailsAsync(db, request.OrganizationId, existingId.Value, ct))!);
         }
 
+        var today = DateOnly.FromDateTime(utcNow);
+        var outboundLotKeys = resolvedLines
+            .Where(l => l.BaseQuantityDelta < 0m && !string.IsNullOrEmpty(l.LotCode))
+            .Select(l => (l.ItemId, l.LotCode))
+            .Distinct()
+            .ToArray();
+        if (outboundLotKeys.Length > 0)
+        {
+            var outItemIds = outboundLotKeys.Select(k => k.ItemId).Distinct().ToArray();
+            var candidateLots = await db.ItemLots.AsNoTracking()
+                .Where(l => l.OrganizationId == request.OrganizationId && outItemIds.Contains(l.ItemId) && l.ExpirationDate != null)
+                .Select(l => new { l.ItemId, l.LotCode, l.ExpirationDate })
+                .ToListAsync(ct);
+            foreach (var key in outboundLotKeys)
+            {
+                var lotMeta = candidateLots.FirstOrDefault(l => l.ItemId == key.ItemId && l.LotCode == key.LotCode);
+                if (lotMeta is not null && lotMeta.ExpirationDate.HasValue && lotMeta.ExpirationDate.Value < today)
+                {
+                    return OrganizationResult<InventoryTransactionDetails>.Failure(
+                        InventoryErrors.LotExpired,
+                        new Dictionary<string, object> { ["lotCode"] = key.LotCode });
+                }
+            }
+        }
+
         var txn = InventoryTransaction.Create(
             request.OrganizationId,
             siteId,
@@ -352,7 +405,9 @@ public sealed class SqlInventoryOperationsStore(
         db.InventoryTransactions.Add(txn);
         await db.SaveInOperation(access.Actor, ct);
 
+        await UpsertInboundLotMetadataAsync(db, request.OrganizationId, resolvedLines, ct);
         await ApplyLedgerLinesAndBalancesAsync(db, request.OrganizationId, txn.Id, resolvedLines, utcNow, ct);
+        await CreateAutoQualityInspectionsAsync(db, request.OrganizationId, request.TransactionType, txn.Id, request.ProductionOrderId, resolvedLines, utcNow, ct);
         await db.SaveInOperation(access.Actor, ct);
 
         return OrganizationResult<InventoryTransactionDetails>.Success(
@@ -386,10 +441,17 @@ public sealed class SqlInventoryOperationsStore(
         var orig = await db.InventoryTransactions.AsNoTracking()
             .SingleOrDefaultAsync(t => t.OrganizationId == organizationId && t.Id == transactionId, ct);
         if (orig is null) return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.TransactionNotFound);
-        if (orig.TransactionType == InventoryTransactionType.Reversal)
+        if (orig.TransactionType is InventoryTransactionType.Reversal or InventoryTransactionType.QualityScrap)
             return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.CannotReverseReversal);
         if (await db.InventoryTransactions.AsNoTracking().AnyAsync(r => r.OrganizationId == organizationId && r.ReversedTransactionId == transactionId, ct))
             return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.AlreadyReversed);
+
+        var linkedInspections = await db.QualityInspections
+            .Where(q => q.OrganizationId == organizationId && q.SourceTransactionId == transactionId && q.Status != QualityInspectionStatus.Cancelled)
+            .OrderBy(q => q.Id)
+            .ToListAsync(ct);
+        if (linkedInspections.Any(q => q.AcceptedBaseQuantity > 0m || q.RejectedBaseQuantity > 0m))
+            return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.InsufficientStock);
 
         var origLines = await db.InventoryLedgerEntries.AsNoTracking()
             .Where(l => l.OrganizationId == organizationId && l.InventoryTransactionId == transactionId)
@@ -411,6 +473,21 @@ public sealed class SqlInventoryOperationsStore(
 
         db.InventoryTransactions.Add(reversalTxn);
         await db.SaveInOperation(access.Actor, ct);
+
+        foreach (var qi in linkedInspections)
+        {
+            if (qi.RemainingBlockedBaseQuantity > 0m)
+            {
+                var bal = await db.InventoryBalances
+                    .FromSqlInterpolated(
+                        $"SELECT * FROM [organization].[InventoryBalance] WITH (UPDLOCK, HOLDLOCK) WHERE [OrganizationId] = {organizationId} AND [WarehouseId] = {qi.WarehouseId} AND [ItemId] = {qi.ItemId} AND [LotCode] = {qi.LotCode}")
+                    .SingleOrDefaultAsync(ct);
+                if (bal is null || bal.BlockedBaseQuantity < qi.RemainingBlockedBaseQuantity)
+                    return OrganizationResult<InventoryTransactionDetails>.Failure(InventoryErrors.InsufficientStock);
+                bal.ReleaseBlockedQuantity(qi.RemainingBlockedBaseQuantity, utcNow);
+            }
+            qi.Cancel(referenceNote, access.Actor.ActorId, utcNow);
+        }
 
         var negated = origLines.Select(l => new ResolvedInventoryLineWrite(
             l.SiteId,
@@ -489,6 +566,84 @@ public sealed class SqlInventoryOperationsStore(
         }
     }
 
+    private static async Task UpsertInboundLotMetadataAsync(
+        OrganizationDbContext db,
+        long organizationId,
+        IReadOnlyList<ResolvedInventoryLineWrite> lines,
+        CancellationToken ct)
+    {
+        var candidates = lines
+            .Where(l => l.BaseQuantityDelta > 0m && !string.IsNullOrEmpty(l.LotCode) && (l.ManufactureDate.HasValue || l.ExpirationDate.HasValue))
+            .GroupBy(l => (l.ItemId, l.LotCode))
+            .Select(g => g.First())
+            .ToArray();
+
+        foreach (var line in candidates)
+        {
+            var existing = await db.ItemLots
+                .SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.ItemId == line.ItemId && x.LotCode == line.LotCode, ct);
+            if (existing is null)
+            {
+                db.ItemLots.Add(ItemLot.Create(organizationId, line.ItemId, line.LotCode, line.ManufactureDate, line.ExpirationDate));
+            }
+            else
+            {
+                existing.UpdateMetadata(
+                    line.ManufactureDate ?? existing.ManufactureDate,
+                    line.ExpirationDate ?? existing.ExpirationDate,
+                    existing.Notes);
+            }
+        }
+    }
+
+    private static async Task CreateAutoQualityInspectionsAsync(
+        OrganizationDbContext db,
+        long organizationId,
+        InventoryTransactionType transactionType,
+        long transactionId,
+        long? productionOrderId,
+        IReadOnlyList<ResolvedInventoryLineWrite> lines,
+        DateTime utcNow,
+        CancellationToken ct)
+    {
+        var sourceType = transactionType == InventoryTransactionType.ProductionReceipt
+            ? QualityInspectionSourceType.ProductionReceipt
+            : QualityInspectionSourceType.Receipt;
+
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var l = lines[i];
+            if (!l.TriggersQualityControl || l.BaseQuantityDelta <= 0m)
+                continue;
+
+            var bal = db.InventoryBalances.Local
+                .FirstOrDefault(b => b.OrganizationId == organizationId && b.WarehouseId == l.WarehouseId && b.ItemId == l.ItemId && b.LotCode == l.LotCode);
+            if (bal is null)
+            {
+                bal = await db.InventoryBalances
+                    .FromSqlInterpolated(
+                        $"SELECT * FROM [organization].[InventoryBalance] WITH (UPDLOCK, HOLDLOCK) WHERE [OrganizationId] = {organizationId} AND [WarehouseId] = {l.WarehouseId} AND [ItemId] = {l.ItemId} AND [LotCode] = {l.LotCode}")
+                    .SingleAsync(ct);
+            }
+            bal.BlockQuantity(l.BaseQuantityDelta, utcNow);
+
+            var inspNum = $"QC-{transactionId}-{i + 1}";
+            db.QualityInspections.Add(QualityInspection.Create(
+                organizationId,
+                l.SiteId,
+                l.WarehouseId,
+                l.ItemId,
+                l.LotCode,
+                inspNum,
+                sourceType,
+                transactionId,
+                productionOrderId,
+                l.BaseUnitId,
+                l.BaseQuantityDelta,
+                l.Notes));
+        }
+    }
+
     private static async Task ClearExistingSiteDefaultsAsync(
         OrganizationDbContext db,
         long organizationId,
@@ -527,6 +682,8 @@ public sealed class SqlInventoryOperationsStore(
                          from dw in destJoin.DefaultIfEmpty()
                          join po in db.ProductionOrders.AsNoTracking() on new { t.OrganizationId, PoId = t.ProductionOrderId } equals new { po.OrganizationId, PoId = (long?)po.Id } into poJoin
                          from po in poJoin.DefaultIfEmpty()
+                         join qi in db.QualityInspections.AsNoTracking() on new { t.OrganizationId, QiId = t.QualityInspectionId } equals new { qi.OrganizationId, QiId = (long?)qi.Id } into qiJoin
+                         from qi in qiJoin.DefaultIfEmpty()
                          where t.OrganizationId == organizationId && t.Id == id
                          select new
                          {
@@ -535,6 +692,7 @@ public sealed class SqlInventoryOperationsStore(
                              w,
                              DestCode = dw != null ? dw.Code : null,
                              PoNumber = po != null ? po.OrderNumber : null,
+                             QiNumber = qi != null ? qi.InspectionNumber : null,
                              IsReversed = db.InventoryTransactions.Any(r => r.OrganizationId == organizationId && r.ReversedTransactionId == t.Id)
                          }).SingleOrDefaultAsync(ct);
         if (row is null) return null;
@@ -561,7 +719,8 @@ public sealed class SqlInventoryOperationsStore(
             row.t.DocumentNumber, row.t.TransactionType,
             row.t.ProductionOrderId, row.PoNumber,
             row.t.ReversedTransactionId, row.IsReversed,
-            row.t.ReferenceNote, row.t.PostedAtUtc, entries.Count);
+            row.t.ReferenceNote, row.t.PostedAtUtc, entries.Count,
+            row.t.QualityInspectionId, row.QiNumber);
 
         return new InventoryTransactionDetails(summary, entries);
     }
@@ -671,7 +830,7 @@ public sealed class SqlInventoryOperationsStore(
         => ex.InnerException is SqlException sql && sql.Number is 2601 or 2627;
 
     private static bool IsCheckViolation(DbUpdateException ex)
-        => ex.InnerException is SqlException sql && sql.Number == 547 && sql.Message.Contains("CK_InventoryBalance_NonNegative", StringComparison.Ordinal);
+        => ex.InnerException is SqlException sql && sql.Number == 547 && (sql.Message.Contains("CK_InventoryBalance_NonNegative", StringComparison.Ordinal) || sql.Message.Contains("CK_InventoryBalance_Blocked", StringComparison.Ordinal));
 
     private static string ClassifyUniqueConflict(DbUpdateException ex)
     {

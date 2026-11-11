@@ -3,6 +3,7 @@ using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.ProductionOrders;
+using ForgeFlow.Domain.Quality;
 using ForgeFlow.Domain.Units;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -33,8 +34,9 @@ internal static class OrganizationModel
         + "'ItemAttributeValue.Updated',"
         + "'ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated',"
         + "'Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated',"
-        + "'BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved')) "
-        + "OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed')))";
+        + "'BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved',"
+        + "'ItemLot.Updated')) "
+        + "OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled')))";
 
     internal static void Configure(ModelBuilder model)
     {
@@ -181,6 +183,7 @@ internal static class OrganizationModel
             table.HasCheckConstraint("CK_Item_Code", CodeCheck);
             table.HasCheckConstraint("CK_Item_Name", NameCheck);
             table.HasCheckConstraint("CK_Item_Capability", "[CanBePurchased] = 1 OR [CanBeManufactured] = 1 OR [CanBeSold] = 1 OR [CanBeConsumed] = 1");
+            table.HasCheckConstraint("CK_Item_QualityControlMode", "[QualityControlMode] BETWEEN 0 AND 3");
             table.HasCheckConstraint("CK_Item_Metadata", MetadataCheck);
         });
         item.HasKey(i => i.Id).HasName("PK_Item");
@@ -194,6 +197,8 @@ internal static class OrganizationModel
         item.Property(i => i.CanBeManufactured).IsRequired();
         item.Property(i => i.CanBeSold).IsRequired();
         item.Property(i => i.CanBeConsumed).IsRequired();
+        item.Property(i => i.RequiresLotTracking).HasDefaultValue(false).IsRequired();
+        item.Property(i => i.QualityControlMode).HasConversion<byte>().HasDefaultValue(QualityControlMode.None).IsRequired();
         item.Property(i => i.IsActive).IsRequired();
         AddAuditMetadata(item);
         item.HasAlternateKey(i => new { i.OrganizationId, i.Id }).HasName("AK_Item_Organization_Id");
@@ -651,7 +656,7 @@ internal static class OrganizationModel
         txn.ToTable("InventoryTransaction", Schema, table =>
         {
             table.HasCheckConstraint("CK_InventoryTransaction_DocNum", docNumberCheck);
-            table.HasCheckConstraint("CK_InventoryTransaction_Type", "[TransactionType] BETWEEN 1 AND 8");
+            table.HasCheckConstraint("CK_InventoryTransaction_Type", "[TransactionType] BETWEEN 1 AND 9");
             table.HasCheckConstraint("CK_InventoryTransaction_Metadata", MetadataCheck);
         });
         txn.HasKey(x => x.Id).HasName("PK_InventoryTransaction");
@@ -661,6 +666,7 @@ internal static class OrganizationModel
         txn.Property(x => x.WarehouseId).IsRequired();
         txn.Property(x => x.DocumentNumber).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation).IsRequired();
         txn.Property(x => x.TransactionType).HasConversion<byte>().IsRequired();
+        txn.Property(x => x.QualityInspectionId);
         txn.Property(x => x.ReferenceNote).HasMaxLength(500);
         txn.Property(x => x.IdempotencyKey).HasMaxLength(64).IsUnicode(false).UseCollation(CodeCollation);
         txn.Property(x => x.PostedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc).IsRequired();
@@ -687,6 +693,9 @@ internal static class OrganizationModel
         txn.HasOne<InventoryTransaction>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.ReversedTransactionId })
             .HasPrincipalKey(t => new { t.OrganizationId, t.Id }).OnDelete(DeleteBehavior.NoAction)
             .HasConstraintName("FK_InventoryTransaction_Reversal");
+        txn.HasOne<QualityInspection>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.QualityInspectionId })
+            .HasPrincipalKey(q => new { q.OrganizationId, q.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_InventoryTransaction_QualityInspection");
 
         var ledger = model.Entity<InventoryLedgerEntry>();
         ledger.ToTable("InventoryLedgerEntry", Schema, table =>
@@ -736,6 +745,7 @@ internal static class OrganizationModel
         bal.ToTable("InventoryBalance", Schema, table =>
         {
             table.HasCheckConstraint("CK_InventoryBalance_NonNegative", "[OnHandBaseQuantity] >= 0");
+            table.HasCheckConstraint("CK_InventoryBalance_Blocked", "[BlockedBaseQuantity] >= 0 AND [BlockedBaseQuantity] <= [OnHandBaseQuantity]");
             table.HasCheckConstraint("CK_InventoryBalance_LotCode", lotCodeCheck);
             table.HasCheckConstraint("CK_InventoryBalance_Metadata", MetadataCheck);
         });
@@ -748,6 +758,8 @@ internal static class OrganizationModel
         bal.Property(x => x.LotCode).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation).HasDefaultValue(string.Empty).IsRequired();
         bal.Property(x => x.BaseUnitId).IsRequired();
         bal.Property(x => x.OnHandBaseQuantity).HasPrecision(18, 6).IsRequired();
+        bal.Property(x => x.BlockedBaseQuantity).HasPrecision(18, 6).HasDefaultValue(0m).IsRequired();
+        bal.Ignore(x => x.AvailableBaseQuantity);
         bal.Property(x => x.LastMovedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc).IsRequired();
         AddAuditMetadata(bal);
         bal.HasIndex(x => new { x.OrganizationId, x.WarehouseId, x.ItemId, x.LotCode }).IsUnique().HasDatabaseName("UX_InventoryBalance_Org_Wh_Item_Lot");
@@ -763,6 +775,115 @@ internal static class OrganizationModel
         bal.HasOne<Unit>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.BaseUnitId })
             .HasPrincipalKey(u => new { u.OrganizationId, u.Id }).OnDelete(DeleteBehavior.NoAction)
             .HasConstraintName("FK_InventoryBalance_BaseUnit");
+
+        const string requiredLotCodeCheck = "DATALENGTH([LotCode]) BETWEEN 1 AND 32 AND DATALENGTH([LotCode]) = LEN([LotCode]) AND [LotCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([LotCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'";
+        const string inspectionNumCheck = "DATALENGTH([InspectionNumber]) BETWEEN 1 AND 32 AND DATALENGTH([InspectionNumber]) = LEN([InspectionNumber]) AND [InspectionNumber] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([InspectionNumber], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'";
+
+        var itemLot = model.Entity<ItemLot>();
+        itemLot.ToTable("ItemLot", Schema, table =>
+        {
+            table.HasCheckConstraint("CK_ItemLot_LotCode", requiredLotCodeCheck);
+            table.HasCheckConstraint("CK_ItemLot_Dates", "[ManufactureDate] IS NULL OR [ExpirationDate] IS NULL OR [ExpirationDate] >= [ManufactureDate]");
+            table.HasCheckConstraint("CK_ItemLot_Metadata", MetadataCheck);
+        });
+        itemLot.HasKey(x => x.Id).HasName("PK_ItemLot");
+        itemLot.Property(x => x.Id).UseIdentityColumn();
+        itemLot.Property(x => x.OrganizationId).IsRequired();
+        itemLot.Property(x => x.ItemId).IsRequired();
+        itemLot.Property(x => x.LotCode).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation).IsRequired();
+        itemLot.Property(x => x.ManufactureDate).HasColumnType("date");
+        itemLot.Property(x => x.ExpirationDate).HasColumnType("date");
+        itemLot.Property(x => x.Notes).HasMaxLength(500);
+        AddAuditMetadata(itemLot);
+        itemLot.HasIndex(x => new { x.OrganizationId, x.ItemId, x.LotCode }).IsUnique().HasDatabaseName("UX_ItemLot_Org_Item_Lot");
+        itemLot.HasIndex(x => new { x.OrganizationId, x.ExpirationDate }).HasDatabaseName("IX_ItemLot_Org_Expiration");
+        itemLot.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId)
+            .OnDelete(DeleteBehavior.NoAction).HasConstraintName("FK_ItemLot_Organization");
+        itemLot.HasOne<Item>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.ItemId })
+            .HasPrincipalKey(i => new { i.OrganizationId, i.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_ItemLot_Item");
+
+        var qi = model.Entity<QualityInspection>();
+        qi.ToTable("QualityInspection", Schema, table =>
+        {
+            table.HasCheckConstraint("CK_QualityInspection_Number", inspectionNumCheck);
+            table.HasCheckConstraint("CK_QualityInspection_LotCode", lotCodeCheck);
+            table.HasCheckConstraint("CK_QualityInspection_SourceType", "[SourceType] BETWEEN 1 AND 3");
+            table.HasCheckConstraint("CK_QualityInspection_Status", "[Status] BETWEEN 1 AND 4");
+            table.HasCheckConstraint("CK_QualityInspection_Quantities", "[InspectedBaseQuantity] > 0 AND [AcceptedBaseQuantity] >= 0 AND [RejectedBaseQuantity] >= 0 AND [RemainingBlockedBaseQuantity] >= 0 AND ([AcceptedBaseQuantity] + [RejectedBaseQuantity] + [RemainingBlockedBaseQuantity]) <= [InspectedBaseQuantity]");
+            table.HasCheckConstraint("CK_QualityInspection_Metadata", MetadataCheck);
+        });
+        qi.HasKey(x => x.Id).HasName("PK_QualityInspection");
+        qi.Property(x => x.Id).UseIdentityColumn();
+        qi.Property(x => x.OrganizationId).IsRequired();
+        qi.Property(x => x.SiteId).IsRequired();
+        qi.Property(x => x.WarehouseId).IsRequired();
+        qi.Property(x => x.ItemId).IsRequired();
+        qi.Property(x => x.LotCode).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation).HasDefaultValue(string.Empty).IsRequired();
+        qi.Property(x => x.InspectionNumber).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation).IsRequired();
+        qi.Property(x => x.SourceType).HasConversion<byte>().IsRequired();
+        qi.Property(x => x.SourceTransactionId);
+        qi.Property(x => x.ProductionOrderId);
+        qi.Property(x => x.BaseUnitId).IsRequired();
+        qi.Property(x => x.InspectedBaseQuantity).HasPrecision(18, 6).IsRequired();
+        qi.Property(x => x.AcceptedBaseQuantity).HasPrecision(18, 6).IsRequired();
+        qi.Property(x => x.RejectedBaseQuantity).HasPrecision(18, 6).IsRequired();
+        qi.Property(x => x.RemainingBlockedBaseQuantity).HasPrecision(18, 6).IsRequired();
+        qi.Property(x => x.Status).HasConversion<byte>().IsRequired();
+        qi.Property(x => x.DefectReasonCode).HasMaxLength(64).IsUnicode(false).UseCollation(CodeCollation);
+        qi.Property(x => x.Notes).HasMaxLength(1000);
+        qi.Property(x => x.InspectedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
+        qi.Property(x => x.InspectedByActorId);
+        AddAuditMetadata(qi);
+        qi.HasAlternateKey(x => new { x.OrganizationId, x.Id }).HasName("AK_QualityInspection_Org_Id");
+        qi.HasIndex(x => new { x.OrganizationId, x.InspectionNumber }).IsUnique().HasDatabaseName("UX_QualityInspection_Org_Number");
+        qi.HasIndex(x => new { x.OrganizationId, x.SiteId, x.Status, x.Id }).HasDatabaseName("IX_QualityInspection_Org_Site_Status");
+        qi.HasIndex(x => new { x.OrganizationId, x.ItemId, x.LotCode }).HasDatabaseName("IX_QualityInspection_Org_Item_Lot");
+        qi.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId)
+            .OnDelete(DeleteBehavior.NoAction).HasConstraintName("FK_QualityInspection_Organization");
+        qi.HasOne<Site>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.SiteId })
+            .HasPrincipalKey(s => new { s.OrganizationId, s.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_QualityInspection_Site");
+        qi.HasOne<Warehouse>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.WarehouseId })
+            .HasPrincipalKey(w => new { w.OrganizationId, w.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_QualityInspection_Warehouse");
+        qi.HasOne<Item>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.ItemId })
+            .HasPrincipalKey(i => new { i.OrganizationId, i.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_QualityInspection_Item");
+        qi.HasOne<Unit>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.BaseUnitId })
+            .HasPrincipalKey(u => new { u.OrganizationId, u.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_QualityInspection_BaseUnit");
+        qi.HasOne<InventoryTransaction>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.SourceTransactionId })
+            .HasPrincipalKey(t => new { t.OrganizationId, t.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_QualityInspection_SourceTxn");
+        qi.HasOne<ProductionOrder>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.ProductionOrderId })
+            .HasPrincipalKey(p => new { p.OrganizationId, p.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_QualityInspection_Order");
+        qi.Navigation(x => x.Lines).HasField("_lines").UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        var qiLine = model.Entity<QualityInspectionLine>();
+        qiLine.ToTable("QualityInspectionLine", Schema, table =>
+        {
+            table.HasCheckConstraint("CK_QualityInspectionLine_LineNum", "[LineNumber] > 0");
+            table.HasCheckConstraint("CK_QualityInspectionLine_Param", "DATALENGTH(LTRIM(RTRIM([ParameterName]))) > 0");
+            table.HasCheckConstraint("CK_QualityInspectionLine_Metadata", MetadataCheck);
+        });
+        qiLine.HasKey(x => x.Id).HasName("PK_QualityInspectionLine");
+        qiLine.Property(x => x.Id).UseIdentityColumn();
+        qiLine.Property(x => x.OrganizationId).IsRequired();
+        qiLine.Property(x => x.QualityInspectionId).IsRequired();
+        qiLine.Property(x => x.LineNumber).IsRequired();
+        qiLine.Property(x => x.ParameterName).HasMaxLength(100).IsRequired();
+        qiLine.Property(x => x.ExpectedSpec).HasMaxLength(100);
+        qiLine.Property(x => x.MeasuredValue).HasMaxLength(100);
+        qiLine.Property(x => x.IsPassed).IsRequired();
+        qiLine.Property(x => x.Notes).HasMaxLength(300);
+        AddAuditMetadata(qiLine);
+        qiLine.HasIndex(x => new { x.OrganizationId, x.QualityInspectionId, x.LineNumber }).IsUnique().HasDatabaseName("UX_QualityInspectionLine_Org_Insp_Line");
+        qiLine.HasOne<QualityInspection>().WithMany(x => x.Lines)
+            .HasForeignKey(x => new { x.OrganizationId, x.QualityInspectionId })
+            .HasPrincipalKey(q => new { q.OrganizationId, q.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_QualityInspectionLine_Inspection");
     }
 
     private static void Business<T>(EntityTypeBuilder<T> entity, string tableName) where T : class

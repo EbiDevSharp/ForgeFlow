@@ -49,17 +49,41 @@ public sealed class DiagnosticSqlTests
         Assert.True(recorded.SavedToDatabase);
         Assert.Equal(corr, recorded.CorrelationId);
 
-        var page = await store.ListAsync(new ErrorLogListQuery(Severity: ErrorSeverity.Critical, Search: recorded.ErrorReference));
-        var item = Assert.Single(page.Items);
+        var otherOrgRecorded = await store.RecordExceptionAsync(
+            new InvalidOperationException("Sibling org error"),
+            new ErrorLogRecordContext(
+                ErrorSeverity.Error,
+                ErrorSourceKind.BlazorComponent,
+                "/items",
+                "Items.razor",
+                ActorUserId: 12,
+                OrganizationId: 3,
+                SiteId: null,
+                CorrelationId: Guid.NewGuid()));
+        Assert.True(otherOrgRecorded.SavedToDatabase);
+
+        var platformPage = await store.ListAsync(new OrganizationScope.Platform(), new ErrorLogListQuery(Severity: ErrorSeverity.Critical, Search: recorded.ErrorReference));
+        var item = Assert.Single(platformPage.Items);
         Assert.DoesNotContain("SecretPass!", item.RedactedMessage);
         Assert.DoesNotContain("secret99", item.RequestPath ?? string.Empty);
 
-        var details = await store.GetAsync(item.Id);
+        var org2Page = await store.ListAsync(new OrganizationScope.Organization(2), new ErrorLogListQuery());
+        Assert.Single(org2Page.Items);
+        Assert.Equal(recorded.ErrorReference, org2Page.Items[0].ErrorReference);
+
+        var org3Stats = await store.GetStatsAsync(new OrganizationScope.Organization(3), DateTime.UtcNow.AddMinutes(1));
+        Assert.Equal(1, org3Stats.TotalLast24Hours);
+        Assert.Equal(0, org3Stats.CriticalLast24Hours);
+
+        // Cross-tenant detail lookup is denied (returns null)
+        Assert.Null(await store.GetAsync(new OrganizationScope.Organization(3), item.Id));
+
+        var details = await store.GetAsync(new OrganizationScope.Organization(2), item.Id);
         Assert.NotNull(details);
         Assert.DoesNotContain("SecretPass!", details!.RedactedStackTrace);
 
-        var stats = await store.GetStatsAsync(DateTime.UtcNow.AddMinutes(1));
-        Assert.Equal(1, stats.TotalLast24Hours);
+        var stats = await store.GetStatsAsync(new OrganizationScope.Platform(), DateTime.UtcNow.AddMinutes(1));
+        Assert.Equal(2, stats.TotalLast24Hours);
         Assert.Equal(1, stats.CriticalLast24Hours);
 
         // User operation log + SqlAuditOperationsStore isolation across sites
@@ -103,9 +127,9 @@ public sealed class DiagnosticSqlTests
         Assert.Equal(9L, rejEntry.SiteId);
         Assert.Equal((byte)2, rejEntry.Outcome);
 
-        // Purge future cutoff removes error log entry cleanly
+        // Purge future cutoff removes both error log entries cleanly
         var purged = await store.PurgeBeforeAsync(DateTime.UtcNow.AddDays(1));
-        Assert.Equal(1, purged);
+        Assert.Equal(2, purged);
     }
 
     private sealed class DisposableDiagnosticDatabase : IAsyncDisposable

@@ -9,5 +9,6 @@ public enum InventoryTransactionType : byte
     TransferIn = 5,
     ProductionIssue = 6,
     ProductionReceipt = 7,
-    Reversal = 8
+    Reversal = 8,
+    QualityScrap = 9
 }

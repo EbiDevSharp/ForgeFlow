@@ -11,6 +11,7 @@ public static class ItemErrors
     public const string BaseUnitNotFound = "Items.BaseUnitNotFound";
     public const string BaseUnitInactive = "Items.BaseUnitInactive";
     public const string CapabilityRequired = "Items.CapabilityRequired";
+    public const string QualityControlModeInvalid = "Items.QualityControlModeInvalid";
     public const string NotFound = "Items.NotFound";
     public const string ItemInactive = "Items.Inactive";
     public const string ParentOrganizationInactive = "Items.ParentOrganizationInactive";

@@ -169,26 +169,42 @@ public sealed class ReportingUseCases(
         }
         if (!TryResolveScope(scope, organizationId, query.SiteId, out var forcedSiteId))
             return OrganizationResult<CsvExportFile>.Failure(ReportingErrors.AccessDenied);
-        if (columns.Headers.Count != 10 || string.IsNullOrWhiteSpace(columns.FileName))
+        if (columns.Headers.Count is not (10 or 12) || string.IsNullOrWhiteSpace(columns.FileName))
             return OrganizationResult<CsvExportFile>.Failure(ReportingErrors.ExportInvalid);
 
         try
         {
             var data = await store.GetShortageDataset(organizationId, forcedSiteId, query.DueFrom, query.DueTo, ct);
             var report = ComputeMaterialShortage(data, query);
-            var rows = report.Items.Select(i => (IReadOnlyList<string>)
-            [
-                i.ItemCode,
-                i.ItemName,
-                i.BaseUnitSymbol,
-                FormatCsvDecimal(i.RequiredBaseQuantity),
-                FormatCsvDecimal(i.OnHandBaseQuantity),
-                FormatCsvDecimal(i.ShortageBaseQuantity),
-                FormatCsvDecimal(i.ExcessBaseQuantity),
-                FormatCsvDecimal(i.CoveragePercent),
-                i.OpenOrderCount.ToString(CultureInfo.InvariantCulture),
-                string.Join(" | ", i.Orders.Select(o => $"{o.OrderNumber}({o.SiteCode})"))
-            ]);
+            var rows = columns.Headers.Count == 12
+                ? report.Items.Select(i => (IReadOnlyList<string>)
+                [
+                    i.ItemCode,
+                    i.ItemName,
+                    i.BaseUnitSymbol,
+                    FormatCsvDecimal(i.RequiredBaseQuantity),
+                    FormatCsvDecimal(i.OnHandBaseQuantity),
+                    FormatCsvDecimal(i.BlockedBaseQuantity),
+                    FormatCsvDecimal(i.AvailableBaseQuantity),
+                    FormatCsvDecimal(i.ShortageBaseQuantity),
+                    FormatCsvDecimal(i.ExcessBaseQuantity),
+                    FormatCsvDecimal(i.CoveragePercent),
+                    i.OpenOrderCount.ToString(CultureInfo.InvariantCulture),
+                    string.Join(" | ", i.Orders.Select(o => $"{o.OrderNumber}({o.SiteCode})"))
+                ])
+                : report.Items.Select(i => (IReadOnlyList<string>)
+                [
+                    i.ItemCode,
+                    i.ItemName,
+                    i.BaseUnitSymbol,
+                    FormatCsvDecimal(i.RequiredBaseQuantity),
+                    FormatCsvDecimal(i.OnHandBaseQuantity),
+                    FormatCsvDecimal(i.ShortageBaseQuantity),
+                    FormatCsvDecimal(i.ExcessBaseQuantity),
+                    FormatCsvDecimal(i.CoveragePercent),
+                    i.OpenOrderCount.ToString(CultureInfo.InvariantCulture),
+                    string.Join(" | ", i.Orders.Select(o => $"{o.OrderNumber}({o.SiteCode})"))
+                ]);
 
             var file = BuildCsvFile(columns.FileName, columns.Headers, rows);
             await OperationAuditHelper.RecordAsync(operationRecorder, opContext, UserOperationCatalog.ReportsShortageExported,
@@ -276,7 +292,9 @@ public sealed class ReportingUseCases(
 
         var onHandByItem = data.Balances
             .GroupBy(b => b.ItemId)
-            .ToDictionary(g => g.Key, g => decimal.Round(g.Sum(x => x.OnHandBaseQuantity), Scale, MidpointRounding.AwayFromZero));
+            .ToDictionary(g => g.Key, g => (
+                OnHand: decimal.Round(g.Sum(x => x.OnHandBaseQuantity), Scale, MidpointRounding.AwayFromZero),
+                Blocked: decimal.Round(g.Sum(x => x.BlockedBaseQuantity), Scale, MidpointRounding.AwayFromZero)));
 
         var demandGrouped = demandByItemOrder
             .GroupBy(kv => kv.Key.ItemId)
@@ -323,9 +341,12 @@ public sealed class ReportingUseCases(
                 : [];
 
             var required = decimal.Round(orderDetails.Sum(x => x.RequiredBaseQuantity), Scale, MidpointRounding.AwayFromZero);
-            var onHand = onHandByItem.TryGetValue(itemId, out var bal) ? bal : 0m;
-            var shortage = required > onHand ? decimal.Round(required - onHand, Scale, MidpointRounding.AwayFromZero) : 0m;
-            var excess = onHand > required ? decimal.Round(onHand - required, Scale, MidpointRounding.AwayFromZero) : 0m;
+            var stock = onHandByItem.TryGetValue(itemId, out var bal) ? bal : (OnHand: 0m, Blocked: 0m);
+            var onHand = stock.OnHand;
+            var blocked = Math.Min(onHand, Math.Max(0m, stock.Blocked));
+            var available = decimal.Round(Math.Max(0m, onHand - blocked), Scale, MidpointRounding.AwayFromZero);
+            var shortage = required > available ? decimal.Round(required - available, Scale, MidpointRounding.AwayFromZero) : 0m;
+            var excess = available > required ? decimal.Round(available - required, Scale, MidpointRounding.AwayFromZero) : 0m;
 
             if (query.OnlyShortages && shortage <= 0m)
                 continue;
@@ -333,7 +354,7 @@ public sealed class ReportingUseCases(
                 continue;
 
             var coverage = required > 0m
-                ? Math.Min(100m, decimal.Round((onHand / required) * 100m, 2, MidpointRounding.AwayFromZero))
+                ? Math.Min(100m, decimal.Round((available / required) * 100m, 2, MidpointRounding.AwayFromZero))
                 : 100m;
 
             rows.Add(new MaterialShortageItemSummary(
@@ -349,7 +370,9 @@ public sealed class ReportingUseCases(
                 excess,
                 coverage,
                 orderDetails.Length,
-                orderDetails));
+                orderDetails,
+                blocked,
+                available));
         }
 
         var ordered = rows
@@ -364,7 +387,9 @@ public sealed class ReportingUseCases(
             decimal.Round(ordered.Sum(r => r.RequiredBaseQuantity), Scale, MidpointRounding.AwayFromZero),
             decimal.Round(ordered.Sum(r => r.OnHandBaseQuantity), Scale, MidpointRounding.AwayFromZero),
             decimal.Round(ordered.Sum(r => r.ShortageBaseQuantity), Scale, MidpointRounding.AwayFromZero),
-            ordered);
+            ordered,
+            decimal.Round(ordered.Sum(r => r.BlockedBaseQuantity), Scale, MidpointRounding.AwayFromZero),
+            decimal.Round(ordered.Sum(r => r.AvailableBaseQuantity), Scale, MidpointRounding.AwayFromZero));
     }
 
     public static ProductionVarianceReport ComputeVarianceReport(VarianceDataset data)

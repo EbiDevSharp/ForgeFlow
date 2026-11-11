@@ -9,6 +9,7 @@ using ForgeFlow.Application.Inventory;
 using ForgeFlow.Application.Items;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.ProductionOrders;
+using ForgeFlow.Application.Quality;
 using ForgeFlow.Application.Reporting;
 using ForgeFlow.Application.Roles;
 using ForgeFlow.Application.Units;
@@ -375,7 +376,7 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
         if (scope is OrganizationScope.Platform)
         {
             if (descriptor.Applicability != PermissionScopeApplicability.PlatformOnly
-                && permission is not (UserPermissions.UsersSetActive or UserPermissions.UsersUnlock or UserPermissions.UsersResetPassword or AuditPermissions.AuditRead or AuditPermissions.AuditExport))
+                && permission is not (UserPermissions.UsersSetActive or UserPermissions.UsersUnlock or UserPermissions.UsersResetPassword or AuditPermissions.AuditRead or AuditPermissions.AuditExport or DiagnosticPermissions.ErrorLogsRead))
                 return false;
 
             var provisionerBuiltIn = permission is AuditPermissions.AuditRead
@@ -421,7 +422,9 @@ public sealed class RuntimeSessions(IServiceScopeFactory scopes, TimeProvider cl
             or ProductionOrderPermissions.ProductionOrdersRead
             or InventoryPermissions.InventoryRead
             or ReportingPermissions.ReportsRead
-            or ReportingPermissions.ReportsExport;
+            or ReportingPermissions.ReportsExport
+            or QualityPermissions.QualityRead
+            or DiagnosticPermissions.ErrorLogsRead;
         if (!company.IsActive && !read && permission != OrganizationPermissions.OrganizationsSetActive)
             return false;
 

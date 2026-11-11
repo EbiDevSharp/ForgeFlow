@@ -1,0 +1,991 @@
+@page "/quality"
+@page "/organizations/{OrganizationId:long}/quality"
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Application.Quality
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Quality
+@using ForgeFlow.Web.Roles
+@inject QualityUseCases QualityService
+@inject InventoryUseCases InvService
+@inject ProductionOrderUseCases OrderService
+@inject ItemUseCases ItemService
+@inject UnitUseCases UnitService
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject CulturePolicy Culture
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["QualityControl"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="qc-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="qc-title">@Text["QualityControl"]</h1>
+            <p class="write-hint">@Text["QualityCaption"]</p>
+        </div>
+        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage && activeTab == TabInspections)
+        {
+            <div class="read-head-actions">
+                <BitButton Size="BitSize.Small" OnClick="OpenHoldModalAsync">@Text["QcCreateHoldBtn"]</BitButton>
+            </div>
+        }
+        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage && activeTab == TabLots)
+        {
+            <div class="read-head-actions">
+                <BitButton Size="BitSize.Small" OnClick="() => OpenLotModal(null)">@Text["QcLotUpsertBtn"]</BitButton>
+            </div>
+        }
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div class="read-state" role="alert">
+            <p>@Text[pageError]</p>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else if (available.Count == 0)
+    {
+        <p role="status" class="read-empty">@Text["ReadDenied"]</p>
+    }
+    else
+    {
+        <div class="read-tab-bar" role="tablist" aria-label="@Text["QualityControl"]">
+            <button type="button" role="tab" aria-selected="@(activeTab == TabInspections)"
+                    class="read-tab-btn @(activeTab == TabInspections ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabInspections)">@Text["QcTabInspections"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabLots)"
+                    class="read-tab-btn @(activeTab == TabLots ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabLots)">@Text["QcTabLots"]</button>
+        </div>
+
+        <div class="read-toolbar-card">
+            @if (available.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="qc-scope">@Text["ReadScope"]</label>
+                    <select id="qc-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                        @for (var i = 0; i < available.Count; i++)
+                        {
+                            <option value="@i">@ScopeLabel(available[i])</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (activeTab == TabInspections && CurrentScope is OrganizationScope.Organization && authorizedSites.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="qc-site-filter">@Text["PoSiteColumn"]</label>
+                    <select id="qc-site-filter" value="@siteFilter" @onchange="ChangeSiteFilterAsync">
+                        <option value="0">@Text["PoAllSitesOption"]</option>
+                        @foreach (var s in authorizedSites)
+                        {
+                            <option value="@s.Id">@s.Code — @s.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (activeTab == TabInspections)
+            {
+                <div class="read-field">
+                    <label for="qc-status-filter">@Text["ReadStatus"]</label>
+                    <select id="qc-status-filter" value="@statusFilter" @onchange="ChangeStatusFilterAsync">
+                        <option value="">@Text["PoAllStatusesOption"]</option>
+                        <option value="@((byte)QualityInspectionStatus.Pending)">@StatusLabel(QualityInspectionStatus.Pending)</option>
+                        <option value="@((byte)QualityInspectionStatus.InReview)">@StatusLabel(QualityInspectionStatus.InReview)</option>
+                        <option value="@((byte)QualityInspectionStatus.Completed)">@StatusLabel(QualityInspectionStatus.Completed)</option>
+                        <option value="@((byte)QualityInspectionStatus.Cancelled)">@StatusLabel(QualityInspectionStatus.Cancelled)</option>
+                    </select>
+                </div>
+            }
+            else
+            {
+                <label class="read-inactive">
+                    <input type="checkbox" checked="@onlyExpiringLots" @onchange="ToggleExpiringLotsAsync" />
+                    <span>@Text["QcOnlyExpiringLabel"]</span>
+                </label>
+            }
+
+            <div class="read-field">
+                <label for="qc-search">@Text["ReadSearch"]</label>
+                <input id="qc-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="64" placeholder="@Text["ReadSearchPlaceholder"]" />
+            </div>
+        </div>
+
+        @if (activeTab == TabInspections)
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="inspGrid" TItem="QualityInspectionSummary" OnRead="ReadInspectionsAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="qc-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["QcNumberColumn"]">
+                                <Template Context="q">
+                                    <div>
+                                        <div class="read-primary-cell"><bdi dir="ltr">@q.InspectionNumber</bdi></div>
+                                        <div class="read-sub-cell"><span dir="ltr">@q.SiteCode / @q.WarehouseCode</span></div>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["BomLineItemColumn"]">
+                                <Template Context="q">
+                                    <div>
+                                        <div class="read-primary-cell"><span dir="ltr">@q.ItemCode</span> — @q.ItemName</div>
+                                        @if (!string.IsNullOrEmpty(q.LotCode))
+                                        {
+                                            <div class="read-sub-cell">
+                                                <a class="qc-lot-link" href="@($"/traceability?itemId={q.ItemId}&lotCode={Uri.EscapeDataString(q.LotCode)}")" dir="ltr">@q.LotCode</a>
+                                            </div>
+                                        }
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["QcSourceColumn"]">
+                                <Template Context="q">
+                                    <div>
+                                        <div class="read-primary-cell">@SourceLabel(q.SourceType)</div>
+                                        @if (!string.IsNullOrEmpty(q.SourceDocumentNumber))
+                                        {
+                                            <div class="read-sub-cell" dir="ltr">@q.SourceDocumentNumber</div>
+                                        }
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["QcQuantitiesColumn"]">
+                                <Template Context="q">
+                                    <div>
+                                        <div class="read-primary-cell" dir="ltr">@Format.Number(q.InspectedBaseQuantity) @q.BaseUnitSymbol</div>
+                                        <div class="read-sub-cell" dir="ltr">
+                                            @Text["QcQtyBreakdown", Format.Number(q.AcceptedBaseQuantity), Format.Number(q.RejectedBaseQuantity), Format.Number(q.RemainingBlockedBaseQuantity)]
+                                        </div>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["ReadStatus"]">
+                                <Template Context="q">
+                                    <span class="read-badge @StatusBadgeClass(q.Status)">@StatusLabel(q.Status)</span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["ReadActions"]">
+                                <Template Context="q">
+                                    <div class="read-row-actions">
+                                        <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                       IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                                       OnClick="() => OpenInspectionDetailsAsync(q.Id)" />
+                                        </BitTooltip>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="lotGrid" TItem="ItemLotSummary" OnRead="ReadLotsAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="qc-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["BomLineItemColumn"]">
+                                <Template Context="l"><span dir="ltr">@l.ItemCode</span> — @l.ItemName</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["InvLotCodeLabel"]">
+                                <Template Context="l">
+                                    <a class="qc-lot-link" href="@($"/traceability?itemId={l.ItemId}&lotCode={Uri.EscapeDataString(l.LotCode)}")" dir="ltr">@l.LotCode</a>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["QcLotMfgDateLabel"]">
+                                <Template Context="l"><bdi dir="ltr">@(l.ManufactureDate?.ToString("yyyy-MM-dd") ?? "—")</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["QcLotExpDateLabel"]">
+                                <Template Context="l">
+                                    @if (l.ExpirationDate.HasValue)
+                                    {
+                                        <span class="read-badge @(l.IsExpired ? "rpt-shortage-badge" : l.IsExpiringSoon ? "qc-status-pending" : "qc-status-completed")">
+                                            <bdi dir="ltr">@l.ExpirationDate.Value.ToString("yyyy-MM-dd")</bdi>
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["PoNotesLabel"]">
+                                <Template Context="l">@(l.Notes ?? "—")</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["ReadActions"]">
+                                <Template Context="l">
+                                    <div class="read-row-actions">
+                                        @if (scopeCanManage)
+                                        {
+                                            <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                           Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                                           OnClick="() => OpenLotModal(l)" />
+                                            </BitTooltip>
+                                        }
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+    }
+
+    <BitDialog Width="640px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="holdModalOpen"
+               Title="@Text["QcCreateHoldTitle"]" AriaLabel="@Text["QcCreateHoldTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="audit-modal-body">
+                @if (holdError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[holdError]</p>
+                }
+                <div class="po-form-grid">
+                    <div class="write-field">
+                        <label for="qc-hold-num">@Text["QcNumberColumn"]</label>
+                        <input id="qc-hold-num" type="text" maxlength="32" @bind="holdNumber" placeholder="QC-HOLD-001" />
+                    </div>
+                    <div class="write-field">
+                        <label for="qc-hold-wh">@Text["InvWarehouseLabel"]</label>
+                        <select id="qc-hold-wh" @bind="holdWarehouseId">
+                            <option value="0">@Text["InvSelectWarehouseOption"]</option>
+                            @foreach (var w in activeWarehouses)
+                            {
+                                <option value="@w.Id">@w.Code — @w.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="write-field">
+                        <label for="qc-hold-item">@Text["BomLineItemColumn"]</label>
+                        <select id="qc-hold-item" value="@holdItemId" @onchange="OnHoldItemChanged">
+                            <option value="0">@Text["InvSelectItemOption"]</option>
+                            @foreach (var it in activeItems)
+                            {
+                                <option value="@it.Id">@it.Code — @it.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="write-field">
+                        <label for="qc-hold-lot">@Text["InvLotCodeLabel"]</label>
+                        <input id="qc-hold-lot" type="text" maxlength="32" @bind="holdLotCode" />
+                    </div>
+                    <div class="write-field">
+                        <label for="qc-hold-qty">@Text["BomQuantityColumn"]</label>
+                        <input id="qc-hold-qty" type="number" step="0.000001" min="0.000001" @bind="holdQuantity" />
+                    </div>
+                    <div class="write-field">
+                        <label for="qc-hold-unit">@Text["BomLineUnitColumn"]</label>
+                        <select id="qc-hold-unit" @bind="holdUnitId">
+                            @foreach (var u in activeUnits)
+                            {
+                                <option value="@u.Id">@u.Code (@u.Symbol)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="write-field">
+                        <label for="qc-hold-defect">@Text["QcDefectCodeLabel"]</label>
+                        <input id="qc-hold-defect" type="text" maxlength="64" @bind="holdDefectCode" />
+                    </div>
+                    <div class="write-field po-field-full">
+                        <label for="qc-hold-notes">@Text["PoNotesLabel"]</label>
+                        <textarea id="qc-hold-notes" rows="2" maxlength="1000" @bind="holdNotes"></textarea>
+                    </div>
+                </div>
+                <div class="po-dialog-footer">
+                    <BitButton IsEnabled="@(!modalBusy && holdWarehouseId > 0 && holdItemId > 0 && !string.IsNullOrWhiteSpace(holdNumber))" OnClick="SubmitManualHoldAsync">
+                        @Text["QcCreateHoldBtn"]
+                    </BitButton>
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => holdModalOpen = false">@Text["WriteCancel"]</BitButton>
+                </div>
+            </div>
+        </Body>
+    </BitDialog>
+
+    <BitDialog Width="780px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailsOpen"
+               Title="@Text["QcDetailsTitle"]" AriaLabel="@Text["QcDetailsTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            @if (selectedInspection is not null)
+            {
+                var q = selectedInspection.Summary;
+                <div class="audit-modal-body audit-modal-body--wide">
+                    <div class="audit-modal-title-row">
+                        <span class="audit-modal-code" dir="ltr">@q.InspectionNumber</span>
+                        <span class="read-badge @StatusBadgeClass(q.Status)">@StatusLabel(q.Status)</span>
+                    </div>
+                    @if (detailsError is not null)
+                    {
+                        <p role="alert" class="write-error">@Text[detailsError]</p>
+                    }
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["InvWarehouseLabel"]</span>
+                            <span class="audit-meta-val" dir="ltr">@q.SiteCode / @q.WarehouseCode — @q.WarehouseName</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["BomLineItemColumn"]</span>
+                            <span class="audit-meta-val"><span dir="ltr">@q.ItemCode</span> — @q.ItemName</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(q.LotCode))
+                        {
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["InvLotCodeLabel"]</span>
+                                <span class="audit-meta-val" dir="ltr">
+                                    <a class="qc-lot-link" href="@($"/traceability?itemId={q.ItemId}&lotCode={Uri.EscapeDataString(q.LotCode)}")">@q.LotCode</a>
+                                </span>
+                            </div>
+                        }
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["QcQuantitiesColumn"]</span>
+                            <span class="audit-meta-val" dir="ltr">
+                                @Format.Number(q.InspectedBaseQuantity) @q.BaseUnitSymbol ·
+                                @Text["QcQtyBreakdown", Format.Number(q.AcceptedBaseQuantity), Format.Number(q.RejectedBaseQuantity), Format.Number(q.RemainingBlockedBaseQuantity)]
+                            </span>
+                        </div>
+                        @if (q.InspectedAtUtc.HasValue)
+                        {
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["AuditTimeColumn"]</span>
+                                <span class="audit-meta-val"><bdi dir="ltr">@Format.Timestamp(q.InspectedAtUtc.Value)</bdi> @(q.InspectedByActorName is not null ? $"({q.InspectedByActorName})" : string.Empty)</span>
+                            </div>
+                        }
+                    </div>
+
+                    @if (scopeCanManage && q.Status is QualityInspectionStatus.Pending or QualityInspectionStatus.InReview)
+                    {
+                        <div class="po-context-card">
+                            <div class="po-context-head">
+                                <strong>@Text["QcMeasurementsSection"]</strong>
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="po-add-cond-btn" Icon="@PlusIcon" OnClick="AddMeasurementLine">
+                                    @Text["QcAddLineBtn"]
+                                </BitButton>
+                            </div>
+                            <div class="po-form-grid">
+                                <div class="write-field">
+                                    <label for="qc-det-defect">@Text["QcDefectCodeLabel"]</label>
+                                    <input id="qc-det-defect" type="text" maxlength="64" @bind="editDefectCode" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="qc-det-notes">@Text["PoNotesLabel"]</label>
+                                    <input id="qc-det-notes" type="text" maxlength="1000" @bind="editNotes" />
+                                </div>
+                            </div>
+                            @foreach (var line in editLines)
+                            {
+                                <div class="qc-line-row">
+                                    <input type="text" maxlength="100" @bind="line.ParameterName" placeholder="@Text["QcParamNamePlaceholder"]" />
+                                    <input type="text" maxlength="100" @bind="line.ExpectedSpec" placeholder="@Text["QcExpectedSpecPlaceholder"]" />
+                                    <input type="text" maxlength="100" @bind="line.MeasuredValue" placeholder="@Text["QcMeasuredValPlaceholder"]" />
+                                    <label class="perm-check"><input type="checkbox" @bind="line.IsPassed" /><span>@Text["QcPassedCheck"]</span></label>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => editLines.Remove(line)">@Text["BomRemoveRowBtn"]</BitButton>
+                                </div>
+                            }
+                            <div class="write-actions">
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)" OnClick="SaveMeasurementsAsync">
+                                    @Text["QcSaveMeasurementsBtn"]
+                                </BitButton>
+                            </div>
+                        </div>
+
+                        <div class="po-context-card">
+                            <strong>@Text["QcDispositionSection"]</strong>
+                            <div class="po-form-grid">
+                                <div class="write-field">
+                                    <label for="qc-disp-accept">@Text["QcAcceptQtyLabel"] (@q.BaseUnitSymbol)</label>
+                                    <input id="qc-disp-accept" type="number" step="0.000001" min="0" @bind="dispAcceptQty" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="qc-disp-reject">@Text["QcRejectScrapQtyLabel"] (@q.BaseUnitSymbol)</label>
+                                    <input id="qc-disp-reject" type="number" step="0.000001" min="0" @bind="dispRejectQty" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="qc-disp-scrapdoc">@Text["QcScrapDocLabel"]</label>
+                                    <input id="qc-disp-scrapdoc" type="text" maxlength="32" @bind="dispScrapDoc" placeholder="@($"QS-{q.InspectionNumber}")" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="qc-disp-notes">@Text["PoNotesLabel"]</label>
+                                    <input id="qc-disp-notes" type="text" maxlength="1000" @bind="dispNotes" />
+                                </div>
+                            </div>
+                            <div class="write-actions">
+                                <BitButton IsEnabled="@(!modalBusy && (dispAcceptQty + dispRejectQty) > 0m)" OnClick="SubmitDispositionAsync">
+                                    @Text["QcRecordDispositionBtn"]
+                                </BitButton>
+                                @if (q.AcceptedBaseQuantity == 0m && q.RejectedBaseQuantity == 0m)
+                                {
+                                    <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="CancelHoldAsync">
+                                        @Text["QcCancelHoldBtn"]
+                                    </BitButton>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else if (selectedInspection.Lines.Count > 0)
+                    {
+                        <div class="audit-modal-section">
+                            <h3 class="audit-section-heading">@Text["QcMeasurementsSection"]</h3>
+                            <div class="audit-fields-box">
+                                <table class="audit-fields-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>@Text["QcParamNamePlaceholder"]</th>
+                                            <th>@Text["QcExpectedSpecPlaceholder"]</th>
+                                            <th>@Text["QcMeasuredValPlaceholder"]</th>
+                                            <th>@Text["ReadStatus"]</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var l in selectedInspection.Lines)
+                                        {
+                                            <tr>
+                                                <td>@l.LineNumber</td>
+                                                <td>@l.ParameterName</td>
+                                                <td dir="ltr">@(l.ExpectedSpec ?? "—")</td>
+                                                <td dir="ltr">@(l.MeasuredValue ?? "—")</td>
+                                                <td>
+                                                    <span class="read-badge @(l.IsPassed ? "qc-status-completed" : "rpt-shortage-badge")">
+                                                        @Text[l.IsPassed ? "QcPassedCheck" : "QcFailedLabel"]
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </Body>
+    </BitDialog>
+
+    <BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="lotModalOpen"
+               Title="@Text["QcLotUpsertTitle"]" AriaLabel="@Text["QcLotUpsertTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="audit-modal-body">
+                @if (lotError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[lotError]</p>
+                }
+                <div class="po-form-grid">
+                    <div class="write-field">
+                        <label for="qc-lot-item">@Text["BomLineItemColumn"]</label>
+                        <select id="qc-lot-item" @bind="lotEditItemId" disabled="@(editingLot is not null)">
+                            <option value="0">@Text["InvSelectItemOption"]</option>
+                            @foreach (var it in activeItems)
+                            {
+                                <option value="@it.Id">@it.Code — @it.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="write-field">
+                        <label for="qc-lot-code">@Text["InvLotCodeLabel"]</label>
+                        <input id="qc-lot-code" type="text" maxlength="32" @bind="lotEditCode" disabled="@(editingLot is not null)" />
+                    </div>
+                    <div class="write-field">
+                        <label>@Text["QcLotMfgDateLabel"]</label>
+                        <BitDatePicker @bind-Value="lotMfgDateOffset" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                                       ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowClearButton="true" ShowGoToToday="true"
+                                       GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                                       NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon" NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+                    </div>
+                    <div class="write-field">
+                        <label>@Text["QcLotExpDateLabel"]</label>
+                        <BitDatePicker @bind-Value="lotExpDateOffset" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                                       ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowClearButton="true" ShowGoToToday="true"
+                                       GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                                       NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon" NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+                    </div>
+                    <div class="write-field po-field-full">
+                        <label for="qc-lot-notes">@Text["PoNotesLabel"]</label>
+                        <textarea id="qc-lot-notes" rows="2" maxlength="500" @bind="lotEditNotes"></textarea>
+                    </div>
+                </div>
+                <div class="po-dialog-footer">
+                    <BitButton IsEnabled="@(!modalBusy && lotEditItemId > 0 && !string.IsNullOrWhiteSpace(lotEditCode))" OnClick="SubmitLotMetadataAsync">
+                        @Text["WriteSave"]
+                    </BitButton>
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => lotModalOpen = false">@Text["WriteCancel"]</BitButton>
+                </div>
+            </div>
+        </Body>
+    </BitDialog>
+</section>
+
+@code {
+    [Parameter] public long? OrganizationId { get; set; }
+
+    private const int TabInspections = 0;
+    private const int TabLots = 1;
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+    private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
+    private static readonly BitIconInfo PlusIcon = BitIconInfo.Css("ff-icon ff-icon--plus");
+    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
+    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
+    private static readonly BitIconInfo NextNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-next");
+    private static readonly BitIconInfo PrevNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-prev");
+    private static readonly BitIconInfo NextYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-next");
+    private static readonly BitIconInfo PrevYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-prev");
+    private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
+    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
+
+    private BitDataGrid<QualityInspectionSummary>? inspGrid;
+    private BitDataGrid<ItemLotSummary>? lotGrid;
+
+    private int activeTab = TabInspections;
+    private bool initialLoading = true;
+    private string? pageError;
+    private string? pageNotice;
+    private List<OrganizationScope> available = [];
+    private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
+        new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+    private int scopeIndex;
+    private bool scopeCanManage;
+
+    private IReadOnlyList<ProductionOrderSiteInfo> authorizedSites = [];
+    private IReadOnlyList<WarehouseSummary> activeWarehouses = [];
+    private IReadOnlyList<ItemSummary> activeItems = [];
+    private IReadOnlyList<UnitSummary> activeUnits = [];
+
+    private long siteFilter;
+    private string statusFilter = string.Empty;
+    private bool onlyExpiringLots;
+    private string? search;
+    private string? appliedSearch;
+    private bool modalBusy;
+
+    private bool holdModalOpen;
+    private string? holdError;
+    private string holdNumber = string.Empty;
+    private long holdWarehouseId;
+    private long holdItemId;
+    private string holdLotCode = string.Empty;
+    private decimal holdQuantity = 1m;
+    private long holdUnitId;
+    private string? holdDefectCode;
+    private string? holdNotes;
+
+    private bool detailsOpen;
+    private QualityInspectionDetails? selectedInspection;
+    private string? detailsError;
+    private string? editDefectCode;
+    private string? editNotes;
+    private readonly List<MeasurementEditRow> editLines = [];
+    private decimal dispAcceptQty;
+    private decimal dispRejectQty;
+    private string? dispScrapDoc;
+    private string? dispNotes;
+
+    private bool lotModalOpen;
+    private ItemLotSummary? editingLot;
+    private string? lotError;
+    private long lotEditItemId;
+    private string lotEditCode = string.Empty;
+    private DateTimeOffset? lotMfgDateOffset;
+    private DateTimeOffset? lotExpDateOffset;
+    private string? lotEditNotes;
+
+    private sealed class MeasurementEditRow
+    {
+        public string ParameterName { get; set; } = string.Empty;
+        public string? ExpectedSpec { get; set; }
+        public string? MeasuredValue { get; set; }
+        public bool IsPassed { get; set; } = true;
+    }
+
+    private OrganizationScope? CurrentScope => scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
+    private static long ScopeOrganizationId(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site s => s.OrganizationId,
+        _ => 0
+    };
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["QualityControl"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    protected override async Task OnParametersSetAsync() => await ReloadScopeAsync();
+
+    private async Task ReloadScopeAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        pageNotice = null;
+        try
+        {
+            var loaded = await Scopes.LoadQualityScopesAsync();
+            available = OrganizationId is long orgId
+                ? loaded.Where(s => ScopeOrganizationId(s) == orgId).ToList()
+                : loaded.ToList();
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+            if (available.Count == 0 && OrganizationId is long fallbackOrgId)
+                available = [new OrganizationScope.Organization(fallbackOrgId)];
+            scopeIndex = 0;
+            await RefreshScopeStateAsync();
+        }
+        catch { pageError = "ReadError"; }
+        finally { initialLoading = false; }
+    }
+
+    private async Task RefreshScopeStateAsync()
+    {
+        scopeCanManage = false;
+        authorizedSites = [];
+        activeWarehouses = [];
+        activeItems = [];
+        activeUnits = [];
+        var scope = CurrentScope;
+        if (scope is null) return;
+
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is not null)
+            scopeCanManage = (await Permissions.EvaluateAsync(actor, scope, QualityPermissions.QualityManage, default)).IsAllowed;
+
+        var orgId = ScopeOrganizationId(scope);
+        var sitesRes = await OrderService.ListAuthorizedSites(scope, orgId);
+        if (sitesRes.Succeeded) authorizedSites = sitesRes.Value!;
+        var whRes = await InvService.ListWarehouses(scope, orgId, new WarehouseListQuery(IncludeInactive: false, PageSize: 100));
+        if (whRes.Succeeded) activeWarehouses = whRes.Value!.Items;
+        var itemsRes = await ItemService.ListActiveItems(scope, orgId);
+        if (itemsRes.Succeeded) activeItems = itemsRes.Value!;
+        var unitsRes = await UnitService.ListActiveUnits(scope, orgId);
+        if (unitsRes.Succeeded) activeUnits = unitsRes.Value!;
+    }
+
+    private async Task SwitchTabAsync(int tab)
+    {
+        if (activeTab == tab) return;
+        activeTab = tab;
+        await ReloadActiveGridAsync(true);
+    }
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var idx) && idx >= 0 && idx < available.Count)
+        {
+            scopeIndex = idx;
+            siteFilter = 0;
+            await RefreshScopeStateAsync();
+            await ReloadActiveGridAsync(true);
+        }
+    }
+
+    private async Task ChangeSiteFilterAsync(ChangeEventArgs e)
+    {
+        siteFilter = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        await ReloadActiveGridAsync(true);
+    }
+
+    private async Task ChangeStatusFilterAsync(ChangeEventArgs e)
+    {
+        statusFilter = e.Value?.ToString() ?? string.Empty;
+        await ReloadActiveGridAsync(true);
+    }
+
+    private async Task ToggleExpiringLotsAsync(ChangeEventArgs e)
+    {
+        onlyExpiringLots = e.Value is bool b && b;
+        await ReloadActiveGridAsync(true);
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        await ReloadActiveGridAsync(true);
+    }
+
+    private async Task ReloadActiveGridAsync(bool fromFirstPage)
+    {
+        if (activeTab == TabInspections && inspGrid is not null)
+        {
+            if (fromFirstPage && inspGrid.CurrentPage > 1) await inspGrid.GoToPageAsync(1);
+            else await inspGrid.RefreshAsync();
+        }
+        else if (activeTab == TabLots && lotGrid is not null)
+        {
+            if (fromFirstPage && lotGrid.CurrentPage > 1) await lotGrid.GoToPageAsync(1);
+            else await lotGrid.RefreshAsync();
+        }
+    }
+
+    private async Task<BitDataGridReadResult<QualityInspectionSummary>> ReadInspectionsAsync(BitDataGridReadRequest req)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var size = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / size) + 1;
+        QualityInspectionStatus? st = byte.TryParse(statusFilter, out var s) && Enum.IsDefined((QualityInspectionStatus)s)
+            ? (QualityInspectionStatus)s
+            : null;
+        var res = await QualityService.ListInspections(scope, ScopeOrganizationId(scope),
+            new QualityInspectionListQuery(siteFilter > 0 ? siteFilter : null, null, null, st, appliedSearch, page, size), req.CancellationToken);
+        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private async Task<BitDataGridReadResult<ItemLotSummary>> ReadLotsAsync(BitDataGridReadRequest req)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var size = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / size) + 1;
+        var res = await QualityService.ListItemLots(scope, ScopeOrganizationId(scope),
+            new ItemLotListQuery(null, appliedSearch, onlyExpiringLots, page, size), req.CancellationToken);
+        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private Task OpenHoldModalAsync()
+    {
+        holdError = null;
+        holdNumber = $"QCH-{DateTime.UtcNow:yyyyMMddHHmm}";
+        holdWarehouseId = activeWarehouses.FirstOrDefault()?.Id ?? 0;
+        var firstItem = activeItems.FirstOrDefault();
+        holdItemId = firstItem?.Id ?? 0;
+        holdUnitId = firstItem?.BaseUnitId ?? activeUnits.FirstOrDefault()?.Id ?? 0;
+        holdLotCode = string.Empty;
+        holdQuantity = 1m;
+        holdDefectCode = null;
+        holdNotes = null;
+        holdModalOpen = true;
+        return Task.CompletedTask;
+    }
+
+    private void OnHoldItemChanged(ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), out var id))
+        {
+            holdItemId = id;
+            var it = activeItems.FirstOrDefault(x => x.Id == id);
+            if (it is not null) holdUnitId = it.BaseUnitId;
+        }
+    }
+
+    private async Task SubmitManualHoldAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        holdError = null;
+        try
+        {
+            var res = await QualityService.CreateManualHold(scope, new CreateManualQualityHoldRequest(
+                ScopeOrganizationId(scope), holdWarehouseId, holdItemId, holdLotCode, holdNumber,
+                holdQuantity, holdUnitId > 0 ? holdUnitId : null, holdDefectCode, holdNotes));
+            if (!res.Succeeded) { holdError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            holdModalOpen = false;
+            pageNotice = Text["QcHoldCreatedNotice"];
+            await ReloadActiveGridAsync(true);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task OpenInspectionDetailsAsync(long id)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        var res = await QualityService.GetInspection(scope, ScopeOrganizationId(scope), id);
+        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+        ApplyInspectionDetails(res.Value!);
+        detailsOpen = true;
+    }
+
+    private void ApplyInspectionDetails(QualityInspectionDetails details)
+    {
+        selectedInspection = details;
+        detailsError = null;
+        editDefectCode = details.Summary.DefectReasonCode;
+        editNotes = details.Summary.Notes;
+        editLines.Clear();
+        foreach (var l in details.Lines)
+            editLines.Add(new MeasurementEditRow { ParameterName = l.ParameterName, ExpectedSpec = l.ExpectedSpec, MeasuredValue = l.MeasuredValue, IsPassed = l.IsPassed });
+        dispAcceptQty = details.Summary.RemainingBlockedBaseQuantity;
+        dispRejectQty = 0m;
+        dispScrapDoc = null;
+        dispNotes = null;
+    }
+
+    private void AddMeasurementLine() => editLines.Add(new MeasurementEditRow());
+
+    private async Task SaveMeasurementsAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedInspection is null) return;
+        modalBusy = true;
+        detailsError = null;
+        try
+        {
+            var lines = editLines.Select(l => new QualityInspectionLineInput(l.ParameterName, l.ExpectedSpec, l.MeasuredValue, l.IsPassed)).ToArray();
+            var res = await QualityService.UpdateMeasurements(scope, new UpdateQualityMeasurementsRequest(
+                selectedInspection.Summary.OrganizationId, selectedInspection.Summary.Id,
+                editDefectCode, editNotes, lines, selectedInspection.Summary.RowVersion));
+            if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            ApplyInspectionDetails(res.Value!);
+            pageNotice = Text["WriteSaved"];
+            await ReloadActiveGridAsync(false);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task SubmitDispositionAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedInspection is null) return;
+        modalBusy = true;
+        detailsError = null;
+        try
+        {
+            var res = await QualityService.RecordDisposition(scope, new RecordQualityDispositionRequest(
+                selectedInspection.Summary.OrganizationId, selectedInspection.Summary.Id,
+                dispAcceptQty, dispRejectQty, selectedInspection.Summary.BaseUnitId,
+                editDefectCode, dispNotes, dispScrapDoc, selectedInspection.Summary.RowVersion));
+            if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            ApplyInspectionDetails(res.Value!);
+            pageNotice = Text["QcDispositionSavedNotice"];
+            await ReloadActiveGridAsync(false);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task CancelHoldAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedInspection is null) return;
+        modalBusy = true;
+        detailsError = null;
+        try
+        {
+            var res = await QualityService.CancelHold(scope, new CancelQualityHoldRequest(
+                selectedInspection.Summary.OrganizationId, selectedInspection.Summary.Id,
+                dispNotes ?? editNotes, selectedInspection.Summary.RowVersion));
+            if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            ApplyInspectionDetails(res.Value!);
+            pageNotice = Text["QcHoldCancelledNotice"];
+            await ReloadActiveGridAsync(false);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private void OpenLotModal(ItemLotSummary? lot)
+    {
+        lotError = null;
+        editingLot = lot;
+        lotEditItemId = lot?.ItemId ?? activeItems.FirstOrDefault()?.Id ?? 0;
+        lotEditCode = lot?.LotCode ?? string.Empty;
+        lotMfgDateOffset = lot?.ManufactureDate is DateOnly m ? new DateTimeOffset(m.Year, m.Month, m.Day, 0, 0, 0, TimeSpan.Zero) : null;
+        lotExpDateOffset = lot?.ExpirationDate is DateOnly e ? new DateTimeOffset(e.Year, e.Month, e.Day, 0, 0, 0, TimeSpan.Zero) : null;
+        lotEditNotes = lot?.Notes;
+        lotModalOpen = true;
+    }
+
+    private async Task SubmitLotMetadataAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        lotError = null;
+        try
+        {
+            DateOnly? mfg = lotMfgDateOffset.HasValue ? DateOnly.FromDateTime(lotMfgDateOffset.Value.Date) : null;
+            DateOnly? exp = lotExpDateOffset.HasValue ? DateOnly.FromDateTime(lotExpDateOffset.Value.Date) : null;
+            var res = await QualityService.UpsertItemLotMetadata(scope, new UpsertItemLotMetadataRequest(
+                ScopeOrganizationId(scope), lotEditItemId, lotEditCode, mfg, exp, lotEditNotes, editingLot?.RowVersion));
+            if (!res.Succeeded) { lotError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            lotModalOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await ReloadActiveGridAsync(false);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private string StatusLabel(QualityInspectionStatus status) => status switch
+    {
+        QualityInspectionStatus.Pending => Text["QcStatusPending"],
+        QualityInspectionStatus.InReview => Text["QcStatusInReview"],
+        QualityInspectionStatus.Completed => Text["QcStatusCompleted"],
+        QualityInspectionStatus.Cancelled => Text["QcStatusCancelled"],
+        _ => status.ToString()
+    };
+
+    private static string StatusBadgeClass(QualityInspectionStatus status) => status switch
+    {
+        QualityInspectionStatus.Pending => "qc-status-pending",
+        QualityInspectionStatus.InReview => "qc-status-review",
+        QualityInspectionStatus.Completed => "qc-status-completed",
+        QualityInspectionStatus.Cancelled => "qc-status-cancelled",
+        _ => "qc-status-pending"
+    };
+
+    private string SourceLabel(QualityInspectionSourceType source) => source switch
+    {
+        QualityInspectionSourceType.Receipt => Text["QcSourceReceipt"],
+        QualityInspectionSourceType.ProductionReceipt => Text["QcSourceProdReceipt"],
+        QualityInspectionSourceType.ManualHold => Text["QcSourceManualHold"],
+        _ => source.ToString()
+    };
+
+    private string ScopeLabel(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o when scopeLabels.TryGetValue(scope, out var info) && info.OrgCode is not null
+            => $"{info.OrgCode} — {info.OrgName}",
+        OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId],
+        OrganizationScope.Site s when scopeLabels.TryGetValue(scope, out var info) && info.SiteCode is not null
+            => $"{info.OrgCode} / {info.SiteCode} — {info.SiteName}",
+        OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
+        _ => string.Empty
+    };
+}

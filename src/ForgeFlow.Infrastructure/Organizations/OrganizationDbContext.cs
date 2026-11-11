@@ -7,6 +7,7 @@ using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.ProductionOrders;
+using ForgeFlow.Domain.Quality;
 using ForgeFlow.Domain.Units;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -50,6 +51,9 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
     public DbSet<InventoryLedgerEntry> InventoryLedgerEntries => Set<InventoryLedgerEntry>();
     public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>();
+    public DbSet<ItemLot> ItemLots => Set<ItemLot>();
+    public DbSet<QualityInspection> QualityInspections => Set<QualityInspection>();
+    public DbSet<QualityInspectionLine> QualityInspectionLines => Set<QualityInspectionLine>();
     public DbSet<OrganizationChange> OrganizationChanges => Set<OrganizationChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) => OrganizationModel.Configure(modelBuilder);
@@ -90,13 +94,15 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                 or ContextDimension or Bom or BomVersion or BomInput or BomOutput
                 or BomApplicability or BomApplicabilityCondition
                 or ProductionOrder or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext
-                or Warehouse or InventoryTransaction or InventoryLedgerEntry or InventoryBalance))
+                or Warehouse or InventoryTransaction or InventoryLedgerEntry or InventoryBalance
+                or ItemLot or QualityInspection or QualityInspectionLine))
             {
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             }
             if (entry.State == EntityState.Deleted && entry.Entity is not (ItemClassification or ItemAttributeValue
                 or BomInput or BomOutput or BomApplicability or BomApplicabilityCondition
-                or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext))
+                or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext
+                or QualityInspectionLine))
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             if (entry.State == EntityState.Modified)
             {
@@ -106,7 +112,7 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                     UnitConversion or ItemUnitConversion => new[] { "Factor", "IsActive" },
                     ClassificationSet => new[] { "Name", "IsMandatory", "AllowMultiple", "IsActive" },
                     Classification => new[] { "Name", "ParentClassificationId", "IsActive" },
-                    Item => new[] { "Name", "Description", "BaseUnitId", "CanBePurchased", "CanBeManufactured", "CanBeSold", "CanBeConsumed", "IsActive" },
+                    Item => new[] { "Name", "Description", "BaseUnitId", "CanBePurchased", "CanBeManufactured", "CanBeSold", "CanBeConsumed", "RequiresLotTracking", "QualityControlMode", "IsActive" },
                     AttributeDefinition => new[] { "Name", "UnitId", "IsRequired", "IsActive" },
                     ItemAttributeValue => new[] { "TextValue", "DecimalValue", "BooleanValue" },
                     ContextDimension => new[] { "Name", "IsActive" },
@@ -118,8 +124,11 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                         "ActualProducedQuantity", "ActualScrapQuantity", "Notes", "CancellationReason",
                         "ReleasedAtUtc", "StartedAtUtc", "CompletedAtUtc", "CancelledAtUtc" },
                     Warehouse => new[] { "Name", "IsDefaultForSite", "IsActive" },
-                    InventoryBalance => new[] { "OnHandBaseQuantity", "LastMovedAtUtc" },
+                    InventoryBalance => new[] { "OnHandBaseQuantity", "BlockedBaseQuantity", "LastMovedAtUtc" },
                     InventoryTransaction or InventoryLedgerEntry => Array.Empty<string>(),
+                    ItemLot => new[] { "ManufactureDate", "ExpirationDate", "Notes" },
+                    QualityInspection => new[] { "AcceptedBaseQuantity", "RejectedBaseQuantity", "RemainingBlockedBaseQuantity", "Status", "DefectReasonCode", "Notes", "InspectedAtUtc", "InspectedByActorId" },
+                    QualityInspectionLine => Array.Empty<string>(),
                     _ => new[] { "Name", "IsActive" }
                 };
                 if (entry.Properties.Any(p => p.IsModified && !allowedProps.Contains(p.Metadata.Name, StringComparer.Ordinal)))
@@ -207,6 +216,9 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         InventoryTransaction txn => txn.OrganizationId,
         InventoryLedgerEntry ile => ile.OrganizationId,
         InventoryBalance bal => bal.OrganizationId,
+        ItemLot lot => lot.OrganizationId,
+        QualityInspection qi => qi.OrganizationId,
+        QualityInspectionLine qil => qil.OrganizationId,
         _ => throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied)
     };
 
@@ -221,6 +233,8 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         InventoryTransaction txn => txn.SiteId,
         InventoryLedgerEntry ile => ile.SiteId,
         InventoryBalance bal => bal.SiteId,
+        QualityInspection qi => qi.SiteId,
+        QualityInspectionLine qil => ChangeTracker.Entries<QualityInspection>().FirstOrDefault(q => q.Entity.Id == qil.QualityInspectionId)?.Entity.SiteId,
         _ => null
     };
 
@@ -233,9 +247,23 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
             .Select(e => ((ProductionOrder)e.Entity).Id)
             .ToHashSet();
         var seenRefreshedOrders = new HashSet<long>();
+        var headersWithQualityEvent = entries
+            .Where(e => e.Entity is QualityInspection)
+            .Select(e => ((QualityInspection)e.Entity).Id)
+            .ToHashSet();
+        var seenQualityLinesInspections = new HashSet<long>();
 
         foreach (var entry in entries)
         {
+            if (entry.Entity is QualityInspectionLine qLine)
+            {
+                if (!headersWithQualityEvent.Contains(qLine.QualityInspectionId) && seenQualityLinesInspections.Add(qLine.QualityInspectionId))
+                {
+                    yield return new PendingChange(entry, "QualityInspection.Updated",
+                        JsonSerializer.Serialize(new { QualityInspectionId = qLine.QualityInspectionId }, AuditJson));
+                }
+                continue;
+            }
             if (entry.Entity is BomInput or BomOutput)
             {
                 var verId = entry.Entity is BomInput bi ? bi.BomVersionId : ((BomOutput)entry.Entity).BomVersionId;
@@ -284,6 +312,38 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
 
     private static IEnumerable<PendingChange> CaptureChanges(EntityEntry entry)
     {
+        if (entry.Entity is ItemLot lot)
+        {
+            yield return new PendingChange(entry, "ItemLot.Updated",
+                JsonSerializer.Serialize(new { lot.ItemId, lot.LotCode, lot.ManufactureDate, lot.ExpirationDate }, AuditJson));
+            yield break;
+        }
+
+        if (entry.Entity is QualityInspection qi)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "QualityInspection.Created",
+                    JsonSerializer.Serialize(new { qi.InspectionNumber, qi.SiteId, qi.WarehouseId, qi.ItemId, qi.LotCode, qi.InspectedBaseQuantity, SourceType = qi.SourceType.ToString() }, AuditJson));
+                yield break;
+            }
+            if (entry.Property("AcceptedBaseQuantity").IsModified || entry.Property("RejectedBaseQuantity").IsModified)
+            {
+                yield return new PendingChange(entry, "QualityInspection.Disposed",
+                    JsonSerializer.Serialize(new { qi.InspectionNumber, qi.AcceptedBaseQuantity, qi.RejectedBaseQuantity, qi.RemainingBlockedBaseQuantity, Status = qi.Status.ToString(), qi.DefectReasonCode }, AuditJson));
+                yield break;
+            }
+            if (entry.Property("Status").IsModified && qi.Status == QualityInspectionStatus.Cancelled)
+            {
+                yield return new PendingChange(entry, "QualityInspection.Cancelled",
+                    JsonSerializer.Serialize(new { qi.InspectionNumber, qi.Notes }, AuditJson));
+                yield break;
+            }
+            yield return new PendingChange(entry, "QualityInspection.Updated",
+                JsonSerializer.Serialize(new { qi.InspectionNumber, qi.DefectReasonCode, Status = qi.Status.ToString() }, AuditJson));
+            yield break;
+        }
+
         if (entry.Entity is Warehouse wh)
         {
             if (entry.State == EntityState.Added)
@@ -745,6 +805,12 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                     || e.Entity is InventoryTransaction or InventoryLedgerEntry or InventoryBalance));
             if (invChanged && !effectiveActive)
                 throw new InvalidOperationException(InventoryErrors.ParentOrganizationInactive);
+
+            var qualityChanged = entries.Any(e => e.Entity is ItemLot or QualityInspection or QualityInspectionLine
+                && ResolveEntityOrganizationId(e.Entity) == orgId
+                && (e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted));
+            if (qualityChanged && !effectiveActive)
+                throw new InvalidOperationException(QualityErrors.ParentOrganizationInactive);
         }
     }
 }

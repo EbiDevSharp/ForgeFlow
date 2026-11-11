@@ -91,15 +91,22 @@ public sealed class DiagnosticTests
     }
 
     [Fact]
-    public async Task D03_error_log_use_cases_enforce_platform_only_scope_and_validation()
+    public async Task D03_error_log_use_cases_enforce_platform_or_org_read_and_platform_only_purge()
     {
         var store = new InMemoryErrorLogStore();
         var allowAll = new AllowAllPermissions();
         var useCases = new ErrorLogUseCases(store, new StaticActor(PlatformActor), allowAll);
 
-        var orgAttempt = await useCases.ListErrorLogs(new OrganizationScope.Organization(1), new ErrorLogListQuery());
-        Assert.False(orgAttempt.Succeeded);
-        Assert.Equal(DiagnosticErrors.AccessDenied, orgAttempt.Error!.Code);
+        var orgRead = await useCases.ListErrorLogs(new OrganizationScope.Organization(1), new ErrorLogListQuery());
+        Assert.True(orgRead.Succeeded);
+        Assert.IsType<OrganizationScope.Organization>(store.LastReadScope);
+
+        var orgStats = await useCases.GetStats(new OrganizationScope.Organization(1));
+        Assert.True(orgStats.Succeeded);
+
+        var orgPurgeAttempt = await useCases.PurgeOldErrorLogs(new OrganizationScope.Organization(1), 90);
+        Assert.False(orgPurgeAttempt.Succeeded);
+        Assert.Equal(DiagnosticErrors.AccessDenied, orgPurgeAttempt.Error!.Code);
 
         var siteAttempt = await useCases.GetErrorLog(new OrganizationScope.Site(1, 2), 1);
         Assert.False(siteAttempt.Succeeded);
@@ -117,6 +124,7 @@ public sealed class DiagnosticTests
 
         var okList = await useCases.ListErrorLogs(new OrganizationScope.Platform(), new ErrorLogListQuery());
         Assert.True(okList.Succeeded);
+        Assert.IsType<OrganizationScope.Platform>(store.LastReadScope);
 
         var okPurge = await useCases.PurgeOldErrorLogs(new OrganizationScope.Platform(), 90);
         Assert.True(okPurge.Succeeded);
@@ -142,18 +150,23 @@ public sealed class DiagnosticTests
     public void D05_diagnostic_and_audit_export_permissions_respect_platform_vs_tenant_boundaries()
     {
         Assert.True(PermissionCatalog.TryGet(DiagnosticPermissions.ErrorLogsRead, out var readDesc));
-        Assert.Equal(PermissionScopeApplicability.PlatformOnly, readDesc.Applicability);
+        Assert.Equal(PermissionScopeApplicability.OrganizationOnly, readDesc.Applicability);
+        Assert.True(PermissionCatalog.TryGet(DiagnosticPermissions.ErrorLogsManage, out var manageDesc));
+        Assert.Equal(PermissionScopeApplicability.PlatformOnly, manageDesc.Applicability);
         Assert.True(PermissionCatalog.TryGet(AuditPermissions.AuditExport, out var exportDesc));
         Assert.Equal(PermissionScopeApplicability.OrganizationOrSite, exportDesc.Applicability);
 
-        Assert.False(PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(DiagnosticPermissions.ErrorLogsRead, 1));
+        Assert.True(PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(DiagnosticPermissions.ErrorLogsRead, 1));
         Assert.False(PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(DiagnosticPermissions.ErrorLogsRead, 2));
+        Assert.False(PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(DiagnosticPermissions.ErrorLogsManage, 1));
         Assert.True(PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(AuditPermissions.AuditExport, 1));
         Assert.True(PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(AuditPermissions.AuditExport, 2));
 
         Assert.True(FixedRolePolicy.Allows(FixedAccessRoles.DeploymentProvisioner, new OrganizationScope.Platform(), DiagnosticPermissions.ErrorLogsRead));
         Assert.True(FixedRolePolicy.Allows(FixedAccessRoles.DeploymentProvisioner, new OrganizationScope.Platform(), DiagnosticPermissions.ErrorLogsManage));
-        Assert.False(FixedRolePolicy.Allows(FixedAccessRoles.OrganizationAdministrator, new OrganizationScope.Organization(1), DiagnosticPermissions.ErrorLogsRead));
+        Assert.True(FixedRolePolicy.Allows(FixedAccessRoles.OrganizationAdministrator, new OrganizationScope.Organization(1), DiagnosticPermissions.ErrorLogsRead));
+        Assert.False(FixedRolePolicy.Allows(FixedAccessRoles.OrganizationAdministrator, new OrganizationScope.Site(1, 2), DiagnosticPermissions.ErrorLogsRead));
+        Assert.False(FixedRolePolicy.Allows(FixedAccessRoles.OrganizationAdministrator, new OrganizationScope.Organization(1), DiagnosticPermissions.ErrorLogsManage));
         Assert.False(FixedRolePolicy.Allows(FixedAccessRoles.SiteOperator, new OrganizationScope.Site(1, 2), AuditPermissions.AuditExport));
     }
 
@@ -356,12 +369,22 @@ public sealed class DiagnosticTests
 
     private sealed class InMemoryErrorLogStore : IErrorLogStore
     {
-        public Task<OrganizationPage<ErrorLogSummary>> ListAsync(ErrorLogListQuery query, CancellationToken ct = default)
-            => Task.FromResult(new OrganizationPage<ErrorLogSummary>([], 0, query.Page, query.PageSize));
-        public Task<ErrorLogDetails?> GetAsync(long id, CancellationToken ct = default)
-            => Task.FromResult<ErrorLogDetails?>(null);
-        public Task<ErrorLogStats> GetStatsAsync(DateTime utcNow, CancellationToken ct = default)
-            => Task.FromResult(new ErrorLogStats(0, 0, 0, 0));
+        public OrganizationScope? LastReadScope { get; private set; }
+        public Task<OrganizationPage<ErrorLogSummary>> ListAsync(OrganizationScope scope, ErrorLogListQuery query, CancellationToken ct = default)
+        {
+            LastReadScope = scope;
+            return Task.FromResult(new OrganizationPage<ErrorLogSummary>([], 0, query.Page, query.PageSize));
+        }
+        public Task<ErrorLogDetails?> GetAsync(OrganizationScope scope, long id, CancellationToken ct = default)
+        {
+            LastReadScope = scope;
+            return Task.FromResult<ErrorLogDetails?>(null);
+        }
+        public Task<ErrorLogStats> GetStatsAsync(OrganizationScope scope, DateTime utcNow, CancellationToken ct = default)
+        {
+            LastReadScope = scope;
+            return Task.FromResult(new ErrorLogStats(0, 0, 0, 0));
+        }
         public Task<int> PurgeBeforeAsync(DateTime cutoffUtc, CancellationToken ct = default)
             => Task.FromResult(0);
     }

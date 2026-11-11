@@ -2166,4 +2166,90 @@
   <data name="AuditEv_ReportingActionRejected" xml:space="preserve"><value>رد درخواست خروجی گزارش</value></data>
   <data name="UserMenuLastLoginTitle" xml:space="preserve"><value>آخرین ورود</value></data>
   <data name="UserMenuFirstLoginNotice" xml:space="preserve"><value>این اولین ورود شماست</value></data>
+  <data name="PermPageQuality" xml:space="preserve"><value>کنترل کیفیت و ردیابی بچ</value></data>
+  <data name="PermOpManageQuality" xml:space="preserve"><value>مدیریت بازرسی‌ها و تصمیمات کیفی</value></data>
+  <data name="QualityNavGroup" xml:space="preserve"><value>کنترل کیفیت</value></data>
+  <data name="QualityControl" xml:space="preserve"><value>بازرسی و قرنطینه</value></data>
+  <data name="LotTraceability" xml:space="preserve"><value>ردیابی لات/بچ</value></data>
+  <data name="QualityCaption" xml:space="preserve"><value>مسدودسازی قرنطینه، ثبت نتایج آزمایش، تصمیم‌گیری جزئی و مدیریت تاریخ انقضای لات‌ها.</value></data>
+  <data name="ItemLotTrackedBadge" xml:space="preserve"><value>ردیابی لات</value></data>
+  <data name="ItemQcRequiredBadge" xml:space="preserve"><value>نیازمند QC</value></data>
+  <data name="ItemRequiresLotTrackingLabel" xml:space="preserve"><value>الزام کد لات در حرکات انبار</value></data>
+  <data name="ItemQcModeLabel" xml:space="preserve"><value>سیاست کنترل کیفیت</value></data>
+  <data name="ItemQcModeNone" xml:space="preserve"><value>بدون بازرسی خودکار</value></data>
+  <data name="ItemQcModeIncoming" xml:space="preserve"><value>بازرسی رسیدهای خرید/ورودی</value></data>
+  <data name="ItemQcModeProduction" xml:space="preserve"><value>بازرسی رسیدهای تولید</value></data>
+  <data name="ItemQcModeAll" xml:space="preserve"><value>بازرسی تمام رسیدها</value></data>
+  <data name="ItemErrorQcModeInvalid" xml:space="preserve"><value>سیاست کنترل کیفیت انتخاب‌شده نامعتبر است.</value></data>
+  <data name="InvBlockedLabel" xml:space="preserve"><value>مسدود (QC)</value></data>
+  <data name="InvAvailableLabel" xml:space="preserve"><value>قابل مصرف</value></data>
+  <data name="InvBlockedShort" xml:space="preserve"><value>مسدود: {0}</value></data>
+  <data name="InvTypeQualityScrap" xml:space="preserve"><value>ضایعات کنترل کیفیت</value></data>
+  <data name="InvErrorLotRequired" xml:space="preserve"><value>برای این کالا ثبت کد لات در حرکات انبار الزامی است.</value></data>
+  <data name="InvErrorLotExpired" xml:space="preserve"><value>تاریخ انقضای این لات گذشته است و خروج یا مصرف آن مجاز نیست.</value></data>
+  <data name="RptBlockedSubLabel" xml:space="preserve"><value>مسدود: {0} / کل موجودی: {1}</value></data>
+  <data name="QcCreateHoldBtn" xml:space="preserve"><value>ثبت قرنطینه دستی</value></data>
+  <data name="QcLotUpsertBtn" xml:space="preserve"><value>ثبت تاریخ لات</value></data>
+  <data name="QcTabInspections" xml:space="preserve"><value>بازرسی‌ها و قرنطینه</value></data>
+  <data name="QcTabLots" xml:space="preserve"><value>تاریخ تولید و انقضای لات</value></data>
+  <data name="QcOnlyExpiringLabel" xml:space="preserve"><value>فقط لات‌های منقضی یا نزدیک به انقضا</value></data>
+  <data name="QcNumberColumn" xml:space="preserve"><value>شماره بازرسی</value></data>
+  <data name="QcSourceColumn" xml:space="preserve"><value>منشأ</value></data>
+  <data name="QcQuantitiesColumn" xml:space="preserve"><value>مقادیر</value></data>
+  <data name="QcQtyBreakdown" xml:space="preserve"><value>تأیید: {0} · رد/ضایعات: {1} · مسدود: {2}</value></data>
+  <data name="QcLotMfgDateLabel" xml:space="preserve"><value>تاریخ تولید</value></data>
+  <data name="QcLotExpDateLabel" xml:space="preserve"><value>تاریخ انقضا</value></data>
+  <data name="QcLotExpiredBadge" xml:space="preserve"><value>منقضی‌شده</value></data>
+  <data name="QcLotExpiringBadge" xml:space="preserve"><value>نزدیک به انقضا</value></data>
+  <data name="QcCreateHoldTitle" xml:space="preserve"><value>ایجاد مسدودیت کنترل کیفیت (قرنطینه)</value></data>
+  <data name="QcDefectCodeLabel" xml:space="preserve"><value>کد نقص / علت</value></data>
+  <data name="QcDetailsTitle" xml:space="preserve"><value>جزئیات بازرسی کنترل کیفیت</value></data>
+  <data name="QcMeasurementsSection" xml:space="preserve"><value>پارامترها و نتایج آزمایش</value></data>
+  <data name="QcAddLineBtn" xml:space="preserve"><value>افزودن آزمایش</value></data>
+  <data name="QcParamNamePlaceholder" xml:space="preserve"><value>نام پارامتر</value></data>
+  <data name="QcExpectedSpecPlaceholder" xml:space="preserve"><value>حد مجاز / استاندارد</value></data>
+  <data name="QcMeasuredValPlaceholder" xml:space="preserve"><value>مقدار اندازه‌گیری</value></data>
+  <data name="QcPassedCheck" xml:space="preserve"><value>قبول</value></data>
+  <data name="QcFailedLabel" xml:space="preserve"><value>رد</value></data>
+  <data name="QcSaveMeasurementsBtn" xml:space="preserve"><value>ذخیره نتایج آزمایش</value></data>
+  <data name="QcDispositionSection" xml:space="preserve"><value>ثبت تصمیم نهایی (آزادسازی / ضایعات)</value></data>
+  <data name="QcAcceptQtyLabel" xml:space="preserve"><value>مقدار تأیید و آزادسازی</value></data>
+  <data name="QcRejectScrapQtyLabel" xml:space="preserve"><value>مقدار رد و ضایعات</value></data>
+  <data name="QcScrapDocLabel" xml:space="preserve"><value>شماره سند ضایعات</value></data>
+  <data name="QcRecordDispositionBtn" xml:space="preserve"><value>اعمال تصمیم کیفی</value></data>
+  <data name="QcCancelHoldBtn" xml:space="preserve"><value>لغو مسدودیت</value></data>
+  <data name="QcHoldCreatedNotice" xml:space="preserve"><value>بازرسی کنترل کیفیت ایجاد و موجودی مسدود شد.</value></data>
+  <data name="QcDispositionSavedNotice" xml:space="preserve"><value>تصمیم کیفی با موفقیت اعمال شد.</value></data>
+  <data name="QcHoldCancelledNotice" xml:space="preserve"><value>بازرسی لغو و موجودی مسدود آزاد شد.</value></data>
+  <data name="QcLotUpsertTitle" xml:space="preserve"><value>اطلاعات و تاریخ‌های لات</value></data>
+  <data name="QcStatusPending" xml:space="preserve"><value>در انتظار</value></data>
+  <data name="QcStatusInReview" xml:space="preserve"><value>در حال بررسی</value></data>
+  <data name="QcStatusCompleted" xml:space="preserve"><value>تکمیل‌شده</value></data>
+  <data name="QcStatusCancelled" xml:space="preserve"><value>لغوشده</value></data>
+  <data name="QcSourceReceipt" xml:space="preserve"><value>رسید انبار</value></data>
+  <data name="QcSourceProdReceipt" xml:space="preserve"><value>رسید تولید</value></data>
+  <data name="QcSourceManualHold" xml:space="preserve"><value>قرنطینه دستی</value></data>
+  <data name="QcErrorTerminal" xml:space="preserve"><value>این بازرسی قبلاً تکمیل یا لغو شده است.</value></data>
+  <data name="QcErrorHasDispositions" xml:space="preserve"><value>بازرسی دارای مقدار تأیید یا ردشده قابل لغو نیست.</value></data>
+  <data name="QcErrorDispositionExceeds" xml:space="preserve"><value>مجموع مقدار تأیید و رد از مقدار مسدود باقی‌مانده بیشتر است.</value></data>
+  <data name="QcErrorDefectReasonInvalid" xml:space="preserve"><value>کد علت نقص باید با حروف انگلیسی/عدد (و _ یا -) تا ۶۴ کاراکتر باشد.</value></data>
+  <data name="QcErrorParameterInvalid" xml:space="preserve"><value>نام یا مقدار پارامتر آزمایش نامعتبر است.</value></data>
+  <data name="QcErrorLotDatesInvalid" xml:space="preserve"><value>تاریخ انقضا نمی‌تواند قبل از تاریخ تولید باشد.</value></data>
+  <data name="LotTraceCaption" xml:space="preserve"><value>ردیابی چندسطحی رو به عقب و رو به جلو بر اساس اسناد واقعی تولید و کاردکس انبار.</value></data>
+  <data name="LotTraceDirectionLabel" xml:space="preserve"><value>جهت ردیابی</value></data>
+  <data name="LotTraceDirBoth" xml:space="preserve"><value>دوطرفه (مبدأ و مصرف)</value></data>
+  <data name="LotTraceDirBackward" xml:space="preserve"><value>رو به عقب (مواد اولیه)</value></data>
+  <data name="LotTraceDirForward" xml:space="preserve"><value>رو به جلو (محصولات تولیدی)</value></data>
+  <data name="LotTraceRunBtn" xml:space="preserve"><value>ردیابی لات</value></data>
+  <data name="LotTraceBackwardTitle" xml:space="preserve"><value>شجره‌نامه رو به عقب (مواد اولیه مصرف‌شده)</value></data>
+  <data name="LotTraceForwardTitle" xml:space="preserve"><value>شجره‌نامه رو به جلو (محصولات ساخته‌شده)</value></data>
+  <data name="LotTraceSourceLotCol" xml:space="preserve"><value>لات ورودی</value></data>
+  <data name="LotTraceTargetLotCol" xml:space="preserve"><value>لات خروجی</value></data>
+  <data name="LotTraceMovementsTitle" xml:space="preserve"><value>تاریخچه حرکات کاردکس لات</value></data>
+  <data name="AuditEv_QualityInspectionCreated" xml:space="preserve"><value>ایجاد بازرسی کنترل کیفیت</value></data>
+  <data name="AuditEv_QualityInspectionUpdated" xml:space="preserve"><value>به‌روزرسانی بازرسی کیفیت</value></data>
+  <data name="AuditEv_QualityInspectionDisposed" xml:space="preserve"><value>ثبت تصمیم نهایی کنترل کیفیت</value></data>
+  <data name="AuditEv_QualityInspectionCancelled" xml:space="preserve"><value>لغو بازرسی کنترل کیفیت</value></data>
+  <data name="AuditEv_ItemLotUpdated" xml:space="preserve"><value>ثبت یا ویرایش تاریخ‌های لات</value></data>
+  <data name="AuditEv_QualityActionRejected" xml:space="preserve"><value>رد عملیات کنترل کیفیت</value></data>
 </root>

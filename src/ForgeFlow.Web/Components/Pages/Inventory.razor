@@ -15,6 +15,7 @@
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
 @inject ITrustedActorAccessor Actors
 @inject IOrganizationPermissionEvaluator Permissions
+@inject CulturePolicy Culture
 @inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
 
@@ -172,10 +173,44 @@
                                 <Template Context="b"><span dir="ltr">@b.ItemCode</span> — @b.ItemName</Template>
                             </BitDataGridColumn>
                             <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvLotCodeLabel"]">
-                                <Template Context="b"><bdi dir="ltr">@(string.IsNullOrEmpty(b.LotCode) ? "—" : b.LotCode)</bdi></Template>
+                                <Template Context="b">
+                                    @if (string.IsNullOrEmpty(b.LotCode))
+                                    {
+                                        <span>—</span>
+                                    }
+                                    else
+                                    {
+                                        <div>
+                                            <div class="read-primary-cell">
+                                                <a class="qc-lot-link" href="@($"/traceability?itemId={b.ItemId}&lotCode={Uri.EscapeDataString(b.LotCode)}")" dir="ltr">@b.LotCode</a>
+                                            </div>
+                                            @if (b.ExpirationDate.HasValue)
+                                            {
+                                                <div class="read-sub-cell">
+                                                    <span class="read-badge @(b.IsExpired ? "rpt-shortage-badge" : b.IsExpiringSoon ? "qc-status-pending" : "qc-status-completed")">
+                                                        @if (b.IsExpired) { @Text["QcLotExpiredBadge"] }
+                                                        else if (b.IsExpiringSoon) { @Text["QcLotExpiringBadge"] }
+                                                        else { <bdi dir="ltr">@b.ExpirationDate.Value.ToString("yyyy-MM-dd")</bdi> }
+                                                    </span>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </Template>
                             </BitDataGridColumn>
                             <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvOnHandLabel"]">
-                                <Template Context="b"><strong dir="ltr">@Format.Number(b.OnHandBaseQuantity) @b.BaseUnitSymbol</strong></Template>
+                                <Template Context="b">
+                                    <div>
+                                        <div class="read-primary-cell"><strong dir="ltr">@Format.Number(b.OnHandBaseQuantity) @b.BaseUnitSymbol</strong></div>
+                                        @if (b.BlockedBaseQuantity > 0m)
+                                        {
+                                            <div class="read-sub-cell">
+                                                <span class="read-badge qc-status-pending" dir="ltr">@Text["InvBlockedShort", Format.Number(b.BlockedBaseQuantity)]</span>
+                                                <span dir="ltr"> · @Text["InvAvailableLabel"]: @Format.Number(b.AvailableBaseQuantity)</span>
+                                            </div>
+                                        }
+                                    </div>
+                                </Template>
                             </BitDataGridColumn>
                             <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvLastMovedLabel"]">
                                 <Template Context="b"><bdi dir="ltr">@Format.Timestamp(b.LastMovedAtUtc)</bdi></Template>
@@ -450,6 +485,25 @@
                                 @Text["BomRemoveRowBtn"]
                             </BitButton>
                         </div>
+                        @if (postType is InventoryTransactionType.Receipt or InventoryTransactionType.ProductionReceipt && !string.IsNullOrWhiteSpace(row.LotCode))
+                        {
+                            <div class="po-form-grid" style="margin-top:4px; margin-bottom:8px;">
+                                <div class="write-field">
+                                    <label>@Text["QcLotMfgDateLabel"]</label>
+                                    <BitDatePicker @bind-Value="row.ManufactureDateOffset" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                                                   ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowClearButton="true" ShowGoToToday="true"
+                                                   GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                                                   NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon" NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+                                </div>
+                                <div class="write-field">
+                                    <label>@Text["QcLotExpDateLabel"]</label>
+                                    <BitDatePicker @bind-Value="row.ExpirationDateOffset" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                                                   ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowClearButton="true" ShowGoToToday="true"
+                                                   GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                                                   NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon" NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+                                </div>
+                            </div>
+                        }
                     }
                 </div>
 
@@ -490,6 +544,13 @@
                             <div class="audit-meta-row">
                                 <span class="audit-meta-label">@Text["PoOrderNumberColumn"]</span>
                                 <span class="audit-meta-val" dir="ltr">@t.ProductionOrderNumber</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(t.QualityInspectionNumber))
+                        {
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["QualityControl"]</span>
+                                <span class="audit-meta-val" dir="ltr"><a class="qc-lot-link" href="/quality">@t.QualityInspectionNumber</a></span>
                             </div>
                         }
                         <div class="audit-meta-row">
@@ -540,7 +601,7 @@
                         </div>
                     </div>
 
-                    @if (scopeCanManage && t.TransactionType != InventoryTransactionType.Reversal && !t.IsReversed)
+                    @if (scopeCanManage && t.TransactionType is not (InventoryTransactionType.Reversal or InventoryTransactionType.QualityScrap) && !t.IsReversed)
                     {
                         <div class="po-context-card">
                             <strong>@Text["InvReverseSection"]</strong>
@@ -586,6 +647,14 @@
     };
     private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
     private static readonly BitIconInfo PlusIcon = BitIconInfo.Css("ff-icon ff-icon--plus");
+    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
+    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
+    private static readonly BitIconInfo NextNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-next");
+    private static readonly BitIconInfo PrevNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-prev");
+    private static readonly BitIconInfo NextYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-next");
+    private static readonly BitIconInfo PrevYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-prev");
+    private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
+    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
 
     private BitDataGrid<InventoryBalanceSummary>? balGrid;
     private BitDataGrid<InventoryTransactionSummary>? txnGrid;
@@ -647,6 +716,8 @@
         public string LotCode { get; set; } = string.Empty;
         public decimal Quantity { get; set; } = 1m;
         public long UnitId { get; set; }
+        public DateTimeOffset? ManufactureDateOffset { get; set; }
+        public DateTimeOffset? ExpirationDateOffset { get; set; }
     }
 
     private OrganizationScope? CurrentScope =>
@@ -1031,7 +1102,14 @@
         try
         {
             var orgId = ScopeOrganizationId(scope);
-            var lines = postLines.Select(l => new InventoryLineInput(l.ItemId, l.LotCode, l.Quantity, l.UnitId > 0 ? l.UnitId : null, null)).ToArray();
+            var lines = postLines.Select(l => new InventoryLineInput(
+                l.ItemId,
+                l.LotCode,
+                l.Quantity,
+                l.UnitId > 0 ? l.UnitId : null,
+                null,
+                l.ManufactureDateOffset.HasValue ? DateOnly.FromDateTime(l.ManufactureDateOffset.Value.Date) : null,
+                l.ExpirationDateOffset.HasValue ? DateOnly.FromDateTime(l.ExpirationDateOffset.Value.Date) : null)).ToArray();
             var res = await InvService.PostTransaction(scope, new PostInventoryTransactionRequest(
                 orgId,
                 postWarehouseId,
@@ -1094,6 +1172,7 @@
         InventoryTransactionType.ProductionIssue => Text["InvTypeProdIssue"],
         InventoryTransactionType.ProductionReceipt => Text["InvTypeProdReceipt"],
         InventoryTransactionType.Reversal => Text["InvTypeReversal"],
+        InventoryTransactionType.QualityScrap => Text["InvTypeQualityScrap"],
         _ => type.ToString()
     };
 
@@ -1102,7 +1181,7 @@
         InventoryTransactionType.Receipt or InventoryTransactionType.ProductionReceipt or InventoryTransactionType.TransferIn => "po-status-completed",
         InventoryTransactionType.Issue or InventoryTransactionType.ProductionIssue => "po-status-inprogress",
         InventoryTransactionType.TransferOut or InventoryTransactionType.Adjustment => "po-status-released",
-        InventoryTransactionType.Reversal => "po-status-cancelled",
+        InventoryTransactionType.Reversal or InventoryTransactionType.QualityScrap => "po-status-cancelled",
         _ => "po-status-draft"
     };
 }

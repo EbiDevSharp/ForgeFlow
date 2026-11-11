@@ -1,4 +1,5 @@
 @page "/errors"
+@page "/organizations/{OrganizationId:long}/errors"
 @using System.Globalization
 @using ForgeFlow.Application.Diagnostics
 @using ForgeFlow.Application.Organizations
@@ -20,7 +21,7 @@
             <h1 id="errlog-title">@Text["ErrorLogs"]</h1>
             <p class="write-hint">@Text["ErrorLogsCaption"]</p>
         </div>
-        @if (!initialLoading && failureKey is null && platformScope is not null && canManage)
+        @if (!initialLoading && failureKey is null && selectedScope is not null && canManage)
         {
             <div class="read-head-actions">
                 <select aria-label="@Text["ErrorLogsPurgeDaysLabel"]" @bind="purgeDays">
@@ -52,7 +53,7 @@
             <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadAllAsync">@Text["WriteReload"]</BitButton>
         </div>
     }
-    else if (platformScope is null)
+    else if (selectedScope is null)
     {
         <p role="status" class="read-empty">@Text["ReadDenied"]</p>
     }
@@ -81,6 +82,18 @@
         }
 
         <div class="read-toolbar-card">
+            @if (scopesList.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="err-scope">@Text["ReadScope"]</label>
+                    <select id="err-scope" aria-label="@Text["ReadScope"]" value="@ScopeKey(selectedScope)" @onchange="ChangeScopeAsync">
+                        @foreach (var scope in scopesList)
+                        {
+                            <option value="@ScopeKey(scope)">@DescribeScope(scope)</option>
+                        }
+                    </select>
+                </div>
+            }
             <div class="read-field">
                 <label for="err-sev">@Text["ErrorLogsSeverityLabel"]</label>
                 <select id="err-sev" value="@severityFilter" @onchange="ChangeSeverityAsync">
@@ -262,6 +275,8 @@
 </section>
 
 @code {
+    [Parameter] public long? OrganizationId { get; set; }
+
     private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
     private static readonly BitDialogClassStyles DialogClasses = new()
     {
@@ -300,7 +315,10 @@
     };
 
     private BitDataGrid<ErrorLogSummary>? grid;
-    private OrganizationScope.Platform? platformScope;
+    private IReadOnlyList<OrganizationScope> scopesList = [];
+    private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
+        new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+    private OrganizationScope? selectedScope;
     private ErrorLogStats? stats;
     private bool initialLoading = true;
     private bool canManage;
@@ -339,7 +357,7 @@
         }
     }
 
-    protected override async Task OnInitializedAsync() => await ReloadAllAsync();
+    protected override async Task OnParametersSetAsync() => await ReloadAllAsync();
 
     private async Task ReloadAllAsync()
     {
@@ -347,25 +365,21 @@
         failureKey = null;
         pageNotice = null;
         canManage = false;
+        stats = null;
+        detailsOpen = false;
+        selectedDetails = null;
         try
         {
-            var scopes = await Scopes.LoadDiagnosticScopesAsync();
-            platformScope = scopes.OfType<OrganizationScope.Platform>().FirstOrDefault();
-            if (platformScope is null)
+            scopesList = await Scopes.LoadDiagnosticScopesAsync();
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(scopesList);
+            selectedScope = SelectInitialScope();
+            if (selectedScope is null)
             {
                 initialLoading = false;
                 return;
             }
 
-            var actor = await Actors.ResolveAsync(default);
-            if (actor is not null)
-                canManage = (await Permissions.EvaluateAsync(actor, platformScope, DiagnosticPermissions.ErrorLogsManage, default)).IsAllowed;
-
-            var statsRes = await ErrorLogs.GetStats(platformScope);
-            if (statsRes.Succeeded)
-                stats = statsRes.Value;
-            else
-                failureKey = RolePermissionLocalization.FailureKey(statsRes.Error!.Code);
+            await RefreshScopeStateAsync();
         }
         catch
         {
@@ -377,9 +391,52 @@
         }
     }
 
+    private OrganizationScope? SelectInitialScope()
+    {
+        if (OrganizationId is long requested)
+        {
+            return scopesList.FirstOrDefault(s => s is OrganizationScope.Organization o && o.OrganizationId == requested)
+                ?? new OrganizationScope.Organization(requested);
+        }
+
+        return scopesList.FirstOrDefault();
+    }
+
+    private async Task RefreshScopeStateAsync()
+    {
+        canManage = false;
+        stats = null;
+        failureKey = null;
+        if (selectedScope is null) return;
+
+        if (selectedScope is OrganizationScope.Platform)
+        {
+            var actor = await Actors.ResolveAsync(default);
+            if (actor is not null)
+                canManage = (await Permissions.EvaluateAsync(actor, selectedScope, DiagnosticPermissions.ErrorLogsManage, default)).IsAllowed;
+        }
+
+        var statsRes = await ErrorLogs.GetStats(selectedScope);
+        if (statsRes.Succeeded)
+            stats = statsRes.Value;
+        else
+            failureKey = RolePermissionLocalization.FailureKey(statsRes.Error!.Code);
+    }
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        var key = e.Value?.ToString();
+        selectedScope = scopesList.FirstOrDefault(s => ScopeKey(s) == key) ?? selectedScope;
+        pageNotice = null;
+        detailsOpen = false;
+        selectedDetails = null;
+        await RefreshScopeStateAsync();
+        await ReloadGridFromFirstPageAsync();
+    }
+
     private async Task<BitDataGridReadResult<ErrorLogSummary>> ReadGridAsync(BitDataGridReadRequest request)
     {
-        if (platformScope is null)
+        if (selectedScope is null)
             return new([], 0);
 
         var size = Math.Clamp(request.Take ?? 25, 1, 100);
@@ -387,7 +444,7 @@
         ErrorSeverity? sev = byte.TryParse(severityFilter, out var sv) ? (ErrorSeverity)sv : null;
         ErrorSourceKind? src = byte.TryParse(sourceFilter, out var sr) ? (ErrorSourceKind)sr : null;
 
-        var res = await ErrorLogs.ListErrorLogs(platformScope, new ErrorLogListQuery(
+        var res = await ErrorLogs.ListErrorLogs(selectedScope, new ErrorLogListQuery(
             sev, src, fromDate, toDate, appliedSearch, page, size), request.CancellationToken);
 
         if (!res.Succeeded)
@@ -427,8 +484,8 @@
 
     private async Task OpenDetailsAsync(long id)
     {
-        if (platformScope is null) return;
-        var res = await ErrorLogs.GetErrorLog(platformScope, id);
+        if (selectedScope is null) return;
+        var res = await ErrorLogs.GetErrorLog(selectedScope, id);
         if (!res.Succeeded)
         {
             failureKey = RolePermissionLocalization.FailureKey(res.Error!.Code);
@@ -446,20 +503,20 @@
 
     private async Task PurgeOldAsync()
     {
-        if (platformScope is null || !canManage) return;
+        if (selectedScope is not OrganizationScope.Platform || !canManage) return;
         purging = true;
         pageNotice = null;
         failureKey = null;
         try
         {
-            var res = await ErrorLogs.PurgeOldErrorLogs(platformScope, purgeDays);
+            var res = await ErrorLogs.PurgeOldErrorLogs(selectedScope, purgeDays);
             if (!res.Succeeded)
             {
                 failureKey = RolePermissionLocalization.FailureKey(res.Error!.Code);
                 return;
             }
             pageNotice = Text["ErrorLogsPurgeSuccess", FormatInt(res.Value)];
-            var statsRes = await ErrorLogs.GetStats(platformScope);
+            var statsRes = await ErrorLogs.GetStats(selectedScope);
             if (statsRes.Succeeded) stats = statsRes.Value;
             await ReloadGridFromFirstPageAsync();
         }
@@ -468,6 +525,22 @@
             purging = false;
         }
     }
+
+    private static string ScopeKey(OrganizationScope? scope) => scope switch
+    {
+        OrganizationScope.Platform => "platform",
+        OrganizationScope.Organization o => $"org:{o.OrganizationId}",
+        _ => string.Empty
+    };
+
+    private string DescribeScope(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Platform => Text["RoleBuiltInProvisioner"],
+        OrganizationScope.Organization o when scopeLabels.TryGetValue(scope, out var info) && info.OrgCode is not null
+            => $"{info.OrgCode} — {info.OrgName}",
+        OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId],
+        _ => string.Empty
+    };
 
     private string FormatInt(int value) => value.ToString("N0", Culture.Current);
 

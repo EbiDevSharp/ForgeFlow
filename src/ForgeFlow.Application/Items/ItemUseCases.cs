@@ -181,7 +181,9 @@ public sealed class ItemUseCases(
                     request.CanBePurchased,
                     request.CanBeManufactured,
                     request.CanBeSold,
-                    request.CanBeConsumed);
+                    request.CanBeConsumed,
+                    request.RequiresLotTracking,
+                    request.QualityControlMode);
                 res = await ExecuteStore(() => store.CreateItem(request, Access(auth.Actor!, scope!, ItemPermissions.ItemsManage), ct));
             }
             catch (ItemRuleException ex)
@@ -204,6 +206,10 @@ public sealed class ItemUseCases(
             res = OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
         else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
             res = OrganizationResult<ItemDetails>.Failure(ItemErrors.ConcurrencyConflict);
+        else if (!Enum.IsDefined(request.QualityControlMode))
+            res = OrganizationResult<ItemDetails>.Failure(
+                ItemErrors.QualityControlModeInvalid,
+                new Dictionary<string, object> { ["field"] = "QualityControlMode" });
         else
             res = await ExecuteStore(() => store.UpdateItem(
                 request.OrganizationId,

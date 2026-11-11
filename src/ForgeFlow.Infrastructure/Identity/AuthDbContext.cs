@@ -6,6 +6,7 @@ using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.ProductionOrders;
+using ForgeFlow.Domain.Quality;
 using ForgeFlow.Domain.Units;
 using ForgeFlow.Infrastructure.Organizations;
 using Microsoft.AspNetCore.Identity;
@@ -64,6 +65,9 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         model.Ignore<InventoryTransaction>();
         model.Ignore<InventoryLedgerEntry>();
         model.Ignore<InventoryBalance>();
+        model.Ignore<ItemLot>();
+        model.Ignore<QualityInspection>();
+        model.Ignore<QualityInspectionLine>();
         model.Entity<Organization>().ToTable("Organization", "organization", t => t.ExcludeFromMigrations());
         model.Entity<Site>().ToTable("Site", "organization", t => t.ExcludeFromMigrations());
 

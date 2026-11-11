@@ -8,6 +8,7 @@ using ForgeFlow.Application.Inventory;
 using ForgeFlow.Application.Items;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.ProductionOrders;
+using ForgeFlow.Application.Quality;
 using ForgeFlow.Application.Reporting;
 using ForgeFlow.Application.Units;
 
@@ -67,6 +68,15 @@ public static class OrganizationPersistenceRegistration
                 provider.GetService<IOperationContextAccessor>()),
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
             provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
+        services.AddScoped<QualityUseCases>(provider => new QualityUseCases(
+            new SqlQualityOperationsStore(
+                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+                provider.GetService<IErrorLogRecorder>(),
+                provider.GetService<IOperationContextAccessor>(),
+                provider.GetRequiredService<IServiceScopeFactory>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>(),
+            provider.GetService<TimeProvider>()));
         return services;
     }
 }

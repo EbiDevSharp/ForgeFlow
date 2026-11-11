@@ -83,7 +83,9 @@ public sealed class ItemOperationsStore(Func<IDbContextFactory<OrganizationDbCon
                 request.CanBePurchased,
                 request.CanBeManufactured,
                 request.CanBeSold,
-                request.CanBeConsumed);
+                request.CanBeConsumed,
+                request.RequiresLotTracking,
+                request.QualityControlMode);
 
             if (await db.Items.AnyAsync(i => i.OrganizationId == request.OrganizationId && i.Code == item.Code, ct))
                 return OrganizationResult<ItemDetails>.Failure(ItemErrors.CodeDuplicate);
@@ -120,7 +122,9 @@ public sealed class ItemOperationsStore(Func<IDbContextFactory<OrganizationDbCon
                 request.CanBePurchased,
                 request.CanBeManufactured,
                 request.CanBeSold,
-                request.CanBeConsumed))
+                request.CanBeConsumed,
+                request.RequiresLotTracking,
+                request.QualityControlMode))
             {
                 await db.SaveInOperation(access.Actor, ct);
             }
@@ -835,7 +839,9 @@ public sealed class ItemOperationsStore(Func<IDbContextFactory<OrganizationDbCon
         i.CanBeSold,
         i.CanBeConsumed,
         i.IsActive,
-        Convert.ToBase64String(db.Entry(i).Property<byte[]>("RowVersion").CurrentValue!));
+        Convert.ToBase64String(db.Entry(i).Property<byte[]>("RowVersion").CurrentValue!),
+        i.RequiresLotTracking,
+        i.QualityControlMode);
 
     private static ClassificationSetSummary ToSetSummary(OrganizationDbContext db, ClassificationSet s) => new(
         s.Id,

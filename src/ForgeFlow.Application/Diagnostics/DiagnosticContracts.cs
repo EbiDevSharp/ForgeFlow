@@ -81,6 +81,7 @@ public static class UserOperationCatalog
     public const string UserActionRejected = "User.ActionRejected";
     public const string RoleActionRejected = "Role.ActionRejected";
     public const string ReportingActionRejected = "Reporting.ActionRejected";
+    public const string QualityActionRejected = "Quality.ActionRejected";
 
     public static readonly IReadOnlyList<string> KnownOperationCodes =
     [
@@ -96,7 +97,8 @@ public static class UserOperationCatalog
         InventoryActionRejected,
         UserActionRejected,
         RoleActionRejected,
-        ReportingActionRejected
+        ReportingActionRejected,
+        QualityActionRejected
     ];
 }
 
@@ -142,8 +144,8 @@ public sealed class DiagnosticStoreUnavailableException(Exception inner)
 
 public interface IErrorLogStore
 {
-    Task<OrganizationPage<ErrorLogSummary>> ListAsync(ErrorLogListQuery query, CancellationToken ct = default);
-    Task<ErrorLogDetails?> GetAsync(long id, CancellationToken ct = default);
-    Task<ErrorLogStats> GetStatsAsync(DateTime utcNow, CancellationToken ct = default);
+    Task<OrganizationPage<ErrorLogSummary>> ListAsync(OrganizationScope scope, ErrorLogListQuery query, CancellationToken ct = default);
+    Task<ErrorLogDetails?> GetAsync(OrganizationScope scope, long id, CancellationToken ct = default);
+    Task<ErrorLogStats> GetStatsAsync(OrganizationScope scope, DateTime utcNow, CancellationToken ct = default);
     Task<int> PurgeBeforeAsync(DateTime cutoffUtc, CancellationToken ct = default);
 }
