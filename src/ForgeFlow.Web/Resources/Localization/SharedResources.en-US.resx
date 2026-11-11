@@ -2598,4 +2598,54 @@
   <data name="AuditEv_ProductionOrderOperationCompleted" xml:space="preserve"><value>Production operation completed</value></data>
   <data name="AuditEv_ProductionOrderOperationSkipped" xml:space="preserve"><value>Production operation skipped</value></data>
   <data name="AuditEv_RoutingActionRejected" xml:space="preserve"><value>Routing or operation action rejected</value></data>
+  <data name="AuditEv_InventoryReservationCreated" xml:space="preserve"><value>Stock reservation created</value></data>
+  <data name="AuditEv_InventoryReservationConsumed" xml:space="preserve"><value>Stock reservation consumed</value></data>
+  <data name="AuditEv_InventoryReservationReleased" xml:space="preserve"><value>Stock reservation released</value></data>
+  <data name="DashTitle" xml:space="preserve"><value>Operations Dashboard</value></data>
+  <data name="DashSubtitle" xml:space="preserve"><value>Live overview of production, stock shortages, work center load, quality holds, and purchasing.</value></data>
+  <data name="DashRefreshBtn" xml:space="preserve"><value>Refresh</value></data>
+  <data name="DashNoScopeHint" xml:space="preserve"><value>No organization or site operational scope is currently assigned to your account.</value></data>
+  <data name="DashNoCapabilities" xml:space="preserve"><value>No operational modules are enabled for your current permissions in this scope.</value></data>
+  <data name="DashKpiActiveOrders" xml:space="preserve"><value>Active Production Orders</value></data>
+  <data name="DashKpiDraftCount" xml:space="preserve"><value>Draft: {0}</value></data>
+  <data name="DashKpiOverdueCount" xml:space="preserve"><value>Overdue: {0}</value></data>
+  <data name="DashKpiShortages" xml:space="preserve"><value>Material Shortages</value></data>
+  <data name="DashKpiReservedTotal" xml:space="preserve"><value>Reserved: {0}</value></data>
+  <data name="DashKpiQualityQueue" xml:space="preserve"><value>Pending QC Holds</value></data>
+  <data name="DashKpiBlockedTotal" xml:space="preserve"><value>Blocked: {0}</value></data>
+  <data name="DashKpiOpenPo" xml:space="preserve"><value>Open Purchase Orders</value></data>
+  <data name="DashKpiAllOnSchedule" xml:space="preserve"><value>All on schedule</value></data>
+  <data name="DashPanelOrdersTitle" xml:space="preserve"><value>Production Orders Queue</value></data>
+  <data name="DashPanelShortagesTitle" xml:space="preserve"><value>Top Material Shortages</value></data>
+  <data name="DashPanelWorkCentersTitle" xml:space="preserve"><value>Work Center Utilization</value></data>
+  <data name="DashPanelQualityTitle" xml:space="preserve"><value>Quality Inspection Queue</value></data>
+  <data name="DashPanelProcurementTitle" xml:space="preserve"><value>Open Purchase Orders</value></data>
+  <data name="DashViewAll" xml:space="preserve"><value>View all</value></data>
+  <data name="DashOverdueBadge" xml:space="preserve"><value>Overdue</value></data>
+  <data name="DashNoShortages" xml:space="preserve"><value>No open material shortages detected.</value></data>
+  <data name="InvTabReservations" xml:space="preserve"><value>Reservations</value></data>
+  <data name="InvReservedShort" xml:space="preserve"><value>Reserved: {0}</value></data>
+  <data name="InvResOpenOnlyLabel" xml:space="preserve"><value>Open reservations only</value></data>
+  <data name="InvResOrderColumn" xml:space="preserve"><value>Production Order</value></data>
+  <data name="InvResRemainingColumn" xml:space="preserve"><value>Remaining Reserved</value></data>
+  <data name="InvResTotalsSub" xml:space="preserve"><value>Reserved: {0} / Consumed: {1}</value></data>
+  <data name="InvResReleaseBtn" xml:space="preserve"><value>Release</value></data>
+  <data name="InvResReleasedNotice" xml:space="preserve"><value>Stock reservation released.</value></data>
+  <data name="InvResStatusActive" xml:space="preserve"><value>Active</value></data>
+  <data name="InvResStatusPartial" xml:space="preserve"><value>Partially Consumed</value></data>
+  <data name="InvResStatusConsumed" xml:space="preserve"><value>Consumed</value></data>
+  <data name="InvResStatusReleased" xml:space="preserve"><value>Released</value></data>
+  <data name="InvResErrorInvalidState" xml:space="preserve"><value>This reservation is already closed and cannot be modified.</value></data>
+  <data name="InvResErrorExceedsAvailable" xml:space="preserve"><value>Requested quantity exceeds available unblocked and unreserved stock.</value></data>
+  <data name="InvResErrorOrderState" xml:space="preserve"><value>Stock can only be reserved for released or in-progress production orders.</value></data>
+  <data name="PoResReservedCol" xml:space="preserve"><value>Reserved</value></data>
+  <data name="PoResReserveBtn" xml:space="preserve"><value>Reserve</value></data>
+  <data name="PoReservationsHeading" xml:space="preserve"><value>Stock Reservations</value></data>
+  <data name="PoResNoneYet" xml:space="preserve"><value>No stock has been reserved for this order yet.</value></data>
+  <data name="PoResModalTitle" xml:space="preserve"><value>Reserve Stock for Production Order</value></data>
+  <data name="PoResAutoFifoOption" xml:space="preserve"><value>Auto-select by FIFO (all warehouses)</value></data>
+  <data name="PoResLotOptionalHint" xml:space="preserve"><value>Optional — leave blank for FIFO lots</value></data>
+  <data name="PoResConfirmBtn" xml:space="preserve"><value>Confirm Reservation</value></data>
+  <data name="PoResSavedNotice" xml:space="preserve"><value>Stock reserved for production order.</value></data>
+  <data name="RptReservedSubLabel" xml:space="preserve"><value>Reserved: {0}</value></data>
 </root>

@@ -75,7 +75,8 @@ public sealed record InventoryBalanceSummary(
     DateOnly? ManufactureDate = null,
     DateOnly? ExpirationDate = null,
     bool IsExpired = false,
-    bool IsExpiringSoon = false);
+    bool IsExpiringSoon = false,
+    decimal ReservedBaseQuantity = 0m);
 
 public sealed record InventoryBalanceListQuery(
     long? SiteId = null,

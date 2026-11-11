@@ -302,6 +302,10 @@ public static class RolePermissionLocalization
         ReportingErrors.ExportInvalid => "RptErrorExportInvalid",
         DiagnosticErrors.InvalidRetentionDays => "DiagErrorRetentionInvalid",
         AuditErrors.InvalidQuery or DiagnosticErrors.InvalidQuery => "ReadError",
+        InventoryErrors.ReservationNotFound => "ReadNotFound",
+        InventoryErrors.ReservationInvalidState => "InvResErrorInvalidState",
+        InventoryErrors.ReservationExceedsAvailable => "InvResErrorExceedsAvailable",
+        InventoryErrors.ReservationNotAllowedForOrderState => "InvResErrorOrderState",
         _ => "WriteUnavailable"
     };
 

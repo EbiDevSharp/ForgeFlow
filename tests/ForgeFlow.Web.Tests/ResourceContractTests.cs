@@ -402,7 +402,25 @@ public sealed class ResourceContractTests
             ["RoutingErrorWorkCenterInactive"] = 0, ["RoutingErrorTypeInvalid"] = 0, ["RoutingErrorCapacityInvalid"] = 0,
             ["RoutingErrorBomVersionInvalid"] = 0, ["RoutingErrorNotDraft"] = 0, ["RoutingErrorInvalidTransition"] = 0,
             ["RoutingErrorEmptyOperations"] = 0, ["RoutingErrorSequenceInvalid"] = 0, ["RoutingErrorTimeInvalid"] = 0,
-            ["RoutingErrorQuantityInvalid"] = 0, ["PoErrorRoutingInvalid"] = 0
+            ["RoutingErrorQuantityInvalid"] = 0, ["PoErrorRoutingInvalid"] = 0,
+            ["DashTitle"] = 0, ["DashSubtitle"] = 0, ["DashRefreshBtn"] = 0,
+            ["DashNoScopeHint"] = 0, ["DashNoCapabilities"] = 0,
+            ["DashKpiActiveOrders"] = 0, ["DashKpiDraftCount"] = 1, ["DashKpiOverdueCount"] = 1,
+            ["DashKpiShortages"] = 0, ["DashKpiReservedTotal"] = 1,
+            ["DashKpiQualityQueue"] = 0, ["DashKpiBlockedTotal"] = 1,
+            ["DashKpiOpenPo"] = 0, ["DashKpiAllOnSchedule"] = 0,
+            ["DashPanelOrdersTitle"] = 0, ["DashPanelShortagesTitle"] = 0, ["DashPanelWorkCentersTitle"] = 0,
+            ["DashPanelQualityTitle"] = 0, ["DashPanelProcurementTitle"] = 0,
+            ["DashViewAll"] = 0, ["DashOverdueBadge"] = 0, ["DashNoShortages"] = 0,
+            ["InvTabReservations"] = 0, ["InvReservedShort"] = 1, ["InvResOpenOnlyLabel"] = 0,
+            ["InvResOrderColumn"] = 0, ["InvResRemainingColumn"] = 0, ["InvResTotalsSub"] = 2,
+            ["InvResReleaseBtn"] = 0, ["InvResReleasedNotice"] = 0,
+            ["InvResStatusActive"] = 0, ["InvResStatusPartial"] = 0, ["InvResStatusConsumed"] = 0, ["InvResStatusReleased"] = 0,
+            ["InvResErrorInvalidState"] = 0, ["InvResErrorExceedsAvailable"] = 0, ["InvResErrorOrderState"] = 0,
+            ["PoResReservedCol"] = 0, ["PoResReserveBtn"] = 0, ["PoReservationsHeading"] = 0,
+            ["PoResNoneYet"] = 0, ["PoResModalTitle"] = 0, ["PoResAutoFifoOption"] = 0,
+            ["PoResLotOptionalHint"] = 0, ["PoResConfirmBtn"] = 0, ["PoResSavedNotice"] = 0,
+            ["RptReservedSubLabel"] = 1
         }.Concat(ForgeFlow.Application.Audit.AuditEventCatalog.All.ToDictionary(d => d.ResourceKey, _ => 0))
          .ToDictionary(kv => kv.Key, kv => kv.Value)
     };
@@ -532,7 +550,9 @@ public sealed class ResourceContractTests
              "RoutingErrorBomVersionInvalid", "RoutingErrorNotDraft", "RoutingErrorInvalidTransition",
              "RoutingErrorEmptyOperations", "RoutingErrorSequenceInvalid", "RoutingErrorTimeInvalid",
              "RoutingErrorQuantityInvalid", "PoErrorRoutingInvalid",
-             "CurrencyCreateButton", "CurrencyEditTitle", "CurrencyDetailTitle", "UnitErrorCurrencyInactive"]);
+             "CurrencyCreateButton", "CurrencyEditTitle", "CurrencyDetailTitle", "UnitErrorCurrencyInactive",
+             "InvResStatusActive", "InvResStatusPartial", "InvResStatusConsumed", "InvResStatusReleased",
+             "InvResErrorInvalidState", "InvResErrorExceedsAvailable", "InvResErrorOrderState", "PoResSavedNotice"]);
         used[nameof(SharedResources)].UnionWith(ForgeFlow.Application.Audit.AuditEventCatalog.All.Select(d => d.ResourceKey));
         Assert.Equal(Contracts[nameof(SharedResources)].Keys.Order(), used[nameof(SharedResources)].Order());
     }

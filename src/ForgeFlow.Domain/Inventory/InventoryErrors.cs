@@ -29,6 +29,10 @@ public static class InventoryErrors
     public const string InsufficientStock = "Inventory.InsufficientStock";
     public const string NotesInvalid = "Inventory.NotesInvalid";
     public const string IdempotencyKeyInvalid = "Inventory.IdempotencyKeyInvalid";
+    public const string ReservationNotFound = "Inventory.ReservationNotFound";
+    public const string ReservationInvalidState = "Inventory.ReservationInvalidState";
+    public const string ReservationExceedsAvailable = "Inventory.ReservationExceedsAvailable";
+    public const string ReservationNotAllowedForOrderState = "Inventory.ReservationNotAllowedForOrderState";
 
     public const string SiteInvalid = "Inventory.SiteInvalid";
     public const string SiteInactive = "Inventory.SiteInactive";

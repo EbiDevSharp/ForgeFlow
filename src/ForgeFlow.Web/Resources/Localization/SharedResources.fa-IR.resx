@@ -2598,4 +2598,54 @@
   <data name="AuditEv_ProductionOrderOperationCompleted" xml:space="preserve"><value>تکمیل عملیات کارگاهی</value></data>
   <data name="AuditEv_ProductionOrderOperationSkipped" xml:space="preserve"><value>رد کردن عملیات کارگاهی</value></data>
   <data name="AuditEv_RoutingActionRejected" xml:space="preserve"><value>رد درخواست در فرآیند ساخت یا عملیات کارگاهی</value></data>
+  <data name="AuditEv_InventoryReservationCreated" xml:space="preserve"><value>ایجاد رزرو موجودی</value></data>
+  <data name="AuditEv_InventoryReservationConsumed" xml:space="preserve"><value>مصرف رزرو موجودی</value></data>
+  <data name="AuditEv_InventoryReservationReleased" xml:space="preserve"><value>آزادسازی رزرو موجودی</value></data>
+  <data name="DashTitle" xml:space="preserve"><value>داشبورد عملیات</value></data>
+  <data name="DashSubtitle" xml:space="preserve"><value>نمای زنده وضعیت تولید، کسری مواد، بار کاری مراکز، کنترل کیفیت و خرید.</value></data>
+  <data name="DashRefreshBtn" xml:space="preserve"><value>بروزرسانی</value></data>
+  <data name="DashNoScopeHint" xml:space="preserve"><value>در حال حاضر محدوده عملیاتی سازمان یا سایتی به حساب شما اختصاص داده نشده است.</value></data>
+  <data name="DashNoCapabilities" xml:space="preserve"><value>بر اساس دسترسی‌های فعلی، ماژول عملیاتی برای نمایش در این محدوده فعال نیست.</value></data>
+  <data name="DashKpiActiveOrders" xml:space="preserve"><value>سفارش‌های تولید فعال</value></data>
+  <data name="DashKpiDraftCount" xml:space="preserve"><value>پیش‌نویس: {0}</value></data>
+  <data name="DashKpiOverdueCount" xml:space="preserve"><value>دارای تأخیر: {0}</value></data>
+  <data name="DashKpiShortages" xml:space="preserve"><value>اقلام دارای کسری</value></data>
+  <data name="DashKpiReservedTotal" xml:space="preserve"><value>رزروشده: {0}</value></data>
+  <data name="DashKpiQualityQueue" xml:space="preserve"><value>بازرسی‌های کیفیت باز</value></data>
+  <data name="DashKpiBlockedTotal" xml:space="preserve"><value>مسدود: {0}</value></data>
+  <data name="DashKpiOpenPo" xml:space="preserve"><value>سفارش‌های خرید باز</value></data>
+  <data name="DashKpiAllOnSchedule" xml:space="preserve"><value>همه طبق برنامه</value></data>
+  <data name="DashPanelOrdersTitle" xml:space="preserve"><value>صف سفارش‌های تولید</value></data>
+  <data name="DashPanelShortagesTitle" xml:space="preserve"><value>بیشترین کسری مواد اولیه</value></data>
+  <data name="DashPanelWorkCentersTitle" xml:space="preserve"><value>ظرفیت مراکز کاری</value></data>
+  <data name="DashPanelQualityTitle" xml:space="preserve"><value>صف کنترل کیفیت</value></data>
+  <data name="DashPanelProcurementTitle" xml:space="preserve"><value>سفارش‌های خرید باز</value></data>
+  <data name="DashViewAll" xml:space="preserve"><value>مشاهده همه</value></data>
+  <data name="DashOverdueBadge" xml:space="preserve"><value>عقب‌افتاده</value></data>
+  <data name="DashNoShortages" xml:space="preserve"><value>کسری باز برای سفارش‌های تولید وجود ندارد.</value></data>
+  <data name="InvTabReservations" xml:space="preserve"><value>رزروها</value></data>
+  <data name="InvReservedShort" xml:space="preserve"><value>رزرو: {0}</value></data>
+  <data name="InvResOpenOnlyLabel" xml:space="preserve"><value>فقط رزروهای باز</value></data>
+  <data name="InvResOrderColumn" xml:space="preserve"><value>سفارش تولید</value></data>
+  <data name="InvResRemainingColumn" xml:space="preserve"><value>باقیمانده رزرو</value></data>
+  <data name="InvResTotalsSub" xml:space="preserve"><value>رزرو: {0} / مصرف‌شده: {1}</value></data>
+  <data name="InvResReleaseBtn" xml:space="preserve"><value>آزادسازی</value></data>
+  <data name="InvResReleasedNotice" xml:space="preserve"><value>رزرو موجودی آزاد شد.</value></data>
+  <data name="InvResStatusActive" xml:space="preserve"><value>فعال</value></data>
+  <data name="InvResStatusPartial" xml:space="preserve"><value>مصرف جزئی</value></data>
+  <data name="InvResStatusConsumed" xml:space="preserve"><value>مصرف‌شده</value></data>
+  <data name="InvResStatusReleased" xml:space="preserve"><value>آزادشده</value></data>
+  <data name="InvResErrorInvalidState" xml:space="preserve"><value>این رزرو قبلاً بسته شده است و قابل تغییر نیست.</value></data>
+  <data name="InvResErrorExceedsAvailable" xml:space="preserve"><value>مقدار درخواستی از موجودی آزاد و قابل دسترس بیشتر است.</value></data>
+  <data name="InvResErrorOrderState" xml:space="preserve"><value>رزرو موجودی فقط برای سفارش‌های تولید آزادشده یا در حال اجرا مجاز است.</value></data>
+  <data name="PoResReservedCol" xml:space="preserve"><value>رزروشده</value></data>
+  <data name="PoResReserveBtn" xml:space="preserve"><value>رزرو</value></data>
+  <data name="PoReservationsHeading" xml:space="preserve"><value>رزروهای موجودی</value></data>
+  <data name="PoResNoneYet" xml:space="preserve"><value>هنوز موجودی برای این سفارش رزرو نشده است.</value></data>
+  <data name="PoResModalTitle" xml:space="preserve"><value>رزرو موجودی برای سفارش تولید</value></data>
+  <data name="PoResAutoFifoOption" xml:space="preserve"><value>انتخاب خودکار FIFO (تمام انبارها)</value></data>
+  <data name="PoResLotOptionalHint" xml:space="preserve"><value>اختیاری — برای FIFO خالی بگذارید</value></data>
+  <data name="PoResConfirmBtn" xml:space="preserve"><value>تأیید رزرو</value></data>
+  <data name="PoResSavedNotice" xml:space="preserve"><value>موجودی برای سفارش تولید رزرو شد.</value></data>
+  <data name="RptReservedSubLabel" xml:space="preserve"><value>رزروشده: {0}</value></data>
 </root>

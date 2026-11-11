@@ -312,7 +312,8 @@ public sealed class ReportingUseCases(
             .GroupBy(b => b.ItemId)
             .ToDictionary(g => g.Key, g => (
                 OnHand: decimal.Round(g.Sum(x => x.OnHandBaseQuantity), Scale, MidpointRounding.AwayFromZero),
-                Blocked: decimal.Round(g.Sum(x => x.BlockedBaseQuantity), Scale, MidpointRounding.AwayFromZero)));
+                Blocked: decimal.Round(g.Sum(x => x.BlockedBaseQuantity), Scale, MidpointRounding.AwayFromZero),
+                Reserved: decimal.Round(g.Sum(x => x.ReservedBaseQuantity), Scale, MidpointRounding.AwayFromZero)));
 
         var onOrderByItem = (data.OpenPurchaseLines ?? [])
             .GroupBy(p => p.ItemId)
@@ -365,10 +366,11 @@ public sealed class ReportingUseCases(
                 : [];
 
             var required = decimal.Round(orderDetails.Sum(x => x.RequiredBaseQuantity), Scale, MidpointRounding.AwayFromZero);
-            var stock = onHandByItem.TryGetValue(itemId, out var bal) ? bal : (OnHand: 0m, Blocked: 0m);
+            var stock = onHandByItem.TryGetValue(itemId, out var bal) ? bal : (OnHand: 0m, Blocked: 0m, Reserved: 0m);
             var onHand = stock.OnHand;
             var blocked = Math.Min(onHand, Math.Max(0m, stock.Blocked));
-            var available = decimal.Round(Math.Max(0m, onHand - blocked), Scale, MidpointRounding.AwayFromZero);
+            var reserved = Math.Min(Math.Max(0m, onHand - blocked), Math.Max(0m, stock.Reserved));
+            var available = decimal.Round(Math.Max(0m, onHand - blocked - reserved), Scale, MidpointRounding.AwayFromZero);
             var onOrder = onOrderByItem.TryGetValue(itemId, out var oo) ? Math.Max(0m, oo) : 0m;
             var shortage = required > available ? decimal.Round(required - available, Scale, MidpointRounding.AwayFromZero) : 0m;
             var excess = available > required ? decimal.Round(available - required, Scale, MidpointRounding.AwayFromZero) : 0m;
@@ -398,7 +400,8 @@ public sealed class ReportingUseCases(
                 orderDetails,
                 blocked,
                 available,
-                onOrder));
+                onOrder,
+                reserved));
         }
 
         var ordered = rows
@@ -416,7 +419,8 @@ public sealed class ReportingUseCases(
             ordered,
             decimal.Round(ordered.Sum(r => r.BlockedBaseQuantity), Scale, MidpointRounding.AwayFromZero),
             decimal.Round(ordered.Sum(r => r.AvailableBaseQuantity), Scale, MidpointRounding.AwayFromZero),
-            decimal.Round(ordered.Sum(r => r.OnOrderBaseQuantity), Scale, MidpointRounding.AwayFromZero));
+            decimal.Round(ordered.Sum(r => r.OnOrderBaseQuantity), Scale, MidpointRounding.AwayFromZero),
+            decimal.Round(ordered.Sum(r => r.ReservedBaseQuantity), Scale, MidpointRounding.AwayFromZero));
     }
 
     public static ProductionVarianceReport ComputeVarianceReport(VarianceDataset data)

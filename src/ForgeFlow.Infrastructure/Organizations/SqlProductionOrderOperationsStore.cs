@@ -252,7 +252,12 @@ public sealed class SqlProductionOrderOperationsStore(
         DateTime utcNow,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => TransitionAndNotifyAsync(organizationId, id, version, NotificationSeverity.Success, access, order => order.Complete(producedQuantity, scrapQuantity, notes, utcNow), ct);
+        => TransitionAndNotifyAsync(organizationId, id, version, NotificationSeverity.Success, access, async (db, order) =>
+        {
+            order.Complete(producedQuantity, scrapQuantity, notes, utcNow);
+            await SqlStockReservationStore.ReleaseAllForOrderInDbAsync(db, organizationId, order.Id, utcNow, ct);
+            return OrganizationResult<bool>.Success(true);
+        }, ct);
 
     public Task<OrganizationResult<ProductionOrderDetails>> CancelOrder(
         long organizationId,
@@ -262,7 +267,12 @@ public sealed class SqlProductionOrderOperationsStore(
         DateTime utcNow,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => TransitionAndNotifyAsync(organizationId, id, version, NotificationSeverity.Warning, access, order => order.Cancel(reason, utcNow), ct);
+        => TransitionAndNotifyAsync(organizationId, id, version, NotificationSeverity.Warning, access, async (db, order) =>
+        {
+            order.Cancel(reason, utcNow);
+            await SqlStockReservationStore.ReleaseAllForOrderInDbAsync(db, organizationId, order.Id, utcNow, ct);
+            return OrganizationResult<bool>.Success(true);
+        }, ct);
 
     private Task<OrganizationResult<ProductionOrderDetails>> TransitionAndNotifyAsync(
         long organizationId,

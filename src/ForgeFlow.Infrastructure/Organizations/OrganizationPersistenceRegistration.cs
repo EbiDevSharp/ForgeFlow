@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ForgeFlow.Application.Boms;
+using ForgeFlow.Application.Dashboard;
 using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Inventory;
 using ForgeFlow.Application.Items;
@@ -100,6 +101,25 @@ public static class OrganizationPersistenceRegistration
                 provider.GetService<IOperationContextAccessor>()),
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
             provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
+        services.AddScoped<StockReservationUseCases>(provider => new StockReservationUseCases(
+            new SqlStockReservationStore(
+                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+                provider.GetService<IErrorLogRecorder>(),
+                provider.GetService<IOperationContextAccessor>()),
+            new SqlInventoryOperationsStore(
+                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+                provider.GetService<IErrorLogRecorder>(),
+                provider.GetService<IOperationContextAccessor>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>(),
+            provider.GetService<TimeProvider>()));
+        services.AddScoped<DashboardUseCases>(provider => new DashboardUseCases(
+            new SqlDashboardQueryStore(
+                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+                provider.GetService<IErrorLogRecorder>(),
+                provider.GetService<IOperationContextAccessor>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<TimeProvider>()));
         return services;
     }
 }

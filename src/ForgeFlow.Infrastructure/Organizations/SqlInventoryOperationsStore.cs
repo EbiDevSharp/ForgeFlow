@@ -204,11 +204,12 @@ public sealed class SqlInventoryOperationsStore(
             r.bal.OnHandBaseQuantity, r.bal.LastMovedAtUtc,
             Convert.ToBase64String(r.RowVersion),
             r.bal.BlockedBaseQuantity,
-            decimal.Round(r.bal.OnHandBaseQuantity - r.bal.BlockedBaseQuantity, 6, MidpointRounding.AwayFromZero),
+            decimal.Round(r.bal.OnHandBaseQuantity - r.bal.BlockedBaseQuantity - r.bal.ReservedBaseQuantity, 6, MidpointRounding.AwayFromZero),
             r.ManufactureDate,
             r.ExpirationDate,
             r.ExpirationDate.HasValue && r.ExpirationDate.Value < today,
-            r.ExpirationDate.HasValue && r.ExpirationDate.Value >= today && r.ExpirationDate.Value <= soonCutoff)).ToArray();
+            r.ExpirationDate.HasValue && r.ExpirationDate.Value >= today && r.ExpirationDate.Value <= soonCutoff,
+            r.bal.ReservedBaseQuantity)).ToArray();
 
         return new OrganizationPage<InventoryBalanceSummary>(items, total, query.Page, query.PageSize);
     }, ct);
@@ -410,7 +411,14 @@ public sealed class SqlInventoryOperationsStore(
         await db.SaveInOperation(access.Actor, ct);
 
         await UpsertInboundLotMetadataAsync(db, request.OrganizationId, resolvedLines, ct);
-        await ApplyLedgerLinesAndBalancesAsync(db, request.OrganizationId, txn.Id, resolvedLines, utcNow, ct);
+        await ApplyLedgerLinesAndBalancesAsync(
+            db,
+            request.OrganizationId,
+            txn.Id,
+            resolvedLines,
+            utcNow,
+            ct,
+            request.TransactionType == InventoryTransactionType.ProductionIssue ? request.ProductionOrderId : null);
         await CreateAutoQualityInspectionsAsync(db, request.OrganizationId, request.TransactionType, txn.Id, request.ProductionOrderId, resolvedLines, utcNow, ct);
         await db.SaveInOperation(access.Actor, ct);
 
@@ -538,7 +546,8 @@ public sealed class SqlInventoryOperationsStore(
         long transactionId,
         IReadOnlyList<ResolvedInventoryLineWrite> lines,
         DateTime utcNow,
-        CancellationToken ct)
+        CancellationToken ct,
+        long? consumeReservationForOrderId = null)
     {
         for (var i = 0; i < lines.Count; i++)
         {
@@ -586,6 +595,8 @@ public sealed class SqlInventoryOperationsStore(
             }
             else
             {
+                if (totalDelta < 0m && consumeReservationForOrderId is long resPoId && resPoId > 0)
+                    await SqlStockReservationStore.ConsumeForProductionIssueInDbAsync(db, organizationId, resPoId, bal, Math.Abs(totalDelta), utcNow, ct);
                 bal.ApplyDelta(totalDelta, utcNow);
             }
         }

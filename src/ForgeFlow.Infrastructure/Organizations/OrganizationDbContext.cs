@@ -54,6 +54,7 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
     public DbSet<InventoryLedgerEntry> InventoryLedgerEntries => Set<InventoryLedgerEntry>();
     public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>();
+    public DbSet<StockReservation> StockReservations => Set<StockReservation>();
     public DbSet<ItemLot> ItemLots => Set<ItemLot>();
     public DbSet<QualityInspection> QualityInspections => Set<QualityInspection>();
     public DbSet<QualityInspectionLine> QualityInspectionLines => Set<QualityInspectionLine>();
@@ -104,7 +105,7 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                 or ContextDimension or Bom or BomVersion or BomInput or BomOutput
                 or BomApplicability or BomApplicabilityCondition
                 or ProductionOrder or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext
-                or Warehouse or InventoryTransaction or InventoryLedgerEntry or InventoryBalance
+                or Warehouse or InventoryTransaction or InventoryLedgerEntry or InventoryBalance or StockReservation
                 or ItemLot or QualityInspection or QualityInspectionLine
                 or Supplier or PurchaseOrder or PurchaseOrderLine
                 or WorkCenter or Routing or RoutingOperation or ProductionOrderOperation))
@@ -139,7 +140,8 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                         "ActualProducedQuantity", "ActualScrapQuantity", "Notes", "CancellationReason",
                         "ReleasedAtUtc", "StartedAtUtc", "CompletedAtUtc", "CancelledAtUtc" },
                     Warehouse => new[] { "Name", "IsDefaultForSite", "IsActive" },
-                    InventoryBalance => new[] { "OnHandBaseQuantity", "BlockedBaseQuantity", "LastMovedAtUtc" },
+                    InventoryBalance => new[] { "OnHandBaseQuantity", "BlockedBaseQuantity", "ReservedBaseQuantity", "LastMovedAtUtc" },
+                    StockReservation => new[] { "ConsumedBaseQuantity", "Status", "ReleasedAtUtc" },
                     InventoryTransaction or InventoryLedgerEntry => Array.Empty<string>(),
                     ItemLot => new[] { "ManufactureDate", "ExpirationDate", "Notes" },
                     QualityInspection => new[] { "AcceptedBaseQuantity", "RejectedBaseQuantity", "RemainingBlockedBaseQuantity", "Status", "DefectReasonCode", "Notes", "InspectedAtUtc", "InspectedByActorId" },
@@ -239,6 +241,7 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         InventoryTransaction txn => txn.OrganizationId,
         InventoryLedgerEntry ile => ile.OrganizationId,
         InventoryBalance bal => bal.OrganizationId,
+        StockReservation sr => sr.OrganizationId,
         ItemLot lot => lot.OrganizationId,
         QualityInspection qi => qi.OrganizationId,
         QualityInspectionLine qil => qil.OrganizationId,
@@ -263,6 +266,7 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         InventoryTransaction txn => txn.SiteId,
         InventoryLedgerEntry ile => ile.SiteId,
         InventoryBalance bal => bal.SiteId,
+        StockReservation sr => sr.SiteId,
         QualityInspection qi => qi.SiteId,
         QualityInspectionLine qil => ChangeTracker.Entries<QualityInspection>().FirstOrDefault(q => q.Entity.Id == qil.QualityInspectionId)?.Entity.SiteId,
         PurchaseOrder pur => pur.SiteId,
@@ -455,6 +459,41 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                         Status = poOp.Status.ToString(),
                         poOp.CompletedQuantity,
                         poOp.ScrapQuantity
+                    }, AuditJson));
+            }
+            yield break;
+        }
+
+        if (entry.Entity is StockReservation sr)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "InventoryReservation.Created",
+                    JsonSerializer.Serialize(new
+                    {
+                        sr.ProductionOrderId,
+                        sr.WarehouseId,
+                        sr.ItemId,
+                        sr.LotCode,
+                        sr.ReservedBaseQuantity
+                    }, AuditJson));
+                yield break;
+            }
+            if (entry.State == EntityState.Modified && entry.Property("Status").IsModified)
+            {
+                var ev = sr.Status == ReservationStatus.Released
+                    ? "InventoryReservation.Released"
+                    : "InventoryReservation.Consumed";
+                yield return new PendingChange(entry, ev,
+                    JsonSerializer.Serialize(new
+                    {
+                        sr.ProductionOrderId,
+                        sr.WarehouseId,
+                        sr.ItemId,
+                        sr.LotCode,
+                        sr.ReservedBaseQuantity,
+                        sr.ConsumedBaseQuantity,
+                        Status = sr.Status.ToString()
                     }, AuditJson));
             }
             yield break;
@@ -1030,11 +1069,11 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
             if (poChanged && !effectiveActive)
                 throw new InvalidOperationException(ProductionOrderErrors.ParentOrganizationInactive);
 
-            var invChanged = entries.Any(e => e.Entity is Warehouse or InventoryTransaction or InventoryLedgerEntry or InventoryBalance
+            var invChanged = entries.Any(e => e.Entity is Warehouse or InventoryTransaction or InventoryLedgerEntry or InventoryBalance or StockReservation
                 && ResolveEntityOrganizationId(e.Entity) == orgId
                 && (e.State == EntityState.Added
                     || (e.Entity is Warehouse wh && (wh.IsActive || e.Properties.Any(p => p.IsModified && p.Metadata.Name != "IsActive")))
-                    || e.Entity is InventoryTransaction or InventoryLedgerEntry or InventoryBalance));
+                    || e.Entity is InventoryTransaction or InventoryLedgerEntry or InventoryBalance or StockReservation));
             if (invChanged && !effectiveActive)
                 throw new InvalidOperationException(InventoryErrors.ParentOrganizationInactive);
 

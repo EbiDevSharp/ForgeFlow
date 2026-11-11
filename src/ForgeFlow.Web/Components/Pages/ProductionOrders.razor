@@ -8,6 +8,7 @@
 @using ForgeFlow.Application.Routings
 @using ForgeFlow.Application.Units
 @using ForgeFlow.Domain.Boms
+@using ForgeFlow.Domain.Inventory
 @using ForgeFlow.Domain.ProductionOrders
 @using ForgeFlow.Domain.Routings
 @using ForgeFlow.Web.Roles
@@ -16,6 +17,8 @@
 @inject BomUseCases BomService
 @inject ItemUseCases ItemService
 @inject UnitUseCases UnitService
+@inject InventoryUseCases InvService
+@inject StockReservationUseCases ResService
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
 @inject ITrustedActorAccessor Actors
 @inject IOrganizationPermissionEvaluator Permissions
@@ -669,11 +672,19 @@
                                         <th>@Text["BomScrapColumn"]</th>
                                         <th>@Text["BomGrossQtyColumn"]</th>
                                         <th>@Text["BomLineUnitColumn"]</th>
+                                        <th>@Text["PoResReservedCol"]</th>
+                                        @if ((scopeCanManage || canManageInventory) && summary.Status is ProductionOrderStatus.Released or ProductionOrderStatus.InProgress)
+                                        {
+                                            <th>@Text["ReadActions"]</th>
+                                        }
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach (var inp in selectedOrder.Inputs)
                                     {
+                                        var itemRes = orderReservations.Where(r => r.ItemId == inp.ItemId && r.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed).ToList();
+                                        var reservedQty = itemRes.Sum(r => r.RemainingReservedBaseQuantity);
+                                        var resUnit = itemRes.FirstOrDefault()?.BaseUnitSymbol ?? inp.UnitSymbol;
                                         <tr>
                                             <td><span class="bom-tree-level">L@inp.Level</span></td>
                                             <td dir="ltr">@inp.ParentItemCode</td>
@@ -692,12 +703,89 @@
                                             <td dir="ltr">@Format.Number(inp.ScrapPercentage)%</td>
                                             <td dir="ltr"><strong>@Format.Number(inp.GrossQuantity)</strong></td>
                                             <td dir="ltr">@inp.UnitSymbol</td>
+                                            <td dir="ltr">
+                                                @if (reservedQty > 0m)
+                                                {
+                                                    <span class="read-badge inv-reserved-badge">@Format.Number(reservedQty) @resUnit</span>
+                                                }
+                                                else
+                                                {
+                                                    <span>—</span>
+                                                }
+                                            </td>
+                                            @if ((scopeCanManage || canManageInventory) && summary.Status is ProductionOrderStatus.Released or ProductionOrderStatus.InProgress)
+                                            {
+                                                <td>
+                                                    @if (!inp.IsSubAssembly)
+                                                    {
+                                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)"
+                                                                   OnClick="() => OpenReserveModal(inp)">
+                                                            @Text["PoResReserveBtn"]
+                                                        </BitButton>
+                                                    }
+                                                </td>
+                                            }
                                         </tr>
                                     }
                                 </tbody>
                             </table>
                         </div>
                     </div>
+
+                    @if (orderReservations.Count > 0 || summary.Status is ProductionOrderStatus.Released or ProductionOrderStatus.InProgress)
+                    {
+                        <div class="audit-modal-section">
+                            <h3 class="audit-section-heading">@Text["PoReservationsHeading"]</h3>
+                            @if (orderReservations.Count == 0)
+                            {
+                                <p class="write-hint">@Text["PoResNoneYet"]</p>
+                            }
+                            else
+                            {
+                                <div class="audit-fields-box">
+                                    <table class="audit-fields-table">
+                                        <thead>
+                                            <tr>
+                                                <th>@Text["BomLineItemColumn"]</th>
+                                                <th>@Text["InvWarehouseLabel"]</th>
+                                                <th>@Text["InvLotCodeLabel"]</th>
+                                                <th>@Text["InvResRemainingColumn"]</th>
+                                                <th>@Text["PoStatusColumn"]</th>
+                                                @if (scopeCanManage || canManageInventory)
+                                                {
+                                                    <th>@Text["ReadActions"]</th>
+                                                }
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var resv in orderReservations)
+                                            {
+                                                <tr>
+                                                    <td><span dir="ltr">@resv.ItemCode</span> — @resv.ItemName</td>
+                                                    <td><span dir="ltr">@resv.WarehouseCode</span> — @resv.WarehouseName</td>
+                                                    <td dir="ltr">@(string.IsNullOrEmpty(resv.LotCode) ? "—" : resv.LotCode)</td>
+                                                    <td dir="ltr"><strong>@Format.Number(resv.RemainingReservedBaseQuantity) @resv.BaseUnitSymbol</strong></td>
+                                                    <td><span class="read-badge @ResBadgeClass(resv.Status)">@ResStatusLabel(resv.Status)</span></td>
+                                                    @if (scopeCanManage || canManageInventory)
+                                                    {
+                                                        <td>
+                                                            @if (resv.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed)
+                                                            {
+                                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)"
+                                                                           OnClick="() => ReleaseOrderReservationAsync(resv)">
+                                                                    @Text["InvResReleaseBtn"]
+                                                                </BitButton>
+                                                            }
+                                                        </td>
+                                                    }
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </div>
+                    }
 
                     <div class="audit-modal-section">
                         <h3 class="audit-section-heading">@Text["PoOutputsSnapshotHeading"]</h3>
@@ -768,6 +856,58 @@
             }
         </Body>
     </BitDialog>
+
+    <BitDialog Width="540px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="reserveModalOpen"
+               Title="@Text["PoResModalTitle"]" AriaLabel="@Text["PoResModalTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="audit-modal-body">
+                @if (reserveError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[reserveError]</p>
+                }
+                <p class="write-hint"><strong dir="ltr">@reserveItemLabel</strong></p>
+                <div class="po-form-grid">
+                    <div class="write-field">
+                        <label for="res-qty">@Text["PoRequestedQtyColumn"]</label>
+                        <input id="res-qty" type="number" min="0.000001" step="0.01" @bind="reserveQuantity" />
+                    </div>
+                    <div class="write-field">
+                        <label for="res-unit">@Text["BomLineUnitColumn"]</label>
+                        <select id="res-unit" @bind="reserveUnitId">
+                            @foreach (var u in activeUnits)
+                            {
+                                <option value="@u.Id">@u.Symbol — @u.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="write-field">
+                        <label for="res-wh">@Text["InvWarehouseLabel"]</label>
+                        <select id="res-wh" @bind="reserveWarehouseId">
+                            <option value="0">@Text["PoResAutoFifoOption"]</option>
+                            @foreach (var w in activeWarehouses.Where(x => selectedOrder is null || x.SiteId == selectedOrder.Summary.SiteId))
+                            {
+                                <option value="@w.Id">@w.Code — @w.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="write-field">
+                        <label for="res-lot">@Text["InvLotCodeLabel"]</label>
+                        <input id="res-lot" type="text" maxlength="64" @bind="reserveLotCode" placeholder="@Text["PoResLotOptionalHint"]" />
+                    </div>
+                    <div class="write-field" style="grid-column:1/-1;">
+                        <label for="res-notes">@Text["PoNotesLabel"]</label>
+                        <input id="res-notes" type="text" maxlength="500" @bind="reserveNotes" />
+                    </div>
+                </div>
+                <div class="write-actions">
+                    <BitButton IsEnabled="@(!modalBusy && reserveQuantity > 0m)" OnClick="SubmitReserveAsync">@Text["PoResConfirmBtn"]</BitButton>
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => reserveModalOpen = false">@Text["WriteCancel"]</BitButton>
+                </div>
+            </div>
+        </Body>
+    </BitDialog>
 </section>
 
 @code {
@@ -819,6 +959,19 @@
     private IReadOnlyList<ItemSummary> manufacturableItems = [];
     private IReadOnlyList<UnitSummary> activeUnits = [];
     private IReadOnlyList<ContextDimensionSummary> activeDimensions = [];
+    private IReadOnlyList<WarehouseSummary> activeWarehouses = [];
+    private IReadOnlyList<StockReservationSummary> orderReservations = [];
+
+    private bool reserveModalOpen;
+    private long? reserveInputId;
+    private long reserveItemId;
+    private string reserveItemLabel = string.Empty;
+    private decimal reserveQuantity = 1m;
+    private long reserveUnitId;
+    private long reserveWarehouseId;
+    private string? reserveLotCode;
+    private string? reserveNotes;
+    private string? reserveError;
 
     private long siteFilter;
     private string statusFilter = string.Empty;
@@ -953,6 +1106,7 @@
         manufacturableItems = [];
         activeUnits = [];
         activeDimensions = [];
+        activeWarehouses = [];
         siteFilter = 0;
 
         var scope = CurrentScope;
@@ -988,6 +1142,10 @@
         var dimsRes = await BomService.ListContextDimensions(scope, orgId, new ContextDimensionListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
         if (dimsRes.Succeeded)
             activeDimensions = dimsRes.Value!.Items;
+
+        var whRes = await InvService.ListWarehouses(scope, orgId, new WarehouseListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        if (whRes.Succeeded)
+            activeWarehouses = whRes.Value!.Items;
     }
 
     private string ScopeLabel(OrganizationScope scope) => scope switch
@@ -1197,6 +1355,7 @@
         }
         PopulateWorkbench(res.Value!);
         await LoadEditRoutingsAsync(res.Value!.Summary);
+        await LoadOrderReservationsAsync(res.Value!.Summary);
         workbenchOpen = true;
     }
 
@@ -1298,6 +1457,7 @@
             }
             PopulateWorkbench(res.Value!);
             workbenchSaved = "PoSavedNotice";
+            await LoadOrderReservationsAsync(res.Value!.Summary);
             await RefreshGridCurrentPageAsync();
         }
         finally { modalBusy = false; }
@@ -1321,6 +1481,7 @@
             }
             PopulateWorkbench(res.Value!);
             workbenchSaved = "PoSavedNotice";
+            await LoadOrderReservationsAsync(res.Value!.Summary);
             await RefreshGridCurrentPageAsync();
         }
         finally { modalBusy = false; }
@@ -1367,6 +1528,7 @@
             }
             PopulateWorkbench(res.Value!);
             workbenchSaved = "PoSavedNotice";
+            await LoadOrderReservationsAsync(res.Value!.Summary);
             await RefreshGridCurrentPageAsync();
         }
         finally { modalBusy = false; }
@@ -1390,6 +1552,7 @@
             }
             PopulateWorkbench(res.Value!);
             workbenchSaved = "PoSavedNotice";
+            await LoadOrderReservationsAsync(res.Value!.Summary);
             await RefreshGridCurrentPageAsync();
         }
         finally { modalBusy = false; }
@@ -1513,6 +1676,102 @@
         ProductionOrderOperationStatus.InProgress => "po-status-inprogress",
         ProductionOrderOperationStatus.Ready => "po-status-released",
         ProductionOrderOperationStatus.Skipped => "po-status-cancelled",
+        _ => "po-status-draft"
+    };
+
+    private async Task LoadOrderReservationsAsync(ProductionOrderSummary s)
+    {
+        orderReservations = [];
+        var scope = CurrentScope;
+        if (scope is null) return;
+        var res = await ResService.ListOrderReservations(scope, s.OrganizationId, s.Id);
+        if (res.Succeeded)
+            orderReservations = res.Value!;
+    }
+
+    private void OpenReserveModal(ProductionOrderInputSummary inp)
+    {
+        reserveError = null;
+        reserveInputId = inp.Id;
+        reserveItemId = inp.ItemId;
+        reserveItemLabel = $"{inp.ItemCode} — {inp.ItemName}";
+        reserveQuantity = inp.GrossQuantity > 0m ? inp.GrossQuantity : 1m;
+        reserveUnitId = inp.UnitId > 0 ? inp.UnitId : (activeUnits.FirstOrDefault()?.Id ?? 0);
+        reserveWarehouseId = 0;
+        reserveLotCode = null;
+        reserveNotes = null;
+        reserveModalOpen = true;
+    }
+
+    private async Task SubmitReserveAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedOrder is null) return;
+        modalBusy = true;
+        reserveError = null;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var s = selectedOrder.Summary;
+            var res = await ResService.ReserveStock(scope, new ReserveStockRequest(
+                s.OrganizationId,
+                s.Id,
+                reserveInputId,
+                reserveItemId,
+                reserveQuantity,
+                reserveUnitId > 0 ? reserveUnitId : null,
+                reserveWarehouseId > 0 ? reserveWarehouseId : null,
+                string.IsNullOrWhiteSpace(reserveLotCode) ? null : reserveLotCode.Trim(),
+                reserveNotes));
+            if (!res.Succeeded)
+            {
+                reserveError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            reserveModalOpen = false;
+            workbenchSaved = "PoResSavedNotice";
+            await LoadOrderReservationsAsync(s);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task ReleaseOrderReservationAsync(StockReservationSummary r)
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedOrder is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var res = await ResService.ReleaseReservation(scope, new ReleaseReservationRequest(r.OrganizationId, r.Id, r.RowVersion));
+            if (!res.Succeeded)
+            {
+                workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            workbenchSaved = "InvResReleasedNotice";
+            await LoadOrderReservationsAsync(selectedOrder.Summary);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private string ResStatusLabel(ReservationStatus status) => status switch
+    {
+        ReservationStatus.Active => Text["InvResStatusActive"],
+        ReservationStatus.PartiallyConsumed => Text["InvResStatusPartial"],
+        ReservationStatus.Fulfilled => Text["InvResStatusConsumed"],
+        ReservationStatus.Released => Text["InvResStatusReleased"],
+        _ => status.ToString()
+    };
+
+    private static string ResBadgeClass(ReservationStatus status) => status switch
+    {
+        ReservationStatus.Active => "po-status-released",
+        ReservationStatus.PartiallyConsumed => "qc-status-pending",
+        ReservationStatus.Fulfilled => "po-status-completed",
+        ReservationStatus.Released => "po-status-draft",
         _ => "po-status-draft"
     };
 }

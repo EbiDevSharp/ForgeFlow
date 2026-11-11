@@ -86,7 +86,8 @@ public sealed class SqlReportingQueryStore(
                 g.Key.SiteId,
                 g.Key.ItemId,
                 g.Sum(x => x.OnHandBaseQuantity),
-                g.Sum(x => x.BlockedBaseQuantity)))
+                g.Sum(x => x.BlockedBaseQuantity),
+                g.Sum(x => x.ReservedBaseQuantity)))
             .ToListAsync(ct);
 
         var poQuery = from line in db.PurchaseOrderLines.AsNoTracking()

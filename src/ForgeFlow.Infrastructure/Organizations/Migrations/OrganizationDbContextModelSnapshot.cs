@@ -552,6 +552,12 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                     b.Property<long>("OrganizationId")
                         .HasColumnType("bigint");
 
+                    b.Property<decimal>("ReservedBaseQuantity")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)")
+                        .HasDefaultValue(0m);
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -585,7 +591,7 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
 
                     b.ToTable("InventoryBalance", "organization", t =>
                         {
-                            t.HasCheckConstraint("CK_InventoryBalance_Blocked", "[BlockedBaseQuantity] >= 0 AND [BlockedBaseQuantity] <= [OnHandBaseQuantity]");
+                            t.HasCheckConstraint("CK_InventoryBalance_Blocked", "[BlockedBaseQuantity] >= 0 AND [ReservedBaseQuantity] >= 0 AND ([BlockedBaseQuantity] + [ReservedBaseQuantity]) <= [OnHandBaseQuantity]");
 
                             t.HasCheckConstraint("CK_InventoryBalance_LotCode", "([LotCode] = '' OR (DATALENGTH([LotCode]) BETWEEN 1 AND 32 AND DATALENGTH([LotCode]) = LEN([LotCode]) AND [LotCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([LotCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'))");
 
@@ -811,6 +817,109 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                             t.HasCheckConstraint("CK_InventoryTransaction_Metadata", "[CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))");
 
                             t.HasCheckConstraint("CK_InventoryTransaction_Type", "[TransactionType] BETWEEN 1 AND 9");
+                        });
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.Inventory.StockReservation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("BaseUnitId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("ConsumedBaseQuantity")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long>("CreatedByActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ItemId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("LotCode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)")
+                        .HasDefaultValue("")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("OrganizationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ProductionOrderId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("ProductionOrderInputId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ReleasedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<decimal>("ReservedBaseQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("SiteId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long?>("UpdatedByActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("WarehouseId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id")
+                        .HasName("PK_StockReservation");
+
+                    b.HasIndex("OrganizationId", "BaseUnitId");
+
+                    b.HasIndex("OrganizationId", "ItemId");
+
+                    b.HasIndex("OrganizationId", "WarehouseId");
+
+                    b.HasIndex("OrganizationId", "ProductionOrderId", "Status")
+                        .HasDatabaseName("IX_StockReservation_Org_Order_Status");
+
+                    b.HasIndex("OrganizationId", "SiteId", "WarehouseId", "ItemId", "LotCode", "Status")
+                        .HasDatabaseName("IX_StockReservation_Org_Site_Wh_Item_Lot_Status");
+
+                    b.ToTable("StockReservation", "organization", t =>
+                        {
+                            t.HasCheckConstraint("CK_StockReservation_LotCode", "([LotCode] = '' OR (DATALENGTH([LotCode]) BETWEEN 1 AND 32 AND DATALENGTH([LotCode]) = LEN([LotCode]) AND [LotCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([LotCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'))");
+
+                            t.HasCheckConstraint("CK_StockReservation_Metadata", "[CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))");
+
+                            t.HasCheckConstraint("CK_StockReservation_Qty", "[ReservedBaseQuantity] > 0 AND [ConsumedBaseQuantity] >= 0 AND [ConsumedBaseQuantity] <= [ReservedBaseQuantity]");
+
+                            t.HasCheckConstraint("CK_StockReservation_Status", "[Status] BETWEEN 1 AND 4");
                         });
                 });
 
@@ -3196,7 +3305,7 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                         {
                             t.HasCheckConstraint("CK_OrganizationChange_Actor", "[ActorId] > 0");
 
-                            t.HasCheckConstraint("CK_OrganizationChange_Event", "DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Currency.Created','Currency.Updated','Currency.Activated','Currency.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved','ItemLot.Updated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled','WorkCenter.Created','WorkCenter.Updated','WorkCenter.Activated','WorkCenter.Deactivated','Routing.Created','Routing.Updated','Routing.OperationsSaved','Routing.Activated','Routing.Obsoleted','ProductionOrderOperation.Started','ProductionOrderOperation.Paused','ProductionOrderOperation.Completed','ProductionOrderOperation.Skipped')))");
+                            t.HasCheckConstraint("CK_OrganizationChange_Event", "DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Currency.Created','Currency.Updated','Currency.Activated','Currency.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved','ItemLot.Updated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','InventoryReservation.Created','InventoryReservation.Consumed','InventoryReservation.Released','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled','WorkCenter.Created','WorkCenter.Updated','WorkCenter.Activated','WorkCenter.Deactivated','Routing.Created','Routing.Updated','Routing.OperationsSaved','Routing.Activated','Routing.Obsoleted','ProductionOrderOperation.Started','ProductionOrderOperation.Paused','ProductionOrderOperation.Completed','ProductionOrderOperation.Skipped')))");
 
                             t.HasCheckConstraint("CK_OrganizationChange_Json", "ISJSON([ChangesJson]) = 1");
                         });
@@ -3478,6 +3587,56 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("FK_InventoryTransaction_Warehouse");
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.Inventory.StockReservation", b =>
+                {
+                    b.HasOne("ForgeFlow.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_StockReservation_Organization");
+
+                    b.HasOne("ForgeFlow.Domain.Units.Unit", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "BaseUnitId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_StockReservation_Unit");
+
+                    b.HasOne("ForgeFlow.Domain.Items.Item", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "ItemId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_StockReservation_Item");
+
+                    b.HasOne("ForgeFlow.Domain.ProductionOrders.ProductionOrder", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "ProductionOrderId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_StockReservation_Order");
+
+                    b.HasOne("ForgeFlow.Domain.Organizations.Site", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "SiteId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_StockReservation_Site");
+
+                    b.HasOne("ForgeFlow.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "WarehouseId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_StockReservation_Warehouse");
                 });
 
             modelBuilder.Entity("ForgeFlow.Domain.Inventory.Warehouse", b =>

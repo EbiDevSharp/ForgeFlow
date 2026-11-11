@@ -121,6 +121,9 @@ public static class AuditEventCatalog
         Biz("ProductionOrderOperation.Paused"),
         Biz("ProductionOrderOperation.Completed"),
         Biz("ProductionOrderOperation.Skipped"),
+        Biz("InventoryReservation.Created"),
+        Biz("InventoryReservation.Consumed"),
+        Biz("InventoryReservation.Released"),
 
         // Security & authentication events (auth.SecurityEvent)
         Sec("BootstrapCompleted"),

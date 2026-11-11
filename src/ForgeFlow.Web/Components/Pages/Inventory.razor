@@ -9,6 +9,7 @@
 @using ForgeFlow.Domain.ProductionOrders
 @using ForgeFlow.Web.Roles
 @inject InventoryUseCases InvService
+@inject StockReservationUseCases ResService
 @inject ProductionOrderUseCases OrderService
 @inject ItemUseCases ItemService
 @inject UnitUseCases UnitService
@@ -78,6 +79,9 @@
             <button type="button" role="tab" aria-selected="@(activeTab == TabWarehouses)"
                     class="read-tab-btn @(activeTab == TabWarehouses ? "active" : string.Empty)"
                     @onclick="() => SwitchTabAsync(TabWarehouses)">@Text["InvTabWarehouses"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabReservations)"
+                    class="read-tab-btn @(activeTab == TabReservations ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabReservations)">@Text["InvTabReservations"]</button>
         </div>
 
         <div class="read-toolbar-card">
@@ -150,6 +154,13 @@
                     <span>@Text["ReadInactive"]</span>
                 </label>
             }
+            else if (activeTab == TabReservations)
+            {
+                <label class="read-inactive">
+                    <input type="checkbox" checked="@openReservationsOnly" @onchange="ToggleOpenReservationsAsync" />
+                    <span>@Text["InvResOpenOnlyLabel"]</span>
+                </label>
+            }
 
             <div class="read-field">
                 <label for="inv-search">@Text["ReadSearch"]</label>
@@ -202,10 +213,17 @@
                                 <Template Context="b">
                                     <div>
                                         <div class="read-primary-cell"><strong dir="ltr">@Format.Number(b.OnHandBaseQuantity) @b.BaseUnitSymbol</strong></div>
-                                        @if (b.BlockedBaseQuantity > 0m)
+                                        @if (b.BlockedBaseQuantity > 0m || b.ReservedBaseQuantity > 0m)
                                         {
                                             <div class="read-sub-cell">
-                                                <span class="read-badge qc-status-pending" dir="ltr">@Text["InvBlockedShort", Format.Number(b.BlockedBaseQuantity)]</span>
+                                                @if (b.BlockedBaseQuantity > 0m)
+                                                {
+                                                    <span class="read-badge qc-status-pending" dir="ltr">@Text["InvBlockedShort", Format.Number(b.BlockedBaseQuantity)]</span>
+                                                }
+                                                @if (b.ReservedBaseQuantity > 0m)
+                                                {
+                                                    <span class="read-badge inv-reserved-badge" dir="ltr">@Text["InvReservedShort", Format.Number(b.ReservedBaseQuantity)]</span>
+                                                }
                                                 <span dir="ltr"> · @Text["InvAvailableLabel"]: @Format.Number(b.AvailableBaseQuantity)</span>
                                             </div>
                                         }
@@ -268,7 +286,7 @@
                 </div>
             </div>
         }
-        else
+        else if (activeTab == TabWarehouses)
         {
             <div class="read-grid-card">
                 <div class="read-grid">
@@ -313,6 +331,70 @@
                                                            Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
                                                            OnClick="() => OpenEditWarehouse(w)" />
                                             </BitTooltip>
+                                        }
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else if (activeTab == TabReservations)
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="resGrid" TItem="StockReservationSummary" OnRead="ReadReservationsAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="inv-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvResOrderColumn"]">
+                                <Template Context="r"><strong dir="ltr">@r.OrderNumber</strong></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["BomLineItemColumn"]">
+                                <Template Context="r"><span dir="ltr">@r.ItemCode</span> — @r.ItemName</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvWarehouseLabel"]">
+                                <Template Context="r"><span dir="ltr">@r.WarehouseCode</span> — @r.WarehouseName</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvLotCodeLabel"]">
+                                <Template Context="r">
+                                    @if (string.IsNullOrEmpty(r.LotCode))
+                                    {
+                                        <span>—</span>
+                                    }
+                                    else
+                                    {
+                                        <a class="qc-lot-link" href="@($"/traceability?itemId={r.ItemId}&lotCode={Uri.EscapeDataString(r.LotCode)}")" dir="ltr">@r.LotCode</a>
+                                    }
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvResRemainingColumn"]">
+                                <Template Context="r">
+                                    <div>
+                                        <div class="read-primary-cell"><strong dir="ltr">@Format.Number(r.RemainingReservedBaseQuantity) @r.BaseUnitSymbol</strong></div>
+                                        <div class="read-sub-cell" dir="ltr">@Text["InvResTotalsSub", Format.Number(r.ReservedBaseQuantity), Format.Number(r.ConsumedBaseQuantity)]</div>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["PoStatusColumn"]">
+                                <Template Context="r">
+                                    <span class="read-badge @ResBadgeClass(r.Status)">@ResStatusLabel(r.Status)</span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["AuditTimeColumn"]">
+                                <Template Context="r"><bdi dir="ltr">@Format.Timestamp(r.CreatedAtUtc)</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["ReadActions"]">
+                                <Template Context="r">
+                                    <div class="read-row-actions">
+                                        @if (scopeCanManage && r.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed)
+                                        {
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)"
+                                                       OnClick="() => ReleaseReservationAsync(r)">
+                                                @Text["InvResReleaseBtn"]
+                                            </BitButton>
                                         }
                                     </div>
                                 </Template>
@@ -642,6 +724,7 @@
     private const int TabBalances = 0;
     private const int TabMovements = 1;
     private const int TabWarehouses = 2;
+    private const int TabReservations = 3;
 
     private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
     private static readonly BitDialogClassStyles DialogClasses = new()
@@ -666,6 +749,7 @@
     private BitDataGrid<InventoryBalanceSummary>? balGrid;
     private BitDataGrid<InventoryTransactionSummary>? txnGrid;
     private BitDataGrid<WarehouseSummary>? whGrid;
+    private BitDataGrid<StockReservationSummary>? resGrid;
 
     private int activeTab = TabBalances;
     private bool initialLoading = true;
@@ -688,6 +772,7 @@
     private string typeFilter = string.Empty;
     private bool includeZeroBalances;
     private bool includeInactiveWarehouses;
+    private bool openReservationsOnly = true;
     private string? search;
     private string? appliedSearch;
     private bool modalBusy;
@@ -891,6 +976,12 @@
         await ReloadActiveGridAsync(fromFirstPage: true);
     }
 
+    private async Task ToggleOpenReservationsAsync(ChangeEventArgs e)
+    {
+        openReservationsOnly = e.Value is bool b && b;
+        await ReloadActiveGridAsync(fromFirstPage: true);
+    }
+
     private async Task ApplySearchAsync()
     {
         appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
@@ -914,6 +1005,54 @@
             if (fromFirstPage && whGrid.CurrentPage > 1) await whGrid.GoToPageAsync(1);
             else await whGrid.RefreshAsync();
         }
+        else if (activeTab == TabReservations && resGrid is not null)
+        {
+            if (fromFirstPage && resGrid.CurrentPage > 1) await resGrid.GoToPageAsync(1);
+            else await resGrid.RefreshAsync();
+        }
+    }
+
+    private async Task<BitDataGridReadResult<StockReservationSummary>> ReadReservationsAsync(BitDataGridReadRequest request)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var orgId = ScopeOrganizationId(scope);
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        long? reqSite = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
+        var res = await ResService.ListReservations(scope, orgId, new ReservationListQuery(
+            reqSite,
+            null,
+            warehouseFilter > 0 ? warehouseFilter : null,
+            null,
+            null,
+            openReservationsOnly,
+            appliedSearch,
+            page,
+            size), request.CancellationToken);
+        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private async Task ReleaseReservationAsync(StockReservationSummary r)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        pageError = null;
+        pageNotice = null;
+        try
+        {
+            var res = await ResService.ReleaseReservation(scope, new ReleaseReservationRequest(r.OrganizationId, r.Id, r.RowVersion));
+            if (!res.Succeeded)
+            {
+                pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            pageNotice = Text["InvResReleasedNotice"];
+            await ReloadActiveGridAsync(fromFirstPage: false);
+        }
+        finally { modalBusy = false; }
     }
 
     private async Task<BitDataGridReadResult<InventoryBalanceSummary>> ReadBalancesAsync(BitDataGridReadRequest request)
@@ -1189,6 +1328,24 @@
         InventoryTransactionType.Issue or InventoryTransactionType.ProductionIssue => "po-status-inprogress",
         InventoryTransactionType.TransferOut or InventoryTransactionType.Adjustment => "po-status-released",
         InventoryTransactionType.Reversal or InventoryTransactionType.QualityScrap => "po-status-cancelled",
+        _ => "po-status-draft"
+    };
+
+    private string ResStatusLabel(ReservationStatus status) => status switch
+    {
+        ReservationStatus.Active => Text["InvResStatusActive"],
+        ReservationStatus.PartiallyConsumed => Text["InvResStatusPartial"],
+        ReservationStatus.Fulfilled => Text["InvResStatusConsumed"],
+        ReservationStatus.Released => Text["InvResStatusReleased"],
+        _ => status.ToString()
+    };
+
+    private static string ResBadgeClass(ReservationStatus status) => status switch
+    {
+        ReservationStatus.Active => "po-status-released",
+        ReservationStatus.PartiallyConsumed => "qc-status-pending",
+        ReservationStatus.Fulfilled => "po-status-completed",
+        ReservationStatus.Released => "po-status-draft",
         _ => "po-status-draft"
     };
 }

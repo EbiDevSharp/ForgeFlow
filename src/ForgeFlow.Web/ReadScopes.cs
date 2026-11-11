@@ -77,6 +77,51 @@ public sealed class ReadScopes(IServiceScopeFactory scopes, ITrustedActorAccesso
     public Task<IReadOnlyList<OrganizationScope>> LoadRoutingScopesAsync() =>
         LoadOrganizationOrSitePermissionScopesAsync(ForgeFlow.Application.Routings.RoutingPermissions.RoutingsRead);
 
+    public async Task<IReadOnlyList<OrganizationScope>> LoadDashboardScopesAsync()
+    {
+        var actor = await actors.ResolveAsync(default);
+        if (actor is null) return [];
+        await using var operation = scopes.CreateAsyncScope();
+        var db = operation.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var roleGrants = await db.ScopedRoleAssignments.AsNoTracking()
+            .Where(x => x.UserId == actor.ActorId && x.IsActive && x.OrganizationId != null)
+            .Select(x => new { OrganizationId = x.OrganizationId!.Value, x.SiteId }).Distinct().ToListAsync();
+        var directGrants = await db.UserPermissionGrants.AsNoTracking()
+            .Where(x => x.UserId == actor.ActorId && x.IsActive)
+            .Select(x => new { x.OrganizationId, x.SiteId }).Distinct().ToListAsync();
+        var grants = roleGrants.Concat(directGrants).Distinct()
+            .OrderBy(x => x.OrganizationId)
+            .ThenBy(x => x.SiteId.HasValue ? 1 : 0)
+            .ThenBy(x => x.SiteId)
+            .ToList();
+        string[] candidates =
+        [
+            ForgeFlow.Application.ProductionOrders.ProductionOrderPermissions.ProductionOrdersRead,
+            ForgeFlow.Application.Inventory.InventoryPermissions.InventoryRead,
+            ForgeFlow.Application.Reporting.ReportingPermissions.ReportsRead,
+            ForgeFlow.Application.Quality.QualityPermissions.QualityRead,
+            ForgeFlow.Application.Procurement.ProcurementPermissions.ProcurementRead,
+            ForgeFlow.Application.Routings.RoutingPermissions.RoutingsRead,
+            OrganizationPermissions.SitesRead
+        ];
+        var result = new List<OrganizationScope>();
+        foreach (var grant in grants)
+        {
+            OrganizationScope scope = grant.SiteId is long site
+                ? new OrganizationScope.Site(grant.OrganizationId, site)
+                : new OrganizationScope.Organization(grant.OrganizationId);
+            foreach (var perm in candidates)
+            {
+                if ((await permissions.EvaluateAsync(actor, scope, perm, default)).IsAllowed)
+                {
+                    result.Add(scope);
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
     public async Task<IReadOnlyList<OrganizationScope>> LoadDiagnosticScopesAsync()
     {
         var actor = await actors.ResolveAsync(default);

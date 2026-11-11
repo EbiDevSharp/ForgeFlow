@@ -1,7 +1,491 @@
 @page "/"
+@using ForgeFlow.Application.Dashboard
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Domain.Procurement
+@using ForgeFlow.Domain.ProductionOrders
+@using ForgeFlow.Domain.Quality
+@using ForgeFlow.Web.Roles
+@inject DashboardUseCases DashboardService
+@inject OrganizationUseCases OrgService
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
 
-<PageTitle>@Text["Home"]</PageTitle>
-<section class="home-page">
-    <h1 class="visually-hidden">@Text["Home"]</h1>
+<PageTitle>@Text["Home"] - @Text["AppTitle"]</PageTitle>
+
+<section class="home-page organization-reader" aria-labelledby="dash-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="dash-title">@Text["DashTitle"]</h1>
+            <p class="write-hint">@Text["DashSubtitle"]</p>
+        </div>
+        @if (!initialLoading && pageError is null && available.Count > 0)
+        {
+            <div class="read-head-actions">
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!loadingSnapshot)" OnClick="LoadSnapshotAsync">
+                    @Text["DashRefreshBtn"]
+                </BitButton>
+            </div>
+        }
+    </div>
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div class="read-state" role="alert">
+            <p>@Text[pageError]</p>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else if (available.Count == 0)
+    {
+        <div class="dash-empty-card" role="status">
+            <p>@Text["DashNoScopeHint"]</p>
+        </div>
+    }
+    else
+    {
+        @if (available.Count > 1 || (CurrentScope is OrganizationScope.Organization && orgSites.Count > 1))
+        {
+            <div class="read-toolbar-card">
+                @if (available.Count > 1)
+                {
+                    <div class="read-field">
+                        <label for="dash-scope">@Text["ReadScope"]</label>
+                        <select id="dash-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                            @for (var i = 0; i < available.Count; i++)
+                            {
+                                <option value="@i">@ScopeLabel(available[i])</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                @if (CurrentScope is OrganizationScope.Organization && orgSites.Count > 1)
+                {
+                    <div class="read-field">
+                        <label for="dash-site">@Text["PoSiteColumn"]</label>
+                        <select id="dash-site" value="@siteFilter" @onchange="ChangeSiteAsync">
+                            <option value="0">@Text["PoAllSitesOption"]</option>
+                            @foreach (var s in orgSites)
+                            {
+                                <option value="@s.Id">@s.Code — @s.Name</option>
+                            }
+                        </select>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (loadingSnapshot && snapshot is null)
+        {
+            <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+        }
+        else if (snapshot is not null)
+        {
+            var caps = snapshot.Capabilities;
+            @if (!caps.Production && !caps.Inventory && !caps.Reports && !caps.Quality && !caps.Procurement && !caps.Routings)
+            {
+                <div class="dash-empty-card" role="status">
+                    <p>@Text["DashNoCapabilities"]</p>
+                </div>
+            }
+            else
+            {
+                <div class="dash-kpi-grid">
+                    @if (caps.Production && snapshot.ProductionStats is { } p)
+                    {
+                        <a class="dash-kpi-card" href="@ScopedHref("production-orders")">
+                            <span class="dash-kpi-label">@Text["DashKpiActiveOrders"]</span>
+                            <strong class="dash-kpi-value" dir="ltr">@(p.ReleasedCount + p.InProgressCount)</strong>
+                            <div class="dash-kpi-meta">
+                                <span>@Text["DashKpiDraftCount", p.DraftCount]</span>
+                                @if (p.OverdueCount > 0)
+                                {
+                                    <span class="read-badge rpt-shortage-badge">@Text["DashKpiOverdueCount", p.OverdueCount]</span>
+                                }
+                            </div>
+                        </a>
+                    }
+
+                    @if (caps.Reports && snapshot.ShortageStats is { } sh)
+                    {
+                        <a class="dash-kpi-card" href="@ScopedHref("reports")">
+                            <span class="dash-kpi-label">@Text["DashKpiShortages"]</span>
+                            <strong class="dash-kpi-value @(sh.ShortageItemCount > 0 ? "dash-kpi-value--warn" : string.Empty)" dir="ltr">@sh.ShortageItemCount</strong>
+                            <div class="dash-kpi-meta">
+                                <span>@Text["DashKpiReservedTotal", Format.Number(sh.TotalReservedBaseQuantity)]</span>
+                            </div>
+                        </a>
+                    }
+
+                    @if (caps.Quality && snapshot.QualityStats is { } qc)
+                    {
+                        <a class="dash-kpi-card" href="@ScopedHref("quality")">
+                            <span class="dash-kpi-label">@Text["DashKpiQualityQueue"]</span>
+                            <strong class="dash-kpi-value @(qc.PendingCount + qc.InReviewCount > 0 ? "dash-kpi-value--warn" : string.Empty)" dir="ltr">@(qc.PendingCount + qc.InReviewCount)</strong>
+                            <div class="dash-kpi-meta">
+                                <span>@Text["DashKpiBlockedTotal", Format.Number(qc.TotalBlockedBaseQuantity)]</span>
+                            </div>
+                        </a>
+                    }
+
+                    @if (caps.Procurement && snapshot.ProcurementStats is { } pr)
+                    {
+                        <a class="dash-kpi-card" href="@ScopedHref("purchase-orders")">
+                            <span class="dash-kpi-label">@Text["DashKpiOpenPo"]</span>
+                            <strong class="dash-kpi-value" dir="ltr">@(pr.ApprovedCount + pr.PartiallyReceivedCount)</strong>
+                            <div class="dash-kpi-meta">
+                                @if (pr.OverduePoCount > 0)
+                                {
+                                    <span class="read-badge rpt-shortage-badge">@Text["DashKpiOverdueCount", pr.OverduePoCount]</span>
+                                }
+                                else
+                                {
+                                    <span>@Text["DashKpiAllOnSchedule"]</span>
+                                }
+                            </div>
+                        </a>
+                    }
+                </div>
+
+                <div class="dash-panels-grid">
+                    @if (caps.Production)
+                    {
+                        <section class="dash-panel" aria-labelledby="dash-mo-heading">
+                            <div class="dash-panel-head">
+                                <h2 id="dash-mo-heading">@Text["DashPanelOrdersTitle"]</h2>
+                                <a class="dash-panel-link" href="@ScopedHref("production-orders")">@Text["DashViewAll"]</a>
+                            </div>
+                            @if (snapshot.AttentionOrders.Count == 0)
+                            {
+                                <p class="dash-panel-empty">@Text["ReadEmpty"]</p>
+                            }
+                            else
+                            {
+                                <div class="dash-list">
+                                    @foreach (var o in snapshot.AttentionOrders)
+                                    {
+                                        <div class="dash-list-row">
+                                            <div class="dash-list-main">
+                                                <div class="read-primary-cell">
+                                                    <strong dir="ltr">@o.OrderNumber</strong>
+                                                    <span class="dash-sep">·</span>
+                                                    <span dir="ltr">@o.ItemCode</span>
+                                                </div>
+                                                <div class="read-sub-cell">@o.ItemName · <span dir="ltr">@o.SiteCode</span></div>
+                                            </div>
+                                            <div class="dash-list-end">
+                                                <span class="read-badge @OrderStatusBadgeClass(o.Status)">@OrderStatusLabel(o.Status)</span>
+                                                @if (o.IsOverdue)
+                                                {
+                                                    <span class="read-badge rpt-shortage-badge">@Text["DashOverdueBadge"]</span>
+                                                }
+                                                <span class="dash-date-sub" dir="ltr">@Format.Date(o.PlannedDueDate)</span>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </section>
+                    }
+
+                    @if (caps.Reports)
+                    {
+                        <section class="dash-panel" aria-labelledby="dash-sh-heading">
+                            <div class="dash-panel-head">
+                                <h2 id="dash-sh-heading">@Text["DashPanelShortagesTitle"]</h2>
+                                <a class="dash-panel-link" href="@ScopedHref("reports")">@Text["DashViewAll"]</a>
+                            </div>
+                            @if (snapshot.TopShortages.Count == 0)
+                            {
+                                <p class="dash-panel-empty">@Text["DashNoShortages"]</p>
+                            }
+                            else
+                            {
+                                <div class="dash-list">
+                                    @foreach (var s in snapshot.TopShortages)
+                                    {
+                                        <div class="dash-list-row">
+                                            <div class="dash-list-main">
+                                                <div class="read-primary-cell">
+                                                    <strong dir="ltr">@s.ItemCode</strong> — @s.ItemName
+                                                </div>
+                                                <div class="read-sub-cell" dir="ltr">
+                                                    @Text["InvAvailableLabel"]: @Format.Number(s.AvailableBaseQuantity)
+                                                    @if (s.ReservedBaseQuantity > 0m)
+                                                    {
+                                                        <span> · @Text["InvReservedShort", Format.Number(s.ReservedBaseQuantity)]</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                            <div class="dash-list-end">
+                                                <span class="read-badge rpt-shortage-badge" dir="ltr">-@Format.Number(s.ShortageBaseQuantity) @s.BaseUnitSymbol</span>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </section>
+                    }
+
+                    @if (caps.Routings)
+                    {
+                        <section class="dash-panel" aria-labelledby="dash-wc-heading">
+                            <div class="dash-panel-head">
+                                <h2 id="dash-wc-heading">@Text["DashPanelWorkCentersTitle"]</h2>
+                                <a class="dash-panel-link" href="@ScopedHref("work-centers")">@Text["DashViewAll"]</a>
+                            </div>
+                            @if (snapshot.WorkCenterLoads.Count == 0)
+                            {
+                                <p class="dash-panel-empty">@Text["ReadEmpty"]</p>
+                            }
+                            else
+                            {
+                                <div class="dash-wc-list">
+                                    @foreach (var wc in snapshot.WorkCenterLoads)
+                                    {
+                                        var barPct = Math.Clamp((int)Math.Round(wc.UtilizationPercent), 0, 100);
+                                        var overloaded = wc.UtilizationPercent > 100m;
+                                        <div class="wc-load-card">
+                                            <div class="dash-wc-head">
+                                                <span><strong dir="ltr">@wc.WorkCenterCode</strong> — @wc.WorkCenterName</span>
+                                                <span class="read-badge @(overloaded ? "rpt-shortage-badge" : "qc-status-completed")" dir="ltr">@Format.Number(wc.UtilizationPercent)%</span>
+                                            </div>
+                                            <div class="wc-load-bar @(overloaded ? "over" : string.Empty)">
+                                                <span style="width:@(barPct)%"></span>
+                                            </div>
+                                            <div class="read-sub-cell" dir="ltr">
+                                                @Text["WcActiveOpsCol"]: @wc.ActiveOperationCount · @Text["WcPlannedMinsCol"]: @Format.Number(wc.TotalPlannedMinutes)m
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </section>
+                    }
+
+                    @if (caps.Quality)
+                    {
+                        <section class="dash-panel" aria-labelledby="dash-qc-heading">
+                            <div class="dash-panel-head">
+                                <h2 id="dash-qc-heading">@Text["DashPanelQualityTitle"]</h2>
+                                <a class="dash-panel-link" href="@ScopedHref("quality")">@Text["DashViewAll"]</a>
+                            </div>
+                            @if (snapshot.PendingInspections.Count == 0)
+                            {
+                                <p class="dash-panel-empty">@Text["ReadEmpty"]</p>
+                            }
+                            else
+                            {
+                                <div class="dash-list">
+                                    @foreach (var q in snapshot.PendingInspections)
+                                    {
+                                        <div class="dash-list-row">
+                                            <div class="dash-list-main">
+                                                <div class="read-primary-cell">
+                                                    <strong dir="ltr">@q.InspectionNumber</strong> · <span dir="ltr">@q.ItemCode</span>
+                                                </div>
+                                                <div class="read-sub-cell">@q.ItemName · <span dir="ltr">@q.LotCode</span></div>
+                                            </div>
+                                            <div class="dash-list-end">
+                                                <span class="read-badge @(q.Status == QualityInspectionStatus.Pending ? "qc-status-pending" : "po-status-released")">
+                                                    @(q.Status == QualityInspectionStatus.Pending ? Text["QcStatusPending"] : Text["QcStatusInReview"])
+                                                </span>
+                                                <span class="dash-date-sub" dir="ltr">@Format.Number(q.RemainingBlockedQuantity) @q.UnitSymbol</span>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </section>
+                    }
+
+                    @if (caps.Procurement)
+                    {
+                        <section class="dash-panel" aria-labelledby="dash-po-heading">
+                            <div class="dash-panel-head">
+                                <h2 id="dash-po-heading">@Text["DashPanelProcurementTitle"]</h2>
+                                <a class="dash-panel-link" href="@ScopedHref("purchase-orders")">@Text["DashViewAll"]</a>
+                            </div>
+                            @if (snapshot.OpenPurchaseOrders.Count == 0)
+                            {
+                                <p class="dash-panel-empty">@Text["ReadEmpty"]</p>
+                            }
+                            else
+                            {
+                                <div class="dash-list">
+                                    @foreach (var po in snapshot.OpenPurchaseOrders)
+                                    {
+                                        <div class="dash-list-row">
+                                            <div class="dash-list-main">
+                                                <div class="read-primary-cell">
+                                                    <strong dir="ltr">@po.OrderNumber</strong> · <span dir="ltr">@po.SiteCode</span>
+                                                </div>
+                                                <div class="read-sub-cell">@po.SupplierName</div>
+                                            </div>
+                                            <div class="dash-list-end">
+                                                <span class="read-badge @(po.Status == PurchaseOrderStatus.PartiallyReceived ? "qc-status-pending" : "po-status-released")">
+                                                    @(po.Status == PurchaseOrderStatus.PartiallyReceived ? Text["ProcStatusPartial"] : Text["ProcStatusApproved"])
+                                                </span>
+                                                @if (po.IsOverdue)
+                                                {
+                                                    <span class="read-badge rpt-shortage-badge">@Text["DashOverdueBadge"]</span>
+                                                }
+                                                @if (po.ExpectedDeliveryDate.HasValue)
+                                                {
+                                                    <span class="dash-date-sub" dir="ltr">@Format.Date(po.ExpectedDeliveryDate.Value)</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </section>
+                    }
+                </div>
+            }
+        }
+    }
 </section>
+
+@code {
+    private bool initialLoading = true;
+    private bool loadingSnapshot;
+    private string? pageError;
+    private List<OrganizationScope> available = [];
+    private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
+        new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+    private int scopeIndex;
+    private IReadOnlyList<SiteDetails> orgSites = [];
+    private long siteFilter;
+    private DashboardSnapshot? snapshot;
+
+    private OrganizationScope? CurrentScope =>
+        scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
+
+    private static long ScopeOrganizationId(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site s => s.OrganizationId,
+        _ => 0
+    };
+
+    protected override async Task OnInitializedAsync() => await ReloadScopeAsync();
+
+    private async Task ReloadScopeAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        try
+        {
+            var loaded = await Scopes.LoadDashboardScopesAsync();
+            available = loaded.ToList();
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+            scopeIndex = 0;
+            await LoadSitesAndSnapshotAsync();
+        }
+        catch
+        {
+            pageError = "ReadError";
+        }
+        finally
+        {
+            initialLoading = false;
+        }
+    }
+
+    private async Task LoadSitesAndSnapshotAsync()
+    {
+        orgSites = [];
+        siteFilter = 0;
+        var scope = CurrentScope;
+        if (scope is null) { snapshot = null; return; }
+        if (scope is OrganizationScope.Organization org)
+        {
+            var sitesRes = await OrgService.ListSites(scope, org.OrganizationId, new OrganizationListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+            if (sitesRes.Succeeded)
+                orgSites = sitesRes.Value!.Items;
+        }
+        await LoadSnapshotAsync();
+    }
+
+    private async Task LoadSnapshotAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) { snapshot = null; return; }
+        loadingSnapshot = true;
+        pageError = null;
+        try
+        {
+            var orgId = ScopeOrganizationId(scope);
+            long? reqSite = scope is OrganizationScope.Organization && siteFilter > 0 ? siteFilter : null;
+            var res = await DashboardService.GetSnapshot(scope, orgId, reqSite);
+            if (!res.Succeeded)
+            {
+                pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                snapshot = null;
+                return;
+            }
+            snapshot = res.Value;
+        }
+        finally
+        {
+            loadingSnapshot = false;
+        }
+    }
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx))
+            scopeIndex = idx;
+        await LoadSitesAndSnapshotAsync();
+    }
+
+    private async Task ChangeSiteAsync(ChangeEventArgs e)
+    {
+        siteFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
+        await LoadSnapshotAsync();
+    }
+
+    private string ScopedHref(string route)
+    {
+        var scope = CurrentScope;
+        var orgId = scope is null ? 0 : ScopeOrganizationId(scope);
+        return orgId > 0 ? $"/organizations/{orgId}/{route}" : $"/{route}";
+    }
+
+    private string ScopeLabel(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o when scopeLabels.TryGetValue(scope, out var info) && info.OrgCode is not null
+            => $"{info.OrgCode} — {info.OrgName}",
+        OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId],
+        OrganizationScope.Site s when scopeLabels.TryGetValue(scope, out var info) && info.SiteCode is not null
+            => $"{info.OrgCode} / {info.SiteCode} — {info.SiteName}",
+        OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
+        _ => string.Empty
+    };
+
+    private string OrderStatusLabel(ProductionOrderStatus status) => status switch
+    {
+        ProductionOrderStatus.Draft => Text["PoStatusDraft"],
+        ProductionOrderStatus.Released => Text["PoStatusReleased"],
+        ProductionOrderStatus.InProgress => Text["PoStatusInProgress"],
+        ProductionOrderStatus.Completed => Text["PoStatusCompleted"],
+        ProductionOrderStatus.Cancelled => Text["PoStatusCancelled"],
+        _ => status.ToString()
+    };
+
+    private static string OrderStatusBadgeClass(ProductionOrderStatus status) => status switch
+    {
+        ProductionOrderStatus.Draft => "po-status-draft",
+        ProductionOrderStatus.Released => "po-status-released",
+        ProductionOrderStatus.InProgress => "po-status-progress",
+        ProductionOrderStatus.Completed => "po-status-completed",
+        ProductionOrderStatus.Cancelled => "po-status-cancelled",
+        _ => "po-status-draft"
+    };
+}

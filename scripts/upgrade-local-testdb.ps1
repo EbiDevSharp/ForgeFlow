@@ -1777,6 +1777,75 @@ BEGIN
     VALUES (N'20261111102337_WorkCentersAndRoutings', N'10.0.14');
 END;
 
+IF OBJECT_ID(N'organization.StockReservation', N'U') IS NULL
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrganizationChange_Event' AND parent_object_id = OBJECT_ID(N'organization.OrganizationChange'))
+        ALTER TABLE [organization].[OrganizationChange] DROP CONSTRAINT [CK_OrganizationChange_Event];
+
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_InventoryBalance_Blocked' AND parent_object_id = OBJECT_ID(N'organization.InventoryBalance'))
+        ALTER TABLE [organization].[InventoryBalance] DROP CONSTRAINT [CK_InventoryBalance_Blocked];
+
+    IF COL_LENGTH(N'organization.InventoryBalance', N'ReservedBaseQuantity') IS NULL
+        ALTER TABLE [organization].[InventoryBalance] ADD [ReservedBaseQuantity] decimal(18,6) NOT NULL CONSTRAINT [DF_InventoryBalance_ReservedBaseQuantity] DEFAULT 0.0;
+
+    CREATE TABLE [organization].[StockReservation] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [SiteId] bigint NOT NULL,
+        [WarehouseId] bigint NOT NULL,
+        [ProductionOrderId] bigint NOT NULL,
+        [ProductionOrderInputId] bigint NULL,
+        [ItemId] bigint NOT NULL,
+        [LotCode] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL DEFAULT N'',
+        [BaseUnitId] bigint NOT NULL,
+        [ReservedBaseQuantity] decimal(18,6) NOT NULL,
+        [ConsumedBaseQuantity] decimal(18,6) NOT NULL DEFAULT 0.0,
+        [Status] tinyint NOT NULL,
+        [Notes] nvarchar(500) NULL,
+        [ReleasedAtUtc] datetime2(7) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_StockReservation] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_StockReservation_LotCode] CHECK (([LotCode] = '' OR (DATALENGTH([LotCode]) BETWEEN 1 AND 32 AND DATALENGTH([LotCode]) = LEN([LotCode]) AND [LotCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([LotCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'))),
+        CONSTRAINT [CK_StockReservation_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_StockReservation_Qty] CHECK ([ReservedBaseQuantity] > 0 AND [ConsumedBaseQuantity] >= 0 AND [ConsumedBaseQuantity] <= [ReservedBaseQuantity]),
+        CONSTRAINT [CK_StockReservation_Status] CHECK ([Status] BETWEEN 1 AND 4),
+        CONSTRAINT [FK_StockReservation_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_StockReservation_Order] FOREIGN KEY ([OrganizationId], [ProductionOrderId]) REFERENCES [organization].[ProductionOrder] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_StockReservation_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id]),
+        CONSTRAINT [FK_StockReservation_Site] FOREIGN KEY ([OrganizationId], [SiteId]) REFERENCES [organization].[Site] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_StockReservation_Unit] FOREIGN KEY ([OrganizationId], [BaseUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_StockReservation_Warehouse] FOREIGN KEY ([OrganizationId], [WarehouseId]) REFERENCES [organization].[Warehouse] ([OrganizationId], [Id])
+    );
+
+    EXEC(N'ALTER TABLE [organization].[InventoryBalance] ADD CONSTRAINT [CK_InventoryBalance_Blocked] CHECK ([BlockedBaseQuantity] >= 0 AND [ReservedBaseQuantity] >= 0 AND ([BlockedBaseQuantity] + [ReservedBaseQuantity]) <= [OnHandBaseQuantity]);');
+
+    ALTER TABLE [organization].[OrganizationChange] ADD CONSTRAINT [CK_OrganizationChange_Event]
+        CHECK (DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Currency.Created','Currency.Updated','Currency.Activated','Currency.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved','ItemLot.Updated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','InventoryReservation.Created','InventoryReservation.Consumed','InventoryReservation.Released','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled','WorkCenter.Created','WorkCenter.Updated','WorkCenter.Activated','WorkCenter.Deactivated','Routing.Created','Routing.Updated','Routing.OperationsSaved','Routing.Activated','Routing.Obsoleted','ProductionOrderOperation.Started','ProductionOrderOperation.Paused','ProductionOrderOperation.Completed','ProductionOrderOperation.Skipped'))));
+
+    CREATE INDEX [IX_StockReservation_Org_Order_Status] ON [organization].[StockReservation] ([OrganizationId], [ProductionOrderId], [Status]);
+    CREATE INDEX [IX_StockReservation_Org_Site_Wh_Item_Lot_Status] ON [organization].[StockReservation] ([OrganizationId], [SiteId], [WarehouseId], [ItemId], [LotCode], [Status]);
+    CREATE INDEX [IX_StockReservation_OrganizationId_BaseUnitId] ON [organization].[StockReservation] ([OrganizationId], [BaseUnitId]);
+    CREATE INDEX [IX_StockReservation_OrganizationId_ItemId] ON [organization].[StockReservation] ([OrganizationId], [ItemId]);
+    CREATE INDEX [IX_StockReservation_OrganizationId_WarehouseId] ON [organization].[StockReservation] ([OrganizationId], [WarehouseId]);
+
+    IF DATABASE_PRINCIPAL_ID(N'ForgeFlowOrganizationRuntime') IS NOT NULL
+    BEGIN
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[StockReservation] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[StockReservation] TO [ForgeFlowOrganizationRuntime];
+    END;
+END;
+
+IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [dbo].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261111110939_StockReservationsAndDashboard')
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261111110939_StockReservationsAndDashboard', N'10.0.14');
+END;
+
 COMMIT;
 "@
 
@@ -1786,7 +1855,7 @@ try {
     $cmd = $cn.CreateCommand()
     $cmd.CommandText = $sql
     [void]$cmd.ExecuteNonQuery()
-    Write-Host "testforgflow database upgraded to 20261111102337_WorkCentersAndRoutings." -ForegroundColor Green
+    Write-Host "testforgflow database upgraded to 20261111110939_StockReservationsAndDashboard." -ForegroundColor Green
 }
 finally {
     $cn.Dispose()

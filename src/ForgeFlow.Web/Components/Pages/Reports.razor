@@ -218,6 +218,10 @@
                                         {
                                             <div class="read-sub-cell"><bdi dir="ltr">@Text["RptBlockedSubLabel", FormatQty(m.BlockedBaseQuantity), FormatQty(m.OnHandBaseQuantity)]</bdi></div>
                                         }
+                                        @if (m.ReservedBaseQuantity > 0m)
+                                        {
+                                            <div class="read-sub-cell"><bdi dir="ltr">@Text["RptReservedSubLabel", FormatQty(m.ReservedBaseQuantity)]</bdi></div>
+                                        }
                                     </div>
                                 </Template>
                             </BitDataGridColumn>

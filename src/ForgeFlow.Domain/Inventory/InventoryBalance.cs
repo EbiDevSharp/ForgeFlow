@@ -27,6 +27,7 @@ public sealed class InventoryBalance
         BaseUnitId = baseUnitId;
         OnHandBaseQuantity = 0m;
         BlockedBaseQuantity = 0m;
+        ReservedBaseQuantity = 0m;
         LastMovedAtUtc = createdAtUtc;
     }
 
@@ -39,7 +40,8 @@ public sealed class InventoryBalance
     public long BaseUnitId { get; private set; }
     public decimal OnHandBaseQuantity { get; private set; }
     public decimal BlockedBaseQuantity { get; private set; }
-    public decimal AvailableBaseQuantity => decimal.Round(OnHandBaseQuantity - BlockedBaseQuantity, 6, MidpointRounding.AwayFromZero);
+    public decimal ReservedBaseQuantity { get; private set; }
+    public decimal AvailableBaseQuantity => decimal.Round(OnHandBaseQuantity - BlockedBaseQuantity - ReservedBaseQuantity, 6, MidpointRounding.AwayFromZero);
     public DateTime LastMovedAtUtc { get; private set; }
 
     public static InventoryBalance CreateZero(
@@ -65,7 +67,7 @@ public sealed class InventoryBalance
                 throw new InventoryRuleException(InventoryErrors.InsufficientStock, ("available", AvailableBaseQuantity), ("blocked", BlockedBaseQuantity), ("requestedDelta", baseQuantityDelta));
         }
 
-        if (next < BlockedBaseQuantity)
+        if (next < decimal.Round(BlockedBaseQuantity + ReservedBaseQuantity, 6, MidpointRounding.AwayFromZero))
             throw new InventoryRuleException(InventoryErrors.InsufficientStock, ("available", AvailableBaseQuantity), ("blocked", BlockedBaseQuantity), ("requestedDelta", baseQuantityDelta));
 
         OnHandBaseQuantity = next;
@@ -76,10 +78,31 @@ public sealed class InventoryBalance
     {
         var qty = InventoryText.ValidatePositiveQuantity(positiveBaseQuantity);
         var nextBlocked = decimal.Round(BlockedBaseQuantity + qty, 6, MidpointRounding.AwayFromZero);
-        if (nextBlocked > OnHandBaseQuantity)
+        if (nextBlocked + ReservedBaseQuantity > OnHandBaseQuantity)
             throw new InventoryRuleException(InventoryErrors.InsufficientStock, ("available", AvailableBaseQuantity), ("requestedDelta", -qty));
 
         BlockedBaseQuantity = nextBlocked;
+        LastMovedAtUtc = movedAtUtc;
+    }
+
+    public void ReserveQuantity(decimal positiveBaseQuantity, DateTime movedAtUtc)
+    {
+        var qty = InventoryText.ValidatePositiveQuantity(positiveBaseQuantity);
+        if (qty > AvailableBaseQuantity)
+            throw new InventoryRuleException(InventoryErrors.ReservationExceedsAvailable, ("available", AvailableBaseQuantity), ("requested", qty));
+
+        ReservedBaseQuantity = decimal.Round(ReservedBaseQuantity + qty, 6, MidpointRounding.AwayFromZero);
+        LastMovedAtUtc = movedAtUtc;
+    }
+
+    public void ReleaseReservedQuantity(decimal positiveBaseQuantity, DateTime movedAtUtc)
+    {
+        var qty = InventoryText.ValidatePositiveQuantity(positiveBaseQuantity);
+        var nextReserved = decimal.Round(ReservedBaseQuantity - qty, 6, MidpointRounding.AwayFromZero);
+        if (nextReserved < 0m)
+            throw new InventoryRuleException(InventoryErrors.QuantityInvalid);
+
+        ReservedBaseQuantity = nextReserved;
         LastMovedAtUtc = movedAtUtc;
     }
 

@@ -1,12 +1,17 @@
 using System.Globalization;
 using System.Security.Claims;
 using Bit.BlazorUI;
+using ForgeFlow.Application.Dashboard;
+using ForgeFlow.Application.Organizations;
+using ForgeFlow.Infrastructure.Identity;
 using ForgeFlow.Web.Components.Layout;
 using ForgeFlow.Web.Components.Pages;
 using ForgeFlow.Web.Localization;
+using ForgeFlow.Web.Organizations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.JSInterop;
@@ -40,12 +45,12 @@ public sealed class ShellRenderingTests
     }
 
     [Theory]
-    [InlineData("fa-IR", "خانه")]
-    [InlineData("en-US", "Home")]
-    public async Task Home_page_renders_empty_shell_with_hidden_accessible_heading(string culture, string expectedTitle)
+    [InlineData("fa-IR", "داشبورد عملیات")]
+    [InlineData("en-US", "Operations Dashboard")]
+    public async Task Home_page_renders_operations_dashboard_with_localized_heading(string culture, string expectedTitle)
     {
         var html = await Render<Home>(culture, new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "ebrahim")], "Test")));
-        Assert.Contains($"<h1 class=\"visually-hidden\">{expectedTitle}</h1>", html);
+        Assert.Contains($"<h1 id=\"dash-title\">{expectedTitle}</h1>", html);
     }
 
     private static async Task<string> Render<TComponent>(string culture, ClaimsPrincipal principal) where TComponent : IComponent
@@ -63,6 +68,16 @@ public sealed class ShellRenderingTests
             services.AddBitBlazorUIServices();
             services.AddSingleton<AuthenticationStateProvider>(new StaticAuthProvider(principal));
             services.AddAuthorizationCore();
+            services.AddSingleton<CulturePolicy>();
+            services.AddSingleton<DisplayFormatter>();
+            services.AddDbContext<AuthDbContext>(o => o.UseSqlServer("Server=invalid.invalid;Database=missing;Integrated Security=True;Encrypt=True;Connect Timeout=1"));
+            services.AddSingleton<ITrustedActorAccessor>(new NullActorAccessor());
+            services.AddSingleton<IOrganizationPermissionEvaluator>(new DenyAllPermissions());
+            services.AddSingleton<IDashboardQueryStore>(new EmptyDashboardStore());
+            services.AddSingleton<IOrganizationOperationsStore>(new EmptyOrganizationStore());
+            services.AddScoped<DashboardUseCases>();
+            services.AddScoped<OrganizationUseCases>();
+            services.AddScoped<ReadScopes>();
             await using var provider = services.BuildServiceProvider();
             await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
             return await renderer.Dispatcher.InvokeAsync(async () =>
@@ -92,5 +107,34 @@ public sealed class ShellRenderingTests
     {
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) => ValueTask.FromResult(default(TValue)!);
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) => ValueTask.FromResult(default(TValue)!);
+    }
+
+    private sealed class NullActorAccessor : ITrustedActorAccessor
+    {
+        public ValueTask<TrustedActor?> ResolveAsync(CancellationToken ct = default) => ValueTask.FromResult<TrustedActor?>(null);
+    }
+
+    private sealed class DenyAllPermissions : IOrganizationPermissionEvaluator
+    {
+        public ValueTask<PermissionDecision> EvaluateAsync(TrustedActor actor, OrganizationScope scope, string permission, CancellationToken ct = default) =>
+            ValueTask.FromResult(new PermissionDecision(false));
+    }
+
+    private sealed class EmptyDashboardStore : IDashboardQueryStore
+    {
+        public Task<DashboardSnapshot> GetSnapshot(long organizationId, long? siteId, DateOnly today, DashboardCapabilities capabilities, CancellationToken ct) =>
+            Task.FromResult(new DashboardSnapshot(capabilities, null, [], null, [], null, [], null, [], []));
+    }
+
+    private sealed class EmptyOrganizationStore : IOrganizationOperationsStore
+    {
+        public Task<OrganizationPage<OrganizationDetails>> ListOrganizations(long organizationId, OrganizationListQuery query, CancellationToken ct) => Task.FromResult(new OrganizationPage<OrganizationDetails>([], 0, 1, 25));
+        public Task<OrganizationDetails?> GetOrganization(long organizationId, CancellationToken ct) => Task.FromResult<OrganizationDetails?>(null);
+        public Task<OrganizationPage<SiteDetails>> ListSites(long organizationId, long? siteId, OrganizationListQuery query, CancellationToken ct) => Task.FromResult(new OrganizationPage<SiteDetails>([], 0, 1, 25));
+        public Task<SiteDetails?> GetSite(long organizationId, long siteId, CancellationToken ct) => Task.FromResult<SiteDetails?>(null);
+        public Task<OrganizationResult<OrganizationDetails>> CreateOrganization(CreateOrganization request, OrganizationWriteAccess access, CancellationToken ct) => throw new NotImplementedException();
+        public Task<OrganizationResult<SiteDetails>> CreateSite(CreateSite request, OrganizationWriteAccess access, CancellationToken ct) => throw new NotImplementedException();
+        public Task<OrganizationResult<OrganizationDetails>> UpdateOrganization(long id, byte[] version, OrganizationMutation mutation, string? name, OrganizationWriteAccess access, CancellationToken ct) => throw new NotImplementedException();
+        public Task<OrganizationResult<SiteDetails>> UpdateSite(long organizationId, long id, byte[] version, OrganizationMutation mutation, string? name, OrganizationWriteAccess access, CancellationToken ct) => throw new NotImplementedException();
     }
 }

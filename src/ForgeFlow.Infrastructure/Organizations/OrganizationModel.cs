@@ -39,7 +39,7 @@ internal static class OrganizationModel
         + "'Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated',"
         + "'BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved',"
         + "'ItemLot.Updated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated')) "
-        + "OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled','WorkCenter.Created','WorkCenter.Updated','WorkCenter.Activated','WorkCenter.Deactivated','Routing.Created','Routing.Updated','Routing.OperationsSaved','Routing.Activated','Routing.Obsoleted','ProductionOrderOperation.Started','ProductionOrderOperation.Paused','ProductionOrderOperation.Completed','ProductionOrderOperation.Skipped')))";
+        + "OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','InventoryReservation.Created','InventoryReservation.Consumed','InventoryReservation.Released','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled','WorkCenter.Created','WorkCenter.Updated','WorkCenter.Activated','WorkCenter.Deactivated','Routing.Created','Routing.Updated','Routing.OperationsSaved','Routing.Activated','Routing.Obsoleted','ProductionOrderOperation.Started','ProductionOrderOperation.Paused','ProductionOrderOperation.Completed','ProductionOrderOperation.Skipped')))";
 
     internal static void Configure(ModelBuilder model)
     {
@@ -786,7 +786,7 @@ internal static class OrganizationModel
         bal.ToTable("InventoryBalance", Schema, table =>
         {
             table.HasCheckConstraint("CK_InventoryBalance_NonNegative", "[OnHandBaseQuantity] >= 0");
-            table.HasCheckConstraint("CK_InventoryBalance_Blocked", "[BlockedBaseQuantity] >= 0 AND [BlockedBaseQuantity] <= [OnHandBaseQuantity]");
+            table.HasCheckConstraint("CK_InventoryBalance_Blocked", "[BlockedBaseQuantity] >= 0 AND [ReservedBaseQuantity] >= 0 AND ([BlockedBaseQuantity] + [ReservedBaseQuantity]) <= [OnHandBaseQuantity]");
             table.HasCheckConstraint("CK_InventoryBalance_LotCode", lotCodeCheck);
             table.HasCheckConstraint("CK_InventoryBalance_Metadata", MetadataCheck);
         });
@@ -800,6 +800,7 @@ internal static class OrganizationModel
         bal.Property(x => x.BaseUnitId).IsRequired();
         bal.Property(x => x.OnHandBaseQuantity).HasPrecision(18, 6).IsRequired();
         bal.Property(x => x.BlockedBaseQuantity).HasPrecision(18, 6).HasDefaultValue(0m).IsRequired();
+        bal.Property(x => x.ReservedBaseQuantity).HasPrecision(18, 6).HasDefaultValue(0m).IsRequired();
         bal.Ignore(x => x.AvailableBaseQuantity);
         bal.Property(x => x.LastMovedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc).IsRequired();
         AddAuditMetadata(bal);
@@ -1196,6 +1197,52 @@ internal static class OrganizationModel
             .HasForeignKey(x => new { x.OrganizationId, x.SiteId, x.WorkCenterId })
             .HasPrincipalKey(w => new { w.OrganizationId, w.SiteId, w.Id }).OnDelete(DeleteBehavior.NoAction)
             .HasConstraintName("FK_ProductionOrderOperation_WorkCenter");
+
+        var sr = model.Entity<StockReservation>();
+        sr.ToTable("StockReservation", Schema, table =>
+        {
+            table.HasCheckConstraint("CK_StockReservation_Qty", "[ReservedBaseQuantity] > 0 AND [ConsumedBaseQuantity] >= 0 AND [ConsumedBaseQuantity] <= [ReservedBaseQuantity]");
+            table.HasCheckConstraint("CK_StockReservation_Status", "[Status] BETWEEN 1 AND 4");
+            table.HasCheckConstraint("CK_StockReservation_LotCode", lotCodeCheck);
+            table.HasCheckConstraint("CK_StockReservation_Metadata", MetadataCheck);
+        });
+        sr.HasKey(x => x.Id).HasName("PK_StockReservation");
+        sr.Property(x => x.Id).UseIdentityColumn();
+        sr.Property(x => x.OrganizationId).IsRequired();
+        sr.Property(x => x.SiteId).IsRequired();
+        sr.Property(x => x.WarehouseId).IsRequired();
+        sr.Property(x => x.ProductionOrderId).IsRequired();
+        sr.Property(x => x.ProductionOrderInputId);
+        sr.Property(x => x.ItemId).IsRequired();
+        sr.Property(x => x.LotCode).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation).HasDefaultValue(string.Empty).IsRequired();
+        sr.Property(x => x.BaseUnitId).IsRequired();
+        sr.Property(x => x.ReservedBaseQuantity).HasPrecision(18, 6).IsRequired();
+        sr.Property(x => x.ConsumedBaseQuantity).HasPrecision(18, 6).HasDefaultValue(0m).IsRequired();
+        sr.Property(x => x.Status).HasConversion<byte>().IsRequired();
+        sr.Property(x => x.Notes).HasMaxLength(500);
+        sr.Property(x => x.ReleasedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
+        sr.Ignore(x => x.RemainingReservedBaseQuantity);
+        sr.Ignore(x => x.IsOpen);
+        AddAuditMetadata(sr);
+        sr.HasIndex(x => new { x.OrganizationId, x.ProductionOrderId, x.Status }).HasDatabaseName("IX_StockReservation_Org_Order_Status");
+        sr.HasIndex(x => new { x.OrganizationId, x.SiteId, x.WarehouseId, x.ItemId, x.LotCode, x.Status }).HasDatabaseName("IX_StockReservation_Org_Site_Wh_Item_Lot_Status");
+        sr.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId)
+            .OnDelete(DeleteBehavior.NoAction).HasConstraintName("FK_StockReservation_Organization");
+        sr.HasOne<Site>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.SiteId })
+            .HasPrincipalKey(s => new { s.OrganizationId, s.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_StockReservation_Site");
+        sr.HasOne<Warehouse>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.WarehouseId })
+            .HasPrincipalKey(w => new { w.OrganizationId, w.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_StockReservation_Warehouse");
+        sr.HasOne<ProductionOrder>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.ProductionOrderId })
+            .HasPrincipalKey(p => new { p.OrganizationId, p.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_StockReservation_Order");
+        sr.HasOne<Item>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.ItemId })
+            .HasPrincipalKey(i => new { i.OrganizationId, i.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_StockReservation_Item");
+        sr.HasOne<Unit>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.BaseUnitId })
+            .HasPrincipalKey(u => new { u.OrganizationId, u.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_StockReservation_Unit");
     }
 
     private static void Business<T>(EntityTypeBuilder<T> entity, string tableName) where T : class
