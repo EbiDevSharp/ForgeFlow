@@ -5,6 +5,7 @@ using ForgeFlow.Domain.Boms;
 using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
+using ForgeFlow.Domain.Procurement;
 using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Quality;
 using ForgeFlow.Domain.Units;
@@ -46,6 +47,7 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         model.Ignore<OrganizationChange>();
         model.Ignore<Unit>();
         model.Ignore<UnitConversion>();
+        model.Ignore<Currency>();
         model.Ignore<ClassificationSet>();
         model.Ignore<Classification>();
         model.Ignore<Item>();
@@ -71,6 +73,9 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         model.Ignore<ItemLot>();
         model.Ignore<QualityInspection>();
         model.Ignore<QualityInspectionLine>();
+        model.Ignore<Supplier>();
+        model.Ignore<PurchaseOrder>();
+        model.Ignore<PurchaseOrderLine>();
         model.Entity<Organization>().ToTable("Organization", "organization", t => t.ExcludeFromMigrations());
         model.Entity<Site>().ToTable("Site", "organization", t => t.ExcludeFromMigrations());
 

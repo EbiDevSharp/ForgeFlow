@@ -14,7 +14,8 @@ public enum PermissionModule : byte
     Inventory = 10,
     Reports = 11,
     Diagnostics = 12,
-    Quality = 13
+    Quality = 13,
+    Procurement = 14
 }
 
 public enum PermissionScopeApplicability : byte
@@ -85,7 +86,11 @@ public static class PermissionCatalog
         new("Reports.Read", PermissionModule.Reports, "Read", PermissionScopeApplicability.OrganizationOrSite),
         new("Reports.Export", PermissionModule.Reports, "ExportReports", PermissionScopeApplicability.OrganizationOrSite),
         new("Quality.Read", PermissionModule.Quality, "Read", PermissionScopeApplicability.OrganizationOrSite),
-        new("Quality.Manage", PermissionModule.Quality, "ManageQuality", PermissionScopeApplicability.OrganizationOrSite)
+        new("Quality.Manage", PermissionModule.Quality, "ManageQuality", PermissionScopeApplicability.OrganizationOrSite),
+        new("Procurement.Read", PermissionModule.Procurement, "Read", PermissionScopeApplicability.OrganizationOrSite),
+        new("Procurement.ManageSuppliers", PermissionModule.Procurement, "ManageSuppliers", PermissionScopeApplicability.OrganizationOnly),
+        new("Procurement.ManageOrders", PermissionModule.Procurement, "ManageOrders", PermissionScopeApplicability.OrganizationOrSite),
+        new("Procurement.ReceiveOrders", PermissionModule.Procurement, "ReceiveOrders", PermissionScopeApplicability.OrganizationOrSite)
     ];
 
     private static readonly Dictionary<string, PermissionDescriptor> ByCode =
@@ -148,7 +153,7 @@ public static class PermissionCatalog
         {
             1 => descriptor.Applicability != PermissionScopeApplicability.PlatformOnly,
             2 => descriptor.Applicability == PermissionScopeApplicability.OrganizationOrSite
-                 && descriptor.Module is PermissionModule.Sites or PermissionModule.Audit or PermissionModule.Units or PermissionModule.Items or PermissionModule.Boms or PermissionModule.ProductionOrders or PermissionModule.Inventory or PermissionModule.Reports or PermissionModule.Quality,
+                 && descriptor.Module is PermissionModule.Sites or PermissionModule.Audit or PermissionModule.Units or PermissionModule.Items or PermissionModule.Boms or PermissionModule.ProductionOrders or PermissionModule.Inventory or PermissionModule.Reports or PermissionModule.Quality or PermissionModule.Procurement,
             _ => false
         };
     }

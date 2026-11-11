@@ -247,7 +247,7 @@
                                 </Template>
                             </BitDataGridColumn>
                             <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["PoOrderNumberColumn"]">
-                                <Template Context="t"><bdi dir="ltr">@(t.ProductionOrderNumber ?? "—")</bdi></Template>
+                                <Template Context="t"><bdi dir="ltr">@(t.PurchaseOrderNumber ?? t.ProductionOrderNumber ?? "—")</bdi></Template>
                             </BitDataGridColumn>
                             <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["AuditTimeColumn"]">
                                 <Template Context="t"><bdi dir="ltr">@Format.Timestamp(t.PostedAtUtc)</bdi></Template>
@@ -544,6 +544,13 @@
                             <div class="audit-meta-row">
                                 <span class="audit-meta-label">@Text["PoOrderNumberColumn"]</span>
                                 <span class="audit-meta-val" dir="ltr">@t.ProductionOrderNumber</span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(t.PurchaseOrderNumber))
+                        {
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["ProcPoNumberLabel"]</span>
+                                <span class="audit-meta-val" dir="ltr">@t.PurchaseOrderNumber</span>
                             </div>
                         }
                         @if (!string.IsNullOrEmpty(t.QualityInspectionNumber))

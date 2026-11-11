@@ -307,7 +307,7 @@ public sealed class RoleManagementPageTests
         typeof(MainLayout).GetProperty("Text", flags)!.SetValue(layout, localizer);
 
         var scope = new List<OrganizationScope> { new OrganizationScope.Organization(1) };
-        foreach (var field in new[] { "unitScopes", "inventoryScopes", "productionOrderScopes", "qualityScopes", "reportScopes", "orgScopes" })
+        foreach (var field in new[] { "unitScopes", "procurementScopes", "inventoryScopes", "productionOrderScopes", "qualityScopes", "reportScopes", "orgScopes" })
             typeof(MainLayout).GetField(field, flags)!.SetValue(layout, scope);
 
         var navItems = (IList<BitNavItem>)typeof(MainLayout).GetProperty("NavigationItems", flags)!.GetValue(layout)!;
@@ -315,6 +315,7 @@ public sealed class RoleManagementPageTests
             [
                 localizer["Home"].Value,
                 localizer["MasterDataNavGroup"].Value,
+                localizer["ProcurementNavGroup"].Value,
                 localizer["InventoryNavGroup"].Value,
                 localizer["ProductionNavGroup"].Value,
                 localizer["QualityNavGroup"].Value,

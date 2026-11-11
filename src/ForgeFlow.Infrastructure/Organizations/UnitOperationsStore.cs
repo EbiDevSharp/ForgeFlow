@@ -371,8 +371,137 @@ public sealed class UnitOperationsStore(Func<IDbContextFactory<OrganizationDbCon
             if (conversionsCreated > 0)
                 await db.SaveInOperation(access.Actor, ct);
 
-            return OrganizationResult<SeedStandardUnitsResult>.Success(new(unitsCreated, conversionsCreated));
+            var existingCurrencies = await db.Currencies
+                .Where(c => c.OrganizationId == organizationId)
+                .Select(c => c.Code)
+                .ToListAsync(ct);
+            var currencySet = existingCurrencies.ToHashSet(StringComparer.Ordinal);
+            var currencySpecs = new (string Code, string Name, string Symbol, byte Precision)[]
+            {
+                ("IRR", "Iranian Rial", "IRR", 0),
+                ("USD", "US Dollar", "$", 2),
+                ("EUR", "Euro", "€", 2)
+            };
+            var currenciesCreated = 0;
+            foreach (var curSpec in currencySpecs)
+            {
+                if (currencySet.Contains(curSpec.Code)) continue;
+                db.Currencies.Add(Currency.Create(organizationId, curSpec.Code, curSpec.Name, curSpec.Symbol, curSpec.Precision));
+                currencySet.Add(curSpec.Code);
+                currenciesCreated++;
+            }
+            if (currenciesCreated > 0)
+                await db.SaveInOperation(access.Actor, ct);
+
+            return OrganizationResult<SeedStandardUnitsResult>.Success(new(unitsCreated, conversionsCreated, currenciesCreated));
         }, ct);
+
+    public Task<OrganizationPage<CurrencySummary>> ListCurrencies(long organizationId, CurrencyListQuery query, CancellationToken ct) => Read(async db =>
+    {
+        var baseQuery = db.Currencies.AsNoTracking()
+            .Where(c => c.OrganizationId == organizationId && (query.IncludeInactive || c.IsActive));
+        if (!string.IsNullOrEmpty(query.Search))
+            baseQuery = baseQuery.Where(c => c.Code.Contains(query.Search) || c.Name.Contains(query.Search) || c.Symbol.Contains(query.Search));
+
+        var total = await baseQuery.CountAsync(ct);
+        var rows = await baseQuery.OrderBy(c => c.Code).ThenBy(c => c.Id)
+            .Skip((query.Page - 1) * query.PageSize).Take(query.PageSize)
+            .Select(c => new
+            {
+                c,
+                RowVersion = EF.Property<byte[]>(c, "RowVersion")
+            })
+            .ToListAsync(ct);
+
+        return new OrganizationPage<CurrencySummary>(
+            rows.Select(r => new CurrencySummary(r.c.Id, r.c.OrganizationId, r.c.Code, r.c.Name, r.c.Symbol, r.c.PrecisionScale, r.c.IsActive, Convert.ToBase64String(r.RowVersion))).ToArray(),
+            total,
+            query.Page,
+            query.PageSize);
+    }, ct);
+
+    public Task<IReadOnlyList<CurrencySummary>> ListActiveCurrencies(long organizationId, CancellationToken ct) => Read<IReadOnlyList<CurrencySummary>>(async db =>
+    {
+        var rows = await db.Currencies.AsNoTracking()
+            .Where(c => c.OrganizationId == organizationId && c.IsActive)
+            .OrderBy(c => c.Code).ThenBy(c => c.Id)
+            .Select(c => new { c, RowVersion = EF.Property<byte[]>(c, "RowVersion") })
+            .ToListAsync(ct);
+        return rows.Select(r => new CurrencySummary(r.c.Id, r.c.OrganizationId, r.c.Code, r.c.Name, r.c.Symbol, r.c.PrecisionScale, r.c.IsActive, Convert.ToBase64String(r.RowVersion))).ToArray();
+    }, ct);
+
+    public Task<CurrencySummary?> GetCurrency(long organizationId, long id, CancellationToken ct) => Read(async db =>
+    {
+        var cur = await db.Currencies.SingleOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == id, ct);
+        return cur is null ? null : ToCurrencySummary(db, cur);
+    }, ct);
+
+    public Task<OrganizationResult<CurrencySummary>> CreateCurrency(CreateCurrencyRequest request, OrganizationWriteAccess access, CancellationToken ct)
+        => Write(access, async db =>
+        {
+            var org = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
+            if (org.Error is not null) return OrganizationResult<CurrencySummary>.Failure(org.Error);
+
+            var cur = Currency.Create(request.OrganizationId, request.Code, request.Name, request.Symbol, request.PrecisionScale);
+            if (await db.Currencies.AnyAsync(c => c.OrganizationId == request.OrganizationId && c.Code == cur.Code, ct))
+                return OrganizationResult<CurrencySummary>.Failure(UnitErrors.CurrencyCodeDuplicate);
+
+            db.Currencies.Add(cur);
+            await db.SaveInOperation(access.Actor, ct);
+            return OrganizationResult<CurrencySummary>.Success(ToCurrencySummary(db, cur));
+        }, ct);
+
+    public Task<OrganizationResult<CurrencySummary>> UpdateCurrency(
+        long organizationId,
+        long id,
+        byte[] version,
+        string? name,
+        string? symbol,
+        byte precisionScale,
+        OrganizationWriteAccess access,
+        CancellationToken ct)
+        => Write(access, async db =>
+        {
+            var org = await LockAndRequireActiveOrganization(db, organizationId, ct);
+            if (org.Error is not null) return OrganizationResult<CurrencySummary>.Failure(org.Error);
+
+            var cur = await db.Currencies.SingleOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == id, ct);
+            if (cur is null) return OrganizationResult<CurrencySummary>.Failure(UnitErrors.CurrencyNotFound);
+            if (!Matches(db, cur, version)) return OrganizationResult<CurrencySummary>.Failure(UnitErrors.ConcurrencyConflict);
+
+            if (cur.Update(name, symbol, precisionScale))
+                await db.SaveInOperation(access.Actor, ct);
+
+            return OrganizationResult<CurrencySummary>.Success(ToCurrencySummary(db, cur));
+        }, ct);
+
+    public Task<OrganizationResult<CurrencySummary>> SetCurrencyActive(
+        long organizationId,
+        long id,
+        byte[] version,
+        bool isActive,
+        OrganizationWriteAccess access,
+        CancellationToken ct)
+        => Write(access, async db =>
+        {
+            await LockOrganization(db, organizationId, ct);
+            var orgRow = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
+            if (orgRow is null) return OrganizationResult<CurrencySummary>.Failure(UnitErrors.NotFound);
+            if (isActive && !orgRow.IsActive) return OrganizationResult<CurrencySummary>.Failure(UnitErrors.ParentOrganizationInactive);
+
+            var cur = await db.Currencies.SingleOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == id, ct);
+            if (cur is null) return OrganizationResult<CurrencySummary>.Failure(UnitErrors.CurrencyNotFound);
+            if (!Matches(db, cur, version)) return OrganizationResult<CurrencySummary>.Failure(UnitErrors.ConcurrencyConflict);
+
+            if (cur.SetActive(isActive))
+                await db.SaveInOperation(access.Actor, ct);
+
+            return OrganizationResult<CurrencySummary>.Success(ToCurrencySummary(db, cur));
+        }, ct);
+
+    private static CurrencySummary ToCurrencySummary(OrganizationDbContext db, Currency cur)
+        => new(cur.Id, cur.OrganizationId, cur.Code, cur.Name, cur.Symbol, cur.PrecisionScale, cur.IsActive,
+            Convert.ToBase64String((byte[])db.Entry(cur).Property("RowVersion").CurrentValue!));
 
     private static async Task ValidateGraphConsistencyAsync(
         OrganizationDbContext db,
@@ -451,6 +580,9 @@ public sealed class UnitOperationsStore(Func<IDbContextFactory<OrganizationDbCon
         catch (DbUpdateException ex) when (ex.InnerException is SqlException sql && sql.Number is 2601 or 2627
             && sql.Message.Contains("'UX_UnitConversion_Organization_From_To'", StringComparison.Ordinal))
         { return OrganizationResult<T>.Failure(UnitErrors.ConversionDuplicate); }
+        catch (DbUpdateException ex) when (ex.InnerException is SqlException sql && sql.Number is 2601 or 2627
+            && sql.Message.Contains("'UX_Currency_Organization_Code'", StringComparison.Ordinal))
+        { return OrganizationResult<T>.Failure(UnitErrors.CurrencyCodeDuplicate); }
         catch (InvalidOperationException ex) when (ex.Message == UnitErrors.ParentOrganizationInactive)
         { return OrganizationResult<T>.Failure(UnitErrors.ParentOrganizationInactive); }
         catch (InvalidOperationException ex) when (ex.Message == OrganizationSiteErrors.OrganizationNotFound)

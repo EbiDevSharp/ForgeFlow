@@ -42,6 +42,12 @@ public sealed class DisplayFormatter(CulturePolicy culture, TimeZoneInfo? displa
     public string Money(decimal amount, string currencyCode)
         => string.Concat(Number(amount), " ", TryCurrencyCode(currencyCode, out var code) ? code : string.Empty);
 
+    public string CurrencyAmount(decimal amount, string currencyCodeOrSymbol)
+    {
+        var label = currencyCodeOrSymbol?.Trim() ?? string.Empty;
+        return label.Length == 0 ? Number(amount) : string.Concat(Number(amount), " ", label);
+    }
+
     public static string CanonicalDate(DateOnly value) => value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     public static string CanonicalAmount(decimal value) => value.ToString("G29", CultureInfo.InvariantCulture);

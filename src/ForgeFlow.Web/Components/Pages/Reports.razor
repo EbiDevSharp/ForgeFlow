@@ -221,6 +221,11 @@
                                     </div>
                                 </Template>
                             </BitDataGridColumn>
+                            <BitDataGridColumn TItem="MaterialShortageItemSummary" Title="@Text["RptColOnOrderQty"]">
+                                <Template Context="m">
+                                    <bdi dir="ltr">@FormatQty(m.OnOrderBaseQuantity) @m.BaseUnitSymbol</bdi>
+                                </Template>
+                            </BitDataGridColumn>
                             <BitDataGridColumn TItem="MaterialShortageItemSummary" Title="@Text["RptColShortageQty"]">
                                 <Template Context="m">
                                     @if (m.ShortageBaseQuantity > 0m)
@@ -361,6 +366,7 @@
                         <div><span class="audit-meta-label">@Text["RptColOnHandQty"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.OnHandBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
                         <div><span class="audit-meta-label">@Text["InvBlockedLabel"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.BlockedBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
                         <div><span class="audit-meta-label">@Text["InvAvailableLabel"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.AvailableBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
+                        <div><span class="audit-meta-label">@Text["RptColOnOrderQty"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.OnOrderBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
                         <div><span class="audit-meta-label">@Text["RptColShortageQty"]</span><span class="audit-meta-val" dir="ltr">@FormatQty(selectedShortageItem.ShortageBaseQuantity) @selectedShortageItem.BaseUnitSymbol</span></div>
                     </div>
 
@@ -816,7 +822,7 @@
                 var cols = new CsvExportColumnHeaders(
                     [
                         Text["RptColMaterial"], Text["RptColItemName"], Text["RptColBaseUnit"],
-                        Text["RptColRequiredQty"], Text["RptColOnHandQty"], Text["InvBlockedLabel"], Text["InvAvailableLabel"], Text["RptColShortageQty"],
+                        Text["RptColRequiredQty"], Text["RptColOnHandQty"], Text["InvBlockedLabel"], Text["InvAvailableLabel"], Text["RptColOnOrderQty"], Text["RptColShortageQty"],
                         Text["RptColExcessQty"], Text["RptColCoveragePct"], Text["RptColOpenOrdersCount"],
                         Text["RptCsvHeaderDemandOrders"]
                     ],

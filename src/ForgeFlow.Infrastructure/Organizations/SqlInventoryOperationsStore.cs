@@ -227,6 +227,8 @@ public sealed class SqlInventoryOperationsStore(
                         from po in poJoin.DefaultIfEmpty()
                         join qi in db.QualityInspections.AsNoTracking() on new { t.OrganizationId, QiId = t.QualityInspectionId } equals new { qi.OrganizationId, QiId = (long?)qi.Id } into qiJoin
                         from qi in qiJoin.DefaultIfEmpty()
+                        join pur in db.PurchaseOrders.AsNoTracking() on new { t.OrganizationId, PurId = t.PurchaseOrderId } equals new { pur.OrganizationId, PurId = (long?)pur.Id } into purJoin
+                        from pur in purJoin.DefaultIfEmpty()
                         where t.OrganizationId == organizationId
                         select new
                         {
@@ -236,6 +238,7 @@ public sealed class SqlInventoryOperationsStore(
                             DestCode = dw != null ? dw.Code : null,
                             PoNumber = po != null ? po.OrderNumber : null,
                             QiNumber = qi != null ? qi.InspectionNumber : null,
+                            PurNumber = pur != null ? pur.OrderNumber : null,
                             IsReversed = db.InventoryTransactions.Any(r => r.OrganizationId == organizationId && r.ReversedTransactionId == t.Id),
                             LineCount = db.InventoryLedgerEntries.Count(l => l.OrganizationId == organizationId && l.InventoryTransactionId == t.Id)
                         };
@@ -269,7 +272,8 @@ public sealed class SqlInventoryOperationsStore(
             r.t.ProductionOrderId, r.PoNumber,
             r.t.ReversedTransactionId, r.IsReversed,
             r.t.ReferenceNote, r.t.PostedAtUtc, r.LineCount,
-            r.t.QualityInspectionId, r.QiNumber)).ToArray();
+            r.t.QualityInspectionId, r.QiNumber,
+            r.t.PurchaseOrderId, r.PurNumber)).ToArray();
 
         return new OrganizationPage<InventoryTransactionSummary>(items, total, query.Page, query.PageSize);
     }, ct);
@@ -469,10 +473,31 @@ public sealed class SqlInventoryOperationsStore(
             orig.Id,
             referenceNote,
             idempotencyKey,
-            utcNow);
+            utcNow,
+            purchaseOrderId: orig.PurchaseOrderId);
 
         db.InventoryTransactions.Add(reversalTxn);
         await db.SaveInOperation(access.Actor, ct);
+
+        if (orig.TransactionType == InventoryTransactionType.Receipt && orig.PurchaseOrderId is long poId)
+        {
+            var po = await db.PurchaseOrders
+                .FromSqlInterpolated($"SELECT * FROM [organization].[PurchaseOrder] WITH (UPDLOCK, HOLDLOCK) WHERE [OrganizationId] = {organizationId} AND [Id] = {poId}")
+                .SingleOrDefaultAsync(ct);
+            if (po is not null)
+            {
+                await db.PurchaseOrderLines
+                    .Where(l => l.OrganizationId == organizationId && l.PurchaseOrderId == poId)
+                    .LoadAsync(ct);
+                var revertedByItem = origLines
+                    .Where(l => l.BaseQuantityDelta > 0m)
+                    .GroupBy(l => l.ItemId)
+                    .Select(g => (g.Key, g.Sum(x => x.BaseQuantityDelta)))
+                    .ToArray();
+                if (revertedByItem.Length > 0)
+                    po.RevertReceiptsByItem(revertedByItem);
+            }
+        }
 
         foreach (var qi in linkedInspections)
         {
@@ -507,7 +532,7 @@ public sealed class SqlInventoryOperationsStore(
             (await BuildTransactionDetailsAsync(db, organizationId, reversalTxn.Id, ct))!);
     }, ct);
 
-    private static async Task ApplyLedgerLinesAndBalancesAsync(
+    internal static async Task ApplyLedgerLinesAndBalancesAsync(
         OrganizationDbContext db,
         long organizationId,
         long transactionId,
@@ -566,7 +591,7 @@ public sealed class SqlInventoryOperationsStore(
         }
     }
 
-    private static async Task UpsertInboundLotMetadataAsync(
+    internal static async Task UpsertInboundLotMetadataAsync(
         OrganizationDbContext db,
         long organizationId,
         IReadOnlyList<ResolvedInventoryLineWrite> lines,
@@ -596,7 +621,7 @@ public sealed class SqlInventoryOperationsStore(
         }
     }
 
-    private static async Task CreateAutoQualityInspectionsAsync(
+    internal static async Task CreateAutoQualityInspectionsAsync(
         OrganizationDbContext db,
         long organizationId,
         InventoryTransactionType transactionType,
@@ -684,6 +709,8 @@ public sealed class SqlInventoryOperationsStore(
                          from po in poJoin.DefaultIfEmpty()
                          join qi in db.QualityInspections.AsNoTracking() on new { t.OrganizationId, QiId = t.QualityInspectionId } equals new { qi.OrganizationId, QiId = (long?)qi.Id } into qiJoin
                          from qi in qiJoin.DefaultIfEmpty()
+                         join pur in db.PurchaseOrders.AsNoTracking() on new { t.OrganizationId, PurId = t.PurchaseOrderId } equals new { pur.OrganizationId, PurId = (long?)pur.Id } into purJoin
+                         from pur in purJoin.DefaultIfEmpty()
                          where t.OrganizationId == organizationId && t.Id == id
                          select new
                          {
@@ -693,6 +720,7 @@ public sealed class SqlInventoryOperationsStore(
                              DestCode = dw != null ? dw.Code : null,
                              PoNumber = po != null ? po.OrderNumber : null,
                              QiNumber = qi != null ? qi.InspectionNumber : null,
+                             PurNumber = pur != null ? pur.OrderNumber : null,
                              IsReversed = db.InventoryTransactions.Any(r => r.OrganizationId == organizationId && r.ReversedTransactionId == t.Id)
                          }).SingleOrDefaultAsync(ct);
         if (row is null) return null;
@@ -720,7 +748,8 @@ public sealed class SqlInventoryOperationsStore(
             row.t.ProductionOrderId, row.PoNumber,
             row.t.ReversedTransactionId, row.IsReversed,
             row.t.ReferenceNote, row.t.PostedAtUtc, entries.Count,
-            row.t.QualityInspectionId, row.QiNumber);
+            row.t.QualityInspectionId, row.QiNumber,
+            row.t.PurchaseOrderId, row.PurNumber);
 
         return new InventoryTransactionDetails(summary, entries);
     }

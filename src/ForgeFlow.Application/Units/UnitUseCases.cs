@@ -376,4 +376,124 @@ public sealed class UnitUseCases(
                 store.SeedStandardUnits(organizationId, Access(auth.Actor!, scope!, UnitPermissions.UnitsManage), ct));
         return await RecordRejected(res, auth.Actor, scope, organizationId, "Unit", "SeedStandard", "SeedStandardUnits");
     }
+
+    public async Task<OrganizationResult<OrganizationPage<CurrencySummary>>> ListCurrencies(
+        OrganizationScope? scope,
+        long organizationId,
+        CurrencyListQuery query,
+        CancellationToken ct = default)
+    {
+        var auth = await Authorize(scope, UnitPermissions.UnitsRead, ct);
+        if (auth.Error is not null) return OrganizationResult<OrganizationPage<CurrencySummary>>.Failure(auth.Error);
+        if (!TryScopeOrganizationId(scope, organizationId, allowSite: true, out _))
+            return OrganizationResult<OrganizationPage<CurrencySummary>>.Failure(UnitErrors.NotFound);
+
+        var bound = new CurrencyListQuery(
+            query.Search?.Trim(),
+            query.IncludeInactive,
+            Math.Clamp(query.Page, 1, 1_000_000),
+            Math.Clamp(query.PageSize, 1, 100));
+
+        return await ExecuteStore(async () =>
+            OrganizationResult<OrganizationPage<CurrencySummary>>.Success(
+                await store.ListCurrencies(organizationId, bound, ct)));
+    }
+
+    public async Task<OrganizationResult<IReadOnlyList<CurrencySummary>>> ListActiveCurrencies(
+        OrganizationScope? scope,
+        long organizationId,
+        CancellationToken ct = default)
+    {
+        var auth = await Authorize(scope, UnitPermissions.UnitsRead, ct);
+        if (auth.Error is not null) return OrganizationResult<IReadOnlyList<CurrencySummary>>.Failure(auth.Error);
+        if (!TryScopeOrganizationId(scope, organizationId, allowSite: true, out _))
+            return OrganizationResult<IReadOnlyList<CurrencySummary>>.Failure(UnitErrors.NotFound);
+
+        return await ExecuteStore(async () =>
+            OrganizationResult<IReadOnlyList<CurrencySummary>>.Success(
+                await store.ListActiveCurrencies(organizationId, ct)));
+    }
+
+    public async Task<OrganizationResult<CurrencySummary>> GetCurrency(
+        OrganizationScope? scope,
+        long organizationId,
+        long id,
+        CancellationToken ct = default)
+    {
+        var auth = await Authorize(scope, UnitPermissions.UnitsRead, ct);
+        if (auth.Error is not null) return OrganizationResult<CurrencySummary>.Failure(auth.Error);
+        if (!TryScopeOrganizationId(scope, organizationId, allowSite: true, out _) || id <= 0)
+            return OrganizationResult<CurrencySummary>.Failure(UnitErrors.CurrencyNotFound);
+
+        return await ExecuteStore(async () =>
+        {
+            var item = await store.GetCurrency(organizationId, id, ct);
+            return item is null
+                ? OrganizationResult<CurrencySummary>.Failure(UnitErrors.CurrencyNotFound)
+                : OrganizationResult<CurrencySummary>.Success(item);
+        });
+    }
+
+    public async Task<OrganizationResult<CurrencySummary>> CreateCurrency(
+        OrganizationScope? scope,
+        CreateCurrencyRequest request,
+        CancellationToken ct = default)
+    {
+        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
+        OrganizationResult<CurrencySummary> res;
+        if (auth.Error is not null) res = OrganizationResult<CurrencySummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
+            res = OrganizationResult<CurrencySummary>.Failure(UnitErrors.NotFound);
+        else
+            res = await ExecuteStore(() => store.CreateCurrency(request, Access(auth.Actor!, scope!, UnitPermissions.UnitsManage), ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Currency", request.Code, nameof(CreateCurrency));
+    }
+
+    public async Task<OrganizationResult<CurrencySummary>> UpdateCurrency(
+        OrganizationScope? scope,
+        UpdateCurrencyRequest request,
+        CancellationToken ct = default)
+    {
+        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
+        OrganizationResult<CurrencySummary> res;
+        if (auth.Error is not null) res = OrganizationResult<CurrencySummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<CurrencySummary>.Failure(UnitErrors.CurrencyNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<CurrencySummary>.Failure(UnitErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.UpdateCurrency(
+                request.OrganizationId,
+                request.Id,
+                version,
+                request.Name,
+                request.Symbol,
+                request.PrecisionScale,
+                Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Currency", request.Id.ToString(CultureInfo.InvariantCulture), nameof(UpdateCurrency));
+    }
+
+    public async Task<OrganizationResult<CurrencySummary>> SetCurrencyActive(
+        OrganizationScope? scope,
+        SetCurrencyActiveRequest request,
+        CancellationToken ct = default)
+    {
+        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
+        OrganizationResult<CurrencySummary> res;
+        if (auth.Error is not null) res = OrganizationResult<CurrencySummary>.Failure(auth.Error);
+        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
+            res = OrganizationResult<CurrencySummary>.Failure(UnitErrors.CurrencyNotFound);
+        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
+            res = OrganizationResult<CurrencySummary>.Failure(UnitErrors.ConcurrencyConflict);
+        else
+            res = await ExecuteStore(() => store.SetCurrencyActive(
+                request.OrganizationId,
+                request.Id,
+                version,
+                request.IsActive,
+                Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
+                ct));
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Currency", request.Id.ToString(CultureInfo.InvariantCulture), nameof(SetCurrencyActive));
+    }
 }

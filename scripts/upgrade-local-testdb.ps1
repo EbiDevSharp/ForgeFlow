@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $conn = 'Server=localhost;Database=testforgflow;Integrated Security=True;Encrypt=True;TrustServerCertificate=True'
 
 $sql = @"
@@ -1393,6 +1393,204 @@ BEGIN
     VALUES (N'20261111061951_SessionDeviceTokenHash', N'10.0.14');
 END;
 
+IF OBJECT_ID(N'organization.Supplier', N'U') IS NULL
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrganizationChange_Event' AND parent_object_id = OBJECT_ID(N'organization.OrganizationChange'))
+        ALTER TABLE [organization].[OrganizationChange] DROP CONSTRAINT [CK_OrganizationChange_Event];
+
+    IF COL_LENGTH(N'organization.InventoryTransaction', N'PurchaseOrderId') IS NULL
+        ALTER TABLE [organization].[InventoryTransaction] ADD [PurchaseOrderId] bigint NULL;
+
+    CREATE TABLE [organization].[Supplier] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [ContactName] nvarchar(150) NULL,
+        [Phone] varchar(64) NULL,
+        [Email] nvarchar(256) NULL,
+        [Address] nvarchar(500) NULL,
+        [Notes] nvarchar(500) NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_Supplier] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_Supplier_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_Supplier_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_Supplier_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_Supplier_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [FK_Supplier_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id])
+    );
+
+    CREATE TABLE [organization].[PurchaseOrder] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [SiteId] bigint NOT NULL,
+        [SupplierId] bigint NOT NULL,
+        [OrderNumber] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Status] tinyint NOT NULL,
+        [OrderDate] date NOT NULL,
+        [ExpectedDeliveryDate] date NULL,
+        [TargetWarehouseId] bigint NULL,
+        [CurrencyCode] varchar(3) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Notes] nvarchar(500) NULL,
+        [CancellationReason] nvarchar(500) NULL,
+        [ApprovedAtUtc] datetime2(7) NULL,
+        [ClosedAtUtc] datetime2(7) NULL,
+        [CancelledAtUtc] datetime2(7) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_PurchaseOrder] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_PurchaseOrder_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_PurchaseOrder_Currency] CHECK (DATALENGTH([CurrencyCode]) = 3 AND [CurrencyCode] COLLATE Latin1_General_100_BIN2 IN ('IRR','USD','EUR')),
+        CONSTRAINT [CK_PurchaseOrder_Dates] CHECK ([ExpectedDeliveryDate] IS NULL OR [ExpectedDeliveryDate] >= [OrderDate]),
+        CONSTRAINT [CK_PurchaseOrder_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_PurchaseOrder_Number] CHECK (DATALENGTH([OrderNumber]) BETWEEN 1 AND 32 AND DATALENGTH([OrderNumber]) = LEN([OrderNumber]) AND [OrderNumber] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([OrderNumber], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_PurchaseOrder_Status] CHECK ([Status] BETWEEN 1 AND 6),
+        CONSTRAINT [FK_PurchaseOrder_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id]),
+        CONSTRAINT [FK_PurchaseOrder_Site] FOREIGN KEY ([OrganizationId], [SiteId]) REFERENCES [organization].[Site] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_PurchaseOrder_Supplier] FOREIGN KEY ([OrganizationId], [SupplierId]) REFERENCES [organization].[Supplier] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_PurchaseOrder_TargetWarehouse] FOREIGN KEY ([OrganizationId], [TargetWarehouseId]) REFERENCES [organization].[Warehouse] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[PurchaseOrderLine] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [PurchaseOrderId] bigint NOT NULL,
+        [LineNumber] int NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [OrderedQuantity] decimal(18,6) NOT NULL,
+        [OrderedUnitId] bigint NOT NULL,
+        [BaseUnitIdSnapshot] bigint NOT NULL,
+        [OrderedBaseQuantity] decimal(18,6) NOT NULL,
+        [ReceivedBaseQuantity] decimal(18,6) NOT NULL,
+        [UnitPrice] decimal(18,4) NULL,
+        [Notes] nvarchar(300) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_PurchaseOrderLine] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_PurchaseOrderLine_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_PurchaseOrderLine_Num] CHECK ([LineNumber] > 0),
+        CONSTRAINT [CK_PurchaseOrderLine_Price] CHECK ([UnitPrice] IS NULL OR [UnitPrice] >= 0),
+        CONSTRAINT [CK_PurchaseOrderLine_Qty] CHECK ([OrderedQuantity] > 0 AND [OrderedBaseQuantity] > 0 AND [ReceivedBaseQuantity] >= 0 AND [ReceivedBaseQuantity] <= [OrderedBaseQuantity]),
+        CONSTRAINT [FK_PurchaseOrderLine_BaseUnitSnapshot] FOREIGN KEY ([OrganizationId], [BaseUnitIdSnapshot]) REFERENCES [organization].[Unit] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_PurchaseOrderLine_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_PurchaseOrderLine_Order] FOREIGN KEY ([OrganizationId], [PurchaseOrderId]) REFERENCES [organization].[PurchaseOrder] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_PurchaseOrderLine_OrderedUnit] FOREIGN KEY ([OrganizationId], [OrderedUnitId]) REFERENCES [organization].[Unit] ([OrganizationId], [Id])
+    );
+
+    ALTER TABLE [organization].[OrganizationChange] ADD CONSTRAINT [CK_OrganizationChange_Event]
+        CHECK (DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved','ItemLot.Updated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled'))));
+
+    CREATE INDEX [IX_InventoryTransaction_Org_PurchaseOrder] ON [organization].[InventoryTransaction] ([OrganizationId], [PurchaseOrderId]);
+    CREATE INDEX [IX_PurchaseOrder_Org_Site_Status] ON [organization].[PurchaseOrder] ([OrganizationId], [SiteId], [Status], [OrderDate]);
+    CREATE INDEX [IX_PurchaseOrder_OrganizationId_SupplierId] ON [organization].[PurchaseOrder] ([OrganizationId], [SupplierId]);
+    CREATE INDEX [IX_PurchaseOrder_OrganizationId_TargetWarehouseId] ON [organization].[PurchaseOrder] ([OrganizationId], [TargetWarehouseId]);
+    CREATE UNIQUE INDEX [UX_PurchaseOrder_Org_Number] ON [organization].[PurchaseOrder] ([OrganizationId], [OrderNumber]);
+    CREATE INDEX [IX_PurchaseOrderLine_Org_Item] ON [organization].[PurchaseOrderLine] ([OrganizationId], [ItemId]);
+    CREATE INDEX [IX_PurchaseOrderLine_OrganizationId_BaseUnitIdSnapshot] ON [organization].[PurchaseOrderLine] ([OrganizationId], [BaseUnitIdSnapshot]);
+    CREATE INDEX [IX_PurchaseOrderLine_OrganizationId_OrderedUnitId] ON [organization].[PurchaseOrderLine] ([OrganizationId], [OrderedUnitId]);
+    CREATE UNIQUE INDEX [UX_PurchaseOrderLine_Org_Order_Line] ON [organization].[PurchaseOrderLine] ([OrganizationId], [PurchaseOrderId], [LineNumber]);
+    CREATE INDEX [IX_Supplier_Org_IsActive_Code] ON [organization].[Supplier] ([OrganizationId], [IsActive], [Code], [Id]);
+    CREATE UNIQUE INDEX [UX_Supplier_Org_Code] ON [organization].[Supplier] ([OrganizationId], [Code]);
+
+    ALTER TABLE [organization].[InventoryTransaction] ADD CONSTRAINT [FK_InventoryTransaction_PurchaseOrder]
+        FOREIGN KEY ([OrganizationId], [PurchaseOrderId]) REFERENCES [organization].[PurchaseOrder] ([OrganizationId], [Id]);
+
+    IF DATABASE_PRINCIPAL_ID(N'ForgeFlowOrganizationRuntime') IS NOT NULL
+    BEGIN
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[Supplier] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[PurchaseOrder] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[PurchaseOrderLine] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[Supplier] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[PurchaseOrder] TO [ForgeFlowOrganizationRuntime];
+    END;
+END;
+
+IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [dbo].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261111065922_ProcurementSuppliersAndPurchaseOrders')
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261111065922_ProcurementSuppliersAndPurchaseOrders', N'10.0.14');
+END;
+
+IF OBJECT_ID(N'organization.Currency', N'U') IS NULL
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_PurchaseOrder_Currency' AND parent_object_id = OBJECT_ID(N'organization.PurchaseOrder'))
+        ALTER TABLE [organization].[PurchaseOrder] DROP CONSTRAINT [CK_PurchaseOrder_Currency];
+
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrganizationChange_Event' AND parent_object_id = OBJECT_ID(N'organization.OrganizationChange'))
+        ALTER TABLE [organization].[OrganizationChange] DROP CONSTRAINT [CK_OrganizationChange_Event];
+
+    CREATE TABLE [organization].[Currency] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [Code] varchar(3) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [Symbol] nvarchar(32) NOT NULL,
+        [PrecisionScale] tinyint NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_Currency] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_Currency_Organization_Code] UNIQUE ([OrganizationId], [Code]),
+        CONSTRAINT [AK_Currency_Organization_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_Currency_Code] CHECK (DATALENGTH([Code]) = 3 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z]%'),
+        CONSTRAINT [CK_Currency_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_Currency_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [CK_Currency_PrecisionScale] CHECK ([PrecisionScale] BETWEEN 0 AND 6),
+        CONSTRAINT [CK_Currency_Symbol] CHECK (DATALENGTH([Symbol]) BETWEEN 2 AND 64 AND DATALENGTH([Symbol]) = DATALENGTH(LTRIM(RTRIM([Symbol]))) AND DATALENGTH(LTRIM(RTRIM([Symbol]))) > 0),
+        CONSTRAINT [FK_Currency_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id])
+    );
+
+    INSERT INTO [organization].[Currency] ([OrganizationId], [Code], [Name], [Symbol], [PrecisionScale], [IsActive], [CreatedAtUtc], [CreatedByActorId])
+    SELECT [o].[Id], [seed].[Code], [seed].[Name], [seed].[Symbol], [seed].[PrecisionScale], 1, SYSUTCDATETIME(), [o].[CreatedByActorId]
+    FROM [organization].[Organization] AS [o]
+    CROSS JOIN (VALUES
+        ('IRR', N'Iranian Rial', N'IRR', CAST(0 AS tinyint)),
+        ('USD', N'US Dollar', N'$', CAST(2 AS tinyint)),
+        ('EUR', N'Euro', N'€', CAST(2 AS tinyint))
+    ) AS [seed]([Code], [Name], [Symbol], [PrecisionScale]);
+
+    ALTER TABLE [organization].[PurchaseOrder] ADD CONSTRAINT [CK_PurchaseOrder_Currency]
+        CHECK (DATALENGTH([CurrencyCode]) = 3 AND DATALENGTH([CurrencyCode]) = LEN([CurrencyCode]) AND [CurrencyCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z]%');
+
+    ALTER TABLE [organization].[OrganizationChange] ADD CONSTRAINT [CK_OrganizationChange_Event]
+        CHECK (DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Currency.Created','Currency.Updated','Currency.Activated','Currency.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved','ItemLot.Updated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled'))));
+
+    CREATE INDEX [IX_PurchaseOrder_OrganizationId_CurrencyCode] ON [organization].[PurchaseOrder] ([OrganizationId], [CurrencyCode]);
+    CREATE INDEX [IX_Currency_Organization_IsActive_Code] ON [organization].[Currency] ([OrganizationId], [IsActive], [Code], [Id]);
+    CREATE UNIQUE INDEX [UX_Currency_Organization_Code] ON [organization].[Currency] ([OrganizationId], [Code]);
+
+    ALTER TABLE [organization].[PurchaseOrder] ADD CONSTRAINT [FK_PurchaseOrder_Currency]
+        FOREIGN KEY ([OrganizationId], [CurrencyCode]) REFERENCES [organization].[Currency] ([OrganizationId], [Code]);
+
+    IF DATABASE_PRINCIPAL_ID(N'ForgeFlowOrganizationRuntime') IS NOT NULL
+    BEGIN
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[Currency] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[Currency] TO [ForgeFlowOrganizationRuntime];
+    END;
+END;
+
+IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [dbo].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261111094413_CurrenciesMasterData')
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261111094413_CurrenciesMasterData', N'10.0.14');
+END;
+
 COMMIT;
 "@
 
@@ -1402,7 +1600,7 @@ try {
     $cmd = $cn.CreateCommand()
     $cmd.CommandText = $sql
     [void]$cmd.ExecuteNonQuery()
-    Write-Host "testforgflow database upgraded to 20261111061951_SessionDeviceTokenHash." -ForegroundColor Green
+    Write-Host "testforgflow database upgraded to 20261111094413_CurrenciesMasterData." -ForegroundColor Green
 }
 finally {
     $cn.Dispose()

@@ -2397,4 +2397,96 @@
   <data name="NotifRoleOrgMembership" xml:space="preserve"><value>Organization membership</value></data>
   <data name="NotifRoleSiteMembership" xml:space="preserve"><value>Site membership</value></data>
   <data name="NotifRoleDirectPermissions" xml:space="preserve"><value>Direct permissions</value></data>
+  <data name="ProcurementNavGroup" xml:space="preserve"><value>Procurement</value></data>
+  <data name="Suppliers" xml:space="preserve"><value>Suppliers</value></data>
+  <data name="PurchaseOrders" xml:space="preserve"><value>Purchase orders</value></data>
+  <data name="PermPageProcurement" xml:space="preserve"><value>Procurement</value></data>
+  <data name="PermOpManageSuppliers" xml:space="preserve"><value>Manage suppliers</value></data>
+  <data name="PermOpManageOrders" xml:space="preserve"><value>Manage purchase orders</value></data>
+  <data name="PermOpReceiveOrders" xml:space="preserve"><value>Receive purchase orders</value></data>
+  <data name="SuppliersCaption" xml:space="preserve"><value>Manage approved vendors and supplier contacts across the organization.</value></data>
+  <data name="SupCreateButton" xml:space="preserve"><value>New supplier</value></data>
+  <data name="SupCreateTitle" xml:space="preserve"><value>Create supplier</value></data>
+  <data name="SupDetailTitle" xml:space="preserve"><value>Supplier details</value></data>
+  <data name="SupContactLabel" xml:space="preserve"><value>Contact person</value></data>
+  <data name="SupAddressLabel" xml:space="preserve"><value>Address</value></data>
+  <data name="ProcErrorSupplierInactive" xml:space="preserve"><value>An inactive supplier cannot be updated or used on a purchase order.</value></data>
+  <data name="ProcErrorContactInvalid" xml:space="preserve"><value>Enter a valid contact name (maximum 150 characters).</value></data>
+  <data name="ProcErrorAddressInvalid" xml:space="preserve"><value>Address exceeds the 500-character limit.</value></data>
+  <data name="PurchaseOrdersCaption" xml:space="preserve"><value>Create vendor purchase orders, track approvals, and post goods receipts into inventory.</value></data>
+  <data name="ProcPoCreateButton" xml:space="preserve"><value>New purchase order</value></data>
+  <data name="ProcPoCreateTitle" xml:space="preserve"><value>Create purchase order</value></data>
+  <data name="ProcPoEditTitle" xml:space="preserve"><value>Edit draft purchase order</value></data>
+  <data name="ProcPoDetailTitle" xml:space="preserve"><value>Purchase order details</value></data>
+  <data name="ProcPoNumberLabel" xml:space="preserve"><value>PO number</value></data>
+  <data name="ProcSupplierLabel" xml:space="preserve"><value>Supplier</value></data>
+  <data name="ProcAllSuppliersOption" xml:space="preserve"><value>All suppliers</value></data>
+  <data name="ProcOrderDateLabel" xml:space="preserve"><value>Order date</value></data>
+  <data name="ProcExpectedDateLabel" xml:space="preserve"><value>Expected delivery</value></data>
+  <data name="ProcTargetWarehouseLabel" xml:space="preserve"><value>Target warehouse</value></data>
+  <data name="ProcCurrencyLabel" xml:space="preserve"><value>Currency</value></data>
+  <data name="ProcProgressColumn" xml:space="preserve"><value>Received / Ordered</value></data>
+  <data name="ProcEstimatedTotalLabel" xml:space="preserve"><value>Estimated total</value></data>
+  <data name="ProcLinesSection" xml:space="preserve"><value>Order lines</value></data>
+  <data name="ProcAddLineBtn" xml:space="preserve"><value>Add line</value></data>
+  <data name="ProcUnitPriceLabel" xml:space="preserve"><value>Unit price</value></data>
+  <data name="ProcOrderedCol" xml:space="preserve"><value>Ordered</value></data>
+  <data name="ProcReceivedCol" xml:space="preserve"><value>Received</value></data>
+  <data name="ProcRemainingCol" xml:space="preserve"><value>Remaining</value></data>
+  <data name="ProcReceiptsHistoryTitle" xml:space="preserve"><value>Posted receipts</value></data>
+  <data name="ProcPostedBadge" xml:space="preserve"><value>Posted</value></data>
+  <data name="ProcApproveBtn" xml:space="preserve"><value>Approve order</value></data>
+  <data name="ProcReceiveBtn" xml:space="preserve"><value>Receive goods</value></data>
+  <data name="ProcShortCloseBtn" xml:space="preserve"><value>Close remaining</value></data>
+  <data name="ProcCancelBtn" xml:space="preserve"><value>Cancel order</value></data>
+  <data name="ProcReceiveTitle" xml:space="preserve"><value>Receive purchase order goods</value></data>
+  <data name="ProcPostReceiptBtn" xml:space="preserve"><value>Post receipt</value></data>
+  <data name="ProcReceiptPostedNotice" xml:space="preserve"><value>Receipt {0} posted to inventory.</value></data>
+  <data name="ProcStatusApproved" xml:space="preserve"><value>Approved</value></data>
+  <data name="ProcStatusPartial" xml:space="preserve"><value>Partially received</value></data>
+  <data name="ProcStatusReceived" xml:space="preserve"><value>Received</value></data>
+  <data name="ProcStatusClosed" xml:space="preserve"><value>Closed</value></data>
+  <data name="ProcErrorCurrencyInvalid" xml:space="preserve"><value>Choose a supported currency (IRR, USD, EUR).</value></data>
+  <data name="ProcErrorEmptyOrder" xml:space="preserve"><value>A purchase order must contain at least one item line.</value></data>
+  <data name="ProcErrorDuplicateItem" xml:space="preserve"><value>Each item can appear only once on a purchase order.</value></data>
+  <data name="ProcErrorItemNotPurchasable" xml:space="preserve"><value>Only items marked as purchasable can be ordered.</value></data>
+  <data name="ProcErrorUnitPriceInvalid" xml:space="preserve"><value>Unit price cannot be negative.</value></data>
+  <data name="ProcErrorNotDraft" xml:space="preserve"><value>Only draft purchase orders can be edited.</value></data>
+  <data name="ProcErrorInvalidTransition" xml:space="preserve"><value>This status transition is not valid for the purchase order.</value></data>
+  <data name="ProcErrorHasReceiptsCannotCancel" xml:space="preserve"><value>A purchase order with posted receipts cannot be cancelled; close the remaining quantity instead.</value></data>
+  <data name="ProcErrorOverReceipt" xml:space="preserve"><value>Received quantity cannot exceed the remaining open quantity on the line.</value></data>
+  <data name="RptColOnOrderQty" xml:space="preserve"><value>On order</value></data>
+  <data name="AuditEv_SupplierCreated" xml:space="preserve"><value>Supplier created</value></data>
+  <data name="AuditEv_SupplierUpdated" xml:space="preserve"><value>Supplier updated</value></data>
+  <data name="AuditEv_SupplierActivated" xml:space="preserve"><value>Supplier activated</value></data>
+  <data name="AuditEv_SupplierDeactivated" xml:space="preserve"><value>Supplier deactivated</value></data>
+  <data name="AuditEv_PurchaseOrderCreated" xml:space="preserve"><value>Purchase order created</value></data>
+  <data name="AuditEv_PurchaseOrderUpdated" xml:space="preserve"><value>Purchase order updated</value></data>
+  <data name="AuditEv_PurchaseOrderApproved" xml:space="preserve"><value>Purchase order approved</value></data>
+  <data name="AuditEv_PurchaseOrderReceived" xml:space="preserve"><value>Purchase order received</value></data>
+  <data name="AuditEv_PurchaseOrderClosed" xml:space="preserve"><value>Purchase order closed</value></data>
+  <data name="AuditEv_PurchaseOrderCancelled" xml:space="preserve"><value>Purchase order cancelled</value></data>
+  <data name="AuditEv_ProcurementActionRejected" xml:space="preserve"><value>Procurement action rejected</value></data>
+  <data name="ProcPoModalSubtitle" xml:space="preserve"><value>Enter purchase order details and add line items.</value></data>
+  <data name="ProcGeneralInfoSection" xml:space="preserve"><value>General information</value></data>
+  <data name="ProcSelectSupplierPlaceholder" xml:space="preserve"><value>Select supplier...</value></data>
+  <data name="ProcSelectDatePlaceholder" xml:space="preserve"><value>Select date</value></data>
+  <data name="ProcSelectWarehousePlaceholder" xml:space="preserve"><value>Select warehouse...</value></data>
+  <data name="ProcNotesOptionalPlaceholder" xml:space="preserve"><value>Order notes (optional)</value></data>
+  <data name="ProcSelectItemPlaceholder" xml:space="preserve"><value>Select item...</value></data>
+  <data name="ProcLineAmountLabel" xml:space="preserve"><value>Line total</value></data>
+  <data name="ProcGrandTotalLabel" xml:space="preserve"><value>Grand total</value></data>
+  <data name="ProcErrorSupplierRequired" xml:space="preserve"><value>Please select a supplier.</value></data>
+  <data name="ProcErrorItemRequired" xml:space="preserve"><value>Please select an item for every line.</value></data>
+  <data name="UnitCurrenciesTab" xml:space="preserve"><value>Currencies</value></data>
+  <data name="CurrencyCreateButton" xml:space="preserve"><value>New currency</value></data>
+  <data name="CurrencyEditTitle" xml:space="preserve"><value>Edit currency</value></data>
+  <data name="CurrencyDetailTitle" xml:space="preserve"><value>Currency details</value></data>
+  <data name="CurrencyCreateTitle" xml:space="preserve"><value>Create currency</value></data>
+  <data name="CurrencyCodeHint" xml:space="preserve"><value>3 uppercase letters (for example AED, TRY, USD)</value></data>
+  <data name="UnitErrorCurrencyInactive" xml:space="preserve"><value>Activate the currency before updating it or using it on an order.</value></data>
+  <data name="AuditEv_CurrencyCreated" xml:space="preserve"><value>Currency created</value></data>
+  <data name="AuditEv_CurrencyUpdated" xml:space="preserve"><value>Currency updated</value></data>
+  <data name="AuditEv_CurrencyActivated" xml:space="preserve"><value>Currency activated</value></data>
+  <data name="AuditEv_CurrencyDeactivated" xml:space="preserve"><value>Currency deactivated</value></data>
 </root>

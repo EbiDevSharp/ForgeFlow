@@ -1,0 +1,493 @@
+@page "/suppliers"
+@page "/organizations/{OrganizationId:long}/suppliers"
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Procurement
+@using ForgeFlow.Web.Roles
+@inject ProcurementUseCases ProcService
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject CulturePolicy Culture
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["Suppliers"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="sup-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="sup-title">@Text["Suppliers"]</h1>
+            <p class="write-hint">@Text["SuppliersCaption"]</p>
+        </div>
+        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage)
+        {
+            <div class="read-head-actions">
+                <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateModal">
+                    @Text["SupCreateButton"]
+                </BitButton>
+            </div>
+        }
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div class="read-state" role="alert">
+            <p>@Text[pageError]</p>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else if (available.Count == 0)
+    {
+        <p role="status" class="read-empty">@Text["ReadDenied"]</p>
+    }
+    else
+    {
+        <div class="read-toolbar-card">
+            @if (available.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="sup-scope">@Text["ReadScope"]</label>
+                    <select id="sup-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                        @for (var i = 0; i < available.Count; i++)
+                        {
+                            <option value="@i">@ScopeLabel(available[i])</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <label class="read-inactive">
+                <input type="checkbox" checked="@includeInactive" @onchange="ToggleInactiveAsync" />
+                <span>@Text["ReadInactive"]</span>
+            </label>
+
+            <div class="read-field">
+                <label for="sup-search">@Text["ReadSearch"]</label>
+                <input id="sup-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="64" placeholder="@Text["ReadSearch"]" />
+            </div>
+        </div>
+
+        <div class="read-grid-card">
+            <div class="read-grid">
+                <BitDataGrid @ref="grid" TItem="SupplierSummary" OnRead="ReadSuppliersAsync" Pageable="true" PageSize="25"
+                             PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["Suppliers"]">
+                    <Columns>
+                        <BitDataGridColumn TItem="SupplierSummary" Title="@Text["ReadCode"]">
+                            <Template Context="s"><bdi dir="ltr">@s.Code</bdi></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="SupplierSummary" Title="@Text["ReadName"]">
+                            <Template Context="s">@s.Name</Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="SupplierSummary" Title="@Text["SupContactLabel"]">
+                            <Template Context="s">@(string.IsNullOrWhiteSpace(s.ContactName) ? "—" : s.ContactName)</Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="SupplierSummary" Title="@Text["ProfilePhoneLabel"]">
+                            <Template Context="s"><bdi dir="ltr">@(string.IsNullOrWhiteSpace(s.Phone) ? "—" : s.Phone)</bdi></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="SupplierSummary" Title="@Text["ProfileEmailLabel"]">
+                            <Template Context="s"><bdi dir="ltr">@(string.IsNullOrWhiteSpace(s.Email) ? "—" : s.Email)</bdi></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="SupplierSummary" Title="@Text["ReadStatus"]">
+                            <Template Context="s">
+                                <span class="read-badge @(s.IsActive ? "active" : "inactive")">
+                                    @(s.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
+                                </span>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="SupplierSummary" Title="@Text["ReadActions"]">
+                            <Template Context="s">
+                                <div class="read-row-actions">
+                                    <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                   IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                                   OnClick="() => OpenDetailModal(s)" />
+                                    </BitTooltip>
+                                    @if (scopeCanManage)
+                                    {
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                                                   OnClick="() => OpenToggleActiveConfirm(s)">
+                                            @(s.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
+                                        </BitButton>
+                                    }
+                                </div>
+                            </Template>
+                        </BitDataGridColumn>
+                    </Columns>
+                </BitDataGrid>
+            </div>
+        </div>
+    }
+
+    <BitDialog Width="620px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createModalOpen"
+               Title="@Text["SupCreateTitle"]" AriaLabel="@Text["SupCreateTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="write-form">
+                @if (modalError is not null)
+                {
+                    <p role="alert" class="write-error">@modalError</p>
+                }
+                <div class="write-grid">
+                    <div class="write-field">
+                        <label for="sup-code">@Text["ReadCode"]</label>
+                        <input id="sup-code" type="text" maxlength="32" @bind="formCode" dir="ltr" />
+                    </div>
+                    <div class="write-field">
+                        <label for="sup-name">@Text["ReadName"]</label>
+                        <input id="sup-name" type="text" maxlength="200" @bind="formName" />
+                    </div>
+                    <div class="write-field">
+                        <label for="sup-contact">@Text["SupContactLabel"]</label>
+                        <input id="sup-contact" type="text" maxlength="150" @bind="formContact" />
+                    </div>
+                    <div class="write-field">
+                        <label for="sup-phone">@Text["ProfilePhoneLabel"]</label>
+                        <input id="sup-phone" type="tel" maxlength="64" @bind="formPhone" dir="ltr" />
+                    </div>
+                    <div class="write-field">
+                        <label for="sup-email">@Text["ProfileEmailLabel"]</label>
+                        <input id="sup-email" type="email" maxlength="256" @bind="formEmail" dir="ltr" />
+                    </div>
+                    <div class="write-field po-field-full">
+                        <label for="sup-addr">@Text["SupAddressLabel"]</label>
+                        <input id="sup-addr" type="text" maxlength="500" @bind="formAddress" />
+                    </div>
+                    <div class="write-field po-field-full">
+                        <label for="sup-notes">@Text["PoNotesLabel"]</label>
+                        <textarea id="sup-notes" rows="2" maxlength="500" @bind="formNotes"></textarea>
+                    </div>
+                </div>
+                <div class="write-actions">
+                    <BitButton IsEnabled="@(!modalBusy)" OnClick="SubmitCreateAsync">@Text["CreateSubmit"]</BitButton>
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => createModalOpen = false">@Text["WriteCancel"]</BitButton>
+                </div>
+            </div>
+        </Body>
+    </BitDialog>
+
+    <BitDialog Width="620px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailModalOpen"
+               Title="@Text["SupDetailTitle"]" AriaLabel="@Text["SupDetailTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            @if (selectedSupplier is not null)
+            {
+                <div class="write-form">
+                    @if (modalError is not null)
+                    {
+                        <p role="alert" class="write-error">@modalError</p>
+                    }
+                    <div class="audit-meta">
+                        <div><span class="audit-meta-label">@Text["ReadCode"]</span><span class="audit-meta-val" dir="ltr">@selectedSupplier.Code</span></div>
+                        <div>
+                            <span class="audit-meta-label">@Text["ReadStatus"]</span>
+                            <span class="read-badge @(selectedSupplier.IsActive ? "active" : "inactive")">
+                                @(selectedSupplier.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
+                            </span>
+                        </div>
+                    </div>
+                    <div class="write-grid">
+                        <div class="write-field">
+                            <label for="sup-edit-name">@Text["ReadName"]</label>
+                            <input id="sup-edit-name" type="text" maxlength="200" @bind="formName" disabled="@(!CanEditSelected)" />
+                        </div>
+                        <div class="write-field">
+                            <label for="sup-edit-contact">@Text["SupContactLabel"]</label>
+                            <input id="sup-edit-contact" type="text" maxlength="150" @bind="formContact" disabled="@(!CanEditSelected)" />
+                        </div>
+                        <div class="write-field">
+                            <label for="sup-edit-phone">@Text["ProfilePhoneLabel"]</label>
+                            <input id="sup-edit-phone" type="tel" maxlength="64" @bind="formPhone" dir="ltr" disabled="@(!CanEditSelected)" />
+                        </div>
+                        <div class="write-field">
+                            <label for="sup-edit-email">@Text["ProfileEmailLabel"]</label>
+                            <input id="sup-edit-email" type="email" maxlength="256" @bind="formEmail" dir="ltr" disabled="@(!CanEditSelected)" />
+                        </div>
+                        <div class="write-field po-field-full">
+                            <label for="sup-edit-addr">@Text["SupAddressLabel"]</label>
+                            <input id="sup-edit-addr" type="text" maxlength="500" @bind="formAddress" disabled="@(!CanEditSelected)" />
+                        </div>
+                        <div class="write-field po-field-full">
+                            <label for="sup-edit-notes">@Text["PoNotesLabel"]</label>
+                            <textarea id="sup-edit-notes" rows="2" maxlength="500" @bind="formNotes" disabled="@(!CanEditSelected)"></textarea>
+                        </div>
+                    </div>
+                    <div class="write-actions">
+                        @if (CanEditSelected)
+                        {
+                            <BitButton IsEnabled="@(!modalBusy)" OnClick="SubmitUpdateAsync">@Text["WriteSave"]</BitButton>
+                        }
+                        <BitButton Variant="BitVariant.Outline" OnClick="() => detailModalOpen = false">@Text["ReadClose"]</BitButton>
+                    </div>
+                </div>
+            }
+        </Body>
+    </BitDialog>
+
+    <BitDialog Width="460px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="confirmActiveOpen"
+               Title="@Text["WriteConfirm"]" AriaLabel="@Text["WriteConfirm"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            @if (toggleTarget is not null)
+            {
+                <div class="write-form">
+                    <p>@(toggleTarget.IsActive ? Text["WriteConfirmDeactivate", toggleTarget.Name] : Text["WriteConfirmActivate", toggleTarget.Name])</p>
+                    <div class="write-actions">
+                        <BitButton IsEnabled="@(!modalBusy)" OnClick="ExecuteToggleActiveAsync">@Text["WriteConfirm"]</BitButton>
+                        <BitButton Variant="BitVariant.Outline" OnClick="() => confirmActiveOpen = false">@Text["WriteCancel"]</BitButton>
+                    </div>
+                </div>
+            }
+        </Body>
+    </BitDialog>
+</section>
+
+@code {
+    [Parameter] public long? OrganizationId { get; set; }
+
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+
+    private BitDataGrid<SupplierSummary>? grid;
+    private List<OrganizationScope> available = [];
+    private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
+        new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
+    private int scopeIndex;
+    private bool includeInactive;
+    private string search = string.Empty;
+    private string? appliedSearch;
+    private bool initialLoading = true;
+    private bool scopeCanManage;
+    private string? pageError;
+    private string? pageNotice;
+
+    private bool createModalOpen;
+    private bool detailModalOpen;
+    private bool confirmActiveOpen;
+    private bool modalBusy;
+    private string? modalError;
+
+    private SupplierSummary? selectedSupplier;
+    private SupplierSummary? toggleTarget;
+    private string formCode = string.Empty;
+    private string formName = string.Empty;
+    private string? formContact;
+    private string? formPhone;
+    private string? formEmail;
+    private string? formAddress;
+    private string? formNotes;
+
+    private OrganizationScope? CurrentScope => scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
+    private bool CanEditSelected => scopeCanManage && selectedSupplier is not null && selectedSupplier.IsActive;
+    private static long ScopeOrganizationId(OrganizationScope s) => s switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site st => st.OrganizationId,
+        _ => 0
+    };
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["Suppliers"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    protected override async Task OnParametersSetAsync() => await ReloadScopeAsync();
+
+    private async Task ReloadScopeAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        pageNotice = null;
+        try
+        {
+            var loaded = await Scopes.LoadProcurementScopesAsync();
+            available = OrganizationId is long orgId
+                ? loaded.Where(s => ScopeOrganizationId(s) == orgId).ToList()
+                : loaded.ToList();
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+            if (available.Count == 0 && OrganizationId is long fallbackOrgId)
+                available = [new OrganizationScope.Organization(fallbackOrgId)];
+            scopeIndex = 0;
+            await RefreshScopeStateAsync();
+        }
+        catch { pageError = "ReadError"; }
+        finally { initialLoading = false; }
+    }
+
+    private async Task RefreshScopeStateAsync()
+    {
+        scopeCanManage = false;
+        var scope = CurrentScope;
+        if (scope is null) return;
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is not null && scope is OrganizationScope.Organization)
+            scopeCanManage = (await Permissions.EvaluateAsync(actor, scope, ProcurementPermissions.ManageSuppliers, default)).IsAllowed;
+    }
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var idx) && idx >= 0 && idx < available.Count)
+        {
+            scopeIndex = idx;
+            await RefreshScopeStateAsync();
+            await ReloadGridAsync(true);
+        }
+    }
+
+    private async Task ToggleInactiveAsync(ChangeEventArgs e)
+    {
+        includeInactive = e.Value is bool b && b;
+        await ReloadGridAsync(true);
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        await ReloadGridAsync(true);
+    }
+
+    private async Task ReloadGridAsync(bool fromFirstPage)
+    {
+        if (grid is null) return;
+        if (fromFirstPage && grid.CurrentPage > 1) await grid.GoToPageAsync(1);
+        else await grid.RefreshAsync();
+    }
+
+    private async Task<BitDataGridReadResult<SupplierSummary>> ReadSuppliersAsync(BitDataGridReadRequest req)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var size = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / size) + 1;
+        var res = await ProcService.ListSuppliers(scope, ScopeOrganizationId(scope),
+            new SupplierListQuery(appliedSearch, includeInactive, page, size), req.CancellationToken);
+        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private void OpenCreateModal()
+    {
+        modalError = null;
+        formCode = string.Empty;
+        formName = string.Empty;
+        formContact = null;
+        formPhone = null;
+        formEmail = null;
+        formAddress = null;
+        formNotes = null;
+        createModalOpen = true;
+    }
+
+    private async Task SubmitCreateAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        modalError = null;
+        try
+        {
+            var res = await ProcService.CreateSupplier(scope, new CreateSupplierRequest(
+                ScopeOrganizationId(scope), formCode, formName, formContact, formPhone, formEmail, formAddress, formNotes));
+            if (!res.Succeeded) { modalError = Text[RolePermissionLocalization.FailureKey(res.Error!.Code)]; return; }
+            createModalOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await ReloadGridAsync(true);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private void OpenDetailModal(SupplierSummary s)
+    {
+        modalError = null;
+        selectedSupplier = s;
+        formCode = s.Code;
+        formName = s.Name;
+        formContact = s.ContactName;
+        formPhone = s.Phone;
+        formEmail = s.Email;
+        formAddress = s.Address;
+        formNotes = s.Notes;
+        detailModalOpen = true;
+    }
+
+    private async Task SubmitUpdateAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedSupplier is null) return;
+        modalBusy = true;
+        modalError = null;
+        try
+        {
+            var res = await ProcService.UpdateSupplier(scope, ScopeOrganizationId(scope), selectedSupplier.Id, selectedSupplier.RowVersion,
+                new UpdateSupplierRequest(formName, formContact, formPhone, formEmail, formAddress, formNotes));
+            if (!res.Succeeded) { modalError = Text[RolePermissionLocalization.FailureKey(res.Error!.Code)]; return; }
+            detailModalOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await ReloadGridAsync(false);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private void OpenToggleActiveConfirm(SupplierSummary s)
+    {
+        toggleTarget = s;
+        confirmActiveOpen = true;
+    }
+
+    private async Task ExecuteToggleActiveAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || toggleTarget is null) return;
+        modalBusy = true;
+        try
+        {
+            var res = await ProcService.SetSupplierActive(scope, ScopeOrganizationId(scope), toggleTarget.Id, toggleTarget.RowVersion, !toggleTarget.IsActive);
+            confirmActiveOpen = false;
+            if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            pageNotice = Text["WriteSaved"];
+            await ReloadGridAsync(false);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private string ScopeLabel(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o when scopeLabels.TryGetValue(scope, out var info) && info.OrgCode is not null
+            => $"{info.OrgCode} — {info.OrgName}",
+        OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId],
+        OrganizationScope.Site s when scopeLabels.TryGetValue(scope, out var info) && info.SiteCode is not null
+            => $"{info.OrgCode} / {info.SiteCode} — {info.SiteName}",
+        OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
+        _ => string.Empty
+    };
+}

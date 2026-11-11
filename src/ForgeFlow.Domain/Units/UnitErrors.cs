@@ -19,6 +19,10 @@ public static class UnitErrors
     public const string ConversionPathNotFound = "Units.ConversionPathNotFound";
     public const string ConversionConflictingPath = "Units.ConversionConflictingPath";
     public const string ConversionQuantityInvalid = "Units.ConversionQuantityInvalid";
+    public const string CurrencyCodeInvalid = "Units.CurrencyCodeInvalid";
+    public const string CurrencyCodeDuplicate = "Units.CurrencyCodeDuplicate";
+    public const string CurrencyNotFound = "Units.CurrencyNotFound";
+    public const string CurrencyInactive = "Units.CurrencyInactive";
     public const string ParentOrganizationInactive = "Units.ParentOrganizationInactive";
     public const string AccessDenied = "Units.AccessDenied";
     public const string ActorRequired = "Units.ActorRequired";

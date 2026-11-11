@@ -3731,3 +3731,54 @@ ode .\scripts\drafts.test.mjs: **19 pass, 0 fail**.
   - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
   - Full non-SQL + HTTP suite (`FORGEFLOW_AUTH_HTTP_TESTS=1`, `FORGEFLOW_TEST_SQLSERVER=''`): **Passed: 383, Failed: 0, Skipped: 58, Total: 441**.
   - `node .\scripts\drafts.test.mjs`: **19 pass, 0 fail**.
+
+## Slice 10 — Procurement (Suppliers, Purchase Orders & Goods Receipt) (`10.0`–`10.4`) — 2026-11-11
+
+- **10.0 Design Artifacts (`docs/slices/10-procurement/`)**:
+  - Authored `README.md`, `decisions.md`, `physical-erd.md`, and `test-plan.md` specifying organization-shared `Supplier`, site-scoped `PurchaseOrder`/`PurchaseOrderLine` lifecycle (`Draft -> Approved -> PartiallyReceived -> Received`, plus `Closed` short-close and pre-receipt `Cancelled`), optional `UnitPrice`/`CurrencyCode` (`IRR`/`USD`/`EUR`), atomic `ReceiveOrder` into Inventory/Lots/QC, and strict inventory reversal (`ReverseTransaction`) reopening PO receipt quantities/status.
+- **10.1 Domain (`ForgeFlow.Domain`)**:
+  - Added `PermissionModule.Procurement = 14` (`Procurement.Read`, `Procurement.ManageSuppliers`, `Procurement.ManageOrders`, `Procurement.ReceiveOrders`) and built-in `OrganizationAdministrator` / `SiteOperator` grants (`PermissionCatalog.cs`).
+  - Added `PurchaseOrderStatus`, `ProcurementErrors`, `ProcurementText`, `Supplier`, `PurchaseOrderLine`, `PurchaseOrder`, and nullable `InventoryTransaction.PurchaseOrderId`.
+- **10.2 Application (`ForgeFlow.Application`)**:
+  - Added `ProcurementContracts.cs` and `ProcurementUseCases.cs` enforcing organization vs. site scoping, unit-conversion resolution via `UnitConversionGraph`, `CanBePurchased` item enforcement, lot-tracking requirements, incoming QC triggering, and user operation / rejection auditing.
+  - Extended `InventoryTransactionSummary`, `ReportingContracts.cs`, `ReportingUseCases.cs` (informational `OnOrderBaseQuantity` on Material Shortage + 13-column CSV branch), and `AuditEventCatalog.cs`.
+- **10.3 Infrastructure & Persistence (`ForgeFlow.Infrastructure`)**:
+  - Mapped `Supplier`, `PurchaseOrder`, `PurchaseOrderLine`, `FK_InventoryTransaction_PurchaseOrder`, and `[CK_OrganizationChange_Event]` in `OrganizationModel.cs` and `OrganizationDbContext.cs` (`33` business entities); ignored procurement entities in `AuthDbContext.cs`.
+  - Implemented `SqlProcurementOperationsStore` and registered `ProcurementUseCases` in `OrganizationPersistenceRegistration.cs`.
+  - Extended `SqlInventoryOperationsStore.ReverseTransaction` to atomically revert PO `ReceivedBaseQuantity` and status, and `SqlReportingQueryStore` to load open approved/partial PO remaining quantities into Material Shortage.
+  - Generated EF Core migration `20261111065922_ProcurementSuppliersAndPurchaseOrders` with `[ForgeFlowOrganizationRuntime]` grants and non-empty rollback guard, and upgraded `localhost/testforgflow` via `scripts/upgrade-local-testdb.ps1`.
+- **10.4 Web & Localization (`ForgeFlow.Web`)**:
+  - Added `/suppliers` (`Suppliers.razor`) and `/purchase-orders` (`PurchaseOrders.razor`) UI pages with `BitDataGrid`, `BitDatePicker`, create/edit draft modals, approval/short-close/cancel actions, posted receipts history, and lot/QC-aware Goods Receipt modal.
+  - Inserted `ProcurementNavGroup` (`Suppliers`, `PurchaseOrders`) in `MainLayout.razor` between `MasterDataNavGroup` and `InventoryNavGroup` (kept `Settings` last and all nav groups collapsed on login/refresh), updated `ReadScopes.cs`, `RolePermissionLocalization.cs`, `Inventory.razor` (PO link display), `Reports.razor` (`OnOrderBaseQuantity` column & 13-col CSV export), `app.css`, `SharedResources.{en-US,fa-IR}.resx`, and `ResourceContractTests.cs`.
+- **Verification Evidence (2026-11-11, after final edit)**:
+  - `.\scripts\upgrade-local-testdb.ps1`: `testforgflow database upgraded to 20261111065922_ProcurementSuppliersAndPurchaseOrders.`
+  - `dotnet ef migrations has-pending-model-changes --context AuthDbContext ...`: **No changes have been made to the model since the last migration.**
+  - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Targeted live SQL + unit + persistence + model + role + localization + scanner suite (`ProcurementTests|ProcurementSqlTests|QualityTests|QualitySqlTests|InventoryTests|InventorySqlTests|ReportTests|ReportSqlTests|ProductionOrderTests|ProductionOrderSqlTests|OrganizationPersistenceModelTests|OrganizationSqlServerTests|RoleDomainTests|RoleManagementPageTests|ResourceContractTests|DiagnosticTests|DiagnosticSqlTests|AuditSqlTests|HardcodedDisplayTextScannerTests`): **Passed: 96, Failed: 0, Skipped: 0, Total: 96**.
+  - Full non-SQL + HTTP suite (`FORGEFLOW_AUTH_HTTP_TESTS=1`, `FORGEFLOW_TEST_SQLSERVER=''`): **Passed: 386, Failed: 0, Skipped: 59, Total: 445**.
+  - `node .\scripts\drafts.test.mjs`: **19 pass, 0 fail**.
+  - `node .\verification\slice01-ui\browser-check.cjs`: **4/4 pass** (`fa-IR` & `en-US`, `1440px` & `320px`).
+- **Remaining Acceptance Gaps**:
+  - Live browser visual/functional verification in Persian RTL, English LTR, and `320px` mobile at `https://localhost:5001` for `/suppliers`, `/purchase-orders`, and updated `/reports` (`OnOrder` column) before formally closing `Slice 10`.
+
+### Purchase Order Modal Redesign (`10.4` Follow-up) — 2026-11-11
+
+- Redesigned the Create/Edit Purchase Order dialog in [PurchaseOrders.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/PurchaseOrders.razor) and [app.css](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/wwwroot/app.css) to match the structured 3-section modal layout:
+  - Fixed header with title, subtitle (`ProcPoModalSubtitle`), and square close button (`38x38`, `border-radius: 10px`).
+  - Scrollable modal body (`max-height: calc(92vh - 156px)`, `overflow-y: auto`) divided into «General information / اطلاعات کلی» (uniform `44px`-tall, `10px`-radius 3-column grid with `16px` gap, read-only gray `OrderNumber`, required `*` `Supplier` with placeholder, single-line 2-column `Notes`, and `BitDatePicker` placeholders) and «Order lines / اقلام سفارش» (accent section header with end-aligned `+ Add line` outline button and a horizontally scrollable CSS Grid table `2.2fr .8fr 1fr 1.2fr 1.1fr 1.5fr 40px` featuring computed `Line total` and light-red trash-icon remove button).
+  - Fixed footer bar (`justify-content: space-between`) with `#0F5675` primary `Save draft` + outline `Cancel` buttons on the start side and live calculated `Grand total` (`جمع کل`) on the end side.
+- Verification (2026-11-11, after final edit):
+  - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Targeted localization, scanner, role-layout & procurement unit tests: **Passed: 35, Failed: 0, Skipped: 0**.
+
+### Organization-Scoped Currencies Tab (`/units`) & Dynamic PO Currencies (`10.4` Follow-up) — 2026-11-11
+
+- Added organization-scoped monetary `Currency` entity (`Id`, `OrganizationId`, 3-letter ASCII `Code`, `Name`, `Symbol`, `PrecisionScale`, `IsActive`) in [Currency.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Units/Currency.cs), extended `IUnitOperationsStore` / [`UnitUseCases`](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Units/UnitUseCases.cs) / [`UnitOperationsStore`](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/UnitOperationsStore.cs) (including seeding `IRR`, `USD`, `EUR` alongside standard units), and extended [`AuditEventCatalog`](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Audit/AuditEventCatalog.cs) with `Currency.Created/Updated/Activated/Deactivated`.
+- Replaced the hardcoded `'IRR','USD','EUR'` check constraint on `PurchaseOrder` with `CK_PurchaseOrder_Currency` (`[A-Z]{3}`) plus composite FK `FK_PurchaseOrder_Currency` referencing `[organization].[Currency] ([OrganizationId], [Code])`, and validated active currency lookup in [`SqlProcurementOperationsStore`](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/SqlProcurementOperationsStore.cs). Generated EF Core migration [20261111094413_CurrenciesMasterData.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/Migrations/20261111094413_CurrenciesMasterData.cs) (backfilling `IRR`/`USD`/`EUR` for existing organizations and granting `[ForgeFlowOrganizationRuntime]` privileges) and ignored `Currency` in [`AuthDbContext`](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Identity/AuthDbContext.cs).
+- Updated [Units.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Units.razor) with a **Currencies (`UnitCurrenciesTab`)** tab supporting Create/Edit/Activate/Deactivate, and updated [PurchaseOrders.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/PurchaseOrders.razor) and [`DisplayFormatter`](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Localization/DisplayFormatter.cs) to load active organization currencies dynamically.
+- **Verification Evidence (2026-11-11, after final edit)**:
+  - `.\scripts\upgrade-local-testdb.ps1`: `testforgflow database upgraded to 20261111094413_CurrenciesMasterData.`
+  - `dotnet ef migrations has-pending-model-changes --context AuthDbContext ...`: **No changes have been made to the model since the last migration.**
+  - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Targeted live SQL + unit + model + role + localization + scanner suite (`ProcurementTests|ProcurementSqlTests|UnitTests|UnitSqlTests|OrganizationPersistenceModelTests|OrganizationSqlServerTests|RoleDomainTests|RoleManagementPageTests|ResourceContractTests|HardcodedDisplayTextScannerTests`): **Passed: 69, Failed: 0, Skipped: 0, Total: 69**.
+

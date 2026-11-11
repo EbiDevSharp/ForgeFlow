@@ -1,6 +1,7 @@
 using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Reporting;
 using ForgeFlow.Domain.Inventory;
+using ForgeFlow.Domain.Procurement;
 using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Infrastructure.Diagnostics;
 using Microsoft.Data.SqlClient;
@@ -88,15 +89,29 @@ public sealed class SqlReportingQueryStore(
                 g.Sum(x => x.BlockedBaseQuantity)))
             .ToListAsync(ct);
 
+        var poQuery = from line in db.PurchaseOrderLines.AsNoTracking()
+                      join hdr in db.PurchaseOrders.AsNoTracking() on new { line.OrganizationId, OrderId = line.PurchaseOrderId } equals new { hdr.OrganizationId, OrderId = hdr.Id }
+                      where line.OrganizationId == organizationId
+                            && (hdr.Status == PurchaseOrderStatus.Approved || hdr.Status == PurchaseOrderStatus.PartiallyReceived)
+                            && line.OrderedBaseQuantity > line.ReceivedBaseQuantity
+                      select new { hdr.SiteId, line.ItemId, Remaining = line.OrderedBaseQuantity - line.ReceivedBaseQuantity };
+        if (siteId is long pSid && pSid > 0)
+            poQuery = poQuery.Where(x => x.SiteId == pSid);
+
+        var openPurchaseLines = await poQuery
+            .Select(x => new ReportOpenPurchaseLineRow(x.SiteId, x.ItemId, x.Remaining))
+            .ToListAsync(ct);
+
         var itemIds = inputs.Select(i => i.ItemId)
             .Concat(balances.Select(b => b.ItemId))
+            .Concat(openPurchaseLines.Select(p => p.ItemId))
             .Distinct()
             .ToArray();
 
         var items = await LoadItemRefsAsync(db, organizationId, itemIds, ct);
         var conversions = await LoadConversionsAsync(db, organizationId, itemIds, ct);
 
-        return new ShortageDataset(openOrders, inputs, balances, items, conversions);
+        return new ShortageDataset(openOrders, inputs, balances, items, conversions, openPurchaseLines);
     }, ct);
 
     public Task<VarianceDataset> GetVarianceDataset(

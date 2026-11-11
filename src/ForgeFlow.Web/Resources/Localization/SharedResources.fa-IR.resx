@@ -2397,4 +2397,96 @@
   <data name="NotifRoleOrgMembership" xml:space="preserve"><value>عضویت سازمانی</value></data>
   <data name="NotifRoleSiteMembership" xml:space="preserve"><value>عضویت سایت</value></data>
   <data name="NotifRoleDirectPermissions" xml:space="preserve"><value>مجوزهای مستقیم</value></data>
+  <data name="ProcurementNavGroup" xml:space="preserve"><value>تأمین و خرید</value></data>
+  <data name="Suppliers" xml:space="preserve"><value>تأمین‌کنندگان</value></data>
+  <data name="PurchaseOrders" xml:space="preserve"><value>سفارش‌های خرید</value></data>
+  <data name="PermPageProcurement" xml:space="preserve"><value>تأمین و خرید</value></data>
+  <data name="PermOpManageSuppliers" xml:space="preserve"><value>مدیریت تأمین‌کنندگان</value></data>
+  <data name="PermOpManageOrders" xml:space="preserve"><value>مدیریت سفارش‌های خرید</value></data>
+  <data name="PermOpReceiveOrders" xml:space="preserve"><value>ثبت رسید سفارش خرید</value></data>
+  <data name="SuppliersCaption" xml:space="preserve"><value>مدیریت اطلاعات تماس و وضعیت تأمین‌کنندگان در سطح سازمان.</value></data>
+  <data name="SupCreateButton" xml:space="preserve"><value>تأمین‌کنندهٔ جدید</value></data>
+  <data name="SupCreateTitle" xml:space="preserve"><value>ایجاد تأمین‌کننده</value></data>
+  <data name="SupDetailTitle" xml:space="preserve"><value>جزئیات تأمین‌کننده</value></data>
+  <data name="SupContactLabel" xml:space="preserve"><value>شخص رابط</value></data>
+  <data name="SupAddressLabel" xml:space="preserve"><value>نشانی</value></data>
+  <data name="ProcErrorSupplierInactive" xml:space="preserve"><value>تأمین‌کنندهٔ غیرفعال قابل ویرایش یا انتخاب در سفارش خرید نیست.</value></data>
+  <data name="ProcErrorContactInvalid" xml:space="preserve"><value>نام شخص رابط معتبر نیست (حداکثر ۱۵۰ کاراکتر).</value></data>
+  <data name="ProcErrorAddressInvalid" xml:space="preserve"><value>نشانی نباید بیش از ۵۰۰ کاراکتر باشد.</value></data>
+  <data name="PurchaseOrdersCaption" xml:space="preserve"><value>صدور سفارش خرید، تأیید و پیگیری تحویل و ثبت رسید کالا در انبار.</value></data>
+  <data name="ProcPoCreateButton" xml:space="preserve"><value>سفارش خرید جدید</value></data>
+  <data name="ProcPoCreateTitle" xml:space="preserve"><value>ایجاد سفارش خرید</value></data>
+  <data name="ProcPoEditTitle" xml:space="preserve"><value>ویرایش پیش‌نویس سفارش خرید</value></data>
+  <data name="ProcPoDetailTitle" xml:space="preserve"><value>جزئیات سفارش خرید</value></data>
+  <data name="ProcPoNumberLabel" xml:space="preserve"><value>شمارهٔ سفارش خرید</value></data>
+  <data name="ProcSupplierLabel" xml:space="preserve"><value>تأمین‌کننده</value></data>
+  <data name="ProcAllSuppliersOption" xml:space="preserve"><value>همهٔ تأمین‌کنندگان</value></data>
+  <data name="ProcOrderDateLabel" xml:space="preserve"><value>تاریخ سفارش</value></data>
+  <data name="ProcExpectedDateLabel" xml:space="preserve"><value>تاریخ تحویل مورد انتظار</value></data>
+  <data name="ProcTargetWarehouseLabel" xml:space="preserve"><value>انبار مقصد</value></data>
+  <data name="ProcCurrencyLabel" xml:space="preserve"><value>واحد پول</value></data>
+  <data name="ProcProgressColumn" xml:space="preserve"><value>رسید / سفارش</value></data>
+  <data name="ProcEstimatedTotalLabel" xml:space="preserve"><value>جمع برآوردی</value></data>
+  <data name="ProcLinesSection" xml:space="preserve"><value>اقلام سفارش</value></data>
+  <data name="ProcAddLineBtn" xml:space="preserve"><value>افزودن ردیف</value></data>
+  <data name="ProcUnitPriceLabel" xml:space="preserve"><value>قیمت واحد</value></data>
+  <data name="ProcOrderedCol" xml:space="preserve"><value>سفارش‌داده‌شده</value></data>
+  <data name="ProcReceivedCol" xml:space="preserve"><value>رسیدشده</value></data>
+  <data name="ProcRemainingCol" xml:space="preserve"><value>باقی‌مانده</value></data>
+  <data name="ProcReceiptsHistoryTitle" xml:space="preserve"><value>رسیدهای ثبت‌شده</value></data>
+  <data name="ProcPostedBadge" xml:space="preserve"><value>ثبت‌شده</value></data>
+  <data name="ProcApproveBtn" xml:space="preserve"><value>تأیید سفارش</value></data>
+  <data name="ProcReceiveBtn" xml:space="preserve"><value>ثبت رسید کالا</value></data>
+  <data name="ProcShortCloseBtn" xml:space="preserve"><value>بستن باقی‌مانده</value></data>
+  <data name="ProcCancelBtn" xml:space="preserve"><value>لغو سفارش</value></data>
+  <data name="ProcReceiveTitle" xml:space="preserve"><value>ثبت رسید کالای سفارش خرید</value></data>
+  <data name="ProcPostReceiptBtn" xml:space="preserve"><value>ثبت سند رسید</value></data>
+  <data name="ProcReceiptPostedNotice" xml:space="preserve"><value>رسید کالا با شماره سند {0} در انبار ثبت شد.</value></data>
+  <data name="ProcStatusApproved" xml:space="preserve"><value>تأییدشده</value></data>
+  <data name="ProcStatusPartial" xml:space="preserve"><value>رسید جزئی</value></data>
+  <data name="ProcStatusReceived" xml:space="preserve"><value>تکمیل‌شده</value></data>
+  <data name="ProcStatusClosed" xml:space="preserve"><value>بسته‌شده</value></data>
+  <data name="ProcErrorCurrencyInvalid" xml:space="preserve"><value>واحد پول معتبر نیست (IRR، USD یا EUR).</value></data>
+  <data name="ProcErrorEmptyOrder" xml:space="preserve"><value>سفارش خرید باید حداقل یک ردیف کالا داشته باشد.</value></data>
+  <data name="ProcErrorDuplicateItem" xml:space="preserve"><value>هر کالا فقط یک‌بار می‌تواند در یک سفارش خرید ثبت شود.</value></data>
+  <data name="ProcErrorItemNotPurchasable" xml:space="preserve"><value>فقط کالاهایی که قابلیت خرید دارند قابل سفارش هستند.</value></data>
+  <data name="ProcErrorUnitPriceInvalid" xml:space="preserve"><value>قیمت واحد نمی‌تواند منفی باشد.</value></data>
+  <data name="ProcErrorNotDraft" xml:space="preserve"><value>فقط سفارش‌های خرید در وضعیت پیش‌نویس قابل ویرایش هستند.</value></data>
+  <data name="ProcErrorInvalidTransition" xml:space="preserve"><value>تغییر وضعیت درخواستی برای این سفارش خرید مجاز نیست.</value></data>
+  <data name="ProcErrorHasReceiptsCannotCancel" xml:space="preserve"><value>سفارش خریدی که رسید ثبت‌شده دارد قابل لغو نیست؛ از بستن باقی‌مانده استفاده کنید.</value></data>
+  <data name="ProcErrorOverReceipt" xml:space="preserve"><value>مقدار رسید نمی‌تواند از مقدار باقی‌ماندهٔ سفارش بیشتر باشد.</value></data>
+  <data name="RptColOnOrderQty" xml:space="preserve"><value>در راه (سفارش خرید)</value></data>
+  <data name="AuditEv_SupplierCreated" xml:space="preserve"><value>ایجاد تأمین‌کننده</value></data>
+  <data name="AuditEv_SupplierUpdated" xml:space="preserve"><value>به‌روزرسانی تأمین‌کننده</value></data>
+  <data name="AuditEv_SupplierActivated" xml:space="preserve"><value>فعال‌سازی تأمین‌کننده</value></data>
+  <data name="AuditEv_SupplierDeactivated" xml:space="preserve"><value>غیرفعال‌سازی تأمین‌کننده</value></data>
+  <data name="AuditEv_PurchaseOrderCreated" xml:space="preserve"><value>ایجاد سفارش خرید</value></data>
+  <data name="AuditEv_PurchaseOrderUpdated" xml:space="preserve"><value>به‌روزرسانی سفارش خرید</value></data>
+  <data name="AuditEv_PurchaseOrderApproved" xml:space="preserve"><value>تأیید سفارش خرید</value></data>
+  <data name="AuditEv_PurchaseOrderReceived" xml:space="preserve"><value>ثبت رسید سفارش خرید</value></data>
+  <data name="AuditEv_PurchaseOrderClosed" xml:space="preserve"><value>بستن سفارش خرید</value></data>
+  <data name="AuditEv_PurchaseOrderCancelled" xml:space="preserve"><value>لغو سفارش خرید</value></data>
+  <data name="AuditEv_ProcurementActionRejected" xml:space="preserve"><value>رد عملیات تأمین و خرید</value></data>
+  <data name="ProcPoModalSubtitle" xml:space="preserve"><value>اطلاعات سفارش را وارد کنید و اقلام را اضافه کنید.</value></data>
+  <data name="ProcGeneralInfoSection" xml:space="preserve"><value>اطلاعات کلی</value></data>
+  <data name="ProcSelectSupplierPlaceholder" xml:space="preserve"><value>انتخاب تأمین‌کننده...</value></data>
+  <data name="ProcSelectDatePlaceholder" xml:space="preserve"><value>انتخاب تاریخ</value></data>
+  <data name="ProcSelectWarehousePlaceholder" xml:space="preserve"><value>انتخاب انبار...</value></data>
+  <data name="ProcNotesOptionalPlaceholder" xml:space="preserve"><value>توضیحات سفارش (اختیاری)</value></data>
+  <data name="ProcSelectItemPlaceholder" xml:space="preserve"><value>انتخاب کالا...</value></data>
+  <data name="ProcLineAmountLabel" xml:space="preserve"><value>مبلغ ردیف</value></data>
+  <data name="ProcGrandTotalLabel" xml:space="preserve"><value>جمع کل</value></data>
+  <data name="ProcErrorSupplierRequired" xml:space="preserve"><value>لطفاً تأمین‌کننده را انتخاب کنید.</value></data>
+  <data name="ProcErrorItemRequired" xml:space="preserve"><value>لطفاً برای همهٔ ردیف‌ها کالا را انتخاب کنید.</value></data>
+  <data name="UnitCurrenciesTab" xml:space="preserve"><value>واحدهای پولی</value></data>
+  <data name="CurrencyCreateButton" xml:space="preserve"><value>ارز جدید</value></data>
+  <data name="CurrencyEditTitle" xml:space="preserve"><value>ویرایش ارز</value></data>
+  <data name="CurrencyDetailTitle" xml:space="preserve"><value>جزئیات ارز</value></data>
+  <data name="CurrencyCreateTitle" xml:space="preserve"><value>ایجاد ارز</value></data>
+  <data name="CurrencyCodeHint" xml:space="preserve"><value>کد سه‌حرفی انگلیسی (مثلاً AED، TRY، USD)</value></data>
+  <data name="UnitErrorCurrencyInactive" xml:space="preserve"><value>ارز غیرفعال قابل ویرایش یا استفاده در سفارش نیست؛ ابتدا آن را فعال کنید.</value></data>
+  <data name="AuditEv_CurrencyCreated" xml:space="preserve"><value>ایجاد واحد پولی</value></data>
+  <data name="AuditEv_CurrencyUpdated" xml:space="preserve"><value>به‌روزرسانی واحد پولی</value></data>
+  <data name="AuditEv_CurrencyActivated" xml:space="preserve"><value>فعال‌سازی واحد پولی</value></data>
+  <data name="AuditEv_CurrencyDeactivated" xml:space="preserve"><value>غیرفعال‌سازی واحد پولی</value></data>
 </root>

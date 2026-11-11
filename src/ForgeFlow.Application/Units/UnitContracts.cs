@@ -105,7 +105,45 @@ public sealed record UnitConversionPreviewResult(
 
 public sealed record SeedStandardUnitsResult(
     int UnitsCreated,
-    int ConversionsCreated);
+    int ConversionsCreated,
+    int CurrenciesCreated = 0);
+
+public sealed record CurrencySummary(
+    long Id,
+    long OrganizationId,
+    string Code,
+    string Name,
+    string Symbol,
+    byte PrecisionScale,
+    bool IsActive,
+    string RowVersion);
+
+public sealed record CurrencyListQuery(
+    string? Search = null,
+    bool IncludeInactive = false,
+    int Page = 1,
+    int PageSize = 25);
+
+public sealed record CreateCurrencyRequest(
+    long OrganizationId,
+    string? Code,
+    string? Name,
+    string? Symbol,
+    byte PrecisionScale);
+
+public sealed record UpdateCurrencyRequest(
+    long OrganizationId,
+    long Id,
+    string? Name,
+    string? Symbol,
+    byte PrecisionScale,
+    string? ExpectedRowVersion);
+
+public sealed record SetCurrencyActiveRequest(
+    long OrganizationId,
+    long Id,
+    bool IsActive,
+    string? ExpectedRowVersion);
 
 public sealed class UnitStoreUnavailableException(Exception inner)
     : Exception(UnitErrors.PersistenceUnavailable, inner);
@@ -127,4 +165,11 @@ public interface IUnitOperationsStore
     Task<OrganizationResult<UnitConversionSummary>> SetConversionActive(long organizationId, long id, byte[] version, bool isActive, OrganizationWriteAccess access, CancellationToken ct);
 
     Task<OrganizationResult<SeedStandardUnitsResult>> SeedStandardUnits(long organizationId, OrganizationWriteAccess access, CancellationToken ct);
+
+    Task<OrganizationPage<CurrencySummary>> ListCurrencies(long organizationId, CurrencyListQuery query, CancellationToken ct);
+    Task<IReadOnlyList<CurrencySummary>> ListActiveCurrencies(long organizationId, CancellationToken ct);
+    Task<CurrencySummary?> GetCurrency(long organizationId, long id, CancellationToken ct);
+    Task<OrganizationResult<CurrencySummary>> CreateCurrency(CreateCurrencyRequest request, OrganizationWriteAccess access, CancellationToken ct);
+    Task<OrganizationResult<CurrencySummary>> UpdateCurrency(long organizationId, long id, byte[] version, string? name, string? symbol, byte precisionScale, OrganizationWriteAccess access, CancellationToken ct);
+    Task<OrganizationResult<CurrencySummary>> SetCurrencyActive(long organizationId, long id, byte[] version, bool isActive, OrganizationWriteAccess access, CancellationToken ct);
 }

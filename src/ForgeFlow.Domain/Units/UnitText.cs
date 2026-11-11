@@ -3,6 +3,7 @@ namespace ForgeFlow.Domain.Units;
 internal static class UnitText
 {
     internal const int CodeMaxLength = 32;
+    internal const int CurrencyCodeLength = 3;
     internal const int NameMaxLength = 200;
     internal const int SymbolMaxLength = 32;
     internal const byte MaxPrecisionScale = 6;
@@ -29,6 +30,20 @@ internal static class UnitText
     internal static string Name(string? raw) => NormalizeUnicode(raw, NameMaxLength, UnitErrors.NameInvalid, "Name");
 
     internal static string Symbol(string? raw) => NormalizeUnicode(raw, SymbolMaxLength, UnitErrors.SymbolInvalid, "Symbol");
+
+    internal static string CurrencyCode(string? raw)
+    {
+        var value = raw?.Trim().ToUpperInvariant() ?? string.Empty;
+        if (value.Length != CurrencyCodeLength)
+            throw new UnitRuleException(UnitErrors.CurrencyCodeInvalid, ("field", "Code"), ("maxLength", CurrencyCodeLength));
+
+        foreach (var c in value)
+        {
+            if (c is < 'A' or > 'Z')
+                throw new UnitRuleException(UnitErrors.CurrencyCodeInvalid, ("field", "Code"), ("maxLength", CurrencyCodeLength));
+        }
+        return value;
+    }
 
     internal static decimal ValidateFactor(decimal factor)
     {

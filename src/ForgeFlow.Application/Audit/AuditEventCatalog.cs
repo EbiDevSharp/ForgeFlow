@@ -44,6 +44,10 @@ public static class AuditEventCatalog
         Biz("UnitConversion.Updated"),
         Biz("UnitConversion.Activated"),
         Biz("UnitConversion.Deactivated"),
+        Biz("Currency.Created"),
+        Biz("Currency.Updated"),
+        Biz("Currency.Activated"),
+        Biz("Currency.Deactivated"),
         Biz("Item.Created"),
         Biz("Item.Updated"),
         Biz("Item.Activated"),
@@ -94,6 +98,16 @@ public static class AuditEventCatalog
         Biz("QualityInspection.Disposed"),
         Biz("QualityInspection.Cancelled"),
         Biz("ItemLot.Updated"),
+        Biz("Supplier.Created"),
+        Biz("Supplier.Updated"),
+        Biz("Supplier.Activated"),
+        Biz("Supplier.Deactivated"),
+        Biz("PurchaseOrder.Created"),
+        Biz("PurchaseOrder.Updated"),
+        Biz("PurchaseOrder.Approved"),
+        Biz("PurchaseOrder.Received"),
+        Biz("PurchaseOrder.Closed"),
+        Biz("PurchaseOrder.Cancelled"),
 
         // Security & authentication events (auth.SecurityEvent)
         Sec("BootstrapCompleted"),
@@ -130,7 +144,8 @@ public static class AuditEventCatalog
         Op(UserOperationCatalog.UserActionRejected),
         Op(UserOperationCatalog.RoleActionRejected),
         Op(UserOperationCatalog.ReportingActionRejected),
-        Op(UserOperationCatalog.QualityActionRejected)
+        Op(UserOperationCatalog.QualityActionRejected),
+        Op(UserOperationCatalog.ProcurementActionRejected)
     ];
 
     private static readonly Dictionary<string, AuditEventDescriptor> ByCode =

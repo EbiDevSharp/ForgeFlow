@@ -30,7 +30,7 @@
                                IsEnabled="@(!seeding)" OnClick="SeedStandardUnitsAsync">@Text["UnitsSeedButton"]</BitButton>
                     <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn"
                                OnClick="OpenActiveCreate">
-                        @Text[activeTab == TabUnits ? "UnitCreateButton" : "UnitConversionCreateButton"]
+                        @Text[activeTab == TabUnits ? "UnitCreateButton" : activeTab == TabConversions ? "UnitConversionCreateButton" : "CurrencyCreateButton"]
                     </BitButton>
                 }
             </div>
@@ -62,6 +62,9 @@
             <button type="button" role="tab" aria-selected="@(activeTab == TabConversions)"
                     class="read-tab-btn @(activeTab == TabConversions ? "active" : string.Empty)"
                     @onclick="() => SwitchTabAsync(TabConversions)">@Text["UnitConversionsTab"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabCurrencies)"
+                    class="read-tab-btn @(activeTab == TabCurrencies ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabCurrencies)">@Text["UnitCurrenciesTab"]</button>
         </div>
 
         <div class="read-toolbar-card">
@@ -91,7 +94,7 @@
                     </select>
                 </div>
             }
-            else
+            else if (activeTab == TabConversions)
             {
                 <div class="read-field">
                     <label for="conv-unit-filter">@Text["UnitsTab"]</label>
@@ -173,7 +176,7 @@
                 </div>
             </div>
         }
-        else
+        else if (activeTab == TabConversions)
         {
             <div class="read-grid-card">
                 <div class="read-grid">
@@ -218,6 +221,58 @@
                                                 <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
                                                            Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
                                                            OnClick="() => OpenConversionModal(row.Id, edit: true)" />
+                                            </BitTooltip>
+                                        }
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="currenciesGrid" TItem="CurrencySummary" OnRead="ReadCurrenciesGridAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="units-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="CurrencySummary" Title="@Text["ReadCode"]">
+                                <Template Context="row"><bdi dir="ltr">@row.Code</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="CurrencySummary" Title="@Text["ReadName"]">
+                                <Template Context="row">@row.Name</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="CurrencySummary" Title="@Text["UnitSymbolLabel"]">
+                                <Template Context="row"><bdi dir="ltr">@row.Symbol</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="CurrencySummary" Title="@Text["UnitPrecisionLabel"]">
+                                <Template Context="row"><bdi dir="ltr">@row.PrecisionScale</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="CurrencySummary" Title="@Text["ReadStatus"]">
+                                <Template Context="row">
+                                    <span class="read-badge @(row.IsActive ? "active" : "inactive")">
+                                        @Text[row.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                                    </span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="CurrencySummary" Title="@Text["ReadActions"]">
+                                <Template Context="row">
+                                    <div class="read-row-actions">
+                                        <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                       IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                                       OnClick="() => OpenCurrencyModal(row.Id, edit: false)" />
+                                        </BitTooltip>
+                                        @if (scopeCanManage)
+                                        {
+                                            <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                           Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                                           OnClick="() => OpenCurrencyModal(row.Id, edit: true)" />
                                             </BitTooltip>
                                         }
                                     </div>
@@ -591,6 +646,177 @@
     </Body>
 </BitDialog>
 
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="currencyModalOpen"
+           OnDismissing="OnCurrencyModalDismissing"
+           Title="@Text[currencyEditMode ? "CurrencyEditTitle" : "CurrencyDetailTitle"]"
+           AriaLabel="@Text[currencyEditMode ? "CurrencyEditTitle" : "CurrencyDetailTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (selectedCurrency is not null)
+        {
+            <div class="audit-modal-body">
+                @if (!currencyEditMode)
+                {
+                    <div class="audit-modal-title-row">
+                        <strong class="audit-modal-code" dir="ltr">@selectedCurrency.Code</strong>
+                        <span class="read-badge @(selectedCurrency.IsActive ? "active" : "inactive")">
+                            @Text[selectedCurrency.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </div>
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["ReadName"]</span>
+                            <span class="audit-meta-val">@selectedCurrency.Name</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitSymbolLabel"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@selectedCurrency.Symbol</bdi>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitPrecisionLabel"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@selectedCurrency.PrecisionScale</bdi>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <form class="write-panel" @onsubmit:preventDefault>
+                        <div class="write-meta">
+                            <span class="write-code" dir="ltr">@selectedCurrency.Code</span>
+                            <span class="read-badge @(selectedCurrency.IsActive ? "active" : "inactive")">
+                                @Text[selectedCurrency.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                            </span>
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-cur-name">@Text["ReadName"]</label>
+                            <input id="edit-cur-name" @bind="editCurrencyName" @bind:event="oninput" maxlength="200"
+                                   disabled="@(!selectedCurrency.IsActive || currencySaving)" />
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-cur-symbol">@Text["UnitSymbolLabel"]</label>
+                            <input id="edit-cur-symbol" @bind="editCurrencySymbol" @bind:event="oninput" maxlength="32"
+                                   disabled="@(!selectedCurrency.IsActive || currencySaving)" />
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-cur-precision">@Text["UnitPrecisionLabel"]</label>
+                            <select id="edit-cur-precision" @bind="editCurrencyPrecision" disabled="@(!selectedCurrency.IsActive || currencySaving)">
+                                @for (byte p = 0; p <= 6; p++)
+                                {
+                                    <option value="@p">@p</option>
+                                }
+                            </select>
+                        </div>
+
+                        @if (currencyDiscardConfirm)
+                        {
+                            <div class="write-confirm" role="alertdialog" aria-labelledby="cur-discard-text">
+                                <p id="cur-discard-text">@Text["WriteDiscardConfirm"]</p>
+                                <div class="write-actions">
+                                    <BitButton Size="BitSize.Small" OnClick="ConfirmCurrencyDiscard">@Text["WriteDiscard"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => currencyDiscardConfirm = false">@Text["WriteKeepEditing"]</BitButton>
+                                </div>
+                            </div>
+                        }
+
+                        @if (!currencyDiscardConfirm && currencyConfirmToggle is null)
+                        {
+                            <div class="write-actions">
+                                @if (selectedCurrency.IsActive)
+                                {
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!currencySaving && CurrencyEditDirty)" OnClick="SubmitCurrencyUpdateAsync">@Text["WriteSave"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!currencySaving)" OnClick="() => currencyConfirmToggle = false">@Text["WriteDeactivate"]</BitButton>
+                                }
+                                else
+                                {
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!currencySaving)" OnClick="() => currencyConfirmToggle = true">@Text["WriteActivate"]</BitButton>
+                                }
+                            </div>
+                        }
+                        else if (!currencyDiscardConfirm && currencyConfirmToggle is bool targetActive)
+                        {
+                            <div class="write-confirm" role="alertdialog" aria-labelledby="cur-confirm-text">
+                                <p id="cur-confirm-text">@Text[targetActive ? "WriteConfirmActivate" : "WriteConfirmDeactivate", selectedCurrency.Name]</p>
+                                <div class="write-actions">
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!currencySaving)" OnClick="ExecuteCurrencyToggleAsync">@Text["WriteConfirm"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!currencySaving)" OnClick="() => currencyConfirmToggle = null">@Text["WriteCancel"]</BitButton>
+                                </div>
+                            </div>
+                        }
+
+                        @if (currencySaving) { <p role="status">@Text["WriteSaving"]</p> }
+                        @if (currencySaved && !currencySaving) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+                        @if (currencyError is not null)
+                        {
+                            <p role="alert" class="write-error">@Text[currencyError]</p>
+                            @if (currencyError == "WriteConflict")
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadSelectedCurrencyAsync">@Text["WriteReload"]</BitButton>
+                            }
+                        }
+                    </form>
+                }
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createCurrencyOpen"
+           OnDismissing="OnCreateCurrencyDismissing"
+           Title="@Text["CurrencyCreateTitle"]" AriaLabel="@Text["CurrencyCreateTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            <form class="write-panel" @onsubmit:preventDefault>
+                <div class="read-field">
+                    <label for="create-cur-code">@Text["ReadCode"]</label>
+                    <input id="create-cur-code" @bind="createCurrencyCode" @bind:event="oninput" maxlength="3" dir="ltr" disabled="@currencySaving" />
+                    <span class="write-hint">@Text["CurrencyCodeHint"]</span>
+                </div>
+                <div class="read-field">
+                    <label for="create-cur-name">@Text["ReadName"]</label>
+                    <input id="create-cur-name" @bind="createCurrencyName" @bind:event="oninput" maxlength="200" disabled="@currencySaving" />
+                </div>
+                <div class="read-field">
+                    <label for="create-cur-symbol">@Text["UnitSymbolLabel"]</label>
+                    <input id="create-cur-symbol" @bind="createCurrencySymbol" @bind:event="oninput" maxlength="32" disabled="@currencySaving" />
+                </div>
+                <div class="read-field">
+                    <label for="create-cur-precision">@Text["UnitPrecisionLabel"]</label>
+                    <select id="create-cur-precision" @bind="createCurrencyPrecision" disabled="@currencySaving">
+                        @for (byte p = 0; p <= 6; p++)
+                        {
+                            <option value="@p">@p</option>
+                        }
+                    </select>
+                </div>
+
+                @if (createCurrencyDiscardConfirm)
+                {
+                    <div class="write-confirm" role="alertdialog" aria-labelledby="create-cur-discard-text">
+                        <p id="create-cur-discard-text">@Text["WriteDiscardConfirm"]</p>
+                        <div class="write-actions">
+                            <BitButton Size="BitSize.Small" OnClick="ConfirmCreateCurrencyDiscard">@Text["WriteDiscard"]</BitButton>
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => createCurrencyDiscardConfirm = false">@Text["WriteKeepEditing"]</BitButton>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="write-actions">
+                        <BitButton Size="BitSize.Small" IsEnabled="@(!currencySaving && !string.IsNullOrWhiteSpace(createCurrencyCode) && !string.IsNullOrWhiteSpace(createCurrencyName) && !string.IsNullOrWhiteSpace(createCurrencySymbol))"
+                                   OnClick="SubmitCreateCurrencyAsync">@Text["CreateSubmit"]</BitButton>
+                    </div>
+                }
+
+                @if (currencySaving) { <p role="status">@Text["WriteSaving"]</p> }
+                @if (currencyError is not null) { <p role="alert" class="write-error">@Text[currencyError]</p> }
+            </form>
+        </div>
+    </Body>
+</BitDialog>
+
 <BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="converterOpen"
            Title="@Text["UnitConverterTitle"]" AriaLabel="@Text["UnitConverterTitle"]"
            CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
@@ -648,6 +874,7 @@
 
     private const byte TabUnits = 0;
     private const byte TabConversions = 1;
+    private const byte TabCurrencies = 2;
     private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
     private static readonly UnitDimension[] AllDimensions = Enum.GetValues<UnitDimension>();
     private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
@@ -662,6 +889,7 @@
 
     private BitDataGrid<UnitSummary>? unitsGrid;
     private BitDataGrid<UnitConversionSummary>? conversionsGrid;
+    private BitDataGrid<CurrencySummary>? currenciesGrid;
     private IReadOnlyList<OrganizationScope> available = [];
     private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
         new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
@@ -715,6 +943,25 @@
     private long createToUnitId;
     private string createConversionFactorText = "1";
 
+    private bool currencyModalOpen;
+    private bool currencyEditMode;
+    private bool currencySaving;
+    private bool currencySaved;
+    private bool currencyDiscardConfirm;
+    private bool? currencyConfirmToggle;
+    private string? currencyError;
+    private CurrencySummary? selectedCurrency;
+    private string editCurrencyName = string.Empty;
+    private string editCurrencySymbol = string.Empty;
+    private byte editCurrencyPrecision;
+
+    private bool createCurrencyOpen;
+    private bool createCurrencyDiscardConfirm;
+    private string createCurrencyCode = string.Empty;
+    private string createCurrencyName = string.Empty;
+    private string createCurrencySymbol = string.Empty;
+    private byte createCurrencyPrecision = 2;
+
     private bool converterOpen;
     private bool calculating;
     private long calcFromUnitId;
@@ -756,6 +1003,11 @@
     private bool ConversionEditDirty => selectedConversion is not null && selectedConversion.IsActive
         && TryParseFactor(editConversionFactorText, out var parsed)
         && parsed != selectedConversion.Factor;
+
+    private bool CurrencyEditDirty => selectedCurrency is not null && selectedCurrency.IsActive
+        && (editCurrencyName.Trim() != selectedCurrency.Name
+            || editCurrencySymbol.Trim() != selectedCurrency.Symbol
+            || editCurrencyPrecision != selectedCurrency.PrecisionScale);
 
     protected override async Task OnParametersSetAsync() => await LoadAllAsync();
 
@@ -898,9 +1150,19 @@
 
     private Task ApplySearchAsync() => RefreshActiveGridAsync();
 
-    private Task RefreshActiveGridAsync() => activeTab == TabUnits
-        ? ReloadUnitsFromFirstPageAsync()
-        : ReloadConversionsFromFirstPageAsync();
+    private Task RefreshActiveGridAsync() => activeTab switch
+    {
+        TabUnits => ReloadUnitsFromFirstPageAsync(),
+        TabConversions => ReloadConversionsFromFirstPageAsync(),
+        _ => ReloadCurrenciesFromFirstPageAsync()
+    };
+
+    private async Task ReloadCurrenciesFromFirstPageAsync()
+    {
+        if (currenciesGrid is null) return;
+        if (currenciesGrid.CurrentPage <= 1) await currenciesGrid.RefreshAsync();
+        else await currenciesGrid.GoToPageAsync(1);
+    }
 
     private async Task ReloadUnitsFromFirstPageAsync()
     {
@@ -950,10 +1212,176 @@
         return new(res.Value.Items.ToList(), res.Value.Total);
     }
 
+    private async Task<BitDataGridReadResult<CurrencySummary>> ReadCurrenciesGridAsync(BitDataGridReadRequest req)
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0)
+            return new([], 0);
+
+        var pageSize = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / pageSize) + 1;
+        var res = await UnitService.ListCurrencies(CurrentScope, CurrentOrgId, new CurrencyListQuery(search, includeInactive, page, pageSize), req.CancellationToken);
+        if (!res.Succeeded || res.Value is null)
+            return new([], 0);
+
+        return new(res.Value.Items.ToList(), res.Value.Total);
+    }
+
     private void OpenActiveCreate()
     {
         if (activeTab == TabUnits) OpenCreateUnit();
-        else OpenCreateConversion();
+        else if (activeTab == TabConversions) OpenCreateConversion();
+        else OpenCreateCurrency();
+    }
+
+    private void OpenCreateCurrency()
+    {
+        createCurrencyCode = string.Empty;
+        createCurrencyName = string.Empty;
+        createCurrencySymbol = string.Empty;
+        createCurrencyPrecision = 2;
+        currencyError = null;
+        createCurrencyDiscardConfirm = false;
+        createCurrencyOpen = true;
+    }
+
+    private async Task OpenCurrencyModal(long id, bool edit)
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0) return;
+        currencySaving = false;
+        currencySaved = false;
+        currencyDiscardConfirm = false;
+        currencyConfirmToggle = null;
+        currencyError = null;
+
+        var res = await UnitService.GetCurrency(CurrentScope, CurrentOrgId, id);
+        if (!res.Succeeded || res.Value is null)
+        {
+            pageNotice = null;
+            pageError = res.Succeeded ? "ReadNotFound" : RolePermissionLocalization.FailureKey(res.Error!.Code);
+            return;
+        }
+
+        ApplySelectedCurrency(res.Value);
+        currencyEditMode = edit && scopeCanManage;
+        currencyModalOpen = true;
+    }
+
+    private void ApplySelectedCurrency(CurrencySummary cur)
+    {
+        selectedCurrency = cur;
+        editCurrencyName = cur.Name;
+        editCurrencySymbol = cur.Symbol;
+        editCurrencyPrecision = cur.PrecisionScale;
+    }
+
+    private async Task SubmitCreateCurrencyAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || currencySaving) return;
+        currencySaving = true;
+        currencyError = null;
+        try
+        {
+            var res = await UnitService.CreateCurrency(CurrentScope, new CreateCurrencyRequest(
+                CurrentOrgId, createCurrencyCode, createCurrencyName, createCurrencySymbol, createCurrencyPrecision));
+            if (!res.Succeeded || res.Value is null)
+            {
+                currencyError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            createCurrencyOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshActiveGridAsync();
+        }
+        finally
+        {
+            currencySaving = false;
+        }
+    }
+
+    private async Task SubmitCurrencyUpdateAsync()
+    {
+        if (CurrentScope is null || selectedCurrency is null || currencySaving) return;
+        currencySaving = true;
+        currencySaved = false;
+        currencyError = null;
+        try
+        {
+            var res = await UnitService.UpdateCurrency(CurrentScope, new UpdateCurrencyRequest(
+                selectedCurrency.OrganizationId, selectedCurrency.Id, editCurrencyName, editCurrencySymbol, editCurrencyPrecision, selectedCurrency.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                currencyError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            ApplySelectedCurrency(res.Value);
+            currencySaved = true;
+            await RefreshActiveGridAsync();
+        }
+        finally
+        {
+            currencySaving = false;
+        }
+    }
+
+    private async Task ExecuteCurrencyToggleAsync()
+    {
+        if (CurrentScope is null || selectedCurrency is null || currencyConfirmToggle is not bool target || currencySaving) return;
+        currencySaving = true;
+        currencySaved = false;
+        currencyError = null;
+        try
+        {
+            var res = await UnitService.SetCurrencyActive(CurrentScope, new SetCurrencyActiveRequest(
+                selectedCurrency.OrganizationId, selectedCurrency.Id, target, selectedCurrency.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                currencyConfirmToggle = null;
+                currencyError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            ApplySelectedCurrency(res.Value);
+            currencyConfirmToggle = null;
+            currencySaved = true;
+            await RefreshActiveGridAsync();
+        }
+        finally
+        {
+            currencySaving = false;
+        }
+    }
+
+    private async Task ReloadSelectedCurrencyAsync()
+    {
+        if (CurrentScope is null || selectedCurrency is null) return;
+        await OpenCurrencyModal(selectedCurrency.Id, currencyEditMode);
+    }
+
+    private void OnCurrencyModalDismissing(BitDialogDismissArgs args)
+    {
+        if (!currencyEditMode || !CurrencyEditDirty || currencySaving) return;
+        args.Cancel = true;
+        currencyDiscardConfirm = true;
+    }
+
+    private void ConfirmCurrencyDiscard()
+    {
+        currencyDiscardConfirm = false;
+        currencyModalOpen = false;
+    }
+
+    private void OnCreateCurrencyDismissing(BitDialogDismissArgs args)
+    {
+        if (currencySaving) return;
+        if (string.IsNullOrWhiteSpace(createCurrencyCode) && string.IsNullOrWhiteSpace(createCurrencyName) && string.IsNullOrWhiteSpace(createCurrencySymbol))
+            return;
+        args.Cancel = true;
+        createCurrencyDiscardConfirm = true;
+    }
+
+    private void ConfirmCreateCurrencyDiscard()
+    {
+        createCurrencyDiscardConfirm = false;
+        createCurrencyOpen = false;
     }
 
     private void OpenCreateUnit()

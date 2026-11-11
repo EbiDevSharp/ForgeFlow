@@ -127,7 +127,9 @@ public sealed record InventoryTransactionSummary(
     DateTime PostedAtUtc,
     int LineCount,
     long? QualityInspectionId = null,
-    string? QualityInspectionNumber = null);
+    string? QualityInspectionNumber = null,
+    long? PurchaseOrderId = null,
+    string? PurchaseOrderNumber = null);
 
 public sealed record InventoryTransactionDetails(
     InventoryTransactionSummary Summary,

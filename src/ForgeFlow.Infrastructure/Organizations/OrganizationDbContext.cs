@@ -6,6 +6,7 @@ using ForgeFlow.Domain.Boms;
 using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
+using ForgeFlow.Domain.Procurement;
 using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Quality;
 using ForgeFlow.Domain.Units;
@@ -29,6 +30,7 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
     public DbSet<Site> Sites => Set<Site>();
     public DbSet<Unit> Units => Set<Unit>();
     public DbSet<UnitConversion> UnitConversions => Set<UnitConversion>();
+    public DbSet<Currency> Currencies => Set<Currency>();
     public DbSet<ClassificationSet> ClassificationSets => Set<ClassificationSet>();
     public DbSet<Classification> Classifications => Set<Classification>();
     public DbSet<Item> Items => Set<Item>();
@@ -54,6 +56,9 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
     public DbSet<ItemLot> ItemLots => Set<ItemLot>();
     public DbSet<QualityInspection> QualityInspections => Set<QualityInspection>();
     public DbSet<QualityInspectionLine> QualityInspectionLines => Set<QualityInspectionLine>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+    public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
     public DbSet<OrganizationChange> OrganizationChanges => Set<OrganizationChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) => OrganizationModel.Configure(modelBuilder);
@@ -88,21 +93,22 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         if (entries.Length == 0) return 0;
         foreach (var entry in entries)
         {
-            if (entry.Entity is not (Organization or Site or Unit or UnitConversion
+            if (entry.Entity is not (Organization or Site or Unit or UnitConversion or Currency
                 or ClassificationSet or Classification or Item or ItemClassification
                 or ItemUnitConversion or AttributeDefinition or ItemAttributeValue
                 or ContextDimension or Bom or BomVersion or BomInput or BomOutput
                 or BomApplicability or BomApplicabilityCondition
                 or ProductionOrder or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext
                 or Warehouse or InventoryTransaction or InventoryLedgerEntry or InventoryBalance
-                or ItemLot or QualityInspection or QualityInspectionLine))
+                or ItemLot or QualityInspection or QualityInspectionLine
+                or Supplier or PurchaseOrder or PurchaseOrderLine))
             {
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             }
             if (entry.State == EntityState.Deleted && entry.Entity is not (ItemClassification or ItemAttributeValue
                 or BomInput or BomOutput or BomApplicability or BomApplicabilityCondition
                 or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext
-                or QualityInspectionLine))
+                or QualityInspectionLine or PurchaseOrderLine))
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             if (entry.State == EntityState.Modified)
             {
@@ -110,6 +116,7 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                 {
                     Unit => new[] { "Name", "Symbol", "PrecisionScale", "IsActive" },
                     UnitConversion or ItemUnitConversion => new[] { "Factor", "IsActive" },
+                    Currency => new[] { "Name", "Symbol", "PrecisionScale", "IsActive" },
                     ClassificationSet => new[] { "Name", "IsMandatory", "AllowMultiple", "IsActive" },
                     Classification => new[] { "Name", "ParentClassificationId", "IsActive" },
                     Item => new[] { "Name", "Description", "BaseUnitId", "CanBePurchased", "CanBeManufactured", "CanBeSold", "CanBeConsumed", "RequiresLotTracking", "QualityControlMode", "IsActive" },
@@ -129,6 +136,9 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                     ItemLot => new[] { "ManufactureDate", "ExpirationDate", "Notes" },
                     QualityInspection => new[] { "AcceptedBaseQuantity", "RejectedBaseQuantity", "RemainingBlockedBaseQuantity", "Status", "DefectReasonCode", "Notes", "InspectedAtUtc", "InspectedByActorId" },
                     QualityInspectionLine => Array.Empty<string>(),
+                    Supplier => new[] { "Name", "ContactName", "Phone", "Email", "Address", "Notes", "IsActive" },
+                    PurchaseOrder => new[] { "SupplierId", "OrderDate", "ExpectedDeliveryDate", "TargetWarehouseId", "CurrencyCode", "Notes", "CancellationReason", "Status", "ApprovedAtUtc", "ClosedAtUtc", "CancelledAtUtc" },
+                    PurchaseOrderLine => new[] { "ReceivedBaseQuantity" },
                     _ => new[] { "Name", "IsActive" }
                 };
                 if (entry.Properties.Any(p => p.IsModified && !allowedProps.Contains(p.Metadata.Name, StringComparer.Ordinal)))
@@ -194,6 +204,7 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         Site site => site.OrganizationId,
         Unit unit => unit.OrganizationId,
         UnitConversion conv => conv.OrganizationId,
+        Currency cur => cur.OrganizationId,
         ClassificationSet cs => cs.OrganizationId,
         Classification c => c.OrganizationId,
         Item i => i.OrganizationId,
@@ -219,6 +230,9 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         ItemLot lot => lot.OrganizationId,
         QualityInspection qi => qi.OrganizationId,
         QualityInspectionLine qil => qil.OrganizationId,
+        Supplier sup => sup.OrganizationId,
+        PurchaseOrder pur => pur.OrganizationId,
+        PurchaseOrderLine pul => pul.OrganizationId,
         _ => throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied)
     };
 
@@ -235,6 +249,9 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         InventoryBalance bal => bal.SiteId,
         QualityInspection qi => qi.SiteId,
         QualityInspectionLine qil => ChangeTracker.Entries<QualityInspection>().FirstOrDefault(q => q.Entity.Id == qil.QualityInspectionId)?.Entity.SiteId,
+        PurchaseOrder pur => pur.SiteId,
+        PurchaseOrderLine pul => ChangeTracker.Entries<PurchaseOrder>().FirstOrDefault(p => p.Entity.Id == pul.PurchaseOrderId)?.Entity.SiteId
+            ?? PurchaseOrders.AsNoTracking().Where(p => p.OrganizationId == pul.OrganizationId && p.Id == pul.PurchaseOrderId).Select(p => (long?)p.SiteId).FirstOrDefault(),
         _ => null
     };
 
@@ -252,9 +269,26 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
             .Select(e => ((QualityInspection)e.Entity).Id)
             .ToHashSet();
         var seenQualityLinesInspections = new HashSet<long>();
+        var headersWithPurchaseEvent = entries
+            .Where(e => e.Entity is PurchaseOrder)
+            .Select(e => ((PurchaseOrder)e.Entity).Id)
+            .ToHashSet();
+        var seenPurchaseLinesOrders = new HashSet<long>();
 
         foreach (var entry in entries)
         {
+            if (entry.Entity is PurchaseOrderLine pLine)
+            {
+                if (!headersWithPurchaseEvent.Contains(pLine.PurchaseOrderId) && seenPurchaseLinesOrders.Add(pLine.PurchaseOrderId))
+                {
+                    var code = entry.State == EntityState.Modified && entry.Property("ReceivedBaseQuantity").IsModified
+                        ? "PurchaseOrder.Received"
+                        : "PurchaseOrder.Updated";
+                    yield return new PendingChange(entry, code,
+                        JsonSerializer.Serialize(new { PurchaseOrderId = pLine.PurchaseOrderId }, AuditJson));
+                }
+                continue;
+            }
             if (entry.Entity is QualityInspectionLine qLine)
             {
                 if (!headersWithQualityEvent.Contains(qLine.QualityInspectionId) && seenQualityLinesInspections.Add(qLine.QualityInspectionId))
@@ -312,6 +346,54 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
 
     private static IEnumerable<PendingChange> CaptureChanges(EntityEntry entry)
     {
+        if (entry.Entity is Supplier sup)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "Supplier.Created",
+                    JsonSerializer.Serialize(new { sup.Code, sup.Name, sup.IsActive }, AuditJson));
+                yield break;
+            }
+            if (entry.Property("IsActive").IsModified)
+            {
+                yield return new PendingChange(entry, sup.IsActive ? "Supplier.Activated" : "Supplier.Deactivated",
+                    JsonSerializer.Serialize(new { sup.Code, sup.IsActive }, AuditJson));
+            }
+            if (entry.Properties.Any(p => p.IsModified && p.Metadata.Name is not ("IsActive" or "UpdatedAtUtc" or "UpdatedByActorId")))
+            {
+                yield return new PendingChange(entry, "Supplier.Updated",
+                    JsonSerializer.Serialize(new { sup.Code, sup.Name, sup.ContactName, sup.Phone, sup.Email }, AuditJson));
+            }
+            yield break;
+        }
+
+        if (entry.Entity is PurchaseOrder pur)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "PurchaseOrder.Created",
+                    JsonSerializer.Serialize(new { pur.OrderNumber, pur.SiteId, pur.SupplierId, pur.OrderDate, pur.CurrencyCode }, AuditJson));
+                yield break;
+            }
+            if (entry.Property("Status").IsModified)
+            {
+                var evCode = pur.Status switch
+                {
+                    PurchaseOrderStatus.Approved => "PurchaseOrder.Approved",
+                    PurchaseOrderStatus.PartiallyReceived or PurchaseOrderStatus.Received => "PurchaseOrder.Received",
+                    PurchaseOrderStatus.Closed => "PurchaseOrder.Closed",
+                    PurchaseOrderStatus.Cancelled => "PurchaseOrder.Cancelled",
+                    _ => "PurchaseOrder.Updated"
+                };
+                yield return new PendingChange(entry, evCode,
+                    JsonSerializer.Serialize(new { pur.OrderNumber, Status = pur.Status.ToString(), pur.SupplierId }, AuditJson));
+                yield break;
+            }
+            yield return new PendingChange(entry, "PurchaseOrder.Updated",
+                JsonSerializer.Serialize(new { pur.OrderNumber, pur.SupplierId, pur.OrderDate, pur.ExpectedDeliveryDate }, AuditJson));
+            yield break;
+        }
+
         if (entry.Entity is ItemLot lot)
         {
             yield return new PendingChange(entry, "ItemLot.Updated",
@@ -701,6 +783,38 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
             yield break;
         }
 
+        if (entry.Entity is Currency cur)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "Currency.Created", JsonSerializer.Serialize(new
+                {
+                    Before = (object?)null,
+                    After = new { cur.Code, cur.Name, cur.Symbol, cur.PrecisionScale, cur.IsActive }
+                }, AuditJson));
+                yield break;
+            }
+            if (entry.Properties.Any(p => p.IsModified && p.Metadata.Name is not ("IsActive" or "UpdatedAtUtc" or "UpdatedByActorId")))
+            {
+                yield return new PendingChange(entry, "Currency.Updated", JsonSerializer.Serialize(new
+                {
+                    cur.Code,
+                    After = new { cur.Name, cur.Symbol, cur.PrecisionScale }
+                }, AuditJson));
+            }
+            if (entry.Property("IsActive").IsModified)
+            {
+                yield return new PendingChange(entry, (bool)entry.Property("IsActive").CurrentValue! ? "Currency.Activated" : "Currency.Deactivated",
+                    JsonSerializer.Serialize(new
+                    {
+                        cur.Code,
+                        Before = new { IsActive = entry.Property("IsActive").OriginalValue },
+                        After = new { IsActive = entry.Property("IsActive").CurrentValue }
+                    }, AuditJson));
+            }
+            yield break;
+        }
+
         var prefix = entry.Entity is Organization ? "Organization" : "Site";
         if (entry.State == EntityState.Added)
         {
@@ -769,6 +883,10 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
             if (convEntries.Any(e => ((UnitConversion)e.Entity).IsActive || e.State == EntityState.Added || e.Property("Factor").IsModified) && !effectiveActive)
                 throw new InvalidOperationException(UnitErrors.ParentOrganizationInactive);
 
+            var currencyEntries = entries.Where(e => e.Entity is Currency c && c.OrganizationId == orgId).ToArray();
+            if (currencyEntries.Any(e => ((Currency)e.Entity).IsActive || e.State == EntityState.Added || e.Property("Name").IsModified || e.Property("Symbol").IsModified || e.Property("PrecisionScale").IsModified) && !effectiveActive)
+                throw new InvalidOperationException(UnitErrors.ParentOrganizationInactive);
+
             var itemMasterChanged = entries.Any(e => e.Entity is ClassificationSet or Classification or Item or ItemClassification or ItemUnitConversion or AttributeDefinition or ItemAttributeValue
                 && ResolveEntityOrganizationId(e.Entity) == orgId
                 && (e.State == EntityState.Added
@@ -811,6 +929,15 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                 && (e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted));
             if (qualityChanged && !effectiveActive)
                 throw new InvalidOperationException(QualityErrors.ParentOrganizationInactive);
+
+            var procurementChanged = entries.Any(e => e.Entity is Supplier or PurchaseOrder or PurchaseOrderLine
+                && ResolveEntityOrganizationId(e.Entity) == orgId
+                && (e.State == EntityState.Added
+                    || e.State == EntityState.Deleted
+                    || (e.Entity is Supplier s && (s.IsActive || e.Properties.Any(p => p.IsModified && p.Metadata.Name != "IsActive")))
+                    || e.Entity is PurchaseOrder or PurchaseOrderLine));
+            if (procurementChanged && !effectiveActive)
+                throw new InvalidOperationException(ProcurementErrors.ParentOrganizationInactive);
         }
     }
 }

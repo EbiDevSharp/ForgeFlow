@@ -349,7 +349,33 @@ public sealed class ResourceContractTests
             ["HelpIssueSummaryLabel"] = 0, ["HelpIssueSummaryPlaceholder"] = 0,
             ["HelpIssueSubmitBtn"] = 0, ["HelpIssueSubmittedNotice"] = 1, ["HelpSupportDescription"] = 0,
             ["CommandPaletteTitle"] = 0, ["CommandPalettePlaceholder"] = 0,
-            ["NotifRoleOrgMembership"] = 0, ["NotifRoleSiteMembership"] = 0, ["NotifRoleDirectPermissions"] = 0
+            ["NotifRoleOrgMembership"] = 0, ["NotifRoleSiteMembership"] = 0, ["NotifRoleDirectPermissions"] = 0,
+            ["ProcurementNavGroup"] = 0, ["Suppliers"] = 0, ["PurchaseOrders"] = 0,
+            ["PermPageProcurement"] = 0, ["PermOpManageSuppliers"] = 0, ["PermOpManageOrders"] = 0, ["PermOpReceiveOrders"] = 0,
+            ["SuppliersCaption"] = 0, ["SupCreateButton"] = 0, ["SupCreateTitle"] = 0, ["SupDetailTitle"] = 0,
+            ["SupContactLabel"] = 0, ["SupAddressLabel"] = 0,
+            ["ProcErrorSupplierInactive"] = 0, ["ProcErrorContactInvalid"] = 0, ["ProcErrorAddressInvalid"] = 0,
+            ["PurchaseOrdersCaption"] = 0, ["ProcPoCreateButton"] = 0, ["ProcPoCreateTitle"] = 0, ["ProcPoEditTitle"] = 0,
+            ["ProcPoDetailTitle"] = 0, ["ProcPoNumberLabel"] = 0, ["ProcSupplierLabel"] = 0, ["ProcAllSuppliersOption"] = 0,
+            ["ProcOrderDateLabel"] = 0, ["ProcExpectedDateLabel"] = 0, ["ProcTargetWarehouseLabel"] = 0,
+            ["ProcCurrencyLabel"] = 0,
+            ["ProcProgressColumn"] = 0, ["ProcEstimatedTotalLabel"] = 0, ["ProcLinesSection"] = 0, ["ProcAddLineBtn"] = 0,
+            ["ProcUnitPriceLabel"] = 0, ["ProcOrderedCol"] = 0, ["ProcReceivedCol"] = 0, ["ProcRemainingCol"] = 0,
+            ["ProcReceiptsHistoryTitle"] = 0, ["ProcPostedBadge"] = 0,
+            ["ProcApproveBtn"] = 0, ["ProcReceiveBtn"] = 0, ["ProcShortCloseBtn"] = 0, ["ProcCancelBtn"] = 0,
+            ["ProcReceiveTitle"] = 0, ["ProcPostReceiptBtn"] = 0, ["ProcReceiptPostedNotice"] = 1,
+            ["ProcStatusApproved"] = 0, ["ProcStatusPartial"] = 0, ["ProcStatusReceived"] = 0, ["ProcStatusClosed"] = 0,
+            ["ProcErrorCurrencyInvalid"] = 0, ["ProcErrorEmptyOrder"] = 0, ["ProcErrorDuplicateItem"] = 0,
+            ["ProcErrorItemNotPurchasable"] = 0, ["ProcErrorUnitPriceInvalid"] = 0, ["ProcErrorNotDraft"] = 0,
+            ["ProcErrorInvalidTransition"] = 0, ["ProcErrorHasReceiptsCannotCancel"] = 0, ["ProcErrorOverReceipt"] = 0,
+            ["ProcPoModalSubtitle"] = 0, ["ProcGeneralInfoSection"] = 0, ["ProcSelectSupplierPlaceholder"] = 0,
+            ["ProcSelectDatePlaceholder"] = 0, ["ProcSelectWarehousePlaceholder"] = 0, ["ProcNotesOptionalPlaceholder"] = 0,
+            ["ProcSelectItemPlaceholder"] = 0, ["ProcLineAmountLabel"] = 0, ["ProcGrandTotalLabel"] = 0,
+            ["ProcErrorSupplierRequired"] = 0, ["ProcErrorItemRequired"] = 0,
+            ["UnitCurrenciesTab"] = 0, ["CurrencyCreateButton"] = 0, ["CurrencyEditTitle"] = 0,
+            ["CurrencyDetailTitle"] = 0, ["CurrencyCreateTitle"] = 0, ["CurrencyCodeHint"] = 0,
+            ["UnitErrorCurrencyInactive"] = 0,
+            ["RptColOnOrderQty"] = 0
         }.Concat(ForgeFlow.Application.Audit.AuditEventCatalog.All.ToDictionary(d => d.ResourceKey, _ => 0))
          .ToDictionary(kv => kv.Key, kv => kv.Value)
     };
@@ -468,7 +494,13 @@ public sealed class ResourceContractTests
              "NotifPref_FailedSignInTitle", "NotifPref_FailedSignInDesc",
              "NotifPref_RoleChangedTitle", "NotifPref_RoleChangedDesc",
              "NotifPref_MyOrdersTitle", "NotifPref_MyOrdersDesc",
-             "NotifRoleOrgMembership", "NotifRoleSiteMembership", "NotifRoleDirectPermissions"]);
+             "NotifRoleOrgMembership", "NotifRoleSiteMembership", "NotifRoleDirectPermissions",
+             "PermPageProcurement", "PermOpManageSuppliers", "PermOpManageOrders", "PermOpReceiveOrders",
+             "ProcErrorSupplierInactive", "ProcErrorContactInvalid", "ProcErrorAddressInvalid",
+             "ProcErrorCurrencyInvalid", "ProcErrorEmptyOrder", "ProcErrorDuplicateItem",
+             "ProcErrorItemNotPurchasable", "ProcErrorUnitPriceInvalid", "ProcErrorNotDraft",
+             "ProcErrorInvalidTransition", "ProcErrorHasReceiptsCannotCancel", "ProcErrorOverReceipt",
+             "CurrencyCreateButton", "CurrencyEditTitle", "CurrencyDetailTitle", "UnitErrorCurrencyInactive"]);
         used[nameof(SharedResources)].UnionWith(ForgeFlow.Application.Audit.AuditEventCatalog.All.Select(d => d.ResourceKey));
         Assert.Equal(Contracts[nameof(SharedResources)].Keys.Order(), used[nameof(SharedResources)].Order());
     }

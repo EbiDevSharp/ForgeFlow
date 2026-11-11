@@ -81,6 +81,13 @@ public sealed class UnitTests
 
         public Task<OrganizationResult<SeedStandardUnitsResult>> SeedStandardUnits(long organizationId, OrganizationWriteAccess access, CancellationToken ct)
             => Task.FromResult(OrganizationResult<SeedStandardUnitsResult>.Success(new SeedStandardUnitsResult(14, 7)));
+
+        public Task<OrganizationPage<CurrencySummary>> ListCurrencies(long organizationId, CurrencyListQuery query, CancellationToken ct) => throw new NotImplementedException();
+        public Task<IReadOnlyList<CurrencySummary>> ListActiveCurrencies(long organizationId, CancellationToken ct) => throw new NotImplementedException();
+        public Task<CurrencySummary?> GetCurrency(long organizationId, long id, CancellationToken ct) => throw new NotImplementedException();
+        public Task<OrganizationResult<CurrencySummary>> CreateCurrency(CreateCurrencyRequest request, OrganizationWriteAccess access, CancellationToken ct) => throw new NotImplementedException();
+        public Task<OrganizationResult<CurrencySummary>> UpdateCurrency(long organizationId, long id, byte[] version, string? name, string? symbol, byte precisionScale, OrganizationWriteAccess access, CancellationToken ct) => throw new NotImplementedException();
+        public Task<OrganizationResult<CurrencySummary>> SetCurrencyActive(long organizationId, long id, byte[] version, bool isActive, OrganizationWriteAccess access, CancellationToken ct) => throw new NotImplementedException();
     }
 
     [Fact]

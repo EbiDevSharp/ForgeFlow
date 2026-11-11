@@ -194,6 +194,7 @@
             inventoryScopes = await ReadScopes.LoadInventoryScopesAsync();
             reportScopes = await ReadScopes.LoadReportScopesAsync();
             qualityScopes = await ReadScopes.LoadQualityScopesAsync();
+            procurementScopes = await ReadScopes.LoadProcurementScopesAsync();
             diagnosticScopes = await ReadScopes.LoadDiagnosticScopesAsync();
         }
         catch
@@ -210,6 +211,7 @@
             inventoryScopes = [];
             reportScopes = [];
             qualityScopes = [];
+            procurementScopes = [];
             diagnosticScopes = [];
         }
         StateHasChanged();
@@ -261,7 +263,7 @@
                 (Text["MyPreferencesTitle"], "/account/preferences"),
                 (Text["ChangePasswordTitle"], "/account/change-password")
             };
-            foreach (var item in MasterDataItems.Concat(InventoryItems).Concat(ProductionItems).Concat(QualityItems).Concat(ReportItems).Concat(SettingsItems))
+            foreach (var item in MasterDataItems.Concat(ProcurementItems).Concat(InventoryItems).Concat(ProductionItems).Concat(QualityItems).Concat(ReportItems).Concat(SettingsItems))
             {
                 if (!string.IsNullOrWhiteSpace(item.Text) && !string.IsNullOrWhiteSpace(item.Url))
                     all.Add((item.Text, item.Url));
@@ -314,6 +316,7 @@
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> inventoryScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> reportScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> qualityScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> procurementScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> diagnosticScopes = [];
 
     // The framework stylesheet ships only a few glyphs, so the shell uses its own CSS-mask icons (app.css, .ff-icon--*).
@@ -334,7 +337,7 @@
                 roleScopes.Count, ",", auditScopes.Count, ",", unitScopes.Count, ",",
                 itemScopes.Count, ",", bomScopes.Count, ",", productionOrderScopes.Count, ",",
                 inventoryScopes.Count, ",", reportScopes.Count, ",", qualityScopes.Count, ",",
-                diagnosticScopes.Count);
+                procurementScopes.Count, ",", diagnosticScopes.Count);
             if (string.Equals(navSignature, sig, StringComparison.Ordinal))
                 return cachedNavItems;
 
@@ -346,6 +349,11 @@
             if (masterData.Count > 0)
             {
                 items.Add(new() { Text = Text["MasterDataNavGroup"], Icon = Icon("catalog"), IsExpanded = false, ChildItems = masterData });
+            }
+            var procurement = ProcurementItems;
+            if (procurement.Count > 0)
+            {
+                items.Add(new() { Text = Text["ProcurementNavGroup"], Icon = Icon("procurement"), IsExpanded = false, ChildItems = procurement });
             }
             var inventory = InventoryItems;
             if (inventory.Count > 0)
@@ -375,6 +383,20 @@
             cachedNavItems = items;
             navSignature = sig;
             return cachedNavItems;
+        }
+    }
+
+    private List<BitNavItem> ProcurementItems
+    {
+        get
+        {
+            var items = new List<BitNavItem>();
+            if (procurementScopes.Count > 0)
+            {
+                items.Add(new() { Text = Text["Suppliers"], Icon = Icon("suppliers"), Url = "/suppliers", Match = BitNavMatch.Exact });
+                items.Add(new() { Text = Text["PurchaseOrders"], Icon = Icon("purchase-orders"), Url = "/purchase-orders", Match = BitNavMatch.Exact });
+            }
+            return items;
         }
     }
 
