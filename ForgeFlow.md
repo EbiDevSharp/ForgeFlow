@@ -3837,3 +3837,20 @@ ode .\scripts\drafts.test.mjs: **19 pass, 0 fail**.
   - `node .\verification\slice01-ui\browser-check.cjs`: **4/4 pass** (`fa-IR` / `en-US`, `1440px` / `320px`).
 - **Slice 12 (`12-reservations-dashboard`) Status: ACCEPTED (`12.6`)** (2026-11-11): User reviewed live UI on `https://localhost:5001` (`/`, `/inventory`, `/production-orders`, `/reports`), approved Slice 12, and authorized git commit & push and advancing to the next work.
 - **Remaining Acceptance Gaps**: None blocking Slice 12 acceptance.
+
+## Post-Slice 12 Brand & Shell UI Refinement (Favicon, Login & 5-Group Sidebar Shell) — 2026-11-11
+
+- **Brand Assets & Favicon (`wwwroot/`)**:
+  - Added brand icons, symbol marks, and favicon set (`favicon.{ico,png,svg}`, `images/brand/forgeflow-app-icon.{svg,png}`, `forgeflow-logo-horizontal.{svg,png}`, `forgeflow-symbol.{svg,png}`, `forgeflow-symbol-mono-{dark,white}.{svg,png}`, plus crisp light/dark sidebar lockups `forgeflow-sidebar-logo-{light,dark}.svg`) and wired `<link rel="icon">` / `apple-touch-icon` in [`App.razor`](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/App.razor).
+- **Login Page Redesign (`Login.razor` & `app.css`)**:
+  - Replaced inline `F` badge with centered `72x72px` `forgeflow-app-icon.svg`, centered title/subtitle, `48px` rounded-10px inputs (`#0c1322` input / `#131c2e` card / `#080f1e` page 3-layer dark hierarchy), `#0b4ab8` (light) / `#1a6adb` (dark) primary submit & active language pill buttons.
+- **5-Group Sidebar & `64px` Header/Breadcrumb Shell (`MainLayout.razor`, `auth-ui.mjs`, `app.css`)**:
+  - Replaced `BitNavPanel` with a `260px` (`72px` desktop-collapsed rail + mobile `<1024px` slide-over drawer) collapsible 5-section sidebar: ungrouped `Home` plus 4 collapsible accordion groups (`Production`, `Inventory`, `Analytics` eliminating duplicate `"Reports"`, and `Administration` / `AdminNavGroup`) starting collapsed by default on login and refresh, pinned top brand lockup + scrollable nav list + `38px` rows + `3px` inline-start active bar (`#0b4ab8` light / `#7cc4ff` dark).
+  - Updated top `64px` header with panel toggle button (`.ff-sidebar-toggle`), live RTL/LTR breadcrumb (`Section ‹ Page`), language button, notification bell, and `#0b4ab8` / `#1a6adb` user menu pill.
+- **Verification Evidence (2026-11-11, after final edit)**:
+  - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Targeted UI/Contract/Scanner suite (`RoleManagementPageTests|ResourceContractTests|ShellRenderingTests|HardcodedDisplayTextScannerTests`): **Passed: 38, Failed: 0, Skipped: 0, Total: 38** (including `MainLayout_orders_navigation_into_five_clean_sections` verifying all named groups start collapsed).
+  - Full non-SQL + HTTP suite (`FORGEFLOW_AUTH_HTTP_TESTS=1`, `FORGEFLOW_TEST_SQLSERVER=''`), including updated [`RoleManagementPageTests.cs`](file:///d:/Projects/ForgeFlow/tests/ForgeFlow.Web.Tests/RoleManagementPageTests.cs) & [`ResourceContractTests.cs`](file:///d:/Projects/ForgeFlow/tests/ForgeFlow.Web.Tests/ResourceContractTests.cs): **Passed: 393, Failed: 0, Skipped: 62, Total: 455**.
+  - Live HTTP verification (`200` on `/account/login`, `/favicon.svg`, and brand SVGs) + `node .\verification\slice01-ui\browser-check.cjs`: **4/4 pass** (`fa-IR` / `en-US`, `1440px` / `320px`).
+- **Status: ACCEPTED** (2026-11-11): User verified live UI on `https://localhost:5001` (including collapsed-by-default accordion behavior on login/refresh) and authorized commit & push.
+- **Remaining Acceptance Gaps**: None.

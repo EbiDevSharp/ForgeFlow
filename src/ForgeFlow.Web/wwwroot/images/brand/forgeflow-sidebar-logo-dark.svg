@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="220" viewBox="0 0 880 220" fill="none">
+<defs>
+<linearGradient id="ff-b-d" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0B6BF2"/><stop offset="1" stop-color="#1E9BFF"/></linearGradient>
+<linearGradient id="ff-c-d" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#189BF8"/><stop offset="1" stop-color="#22D3EE"/></linearGradient>
+</defs>
+<g transform="translate(8 6) scale(.44)">
+<path d="M148 64H408C397 112 367 139 321 139H207C165 139 132 158 109 194C118 133 126 64 148 64Z" fill="url(#ff-b-d)"/>
+<path d="M106 185H344C332 233 301 260 256 260H169C130 260 96 280 73 314C81 257 89 214 106 185Z" fill="url(#ff-c-d)"/>
+<path d="M79 327C119 292 165 291 204 320L329 414H220L141 354C122 340 101 330 79 327Z" fill="#0B5ED7"/>
+<rect x="52" y="354" width="40" height="40" rx="5" fill="#189BF8"/>
+<rect x="100" y="316" width="40" height="40" rx="5" fill="#22D3EE"/>
+</g>
+<text x="235" y="146" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="108" font-weight="800" letter-spacing="-3" fill="#F8FAFC">Forge</text>
+<text x="530" y="146" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="108" font-weight="800" letter-spacing="-3" fill="#38BDF8">Flow</text>
+</svg>

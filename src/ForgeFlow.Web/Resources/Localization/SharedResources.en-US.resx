@@ -183,8 +183,8 @@
   <data name="Organizations" xml:space="preserve">
     <value>Organizations</value>
   </data>
-  <data name="Settings" xml:space="preserve">
-    <value>Settings</value>
+  <data name="AdminNavGroup" xml:space="preserve">
+    <value>Administration</value>
   </data>
   <data name="ReadName" xml:space="preserve">
     <value>Name</value>
@@ -752,9 +752,6 @@
   </data>
   <data name="AuditSystemActor" xml:space="preserve">
     <value>System / Anonymous</value>
-  </data>
-  <data name="MasterDataNavGroup" xml:space="preserve">
-    <value>Master Data &amp; Engineering</value>
   </data>
   <data name="PermPageUnits" xml:space="preserve">
     <value>Units of Measure</value>
@@ -1786,7 +1783,7 @@
     <value>Reports</value>
   </data>
   <data name="ReportsNavGroup" xml:space="preserve">
-    <value>Reports</value>
+    <value>Analytics</value>
   </data>
   <data name="ReportsCaption" xml:space="preserve">
     <value>Material shortage net requirements and production consumption vs yield variance.</value>
@@ -2168,7 +2165,6 @@
   <data name="UserMenuFirstLoginNotice" xml:space="preserve"><value>This is your first sign-in</value></data>
   <data name="PermPageQuality" xml:space="preserve"><value>Quality Control &amp; Traceability</value></data>
   <data name="PermOpManageQuality" xml:space="preserve"><value>Manage Quality Holds &amp; Dispositions</value></data>
-  <data name="QualityNavGroup" xml:space="preserve"><value>Quality</value></data>
   <data name="QualityControl" xml:space="preserve"><value>Quality Control</value></data>
   <data name="LotTraceability" xml:space="preserve"><value>Lot Traceability</value></data>
   <data name="QualityCaption" xml:space="preserve"><value>Quarantine holds, inspection measurements, partial dispositions, and lot expiration tracking.</value></data>
@@ -2397,7 +2393,6 @@
   <data name="NotifRoleOrgMembership" xml:space="preserve"><value>Organization membership</value></data>
   <data name="NotifRoleSiteMembership" xml:space="preserve"><value>Site membership</value></data>
   <data name="NotifRoleDirectPermissions" xml:space="preserve"><value>Direct permissions</value></data>
-  <data name="ProcurementNavGroup" xml:space="preserve"><value>Procurement</value></data>
   <data name="Suppliers" xml:space="preserve"><value>Suppliers</value></data>
   <data name="PurchaseOrders" xml:space="preserve"><value>Purchase orders</value></data>
   <data name="PermPageProcurement" xml:space="preserve"><value>Procurement</value></data>

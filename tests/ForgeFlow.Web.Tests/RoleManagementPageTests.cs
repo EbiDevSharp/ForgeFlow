@@ -270,7 +270,7 @@ public sealed class RoleManagementPageTests
     }
 
     [Fact]
-    public void MainLayout_omits_Settings_parent_menu_when_actor_has_no_accessible_child_items()
+    public void MainLayout_omits_Admin_section_when_actor_has_no_accessible_child_items()
     {
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
         var layout = new MainLayout();
@@ -281,21 +281,23 @@ public sealed class RoleManagementPageTests
         var localizer = services.GetRequiredService<IStringLocalizer<SharedResources>>();
         typeof(MainLayout).GetProperty("Text", flags)!.SetValue(layout, localizer);
 
-        var navItemsWhenEmpty = (IList<BitNavItem>)typeof(MainLayout).GetProperty("NavigationItems", flags)!.GetValue(layout)!;
-        var singleHome = Assert.Single(navItemsWhenEmpty);
+        var navSectionsWhenEmpty = (IReadOnlyList<MainLayout.NavSectionDescriptor>)typeof(MainLayout).GetProperty("NavSections", flags)!.GetValue(layout)!;
+        var singleSection = Assert.Single(navSectionsWhenEmpty);
+        var singleHome = Assert.Single(singleSection.Items);
         Assert.Equal("/", singleHome.Url);
 
         typeof(MainLayout).GetField("roleScopes", flags)!.SetValue(
             layout, new List<OrganizationScope> { new OrganizationScope.Organization(1) });
-        var navItemsWithRoles = (IList<BitNavItem>)typeof(MainLayout).GetProperty("NavigationItems", flags)!.GetValue(layout)!;
-        Assert.Equal(2, navItemsWithRoles.Count);
-        var settingsGroup = navItemsWithRoles[1];
-        var roleChild = Assert.Single(settingsGroup.ChildItems);
+        var navSectionsWithRoles = (IReadOnlyList<MainLayout.NavSectionDescriptor>)typeof(MainLayout).GetProperty("NavSections", flags)!.GetValue(layout)!;
+        Assert.Equal(2, navSectionsWithRoles.Count);
+        var adminSection = navSectionsWithRoles[1];
+        Assert.Equal(localizer["AdminNavGroup"].Value, adminSection.Title);
+        var roleChild = Assert.Single(adminSection.Items);
         Assert.Equal("/roles", roleChild.Url);
     }
 
     [Fact]
-    public void MainLayout_orders_navigation_groups_by_workflow_priority_and_keeps_them_collapsed()
+    public void MainLayout_orders_navigation_into_five_clean_sections()
     {
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
         var layout = new MainLayout();
@@ -307,23 +309,23 @@ public sealed class RoleManagementPageTests
         typeof(MainLayout).GetProperty("Text", flags)!.SetValue(layout, localizer);
 
         var scope = new List<OrganizationScope> { new OrganizationScope.Organization(1) };
-        foreach (var field in new[] { "unitScopes", "bomScopes", "routingScopes", "procurementScopes", "inventoryScopes", "productionOrderScopes", "qualityScopes", "reportScopes", "orgScopes" })
+        foreach (var field in new[] { "unitScopes", "itemScopes", "bomScopes", "routingScopes", "procurementScopes", "inventoryScopes", "productionOrderScopes", "qualityScopes", "reportScopes", "orgScopes" })
             typeof(MainLayout).GetField(field, flags)!.SetValue(layout, scope);
 
-        var navItems = (IList<BitNavItem>)typeof(MainLayout).GetProperty("NavigationItems", flags)!.GetValue(layout)!;
-        Assert.Equal(["/units", "/boms", "/work-centers", "/routings"], navItems[1].ChildItems.Select(c => c.Url ?? string.Empty).ToArray());
+        var navSections = (IReadOnlyList<MainLayout.NavSectionDescriptor>)typeof(MainLayout).GetProperty("NavSections", flags)!.GetValue(layout)!;
+        Assert.Equal(5, navSections.Count);
+        Assert.Null(navSections[0].Title);
+        Assert.Equal(["/production-orders", "/boms", "/work-centers", "/routings", "/quality"], navSections[1].Items.Select(c => c.Url).ToArray());
+        Assert.Equal(["/inventory", "/traceability", "/purchase-orders", "/suppliers", "/items", "/units"], navSections[2].Items.Select(c => c.Url).ToArray());
         Assert.Equal(
             [
-                localizer["Home"].Value,
-                localizer["MasterDataNavGroup"].Value,
-                localizer["ProcurementNavGroup"].Value,
-                localizer["InventoryNavGroup"].Value,
                 localizer["ProductionNavGroup"].Value,
-                localizer["QualityNavGroup"].Value,
+                localizer["InventoryNavGroup"].Value,
                 localizer["ReportsNavGroup"].Value,
-                localizer["Settings"].Value
+                localizer["AdminNavGroup"].Value
             ],
-            navItems.Select(x => x.Text).ToArray());
-        Assert.All(navItems.Skip(1), group => Assert.False(group.IsExpanded));
+            navSections.Skip(1).Select(x => x.Title!).ToArray());
+        var isExpanded = typeof(MainLayout).GetMethod("IsSectionExpanded", flags)!;
+        Assert.All(navSections.Skip(1), section => Assert.False((bool)isExpanded.Invoke(layout, [section.Key])!));
     }
 }

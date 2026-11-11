@@ -183,8 +183,8 @@
   <data name="Organizations" xml:space="preserve">
     <value>سازمان‌ها</value>
   </data>
-  <data name="Settings" xml:space="preserve">
-    <value>تنظیمات</value>
+  <data name="AdminNavGroup" xml:space="preserve">
+    <value>مدیریت</value>
   </data>
   <data name="ReadName" xml:space="preserve">
     <value>نام</value>
@@ -752,9 +752,6 @@
   </data>
   <data name="AuditSystemActor" xml:space="preserve">
     <value>سیستم / ناشناس</value>
-  </data>
-  <data name="MasterDataNavGroup" xml:space="preserve">
-    <value>اطلاعات پایه و مهندسی</value>
   </data>
   <data name="PermPageUnits" xml:space="preserve">
     <value>واحدهای سنجش</value>
@@ -1786,7 +1783,7 @@
     <value>گزارش‌ها</value>
   </data>
   <data name="ReportsNavGroup" xml:space="preserve">
-    <value>گزارش‌ها</value>
+    <value>تحلیل و گزارش</value>
   </data>
   <data name="ReportsCaption" xml:space="preserve">
     <value>گزارش کسری مواد اولیه و مغایرت مصرف و بازده تولید.</value>
@@ -2168,7 +2165,6 @@
   <data name="UserMenuFirstLoginNotice" xml:space="preserve"><value>این اولین ورود شماست</value></data>
   <data name="PermPageQuality" xml:space="preserve"><value>کنترل کیفیت و ردیابی بچ</value></data>
   <data name="PermOpManageQuality" xml:space="preserve"><value>مدیریت بازرسی‌ها و تصمیمات کیفی</value></data>
-  <data name="QualityNavGroup" xml:space="preserve"><value>کنترل کیفیت</value></data>
   <data name="QualityControl" xml:space="preserve"><value>بازرسی و قرنطینه</value></data>
   <data name="LotTraceability" xml:space="preserve"><value>ردیابی لات/بچ</value></data>
   <data name="QualityCaption" xml:space="preserve"><value>مسدودسازی قرنطینه، ثبت نتایج آزمایش، تصمیم‌گیری جزئی و مدیریت تاریخ انقضای لات‌ها.</value></data>
@@ -2397,7 +2393,6 @@
   <data name="NotifRoleOrgMembership" xml:space="preserve"><value>عضویت سازمانی</value></data>
   <data name="NotifRoleSiteMembership" xml:space="preserve"><value>عضویت سایت</value></data>
   <data name="NotifRoleDirectPermissions" xml:space="preserve"><value>مجوزهای مستقیم</value></data>
-  <data name="ProcurementNavGroup" xml:space="preserve"><value>تأمین و خرید</value></data>
   <data name="Suppliers" xml:space="preserve"><value>تأمین‌کنندگان</value></data>
   <data name="PurchaseOrders" xml:space="preserve"><value>سفارش‌های خرید</value></data>
   <data name="PermPageProcurement" xml:space="preserve"><value>تأمین و خرید</value></data>

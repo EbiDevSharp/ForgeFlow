@@ -27,6 +27,10 @@ export function unregisterGlobalShortcuts() {
     window.__forgeflowShortcutTarget = null;
 }
 
+export function isDesktopViewport() {
+    return typeof window.matchMedia === 'function' && window.matchMedia('(min-width: 1024px)').matches;
+}
+
 export function registerGlobalShortcuts(dotNetRef) {
     window.__forgeflowShortcutTarget = dotNetRef;
     if (document.documentElement.dataset.shortcutsBound) return;

@@ -11,50 +11,133 @@
 
 <AuthorizeView Context="shellAuth">
 <Authorized>
-<div class="app-shell">
-    <BitNavPanel TItem="BitNavItem"
-                 Items="@NavigationItems"
-                 HeaderText="@Text["AppTitle"]"
-                 IconNavUrl="/"
-                 AriaLabel="@Text["Navigation"]"
-                 DrawerBreakpoint="BitNavPanelBreakpoint.Lg"
-                 NavMode="BitNavMode.Automatic"
-                 NavMatch="BitNavMatch.Exact"
-                 NoSearchBox="true"
-                 AllExpanded="false"
-                 ChevronDownIcon="@ChevronDownIcon"
-                 ShowCloseButton="true"
-                 IsOpen="@drawerOpen"
-                 IsOpenChanged="@((bool isOpen) => drawerOpen = isOpen)"
-                 ToggleAriaLabel="@Text["CollapseNavigation"]"
-                 CloseAriaLabel="@Text["CloseNavigation"]"
-                 id="primary-navigation"
-                 Class="app-nav-panel" />
-    <main id="main-content">
-        <div id="auth-ui-notice" class="auth-ui-notice" role="status" hidden></div>
+<div class="app-shell @(sidebarCollapsed ? "is-sidebar-collapsed" : string.Empty) @(drawerOpen ? "is-drawer-open" : string.Empty)">
+    @if (drawerOpen)
+    {
+        <div class="ff-sidebar-backdrop" @onclick="CloseDrawer" aria-hidden="true"></div>
+    }
+
+    <aside id="primary-navigation" class="ff-sidebar" aria-label="@Text["Navigation"]">
+        <div class="ff-sidebar-brand">
+            <a class="ff-sidebar-brand-link" href="/" aria-label="@Text["AppTitle"]" @onclick="CloseDrawer">
+                <img src="/images/brand/forgeflow-sidebar-logo-light.svg" alt="@Text["AppTitle"]" class="ff-brand-logo ff-brand-logo--light" />
+                <img src="/images/brand/forgeflow-sidebar-logo-dark.svg" alt="@Text["AppTitle"]" class="ff-brand-logo ff-brand-logo--dark" />
+                <img src="/images/brand/forgeflow-symbol.svg" alt="@Text["AppTitle"]" class="ff-brand-symbol" />
+            </a>
+            <button type="button" class="ff-sidebar-close" aria-label="@Text["CloseNavigation"]" @onclick="CloseDrawer">
+                <span class="ff-icon ff-icon--close" aria-hidden="true"></span>
+            </button>
+        </div>
+
+        <nav class="ff-sidebar-nav" aria-label="@Text["Navigation"]">
+            @foreach (var navSection in NavSections)
+            {
+                <div class="ff-nav-section">
+                    @if (string.IsNullOrWhiteSpace(navSection.Title))
+                    {
+                        <ul class="ff-nav-list">
+                            @foreach (var item in navSection.Items)
+                            {
+                                var active = IsNavItemActive(item.Url);
+                                <li>
+                                    <a href="@item.Url"
+                                       class="ff-nav-item @(active ? "is-active" : string.Empty)"
+                                       aria-current="@(active ? "page" : null)"
+                                       title="@item.Text"
+                                       @onclick="CloseDrawer">
+                                        <span class="ff-icon @item.IconClass ff-nav-item-icon" aria-hidden="true"></span>
+                                        <span class="ff-nav-item-label">@item.Text</span>
+                                    </a>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        var isExpanded = IsSectionExpanded(navSection.Key);
+                        var hasActiveChild = navSection.Items.Any(i => IsNavItemActive(i.Url));
+                        <button type="button"
+                                class="ff-nav-group-btn @(isExpanded ? "is-expanded" : string.Empty) @(hasActiveChild ? "has-active" : string.Empty)"
+                                aria-expanded="@isExpanded.ToString().ToLowerInvariant()"
+                                title="@navSection.Title"
+                                @onclick="() => ToggleSection(navSection.Key)">
+                            <span class="ff-nav-group-start">
+                                @if (!string.IsNullOrWhiteSpace(navSection.IconClass))
+                                {
+                                    <span class="ff-icon @navSection.IconClass ff-nav-group-icon" aria-hidden="true"></span>
+                                }
+                                <span class="ff-nav-group-label">@navSection.Title</span>
+                            </span>
+                            <span class="ff-icon ff-icon--chevron-down ff-nav-group-caret" aria-hidden="true"></span>
+                        </button>
+                        @if (isExpanded && !sidebarCollapsed)
+                        {
+                            <ul class="ff-nav-list ff-nav-list--nested">
+                                @foreach (var item in navSection.Items)
+                                {
+                                    var active = IsNavItemActive(item.Url);
+                                    <li>
+                                        <a href="@item.Url"
+                                           class="ff-nav-item @(active ? "is-active" : string.Empty)"
+                                           aria-current="@(active ? "page" : null)"
+                                           title="@item.Text"
+                                           @onclick="CloseDrawer">
+                                            <span class="ff-icon @item.IconClass ff-nav-item-icon" aria-hidden="true"></span>
+                                            <span class="ff-nav-item-label">@item.Text</span>
+                                        </a>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    }
+                </div>
+            }
+        </nav>
+    </aside>
+
+    <main id="main-content" class="ff-main">
         <header class="app-header">
             <div class="app-header-start">
-                <BitButton Class="nav-drawer-toggle" Variant="BitVariant.Outline" Size="BitSize.Small"
-                           Icon="@MenuIcon" IconOnly="true"
-                           aria-label="@Text["OpenNavigation"]" title="@Text["OpenNavigation"]"
-                           aria-expanded="@drawerOpen.ToString().ToLowerInvariant()"
-                           aria-controls="primary-navigation" OnClick="ToggleDrawer" />
+                <button type="button"
+                        class="ff-sidebar-toggle"
+                        aria-label="@((sidebarCollapsed && !drawerOpen) ? Text["OpenNavigation"] : Text["CollapseNavigation"])"
+                        title="@((sidebarCollapsed && !drawerOpen) ? Text["OpenNavigation"] : Text["CollapseNavigation"])"
+                        aria-controls="primary-navigation"
+                        aria-expanded="@((!sidebarCollapsed || drawerOpen).ToString().ToLowerInvariant())"
+                        @onclick="ToggleSidebarAsync">
+                    <span class="ff-icon ff-icon--sidebar" aria-hidden="true"></span>
+                </button>
+                @{
+                    var crumb = ResolveBreadcrumb();
+                }
+                <nav class="ff-breadcrumb" aria-label="@Text["Navigation"]">
+                    @if (!string.IsNullOrWhiteSpace(crumb.SectionTitle))
+                    {
+                        <span class="ff-crumb-group">@crumb.SectionTitle</span>
+                        <span class="ff-icon ff-icon--chevron-end ff-crumb-sep" aria-hidden="true"></span>
+                    }
+                    <span class="ff-crumb-current">@crumb.PageTitle</span>
+                </nav>
+            </div>
+            <div class="app-header-end">
                 @{
                     var targetCulture = Culture.Language == CulturePolicy.Persian ? CulturePolicy.English : CulturePolicy.Persian;
                     var targetLabel = Culture.Language == CulturePolicy.Persian ? Text["LanguageEnglish"] : Text["LanguagePersian"];
                 }
                 <button type="button" class="header-lang-btn" data-auth-culture="@targetCulture"
                         aria-label="@Text["SwitchLanguageTo", targetLabel]">
-                    <span class="ff-icon ff-icon--globe" aria-hidden="true"></span>
                     <span>@targetLabel</span>
                 </button>
-            </div>
-            <div class="app-header-end">
                 <NotificationBell />
                 <UserMenu />
             </div>
         </header>
-        @Body
+
+        <div id="auth-ui-notice" class="auth-ui-notice" role="status" hidden></div>
+
+        <div class="ff-main-body">
+            @Body
+        </div>
     </main>
 </div>
 
@@ -111,7 +194,12 @@
 </AuthorizeView>
 
 @code {
+    public sealed record NavItemDescriptor(string Text, string IconClass, string Url);
+    public sealed record NavSectionDescriptor(string Key, string? Title, string? IconClass, IReadOnlyList<NavItemDescriptor> Items);
+
     private bool drawerOpen;
+    private bool sidebarCollapsed;
+    private readonly HashSet<string> expandedSections = new(StringComparer.Ordinal);
     private bool wasAuthenticated;
     private bool commandPaletteOpen;
     private bool shortcutsHelpOpen;
@@ -131,6 +219,7 @@
     protected override async Task OnInitializedAsync()
     {
         AuthProvider.AuthenticationStateChanged += AuthenticationStateChanged;
+        Navigation.LocationChanged += OnLocationChanged;
         DisplayPreferences.Changed += OnDisplayPreferencesChanged;
 
         try
@@ -233,6 +322,12 @@
         catch (Microsoft.JSInterop.JSException) { }
     }
 
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        drawerOpen = false;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
     [JSInvokable]
     public Task OpenCommandPaletteFromJs()
     {
@@ -256,7 +351,6 @@
         {
             var all = new List<(string Label, string Url)>
             {
-                (Text["Home"], "/"),
                 (Text["MyProfileTitle"], "/account/profile"),
                 (Text["MyActivityTitle"], "/account/activity"),
                 (Text["ActiveSessionsTitle"], "/account/sessions"),
@@ -265,9 +359,9 @@
                 (Text["MyPreferencesTitle"], "/account/preferences"),
                 (Text["ChangePasswordTitle"], "/account/change-password")
             };
-            foreach (var item in MasterDataItems.Concat(ProcurementItems).Concat(InventoryItems).Concat(ProductionItems).Concat(QualityItems).Concat(ReportItems).Concat(SettingsItems))
+            foreach (var navSection in NavSections)
             {
-                if (!string.IsNullOrWhiteSpace(item.Text) && !string.IsNullOrWhiteSpace(item.Url))
+                foreach (var item in navSection.Items)
                     all.Add((item.Text, item.Url));
             }
             if (string.IsNullOrWhiteSpace(commandQuery))
@@ -289,9 +383,87 @@
         _ = InvokeAsync(StateHasChanged);
     }
 
+    private async Task ToggleSidebarAsync()
+    {
+        var isDesktop = true;
+        if (authUi is not null)
+        {
+            try { isDesktop = await authUi.InvokeAsync<bool>("isDesktopViewport"); }
+            catch (Microsoft.JSInterop.JSException) { }
+        }
+        if (isDesktop)
+            sidebarCollapsed = !sidebarCollapsed;
+        else
+            drawerOpen = !drawerOpen;
+    }
+
+    private void CloseDrawer() => drawerOpen = false;
+
+    private bool IsSectionExpanded(string key) => expandedSections.Contains(key);
+
+    private void ToggleSection(string key)
+    {
+        if (sidebarCollapsed)
+        {
+            sidebarCollapsed = false;
+            expandedSections.Add(key);
+            return;
+        }
+        if (!expandedSections.Remove(key))
+            expandedSections.Add(key);
+    }
+
+    private string CurrentRelativePath()
+    {
+        var rel = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var q = rel.IndexOfAny(['?', '#']);
+        if (q >= 0) rel = rel[..q];
+        rel = "/" + rel.Trim('/');
+        if (rel.StartsWith("/organizations/", StringComparison.OrdinalIgnoreCase))
+        {
+            var segments = rel.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length >= 3 && long.TryParse(segments[1], out _))
+                rel = "/" + string.Join('/', segments.Skip(2));
+        }
+        return rel == "/" ? "/" : rel.TrimEnd('/');
+    }
+
+    private bool IsNavItemActive(string itemUrl)
+    {
+        var current = CurrentRelativePath();
+        if (itemUrl == "/") return current == "/";
+        return string.Equals(current, itemUrl, StringComparison.OrdinalIgnoreCase)
+            || current.StartsWith(itemUrl + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private (string? SectionTitle, string PageTitle) ResolveBreadcrumb()
+    {
+        var current = CurrentRelativePath();
+        foreach (var sec in NavSections)
+        {
+            foreach (var item in sec.Items)
+            {
+                if (IsNavItemActive(item.Url))
+                    return (sec.Title, item.Text);
+            }
+        }
+        return current switch
+        {
+            "/account/profile" => (null, Text["MyProfileTitle"]),
+            "/account/activity" => (null, Text["MyActivityTitle"]),
+            "/account/sessions" => (null, Text["ActiveSessionsTitle"]),
+            "/account/notifications" => (null, Text["NotificationsTitle"]),
+            "/account/notifications-settings" => (null, Text["NotificationSettingsTitle"]),
+            "/account/preferences" => (null, Text["MyPreferencesTitle"]),
+            "/account/change-password" => (null, Text["ChangePasswordTitle"]),
+            _ => (null, Text["Home"])
+        };
+    }
+
     public async ValueTask DisposeAsync()
     {
         AuthProvider.AuthenticationStateChanged -= AuthenticationStateChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
         DisplayPreferences.Changed -= OnDisplayPreferencesChanged;
         if (authUi is not null)
         {
@@ -322,15 +494,10 @@
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> procurementScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> diagnosticScopes = [];
 
-    // The framework stylesheet ships only a few glyphs, so the shell uses its own CSS-mask icons (app.css, .ff-icon--*).
-    private static BitIconInfo Icon(string name) => BitIconInfo.Css("ff-icon ff-icon--" + name);
-    private static readonly BitIconInfo MenuIcon = Icon("menu");
-    private static readonly BitIconInfo ChevronDownIcon = Icon("chevron-down");
-
-    private List<BitNavItem> cachedNavItems = [];
+    private List<NavSectionDescriptor> cachedNavSections = [];
     private string? navSignature;
 
-    private IList<BitNavItem> NavigationItems
+    private IReadOnlyList<NavSectionDescriptor> NavSections
     {
         get
         {
@@ -342,154 +509,106 @@
                 inventoryScopes.Count, ",", reportScopes.Count, ",", qualityScopes.Count, ",",
                 procurementScopes.Count, ",", diagnosticScopes.Count);
             if (string.Equals(navSignature, sig, StringComparison.Ordinal))
-                return cachedNavItems;
+                return cachedNavSections;
 
-            var items = new List<BitNavItem>
+            var sections = new List<NavSectionDescriptor>
             {
-                new() { Text = Text["Home"], AriaLabel = Text["Home"], Icon = Icon("home"), Url = "/", Match = BitNavMatch.Exact }
+                new("home", null, "ff-icon--home", [new(Text["Home"], "ff-icon--home", "/")])
             };
-            var masterData = MasterDataItems;
-            if (masterData.Count > 0)
-            {
-                items.Add(new() { Text = Text["MasterDataNavGroup"], Icon = Icon("catalog"), IsExpanded = false, ChildItems = masterData });
-            }
-            var procurement = ProcurementItems;
-            if (procurement.Count > 0)
-            {
-                items.Add(new() { Text = Text["ProcurementNavGroup"], Icon = Icon("procurement"), IsExpanded = false, ChildItems = procurement });
-            }
-            var inventory = InventoryItems;
-            if (inventory.Count > 0)
-            {
-                items.Add(new() { Text = Text["InventoryNavGroup"], Icon = Icon("inventory"), IsExpanded = false, ChildItems = inventory });
-            }
+
             var production = ProductionItems;
             if (production.Count > 0)
-            {
-                items.Add(new() { Text = Text["ProductionNavGroup"], Icon = Icon("production"), IsExpanded = false, ChildItems = production });
-            }
-            var quality = QualityItems;
-            if (quality.Count > 0)
-            {
-                items.Add(new() { Text = Text["QualityNavGroup"], Icon = Icon("quality"), IsExpanded = false, ChildItems = quality });
-            }
+                sections.Add(new("production", Text["ProductionNavGroup"], "ff-icon--production", production));
+
+            var inventory = InventoryItems;
+            if (inventory.Count > 0)
+                sections.Add(new("inventory", Text["InventoryNavGroup"], "ff-icon--inventory", inventory));
+
             var reports = ReportItems;
             if (reports.Count > 0)
-            {
-                items.Add(new() { Text = Text["ReportsNavGroup"], Icon = Icon("reports"), IsExpanded = false, ChildItems = reports });
-            }
-            var settings = SettingsItems;
-            if (settings.Count > 0)
-            {
-                items.Add(new() { Text = Text["Settings"], Icon = Icon("settings"), IsExpanded = false, ChildItems = settings });
-            }
-            cachedNavItems = items;
+                sections.Add(new("reports", Text["ReportsNavGroup"], "ff-icon--reports", reports));
+
+            var admin = AdminItems;
+            if (admin.Count > 0)
+                sections.Add(new("admin", Text["AdminNavGroup"], "ff-icon--settings", admin));
+
+            cachedNavSections = sections;
             navSignature = sig;
-            return cachedNavItems;
+            return cachedNavSections;
         }
     }
 
-    private List<BitNavItem> ProcurementItems
+    private List<NavItemDescriptor> ProductionItems
     {
         get
         {
-            var items = new List<BitNavItem>();
-            if (procurementScopes.Count > 0)
-            {
-                items.Add(new() { Text = Text["Suppliers"], Icon = Icon("suppliers"), Url = "/suppliers", Match = BitNavMatch.Exact });
-                items.Add(new() { Text = Text["PurchaseOrders"], Icon = Icon("purchase-orders"), Url = "/purchase-orders", Match = BitNavMatch.Exact });
-            }
-            return items;
-        }
-    }
-
-    private List<BitNavItem> ProductionItems
-    {
-        get
-        {
-            var items = new List<BitNavItem>();
+            var items = new List<NavItemDescriptor>();
             if (productionOrderScopes.Count > 0)
-                items.Add(new() { Text = Text["ProductionOrders"], Icon = Icon("production"), Url = "/production-orders", Match = BitNavMatch.Exact });
-            return items;
-        }
-    }
-
-    private List<BitNavItem> InventoryItems
-    {
-        get
-        {
-            var items = new List<BitNavItem>();
-            if (inventoryScopes.Count > 0)
-                items.Add(new() { Text = Text["Inventory"], Icon = Icon("inventory"), Url = "/inventory", Match = BitNavMatch.Exact });
-            return items;
-        }
-    }
-
-    private List<BitNavItem> QualityItems
-    {
-        get
-        {
-            var items = new List<BitNavItem>();
-            if (qualityScopes.Count > 0)
-            {
-                items.Add(new() { Text = Text["QualityControl"], Icon = Icon("quality"), Url = "/quality", Match = BitNavMatch.Exact });
-                items.Add(new() { Text = Text["LotTraceability"], Icon = Icon("trace"), Url = "/traceability", Match = BitNavMatch.Exact });
-            }
-            return items;
-        }
-    }
-
-    private List<BitNavItem> ReportItems
-    {
-        get
-        {
-            var items = new List<BitNavItem>();
-            if (reportScopes.Count > 0)
-                items.Add(new() { Text = Text["Reports"], Icon = Icon("reports"), Url = "/reports", Match = BitNavMatch.Exact });
-            return items;
-        }
-    }
-
-    private List<BitNavItem> MasterDataItems
-    {
-        get
-        {
-            var items = new List<BitNavItem>();
-            if (unitScopes.Count > 0)
-                items.Add(new() { Text = Text["Units"], Icon = Icon("units"), Url = "/units", Match = BitNavMatch.Exact });
-            if (itemScopes.Count > 0)
-                items.Add(new() { Text = Text["Items"], Icon = Icon("items"), Url = "/items", Match = BitNavMatch.Exact });
+                items.Add(new(Text["ProductionOrders"], "ff-icon--production", "/production-orders"));
             if (bomScopes.Count > 0)
-                items.Add(new() { Text = Text["Boms"], Icon = Icon("boms"), Url = "/boms", Match = BitNavMatch.Exact });
+                items.Add(new(Text["Boms"], "ff-icon--boms", "/boms"));
             if (routingScopes.Count > 0)
             {
-                items.Add(new() { Text = Text["WorkCenters"], Icon = Icon("work-centers"), Url = "/work-centers", Match = BitNavMatch.Exact });
-                items.Add(new() { Text = Text["Routings"], Icon = Icon("routings"), Url = "/routings", Match = BitNavMatch.Exact });
+                items.Add(new(Text["WorkCenters"], "ff-icon--work-centers", "/work-centers"));
+                items.Add(new(Text["Routings"], "ff-icon--routings", "/routings"));
             }
+            if (qualityScopes.Count > 0)
+                items.Add(new(Text["QualityControl"], "ff-icon--quality", "/quality"));
             return items;
         }
     }
 
-    private List<BitNavItem> SettingsItems
+    private List<NavItemDescriptor> InventoryItems
     {
         get
         {
-            var items = new List<BitNavItem>();
-            if (orgScopes.Count > 0)
-                items.Add(new() { Text = Text["Organizations"], Icon = Icon("org"), Url = "/organizations", Match = BitNavMatch.Exact });
-            if (readScopes.Count > 0)
-                items.Add(new() { Text = Text["Sites"], Icon = Icon("site"), Url = "/sites", Match = BitNavMatch.Exact });
-            if (userScopes.Count > 0)
-                items.Add(new() { Text = Text["Users"], Icon = Icon("user"), Url = "/users", Match = BitNavMatch.Exact });
-            if (roleScopes.Count > 0)
-                items.Add(new() { Text = Text["Roles"], Icon = Icon("role"), Url = "/roles", Match = BitNavMatch.Exact });
-            if (auditScopes.Count > 0)
-                items.Add(new() { Text = Text["Audit"], Icon = Icon("audit"), Url = "/audit", Match = BitNavMatch.Exact });
-            if (diagnosticScopes.Count > 0)
-                items.Add(new() { Text = Text["ErrorLogs"], Icon = Icon("errors"), Url = "/errors", Match = BitNavMatch.Exact });
+            var items = new List<NavItemDescriptor>();
+            if (inventoryScopes.Count > 0)
+                items.Add(new(Text["Inventory"], "ff-icon--inventory", "/inventory"));
+            if (qualityScopes.Count > 0)
+                items.Add(new(Text["LotTraceability"], "ff-icon--trace", "/traceability"));
+            if (procurementScopes.Count > 0)
+            {
+                items.Add(new(Text["PurchaseOrders"], "ff-icon--purchase-orders", "/purchase-orders"));
+                items.Add(new(Text["Suppliers"], "ff-icon--suppliers", "/suppliers"));
+            }
+            if (itemScopes.Count > 0)
+                items.Add(new(Text["Items"], "ff-icon--items", "/items"));
+            if (unitScopes.Count > 0)
+                items.Add(new(Text["Units"], "ff-icon--units", "/units"));
             return items;
         }
     }
 
-    private void ToggleDrawer() => drawerOpen = !drawerOpen;
+    private List<NavItemDescriptor> ReportItems
+    {
+        get
+        {
+            var items = new List<NavItemDescriptor>();
+            if (reportScopes.Count > 0)
+                items.Add(new(Text["Reports"], "ff-icon--reports", "/reports"));
+            return items;
+        }
+    }
+
+    private List<NavItemDescriptor> AdminItems
+    {
+        get
+        {
+            var items = new List<NavItemDescriptor>();
+            if (orgScopes.Count > 0)
+                items.Add(new(Text["Organizations"], "ff-icon--org", "/organizations"));
+            if (readScopes.Count > 0)
+                items.Add(new(Text["Sites"], "ff-icon--site", "/sites"));
+            if (userScopes.Count > 0)
+                items.Add(new(Text["Users"], "ff-icon--user", "/users"));
+            if (roleScopes.Count > 0)
+                items.Add(new(Text["Roles"], "ff-icon--role", "/roles"));
+            if (auditScopes.Count > 0)
+                items.Add(new(Text["Audit"], "ff-icon--audit", "/audit"));
+            if (diagnosticScopes.Count > 0)
+                items.Add(new(Text["ErrorLogs"], "ff-icon--errors", "/errors"));
+            return items;
+        }
+    }
 }

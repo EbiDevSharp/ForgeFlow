@@ -6,9 +6,8 @@
 <PageTitle>@Text["LoginTitle"]</PageTitle>
 <section class="auth-page" aria-labelledby="login-title">
     <div class="auth-card">
-        <a class="auth-brand" href="/" data-enhance-nav="false" aria-label="@Text["AppTitle"]">
-            <span class="auth-brand-mark" aria-hidden="true">F</span>
-            <span>@Text["AppTitle"]</span>
+        <a class="auth-brand auth-brand--icon" href="/" data-enhance-nav="false" aria-label="@Text["AppTitle"]">
+            <img src="/images/brand/forgeflow-app-icon.svg" alt="" class="auth-app-icon" width="72" height="72" />
         </a>
         <div class="auth-heading">
             <h1 id="login-title">@Text["LoginTitle"]</h1>
@@ -66,13 +65,14 @@
         RevealPassword = "login-field-reveal"
     };
 
-    private static readonly Dictionary<string, object> UsernameAttributes = new()
+    private Dictionary<string, object> UsernameAttributes => new()
     {
         ["id"] = "login-username",
         ["autocomplete"] = "username",
         ["autocapitalize"] = "none",
         ["spellcheck"] = "false",
-        ["aria-required"] = "true"
+        ["aria-required"] = "true",
+        ["placeholder"] = Text["UsernameLabel"].Value
     };
 
     private static readonly Dictionary<string, object> PasswordAttributes = new()
