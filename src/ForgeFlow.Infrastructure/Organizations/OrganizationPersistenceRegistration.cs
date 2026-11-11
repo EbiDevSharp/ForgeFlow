@@ -86,6 +86,14 @@ public static class OrganizationPersistenceRegistration
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
             provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>(),
             provider.GetService<TimeProvider>()));
+        services.AddScoped<QualitySpecUseCases>(provider => new QualitySpecUseCases(
+            new SqlQualitySpecStore(
+                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+                provider.GetService<IErrorLogRecorder>(),
+                provider.GetService<IOperationContextAccessor>(),
+                provider.GetRequiredService<IServiceScopeFactory>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
         services.AddScoped<ProcurementUseCases>(provider => new ProcurementUseCases(
             new SqlProcurementOperationsStore(
                 () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),

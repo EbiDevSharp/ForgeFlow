@@ -66,6 +66,7 @@ public sealed class QualityInspection
     public QualityInspectionStatus Status { get; private set; }
     public string? DefectReasonCode { get; private set; }
     public string? Notes { get; private set; }
+    public string? CertificateNumber { get; private set; }
     public DateTime? InspectedAtUtc { get; private set; }
     public long? InspectedByActorId { get; private set; }
 
@@ -87,7 +88,10 @@ public sealed class QualityInspection
         new(organizationId, siteId, warehouseId, itemId, lotCode, inspectionNumber ?? string.Empty,
             sourceType, sourceTransactionId, productionOrderId, baseUnitId, inspectedBaseQuantity, notes);
 
-    public void ReplaceLines(IEnumerable<(string ParameterName, string? ExpectedSpec, string? MeasuredValue, bool IsPassed, string? Notes)> lines)
+    public void ReplaceLines(IEnumerable<(string ParameterName, string? ExpectedSpec, string? MeasuredValue, bool IsPassed, string? Notes)> lines) =>
+        ReplaceLines(lines.Select(l => new QualityInspectionLineWriteData(l.ParameterName, l.ExpectedSpec, l.MeasuredValue, l.IsPassed, l.Notes)));
+
+    public void ReplaceLines(IEnumerable<QualityInspectionLineWriteData> lines, bool advanceStatus = true)
     {
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(lines);
@@ -104,18 +108,31 @@ public sealed class QualityInspection
                 line.ExpectedSpec,
                 line.MeasuredValue,
                 line.IsPassed,
-                line.Notes));
+                line.Notes,
+                line.QualityParameterId,
+                line.ParameterCodeSnapshot,
+                line.SymbolSnapshot,
+                line.UnitSymbolSnapshot,
+                line.TestMethodSnapshot,
+                line.DataType,
+                line.MinValueSnapshot,
+                line.MaxValueSnapshot,
+                line.TargetValueSnapshot,
+                line.MeasuredNumericValue,
+                line.IsMandatory));
         }
 
-        if (Status == QualityInspectionStatus.Pending && _lines.Count > 0)
+        if (advanceStatus && Status == QualityInspectionStatus.Pending && _lines.Count > 0)
             Status = QualityInspectionStatus.InReview;
     }
 
-    public void UpdateHeaderNotes(string? defectReasonCode, string? notes)
+    public void UpdateHeaderNotes(string? defectReasonCode, string? notes, string? certificateNumber = null)
     {
         EnsureMutable();
         DefectReasonCode = QualityText.OptionalDefectReason(defectReasonCode);
         Notes = QualityText.OptionalNote(notes);
+        if (certificateNumber is not null)
+            CertificateNumber = QualityText.OptionalCertificateNumber(certificateNumber);
         if (Status == QualityInspectionStatus.Pending)
             Status = QualityInspectionStatus.InReview;
     }
@@ -148,6 +165,12 @@ public sealed class QualityInspection
 
         if (notes is not null)
             Notes = QualityText.OptionalNote(notes);
+
+        if (accept > 0m && _lines.Any(l => l.IsMandatory && !l.IsPassed)
+            && string.IsNullOrWhiteSpace(DefectReasonCode) && string.IsNullOrWhiteSpace(Notes))
+        {
+            throw new QualityRuleException(QualityErrors.ConcessionReasonRequired);
+        }
 
         AcceptedBaseQuantity = decimal.Round(AcceptedBaseQuantity + accept, 6, MidpointRounding.AwayFromZero);
         RejectedBaseQuantity = decimal.Round(RejectedBaseQuantity + reject, 6, MidpointRounding.AwayFromZero);

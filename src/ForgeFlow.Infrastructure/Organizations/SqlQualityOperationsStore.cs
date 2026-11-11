@@ -88,7 +88,8 @@ public sealed class SqlQualityOperationsStore(
             r.qi.Status, r.qi.DefectReasonCode, r.qi.Notes,
             r.qi.InspectedAtUtc, r.qi.InspectedByActorId,
             r.qi.InspectedByActorId.HasValue && actorNames.TryGetValue(r.qi.InspectedByActorId.Value, out var name) ? name : null,
-            Convert.ToBase64String(r.RowVersion))).ToArray();
+            Convert.ToBase64String(r.RowVersion),
+            r.qi.CertificateNumber)).ToArray();
 
         return new OrganizationPage<QualityInspectionSummary>(items, total, query.Page, query.PageSize);
     }, ct);
@@ -192,6 +193,8 @@ public sealed class SqlQualityOperationsStore(
         if (!string.IsNullOrWhiteSpace(request.DefectReasonCode))
             qi.UpdateHeaderNotes(request.DefectReasonCode, request.Notes);
 
+        await SqlQualitySpecStore.PopulateInspectionFromSpecAsync(db, qi, QualitySpecCheckpoint.Incoming, ct);
+
         db.QualityInspections.Add(qi);
         await db.SaveInOperation(access.Actor, ct);
 
@@ -207,7 +210,8 @@ public sealed class SqlQualityOperationsStore(
         string? notes,
         IReadOnlyList<QualityInspectionLineInput> lines,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct,
+        string? certificateNumber = null) => Write(access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<QualityInspectionDetails>.Failure(orgCheck.Error!);
@@ -221,8 +225,24 @@ public sealed class SqlQualityOperationsStore(
         if (qi.Lines.Count > 0)
             db.QualityInspectionLines.RemoveRange(qi.Lines);
 
-        qi.UpdateHeaderNotes(defectReasonCode, notes);
-        qi.ReplaceLines(lines.Select(l => (l.ParameterName, l.ExpectedSpec, l.MeasuredValue, l.IsPassed, l.Notes)));
+        qi.UpdateHeaderNotes(defectReasonCode, notes, certificateNumber);
+        qi.ReplaceLines(lines.Select(l => new QualityInspectionLineWriteData(
+            l.ParameterName,
+            l.ExpectedSpec,
+            l.MeasuredValue,
+            l.IsPassed,
+            l.Notes,
+            l.QualityParameterId,
+            l.ParameterCode,
+            l.Symbol,
+            l.UnitSymbol,
+            l.TestMethod,
+            l.DataType,
+            l.MinValue,
+            l.MaxValue,
+            l.TargetValue,
+            l.MeasuredNumericValue,
+            l.IsMandatory)));
         await db.SaveInOperation(access.Actor, ct);
 
         return OrganizationResult<QualityInspectionDetails>.Success(
@@ -246,6 +266,7 @@ public sealed class SqlQualityOperationsStore(
         if (!orgCheck.Ok) return OrganizationResult<QualityInspectionDetails>.Failure(orgCheck.Error!);
 
         var qi = await db.QualityInspections
+            .Include(x => x.Lines)
             .SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.Id == inspectionId, ct);
         if (qi is null) return OrganizationResult<QualityInspectionDetails>.Failure(QualityErrors.InspectionNotFound);
         if (!Matches(db, qi, version)) return OrganizationResult<QualityInspectionDetails>.Failure(QualityErrors.ConcurrencyConflict);
@@ -325,6 +346,7 @@ public sealed class SqlQualityOperationsStore(
         if (!orgCheck.Ok) return OrganizationResult<QualityInspectionDetails>.Failure(orgCheck.Error!);
 
         var qi = await db.QualityInspections
+            .Include(x => x.Lines)
             .SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.Id == inspectionId, ct);
         if (qi is null) return OrganizationResult<QualityInspectionDetails>.Failure(QualityErrors.InspectionNotFound);
         if (!Matches(db, qi, version)) return OrganizationResult<QualityInspectionDetails>.Failure(QualityErrors.ConcurrencyConflict);
@@ -567,7 +589,8 @@ public sealed class SqlQualityOperationsStore(
             r.qi.InspectedBaseQuantity, r.qi.AcceptedBaseQuantity, r.qi.RejectedBaseQuantity, r.qi.RemainingBlockedBaseQuantity,
             r.qi.Status, r.qi.DefectReasonCode, r.qi.Notes,
             r.qi.InspectedAtUtc, r.qi.InspectedByActorId, null,
-            Convert.ToBase64String(r.RowVersion))).ToArray();
+            Convert.ToBase64String(r.RowVersion),
+            r.qi.CertificateNumber)).ToArray();
 
         return new LotGenealogyDataset(orders, movements, lotSummaries, balances, inspections);
     }, ct);
@@ -591,10 +614,18 @@ public sealed class SqlQualityOperationsStore(
         return itemEdges.Concat(globalEdges).ToArray();
     }
 
-    private async Task<QualityInspectionDetails?> BuildInspectionDetailsAsync(
+    private Task<QualityInspectionDetails?> BuildInspectionDetailsAsync(
         OrganizationDbContext db,
         long organizationId,
         long id,
+        CancellationToken ct) =>
+        BuildInspectionDetailsStaticAsync(db, organizationId, id, scopeFactory, ct);
+
+    internal static async Task<QualityInspectionDetails?> BuildInspectionDetailsStaticAsync(
+        OrganizationDbContext db,
+        long organizationId,
+        long id,
+        IServiceScopeFactory? scopeFactory,
         CancellationToken ct)
     {
         var row = await (from qi in db.QualityInspections.AsNoTracking()
@@ -624,10 +655,27 @@ public sealed class SqlQualityOperationsStore(
             .Where(l => l.OrganizationId == organizationId && l.QualityInspectionId == id)
             .OrderBy(l => l.LineNumber)
             .Select(l => new QualityInspectionLineSummary(
-                l.Id, l.LineNumber, l.ParameterName, l.ExpectedSpec, l.MeasuredValue, l.IsPassed, l.Notes))
+                l.Id,
+                l.LineNumber,
+                l.ParameterName,
+                l.ExpectedSpec,
+                l.MeasuredValue,
+                l.IsPassed,
+                l.Notes,
+                l.QualityParameterId,
+                l.ParameterCodeSnapshot,
+                l.SymbolSnapshot,
+                l.UnitSymbolSnapshot,
+                l.TestMethodSnapshot,
+                l.DataType,
+                l.MinValueSnapshot,
+                l.MaxValueSnapshot,
+                l.TargetValueSnapshot,
+                l.MeasuredNumericValue,
+                l.IsMandatory))
             .ToListAsync(ct);
 
-        var actorNames = await ResolveUserNamesAsync([row.qi.InspectedByActorId], ct);
+        var actorNames = await ResolveUserNamesStaticAsync(scopeFactory, [row.qi.InspectedByActorId], ct);
         var summary = new QualityInspectionSummary(
             row.qi.Id, row.qi.OrganizationId, row.qi.SiteId, row.s.Code, row.s.Name,
             row.qi.WarehouseId, row.w.Code, row.w.Name,
@@ -639,12 +687,19 @@ public sealed class SqlQualityOperationsStore(
             row.qi.Status, row.qi.DefectReasonCode, row.qi.Notes,
             row.qi.InspectedAtUtc, row.qi.InspectedByActorId,
             row.qi.InspectedByActorId.HasValue && actorNames.TryGetValue(row.qi.InspectedByActorId.Value, out var name) ? name : null,
-            Convert.ToBase64String(row.RowVersion));
+            Convert.ToBase64String(row.RowVersion),
+            row.qi.CertificateNumber);
 
         return new QualityInspectionDetails(summary, lines);
     }
 
-    private async Task<Dictionary<long, string>> ResolveUserNamesAsync(IEnumerable<long?> userIds, CancellationToken ct)
+    private Task<Dictionary<long, string>> ResolveUserNamesAsync(IEnumerable<long?> userIds, CancellationToken ct) =>
+        ResolveUserNamesStaticAsync(scopeFactory, userIds, ct);
+
+    internal static async Task<Dictionary<long, string>> ResolveUserNamesStaticAsync(
+        IServiceScopeFactory? scopeFactory,
+        IEnumerable<long?> userIds,
+        CancellationToken ct)
     {
         if (scopeFactory is null) return [];
         var ids = userIds.Where(x => x is > 0).Select(x => x!.Value).Distinct().ToArray();

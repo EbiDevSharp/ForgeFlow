@@ -1070,4 +1070,31 @@ dd { margin-inline-start: 0; margin-block-start: .4rem; }
 [data-theme="dark"] .dash-kpi-meta,
 [data-theme="dark"] .dash-panel-empty { color:#94a3b8; }
 
+/* Slice 13: Lab Parameters, Inspection Specs & Lot COA */
+.qc-symbol-chip { display:inline-flex; align-items:center; padding:2px 8px; border-radius:6px; background:#e0f2fe; color:#0b4ab8; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:.8rem; font-weight:700; margin-inline-end:6px; }
+.qc-mandatory-star { color:#dc2626; font-weight:800; margin-inline-start:3px; }
+.qc-cert-badge { margin-inline-start:8px; background:#eef2ff; color:#1e40af; border-color:#c7d2fe; }
+.qc-coa-insp-card { display:flex; flex-direction:column; gap:10px; }
+.qc-coa-meta-line { display:flex; flex-wrap:wrap; gap:6px; font-size:.82rem; color:#475569; }
+.qc-lot-inline-cell { display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.qc-inline-coa-btn { padding-inline:8px !important; min-height:26px !important; font-size:.76rem !important; }
+.qc-spec-meas-card { display:flex; flex-direction:column; gap:8px; padding:10px 12px; border:1px solid #d5e3ed; border-radius:10px; background:#f8fbfd; margin-bottom:8px; }
+.qc-spec-meas-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px; justify-content:space-between; }
+.qc-param-select { flex:1 1 220px; min-inline-size:180px; }
+.qc-concession-banner { border:1px solid #fca5a5; border-radius:8px; padding:8px 12px; background:#fef2f2; margin-block:6px; }
+.qc-spec-lines-box { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+.qc-spec-line-row { display:grid; grid-template-columns:minmax(180px,1.5fr) repeat(3,minmax(88px,1fr)) auto auto; gap:8px; align-items:center; }
+
+@media (max-width:680px) {
+    .qc-spec-line-row { grid-template-columns:1fr; }
+    .qc-spec-meas-head { flex-direction:column; align-items:stretch; }
+}
+
+[data-theme="dark"] .qc-symbol-chip { background:rgba(26,106,219,.24); color:#7cc4ff; }
+[data-theme="dark"] .qc-cert-badge { background:rgba(30,64,175,.3); color:#93c5fd; border-color:#1d4ed8; }
+[data-theme="dark"] .qc-coa-meta-line { color:#94a3b8; }
+[data-theme="dark"] .qc-spec-meas-card { background:#162032; border-color:#334155; }
+[data-theme="dark"] .qc-concession-banner { background:rgba(185,28,28,.22); border-color:#b91c1c; color:#fecaca; }
+
+
 

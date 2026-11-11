@@ -192,8 +192,11 @@
                                     else
                                     {
                                         <div>
-                                            <div class="read-primary-cell">
+                                            <div class="read-primary-cell qc-lot-inline-cell">
                                                 <a class="qc-lot-link" href="@($"/traceability?itemId={b.ItemId}&lotCode={Uri.EscapeDataString(b.LotCode)}")" dir="ltr">@b.LotCode</a>
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="qc-inline-coa-btn" OnClick="() => OpenCoaModal(b.ItemId, b.LotCode)">
+                                                    @Text["QcCoaBtn"]
+                                                </BitButton>
                                             </div>
                                             @if (b.ExpirationDate.HasValue)
                                             {
@@ -389,6 +392,12 @@
                             <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["ReadActions"]">
                                 <Template Context="r">
                                     <div class="read-row-actions">
+                                        @if (!string.IsNullOrEmpty(r.LotCode))
+                                        {
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OpenCoaModal(r.ItemId, r.LotCode)">
+                                                @Text["QcCoaBtn"]
+                                            </BitButton>
+                                        }
                                         @if (scopeCanManage && r.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed)
                                         {
                                             <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)"
@@ -715,6 +724,12 @@
             }
         </Body>
     </BitDialog>
+
+    @if (CurrentScope is not null)
+    {
+        <LotCertificateDialog @bind-IsOpen="coaOpen" Scope="@CurrentScope" OrganizationId="@ScopeOrganizationId(CurrentScope)"
+                              ItemId="@coaItemId" LotCode="@coaLotCode" />
+    }
 </section>
 
 @code {
@@ -776,6 +791,17 @@
     private string? search;
     private string? appliedSearch;
     private bool modalBusy;
+
+    private bool coaOpen;
+    private long coaItemId;
+    private string coaLotCode = string.Empty;
+
+    private void OpenCoaModal(long itemId, string lotCode)
+    {
+        coaItemId = itemId;
+        coaLotCode = lotCode;
+        coaOpen = true;
+    }
 
     private bool whModalOpen;
     private WarehouseSummary? editingWarehouse;

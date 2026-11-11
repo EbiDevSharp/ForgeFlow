@@ -45,7 +45,8 @@ public sealed record QualityInspectionSummary(
     DateTime? InspectedAtUtc,
     long? InspectedByActorId,
     string? InspectedByActorName,
-    string RowVersion);
+    string RowVersion,
+    string? CertificateNumber = null);
 
 public sealed record QualityInspectionLineSummary(
     long Id,
@@ -54,7 +55,18 @@ public sealed record QualityInspectionLineSummary(
     string? ExpectedSpec,
     string? MeasuredValue,
     bool IsPassed,
-    string? Notes);
+    string? Notes,
+    long? QualityParameterId = null,
+    string? ParameterCode = null,
+    string? Symbol = null,
+    string? UnitSymbol = null,
+    string? TestMethod = null,
+    QualityParameterDataType DataType = QualityParameterDataType.Text,
+    decimal? MinValue = null,
+    decimal? MaxValue = null,
+    decimal? TargetValue = null,
+    decimal? MeasuredNumericValue = null,
+    bool IsMandatory = false);
 
 public sealed record QualityInspectionDetails(
     QualityInspectionSummary Summary,
@@ -74,7 +86,18 @@ public sealed record QualityInspectionLineInput(
     string? ExpectedSpec,
     string? MeasuredValue,
     bool IsPassed,
-    string? Notes = null);
+    string? Notes = null,
+    long? QualityParameterId = null,
+    string? ParameterCode = null,
+    string? Symbol = null,
+    string? UnitSymbol = null,
+    string? TestMethod = null,
+    QualityParameterDataType DataType = QualityParameterDataType.Text,
+    decimal? MinValue = null,
+    decimal? MaxValue = null,
+    decimal? TargetValue = null,
+    decimal? MeasuredNumericValue = null,
+    bool IsMandatory = false);
 
 public sealed record CreateManualQualityHoldRequest(
     long OrganizationId,
@@ -93,7 +116,8 @@ public sealed record UpdateQualityMeasurementsRequest(
     string? DefectReasonCode,
     string? Notes,
     IReadOnlyList<QualityInspectionLineInput> Lines,
-    string? ExpectedRowVersion);
+    string? ExpectedRowVersion,
+    string? CertificateNumber = null);
 
 public sealed record RecordQualityDispositionRequest(
     long OrganizationId,
@@ -289,7 +313,8 @@ public interface IQualityOperationsStore
         string? notes,
         IReadOnlyList<QualityInspectionLineInput> lines,
         OrganizationWriteAccess access,
-        CancellationToken ct);
+        CancellationToken ct,
+        string? certificateNumber = null);
 
     Task<OrganizationResult<QualityInspectionDetails>> RecordDisposition(
         long organizationId,

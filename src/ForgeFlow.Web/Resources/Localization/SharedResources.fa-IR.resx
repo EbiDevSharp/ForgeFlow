@@ -2643,4 +2643,63 @@
   <data name="PoResConfirmBtn" xml:space="preserve"><value>تأیید رزرو</value></data>
   <data name="PoResSavedNotice" xml:space="preserve"><value>موجودی برای سفارش تولید رزرو شد.</value></data>
   <data name="RptReservedSubLabel" xml:space="preserve"><value>رزروشده: {0}</value></data>
+  <data name="AuditEv_QualityParameterCreated" xml:space="preserve"><value>ایجاد پارامتر آزمایشگاهی</value></data>
+  <data name="AuditEv_QualityParameterUpdated" xml:space="preserve"><value>به‌روزرسانی پارامتر آزمایشگاهی</value></data>
+  <data name="AuditEv_QualityParameterActivated" xml:space="preserve"><value>فعال‌سازی پارامتر آزمایشگاهی</value></data>
+  <data name="AuditEv_QualityParameterDeactivated" xml:space="preserve"><value>غیرفعال‌سازی پارامتر آزمایشگاهی</value></data>
+  <data name="AuditEv_QualitySpecCreated" xml:space="preserve"><value>ایجاد مشخصات بازرسی کیفیت</value></data>
+  <data name="AuditEv_QualitySpecUpdated" xml:space="preserve"><value>به‌روزرسانی مشخصات بازرسی کیفیت</value></data>
+  <data name="AuditEv_QualitySpecActivated" xml:space="preserve"><value>فعال‌سازی مشخصات بازرسی کیفیت</value></data>
+  <data name="AuditEv_QualitySpecDeactivated" xml:space="preserve"><value>غیرفعال‌سازی مشخصات بازرسی کیفیت</value></data>
+  <data name="QcTabParameters" xml:space="preserve"><value>پارامترهای آزمایشگاهی</value></data>
+  <data name="QcTabSpecs" xml:space="preserve"><value>الگوها و مشخصات بازرسی</value></data>
+  <data name="QcCreateParameterBtn" xml:space="preserve"><value>پارامتر آزمایشگاهی جدید</value></data>
+  <data name="QcCreateSpecBtn" xml:space="preserve"><value>مشخصات بازرسی جدید</value></data>
+  <data name="QcCreateParameterTitle" xml:space="preserve"><value>ایجاد پارامتر آزمایشگاهی</value></data>
+  <data name="QcEditParameterTitle" xml:space="preserve"><value>ویرایش پارامتر آزمایشگاهی</value></data>
+  <data name="QcParamModalSubtitle" xml:space="preserve"><value>تعریف شاخص‌های آزمایشگاهی قابل استفاده مجدد همراه با نماد و واحد علمی.</value></data>
+  <data name="QcCreateSpecTitle" xml:space="preserve"><value>ایجاد مشخصات بازرسی</value></data>
+  <data name="QcEditSpecTitle" xml:space="preserve"><value>ویرایش مشخصات بازرسی</value></data>
+  <data name="QcSpecModalSubtitle" xml:space="preserve"><value>اتصال بازه‌های مجاز پارامترها به کالا یا گروه کالا برای پرشدن خودکار فرم کنترل کیفیت.</value></data>
+  <data name="QcParamSymbolLabel" xml:space="preserve"><value>نماد</value></data>
+  <data name="QcParamUnitLabel" xml:space="preserve"><value>واحد آزمایشگاهی</value></data>
+  <data name="QcParamMethodLabel" xml:space="preserve"><value>روش آزمون (استاندارد)</value></data>
+  <data name="QcParamDecimalLabel" xml:space="preserve"><value>تعداد اعشار</value></data>
+  <data name="QcSpecTargetKindLabel" xml:space="preserve"><value>نوع هدف</value></data>
+  <data name="QcSpecTargetLabel" xml:space="preserve"><value>کالا / گروه کالا</value></data>
+  <data name="QcSpecCheckpointLabel" xml:space="preserve"><value>نقطه کنترل</value></data>
+  <data name="QcSpecVersionLabel" xml:space="preserve"><value>نسخه</value></data>
+  <data name="QcSpecLinesCountCol" xml:space="preserve"><value>تعداد پارامتر</value></data>
+  <data name="QcSpecLinesHeading" xml:space="preserve"><value>پارامترها و حدود مجاز</value></data>
+  <data name="QcAddSpecLineBtn" xml:space="preserve"><value>افزودن پارامتر</value></data>
+  <data name="QcSpecMinLabel" xml:space="preserve"><value>حداقل</value></data>
+  <data name="QcSpecMaxLabel" xml:space="preserve"><value>حداکثر</value></data>
+  <data name="QcSpecTargetValLabel" xml:space="preserve"><value>مقدار هدف</value></data>
+  <data name="QcMandatoryLabel" xml:space="preserve"><value>الزامی</value></data>
+  <data name="QcTargetItem" xml:space="preserve"><value>کالا</value></data>
+  <data name="QcTargetClassification" xml:space="preserve"><value>گروه کالا</value></data>
+  <data name="QcCheckpointIncoming" xml:space="preserve"><value>ورودی (خرید)</value></data>
+  <data name="QcCheckpointProduction" xml:space="preserve"><value>خروجی تولید</value></data>
+  <data name="QcCheckpointAll" xml:space="preserve"><value>ورودی و تولید</value></data>
+  <data name="QcLoadTemplateBtn" xml:space="preserve"><value>بارگذاری از الگوی کیفیت</value></data>
+  <data name="QcTemplateLoadedNotice" xml:space="preserve"><value>ردیف‌های آزمایش از الگوی مشخصات کالا بارگذاری شد.</value></data>
+  <data name="QcCustomParamOption" xml:space="preserve"><value>پارامتر آزاد (دستی)</value></data>
+  <data name="QcCertNumberLabel" xml:space="preserve"><value>شماره گواهی آزمایش (COA)</value></data>
+  <data name="QcCertNumberShort" xml:space="preserve"><value>گواهی</value></data>
+  <data name="QcConcessionWarning" xml:space="preserve"><value>آزمون الزامی ناموفق بوده است؛ برای پذیرش ارفاقی باید کد خطا یا توضیحات وارد کنید.</value></data>
+  <data name="QcCoaBtn" xml:space="preserve"><value>COA</value></data>
+  <data name="QcCoaTitle" xml:space="preserve"><value>گواهی آزمایشگاه و نتایج آنالیز (COA)</value></data>
+  <data name="QcLotDatesSummaryLabel" xml:space="preserve"><value>تاریخ تولید / انقضا</value></data>
+  <data name="QcActiveSpecLabel" xml:space="preserve"><value>مشخصات کیفیت حاکم</value></data>
+  <data name="QcCoaNoInspections" xml:space="preserve"><value>هنوز هیچ بازرسی کیفی برای این لات ثبت نشده است.</value></data>
+  <data name="QcCoaNoMeasurements" xml:space="preserve"><value>نتیجه آزمایشگاهی در این بازرسی ثبت نشده است.</value></data>
+  <data name="QcViewTraceabilityLink" xml:space="preserve"><value>مشاهده ردیابی لات</value></data>
+  <data name="QcErrorParameterSymbolInvalid" xml:space="preserve"><value>نماد پارامتر باید بین ۱ تا ۲۴ کاراکتر معتبر باشد.</value></data>
+  <data name="QcErrorParameterUnitInvalid" xml:space="preserve"><value>واحد آزمایشگاهی نمی‌تواند بیش از ۲۴ کاراکتر باشد.</value></data>
+  <data name="QcErrorParameterInactive" xml:space="preserve"><value>پارامتر آزمایشگاهی انتخاب‌شده غیرفعال است یا وجود ندارد.</value></data>
+  <data name="QcErrorSpecTargetInvalid" xml:space="preserve"><value>کالا یا گروه کالا و نقطه کنترل معتبر را انتخاب کنید.</value></data>
+  <data name="QcErrorSpecActiveConflict" xml:space="preserve"><value>یک مشخصات فعال دیگر برای همین هدف و نقطه کنترل وجود دارد.</value></data>
+  <data name="QcErrorSpecRangeInvalid" xml:space="preserve"><value>حد پایین نمی‌تواند از حد بالا بیشتر باشد و پارامتر تکراری مجاز نیست.</value></data>
+  <data name="QcErrorSpecLinesRequired" xml:space="preserve"><value>ثبت حداقل یک پارامتر در مشخصات کیفیت الزامی است.</value></data>
+  <data name="QcErrorConcessionReasonRequired" xml:space="preserve"><value>یکی از آزمون‌های الزامی ناموفق است؛ برای پذیرش کالا کد ایراد یا یادداشت ارفاق ثبت کنید.</value></data>
 </root>

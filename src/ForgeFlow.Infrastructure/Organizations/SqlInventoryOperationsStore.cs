@@ -664,7 +664,7 @@ public sealed class SqlInventoryOperationsStore(
             bal.BlockQuantity(l.BaseQuantityDelta, utcNow);
 
             var inspNum = $"QC-{transactionId}-{i + 1}";
-            db.QualityInspections.Add(QualityInspection.Create(
+            var qi = QualityInspection.Create(
                 organizationId,
                 l.SiteId,
                 l.WarehouseId,
@@ -676,7 +676,12 @@ public sealed class SqlInventoryOperationsStore(
                 productionOrderId,
                 l.BaseUnitId,
                 l.BaseQuantityDelta,
-                l.Notes));
+                l.Notes);
+            var checkpoint = transactionType == InventoryTransactionType.ProductionReceipt
+                ? Domain.Quality.QualitySpecCheckpoint.Production
+                : Domain.Quality.QualitySpecCheckpoint.Incoming;
+            await SqlQualitySpecStore.PopulateInspectionFromSpecAsync(db, qi, checkpoint, ct);
+            db.QualityInspections.Add(qi);
         }
     }
 

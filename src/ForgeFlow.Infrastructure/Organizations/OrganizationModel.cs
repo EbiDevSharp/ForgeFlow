@@ -38,7 +38,9 @@ internal static class OrganizationModel
         + "'ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated',"
         + "'Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated',"
         + "'BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved',"
-        + "'ItemLot.Updated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated')) "
+        + "'ItemLot.Updated','QualityParameter.Created','QualityParameter.Updated','QualityParameter.Activated','QualityParameter.Deactivated',"
+        + "'QualitySpec.Created','QualitySpec.Updated','QualitySpec.Activated','QualitySpec.Deactivated',"
+        + "'Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated')) "
         + "OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','InventoryReservation.Created','InventoryReservation.Consumed','InventoryReservation.Released','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled','WorkCenter.Created','WorkCenter.Updated','WorkCenter.Activated','WorkCenter.Deactivated','Routing.Created','Routing.Updated','Routing.OperationsSaved','Routing.Activated','Routing.Obsoleted','ProductionOrderOperation.Started','ProductionOrderOperation.Paused','ProductionOrderOperation.Completed','ProductionOrderOperation.Skipped')))";
 
     internal static void Configure(ModelBuilder model)
@@ -874,6 +876,7 @@ internal static class OrganizationModel
         qi.Property(x => x.Status).HasConversion<byte>().IsRequired();
         qi.Property(x => x.DefectReasonCode).HasMaxLength(64).IsUnicode(false).UseCollation(CodeCollation);
         qi.Property(x => x.Notes).HasMaxLength(1000);
+        qi.Property(x => x.CertificateNumber).HasMaxLength(64);
         qi.Property(x => x.InspectedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
         qi.Property(x => x.InspectedByActorId);
         AddAuditMetadata(qi);
@@ -920,12 +923,120 @@ internal static class OrganizationModel
         qiLine.Property(x => x.MeasuredValue).HasMaxLength(100);
         qiLine.Property(x => x.IsPassed).IsRequired();
         qiLine.Property(x => x.Notes).HasMaxLength(300);
+        qiLine.Property(x => x.QualityParameterId);
+        qiLine.Property(x => x.ParameterCodeSnapshot).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation);
+        qiLine.Property(x => x.SymbolSnapshot).HasMaxLength(24);
+        qiLine.Property(x => x.UnitSymbolSnapshot).HasMaxLength(24);
+        qiLine.Property(x => x.TestMethodSnapshot).HasMaxLength(64);
+        qiLine.Property(x => x.DataType).HasConversion<byte>().HasDefaultValue(QualityParameterDataType.Text).IsRequired();
+        qiLine.Property(x => x.MinValueSnapshot).HasPrecision(18, 6);
+        qiLine.Property(x => x.MaxValueSnapshot).HasPrecision(18, 6);
+        qiLine.Property(x => x.TargetValueSnapshot).HasPrecision(18, 6);
+        qiLine.Property(x => x.MeasuredNumericValue).HasPrecision(18, 6);
+        qiLine.Property(x => x.IsMandatory).HasDefaultValue(false).IsRequired();
         AddAuditMetadata(qiLine);
         qiLine.HasIndex(x => new { x.OrganizationId, x.QualityInspectionId, x.LineNumber }).IsUnique().HasDatabaseName("UX_QualityInspectionLine_Org_Insp_Line");
         qiLine.HasOne<QualityInspection>().WithMany(x => x.Lines)
             .HasForeignKey(x => new { x.OrganizationId, x.QualityInspectionId })
             .HasPrincipalKey(q => new { q.OrganizationId, q.Id }).OnDelete(DeleteBehavior.NoAction)
             .HasConstraintName("FK_QualityInspectionLine_Inspection");
+        qiLine.HasOne<QualityParameter>().WithMany()
+            .HasForeignKey(x => new { x.OrganizationId, x.QualityParameterId })
+            .HasPrincipalKey(p => new { p.OrganizationId, p.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_QualityInspectionLine_Parameter");
+
+        var qParam = model.Entity<QualityParameter>();
+        qParam.ToTable("QualityParameter", Schema, table =>
+        {
+            table.HasCheckConstraint("CK_QualityParameter_Code", CodeCheck);
+            table.HasCheckConstraint("CK_QualityParameter_Name", "DATALENGTH([Name]) BETWEEN 2 AND 240 AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0");
+            table.HasCheckConstraint("CK_QualityParameter_Symbol", "DATALENGTH(LTRIM(RTRIM([Symbol]))) > 0");
+            table.HasCheckConstraint("CK_QualityParameter_Type", "[DataType] IN (1,2,3) AND [DecimalPlaces] BETWEEN 0 AND 6");
+            table.HasCheckConstraint("CK_QualityParameter_Metadata", MetadataCheck);
+        });
+        qParam.HasKey(x => x.Id).HasName("PK_QualityParameter");
+        qParam.Property(x => x.Id).UseIdentityColumn();
+        qParam.Property(x => x.OrganizationId).IsRequired();
+        qParam.Property(x => x.Code).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation).IsRequired();
+        qParam.Property(x => x.Name).HasMaxLength(120).IsRequired();
+        qParam.Property(x => x.Symbol).HasMaxLength(24).IsRequired();
+        qParam.Property(x => x.UnitSymbol).HasMaxLength(24);
+        qParam.Property(x => x.DataType).HasConversion<byte>().IsRequired();
+        qParam.Property(x => x.DecimalPlaces).IsRequired();
+        qParam.Property(x => x.DefaultTestMethod).HasMaxLength(64);
+        qParam.Property(x => x.IsActive).IsRequired();
+        AddAuditMetadata(qParam);
+        qParam.HasAlternateKey(x => new { x.OrganizationId, x.Id }).HasName("AK_QualityParameter_Org_Id");
+        qParam.HasIndex(x => new { x.OrganizationId, x.Code }).IsUnique().HasDatabaseName("UX_QualityParameter_Org_Code");
+        qParam.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId)
+            .OnDelete(DeleteBehavior.NoAction).HasConstraintName("FK_QualityParameter_Organization");
+
+        var qSpec = model.Entity<QualitySpec>();
+        qSpec.ToTable("QualitySpec", Schema, table =>
+        {
+            table.HasCheckConstraint("CK_QualitySpec_Code", CodeCheck);
+            table.HasCheckConstraint("CK_QualitySpec_Target", "([TargetKind] = 1 AND [ItemId] IS NOT NULL AND [ClassificationId] IS NULL) OR ([TargetKind] = 2 AND [ClassificationId] IS NOT NULL AND [ItemId] IS NULL)");
+            table.HasCheckConstraint("CK_QualitySpec_Checkpoint", "[Checkpoint] IN (1,2,3)");
+            table.HasCheckConstraint("CK_QualitySpec_Version", "[Version] >= 1");
+            table.HasCheckConstraint("CK_QualitySpec_Metadata", MetadataCheck);
+        });
+        qSpec.HasKey(x => x.Id).HasName("PK_QualitySpec");
+        qSpec.Property(x => x.Id).UseIdentityColumn();
+        qSpec.Property(x => x.OrganizationId).IsRequired();
+        qSpec.Property(x => x.Code).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation).IsRequired();
+        qSpec.Property(x => x.Name).HasMaxLength(120).IsRequired();
+        qSpec.Property(x => x.TargetKind).HasConversion<byte>().IsRequired();
+        qSpec.Property(x => x.ItemId);
+        qSpec.Property(x => x.ClassificationId);
+        qSpec.Property(x => x.Checkpoint).HasConversion<byte>().IsRequired();
+        qSpec.Property(x => x.Version).IsRequired();
+        qSpec.Property(x => x.IsActive).IsRequired();
+        qSpec.Property(x => x.Notes).HasMaxLength(1000);
+        AddAuditMetadata(qSpec);
+        qSpec.HasAlternateKey(x => new { x.OrganizationId, x.Id }).HasName("AK_QualitySpec_Org_Id");
+        qSpec.HasIndex(x => new { x.OrganizationId, x.Code, x.Version }).IsUnique().HasDatabaseName("UX_QualitySpec_Org_Code_Version");
+        qSpec.HasIndex(x => new { x.OrganizationId, x.ItemId, x.Checkpoint }).IsUnique().HasFilter("[IsActive] = 1 AND [TargetKind] = 1").HasDatabaseName("UX_QualitySpec_ActiveItem");
+        qSpec.HasIndex(x => new { x.OrganizationId, x.ClassificationId, x.Checkpoint }).IsUnique().HasFilter("[IsActive] = 1 AND [TargetKind] = 2").HasDatabaseName("UX_QualitySpec_ActiveClass");
+        qSpec.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId)
+            .OnDelete(DeleteBehavior.NoAction).HasConstraintName("FK_QualitySpec_Organization");
+        qSpec.HasOne<Item>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.ItemId })
+            .HasPrincipalKey(i => new { i.OrganizationId, i.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_QualitySpec_Item");
+        qSpec.HasOne<Classification>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.ClassificationId })
+            .HasPrincipalKey(c => new { c.OrganizationId, c.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_QualitySpec_Classification");
+        qSpec.Navigation(x => x.Lines).HasField("_lines").UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        var qSpecLine = model.Entity<QualitySpecLine>();
+        qSpecLine.ToTable("QualitySpecLine", Schema, table =>
+        {
+            table.HasCheckConstraint("CK_QualitySpecLine_Seq", "[Sequence] > 0");
+            table.HasCheckConstraint("CK_QualitySpecLine_Range", "[MinValue] IS NULL OR [MaxValue] IS NULL OR [MaxValue] >= [MinValue]");
+            table.HasCheckConstraint("CK_QualitySpecLine_Metadata", MetadataCheck);
+        });
+        qSpecLine.HasKey(x => x.Id).HasName("PK_QualitySpecLine");
+        qSpecLine.Property(x => x.Id).UseIdentityColumn();
+        qSpecLine.Property(x => x.OrganizationId).IsRequired();
+        qSpecLine.Property(x => x.QualitySpecId).IsRequired();
+        qSpecLine.Property(x => x.Sequence).IsRequired();
+        qSpecLine.Property(x => x.QualityParameterId).IsRequired();
+        qSpecLine.Property(x => x.MinValue).HasPrecision(18, 6);
+        qSpecLine.Property(x => x.MaxValue).HasPrecision(18, 6);
+        qSpecLine.Property(x => x.TargetValue).HasPrecision(18, 6);
+        qSpecLine.Property(x => x.ExpectedTextSpec).HasMaxLength(100);
+        qSpecLine.Property(x => x.IsMandatory).IsRequired();
+        qSpecLine.Property(x => x.Notes).HasMaxLength(300);
+        AddAuditMetadata(qSpecLine);
+        qSpecLine.HasIndex(x => new { x.OrganizationId, x.QualitySpecId, x.Sequence }).IsUnique().HasDatabaseName("UX_QualitySpecLine_Spec_Seq");
+        qSpecLine.HasIndex(x => new { x.OrganizationId, x.QualitySpecId, x.QualityParameterId }).IsUnique().HasDatabaseName("UX_QualitySpecLine_Spec_Param");
+        qSpecLine.HasOne<QualitySpec>().WithMany(x => x.Lines)
+            .HasForeignKey(x => new { x.OrganizationId, x.QualitySpecId })
+            .HasPrincipalKey(s => new { s.OrganizationId, s.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_QualitySpecLine_Spec");
+        qSpecLine.HasOne<QualityParameter>().WithMany()
+            .HasForeignKey(x => new { x.OrganizationId, x.QualityParameterId })
+            .HasPrincipalKey(p => new { p.OrganizationId, p.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_QualitySpecLine_Param");
 
         var supplier = model.Entity<Supplier>();
         supplier.ToTable("Supplier", Schema, table =>

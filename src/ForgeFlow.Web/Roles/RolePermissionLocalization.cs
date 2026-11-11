@@ -166,6 +166,7 @@ public static class RolePermissionLocalization
             or ProductionOrderErrors.NotFound
             or InventoryErrors.WarehouseNotFound or InventoryErrors.TransactionNotFound
             or QualityErrors.InspectionNotFound or QualityErrors.LotNotFound or QualityErrors.LineNotFound
+            or QualityErrors.ParameterNotFound or QualityErrors.SpecNotFound
             or ProcurementErrors.NotFound or ProcurementErrors.SupplierNotFound or ProcurementErrors.LineNotFound
             or RoutingErrors.NotFound or RoutingErrors.WorkCenterNotFound or RoutingErrors.RoutingNotFound or RoutingErrors.OperationNotFound
             or DiagnosticErrors.NotFound => "ReadNotFound",
@@ -253,6 +254,16 @@ public static class RolePermissionLocalization
         QualityErrors.InsufficientAvailableStock => "InvErrorInsufficientStock",
         QualityErrors.DefectReasonInvalid => "QcErrorDefectReasonInvalid",
         QualityErrors.ParameterInvalid => "QcErrorParameterInvalid",
+        QualityErrors.ParameterCodeDuplicate => "CreateCodeDuplicate",
+        QualityErrors.ParameterSymbolInvalid => "QcErrorParameterSymbolInvalid",
+        QualityErrors.ParameterUnitInvalid => "QcErrorParameterUnitInvalid",
+        QualityErrors.ParameterInactive => "QcErrorParameterInactive",
+        QualityErrors.SpecCodeDuplicate => "CreateCodeDuplicate",
+        QualityErrors.SpecTargetInvalid => "QcErrorSpecTargetInvalid",
+        QualityErrors.SpecActiveConflict => "QcErrorSpecActiveConflict",
+        QualityErrors.SpecRangeInvalid => "QcErrorSpecRangeInvalid",
+        QualityErrors.SpecLinesRequired => "QcErrorSpecLinesRequired",
+        QualityErrors.ConcessionReasonRequired => "QcErrorConcessionReasonRequired",
         QualityErrors.LotDatesInvalid => "QcErrorLotDatesInvalid",
         QualityErrors.LotCodeInvalid => "InvErrorLotCodeInvalid",
         QualityErrors.QuantityInvalid => "InvErrorQuantityInvalid",

@@ -75,6 +75,9 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         model.Ignore<ItemLot>();
         model.Ignore<QualityInspection>();
         model.Ignore<QualityInspectionLine>();
+        model.Ignore<QualityParameter>();
+        model.Ignore<QualitySpec>();
+        model.Ignore<QualitySpecLine>();
         model.Ignore<Supplier>();
         model.Ignore<PurchaseOrder>();
         model.Ignore<PurchaseOrderLine>();

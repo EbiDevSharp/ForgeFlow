@@ -256,12 +256,42 @@ public sealed class QualityUseCases(
 
                 var cleanDefect = QualityText.OptionalDefectReason(request.DefectReasonCode);
                 var cleanNotes = QualityText.OptionalNote(request.Notes);
-                var cleanLines = (request.Lines ?? []).Select(l => new QualityInspectionLineInput(
-                    QualityText.ParameterName(l.ParameterName),
-                    QualityText.OptionalSpecOrValue(l.ExpectedSpec),
-                    QualityText.OptionalSpecOrValue(l.MeasuredValue),
-                    l.IsPassed,
-                    QualityText.OptionalNote(l.Notes, QualityText.MaxLineNoteLength))).ToArray();
+                var cleanCert = QualityText.OptionalCertificateNumber(request.CertificateNumber);
+                var cleanLines = (request.Lines ?? []).Select(l =>
+                {
+                    var pName = QualityText.ParameterName(l.ParameterName);
+                    var symbol = string.IsNullOrWhiteSpace(l.Symbol) ? null : QualityText.Symbol(l.Symbol);
+                    var unitSym = QualityText.OptionalUnitSymbol(l.UnitSymbol);
+                    var method = QualityText.OptionalTestMethod(l.TestMethod);
+                    var pCode = string.IsNullOrWhiteSpace(l.ParameterCode) ? null : QualityText.Code(l.ParameterCode, QualityErrors.ParameterInvalid);
+                    var expected = QualityText.OptionalSpecOrValue(l.ExpectedSpec) ?? FormatRangeSpec(l.MinValue, l.MaxValue, l.TargetValue, unitSym);
+                    var measured = QualityText.OptionalSpecOrValue(l.MeasuredValue);
+                    var numVal = l.MeasuredNumericValue;
+                    var passed = l.IsPassed;
+                    if (l.DataType == QualityParameterDataType.Numeric && numVal.HasValue)
+                    {
+                        measured ??= numVal.Value.ToString("0.######", CultureInfo.InvariantCulture);
+                        if (l.MinValue.HasValue || l.MaxValue.HasValue)
+                            passed = QualityInspectionLine.EvaluateNumericPass(l.MinValue, l.MaxValue, numVal);
+                    }
+                    return new QualityInspectionLineInput(
+                        pName,
+                        expected,
+                        measured,
+                        passed,
+                        QualityText.OptionalNote(l.Notes, QualityText.MaxLineNoteLength),
+                        l.QualityParameterId,
+                        pCode,
+                        symbol,
+                        unitSym,
+                        method,
+                        l.DataType,
+                        l.MinValue,
+                        l.MaxValue,
+                        l.TargetValue,
+                        numVal,
+                        l.IsMandatory);
+                }).ToArray();
 
                 return await store.UpdateMeasurements(
                     request.OrganizationId,
@@ -271,7 +301,8 @@ public sealed class QualityUseCases(
                     cleanNotes,
                     cleanLines,
                     Access(auth.Actor!, scope!, QualityPermissions.QualityManage),
-                    ct);
+                    ct,
+                    cleanCert);
             });
         }
 
@@ -734,6 +765,20 @@ public sealed class QualityUseCases(
             .ToArray();
 
         return new LotTraceabilityReport(rootNode, backwardEdges, forwardEdges, relatedNodes);
+    }
+
+    private static string? FormatRangeSpec(decimal? min, decimal? max, decimal? target, string? unitSymbol)
+    {
+        var suffix = string.IsNullOrWhiteSpace(unitSymbol) ? string.Empty : $" {unitSymbol}";
+        if (min.HasValue && max.HasValue)
+            return $"{min.Value.ToString("0.######", CultureInfo.InvariantCulture)} – {max.Value.ToString("0.######", CultureInfo.InvariantCulture)}{suffix}";
+        if (min.HasValue)
+            return $">= {min.Value.ToString("0.######", CultureInfo.InvariantCulture)}{suffix}";
+        if (max.HasValue)
+            return $"<= {max.Value.ToString("0.######", CultureInfo.InvariantCulture)}{suffix}";
+        if (target.HasValue)
+            return $"{target.Value.ToString("0.######", CultureInfo.InvariantCulture)}{suffix}";
+        return null;
     }
 
     private static string BuildScrapDocNumber(string inspectionNumber, DateTime utcNow)

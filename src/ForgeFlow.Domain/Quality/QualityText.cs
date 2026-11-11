@@ -8,6 +8,10 @@ public static class QualityText
     public const int MaxNoteLength = 1000;
     public const int MaxLotNoteLength = 500;
     public const int MaxLineNoteLength = 300;
+    public const int MaxSymbolLength = 24;
+    public const int MaxTestMethodLength = 64;
+    public const int MaxCertificateLength = 64;
+    public const int MaxSpecNameLength = 120;
     private const decimal MaxQuantityMagnitude = 999_999_999_999.999999m;
 
     public static string Code(string? raw, string errorCode = QualityErrors.InspectionNumberInvalid)
@@ -98,5 +102,55 @@ public static class QualityText
     {
         if (manufactureDate.HasValue && expirationDate.HasValue && expirationDate.Value < manufactureDate.Value)
             throw new QualityRuleException(QualityErrors.LotDatesInvalid);
+    }
+
+    public static string SpecName(string? raw)
+    {
+        var trimmed = raw?.Trim() ?? string.Empty;
+        if (trimmed.Length == 0 || trimmed.Length > MaxSpecNameLength || trimmed.Any(char.IsControl))
+            throw new QualityRuleException(QualityErrors.ParameterInvalid, ("maxLength", MaxSpecNameLength));
+        return trimmed;
+    }
+
+    public static string Symbol(string? raw)
+    {
+        var trimmed = raw?.Trim() ?? string.Empty;
+        if (trimmed.Length == 0 || trimmed.Length > MaxSymbolLength || trimmed.Any(char.IsControl))
+            throw new QualityRuleException(QualityErrors.ParameterSymbolInvalid, ("maxLength", MaxSymbolLength));
+        return trimmed;
+    }
+
+    public static string? OptionalUnitSymbol(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var trimmed = raw.Trim();
+        if (trimmed.Length > MaxSymbolLength || trimmed.Any(char.IsControl))
+            throw new QualityRuleException(QualityErrors.ParameterUnitInvalid, ("maxLength", MaxSymbolLength));
+        return trimmed;
+    }
+
+    public static string? OptionalTestMethod(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var trimmed = raw.Trim();
+        if (trimmed.Length > MaxTestMethodLength || trimmed.Any(char.IsControl))
+            throw new QualityRuleException(QualityErrors.ParameterInvalid, ("maxLength", MaxTestMethodLength));
+        return trimmed;
+    }
+
+    public static string? OptionalCertificateNumber(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var trimmed = raw.Trim();
+        if (trimmed.Length > MaxCertificateLength || trimmed.Any(char.IsControl))
+            throw new QualityRuleException(QualityErrors.ParameterInvalid, ("maxLength", MaxCertificateLength));
+        return trimmed;
+    }
+
+    public static byte ValidateDecimalPlaces(byte places)
+    {
+        if (places > 6)
+            throw new QualityRuleException(QualityErrors.ParameterInvalid);
+        return places;
     }
 }

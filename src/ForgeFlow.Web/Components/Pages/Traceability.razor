@@ -92,12 +92,15 @@
             <div class="qc-trace-card">
                 <div class="audit-modal-title-row">
                     <strong class="audit-modal-code"><span dir="ltr">@root.ItemCode</span> — @root.ItemName (<bdi dir="ltr">@root.LotCode</bdi>)</strong>
-                    @if (root.ExpirationDate.HasValue)
-                    {
-                        <span class="read-badge @(root.IsExpired ? "rpt-shortage-badge" : root.IsExpiringSoon ? "qc-status-pending" : "qc-status-completed")">
-                            @Text["QcLotExpDateLabel"]: <bdi dir="ltr">@root.ExpirationDate.Value.ToString("yyyy-MM-dd")</bdi>
-                        </span>
-                    }
+                    <div class="read-row-actions">
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => coaOpen = true">@Text["QcCoaBtn"]</BitButton>
+                        @if (root.ExpirationDate.HasValue)
+                        {
+                            <span class="read-badge @(root.IsExpired ? "rpt-shortage-badge" : root.IsExpiringSoon ? "qc-status-pending" : "qc-status-completed")">
+                                @Text["QcLotExpDateLabel"]: <bdi dir="ltr">@root.ExpirationDate.Value.ToString("yyyy-MM-dd")</bdi>
+                            </span>
+                        }
+                    </div>
                 </div>
                 <div class="rpt-kpi-grid">
                     <article class="rpt-kpi-card">
@@ -217,6 +220,12 @@
             </div>
         }
     }
+
+    @if (CurrentScope is not null && report is not null)
+    {
+        <LotCertificateDialog @bind-IsOpen="coaOpen" Scope="@CurrentScope" OrganizationId="@ScopeOrganizationId(CurrentScope)"
+                              ItemId="@report.RootLot.ItemId" LotCode="@report.RootLot.LotCode" />
+    }
 </section>
 
 @code {
@@ -238,6 +247,7 @@
     private string lotCodeInput = string.Empty;
     private LotTraceDirection selectedDirection = LotTraceDirection.Both;
     private LotTraceabilityReport? report;
+    private bool coaOpen;
 
     private OrganizationScope? CurrentScope => scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
     private static long ScopeOrganizationId(OrganizationScope scope) => scope switch

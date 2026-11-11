@@ -1,0 +1,252 @@
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Quality
+@using ForgeFlow.Domain.Quality
+@using ForgeFlow.Web.Roles
+@inject QualitySpecUseCases SpecService
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<ForgeFormDialog IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged" Width="860px"
+                 Title="@Text["QcCoaTitle"]"
+                 Subtitle="@BuildSubtitle()"
+                 CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (loading)
+        {
+            <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+        }
+        else if (errorKey is not null)
+        {
+            <p role="alert" class="write-error">@Text[errorKey]</p>
+        }
+        else if (certificate is null)
+        {
+            <p role="status" class="read-empty">@Text["ReadNotFound"]</p>
+        }
+        else
+        {
+            <div class="audit-meta-card">
+                <div class="audit-meta-row">
+                    <span class="audit-meta-label">@Text["BomLineItemColumn"]</span>
+                    <span class="audit-meta-val"><span dir="ltr">@certificate.ItemCode</span> — @certificate.ItemName</span>
+                </div>
+                <div class="audit-meta-row">
+                    <span class="audit-meta-label">@Text["InvLotCodeLabel"]</span>
+                    <span class="audit-meta-val" dir="ltr">@certificate.LotCode</span>
+                </div>
+                @if (certificate.ManufactureDate.HasValue || certificate.ExpirationDate.HasValue)
+                {
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["QcLotDatesSummaryLabel"]</span>
+                        <span class="audit-meta-val" dir="ltr">
+                            @(certificate.ManufactureDate?.ToString("yyyy-MM-dd") ?? "—") → @(certificate.ExpirationDate?.ToString("yyyy-MM-dd") ?? "—")
+                        </span>
+                    </div>
+                }
+                @if (certificate.ActiveIncomingSpec is not null)
+                {
+                    var spec = certificate.ActiveIncomingSpec.Summary;
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["QcActiveSpecLabel"]</span>
+                        <span class="audit-meta-val">
+                            <bdi dir="ltr">@spec.Code (v@spec.Version)</bdi> — @spec.Name
+                        </span>
+                    </div>
+                }
+            </div>
+
+            @if (certificate.Inspections.Count == 0)
+            {
+                <p role="status" class="read-empty">@Text["QcCoaNoInspections"]</p>
+            }
+            else
+            {
+                @foreach (var insp in certificate.Inspections)
+                {
+                    <div class="po-context-card qc-coa-insp-card">
+                        <div class="po-context-head">
+                            <div>
+                                <strong dir="ltr">@insp.InspectionNumber</strong>
+                                @if (!string.IsNullOrWhiteSpace(insp.CertificateNumber))
+                                {
+                                    <span class="read-badge qc-cert-badge" dir="ltr">@Text["QcCertNumberShort"]: @insp.CertificateNumber</span>
+                                }
+                            </div>
+                            <span class="read-badge @StatusBadgeClass(insp.Status)">@StatusLabel(insp.Status)</span>
+                        </div>
+                        <div class="read-sub-cell qc-coa-meta-line">
+                            <span>@SourceLabel(insp.SourceType)</span>
+                            @if (insp.InspectedAtUtc.HasValue)
+                            {
+                                <span> · <bdi dir="ltr">@Format.Timestamp(insp.InspectedAtUtc.Value)</bdi></span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(insp.InspectedByActorName))
+                            {
+                                <span> · @insp.InspectedByActorName</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(insp.DefectReasonCode))
+                            {
+                                <span> · @Text["QcDefectCodeLabel"]: <bdi dir="ltr">@insp.DefectReasonCode</bdi></span>
+                            }
+                        </div>
+                        @if (insp.Measurements.Count == 0)
+                        {
+                            <p class="read-sub-cell">@Text["QcCoaNoMeasurements"]</p>
+                        }
+                        else
+                        {
+                            <div class="audit-fields-box">
+                                <table class="audit-fields-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>@Text["QcParamNamePlaceholder"]</th>
+                                            <th>@Text["QcExpectedSpecPlaceholder"]</th>
+                                            <th>@Text["QcMeasuredValPlaceholder"]</th>
+                                            <th>@Text["ReadStatus"]</th>
+                                            <th>@Text["PoNotesLabel"]</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var m in insp.Measurements)
+                                        {
+                                            <tr>
+                                                <td>@m.LineNumber</td>
+                                                <td>
+                                                    <div>
+                                                        @if (!string.IsNullOrWhiteSpace(m.Symbol))
+                                                        {
+                                                            <strong class="qc-symbol-chip" dir="ltr">@m.Symbol</strong>
+                                                        }
+                                                        <span>@m.ParameterName</span>
+                                                        @if (m.IsMandatory)
+                                                        {
+                                                            <span class="qc-mandatory-star" title="@Text["QcMandatoryLabel"]">*</span>
+                                                        }
+                                                    </div>
+                                                    @if (!string.IsNullOrWhiteSpace(m.TestMethod) || !string.IsNullOrWhiteSpace(m.ParameterCode))
+                                                    {
+                                                        <div class="read-sub-cell" dir="ltr">
+                                                            @m.ParameterCode @(!string.IsNullOrWhiteSpace(m.TestMethod) ? $"· {m.TestMethod}" : string.Empty)
+                                                        </div>
+                                                    }
+                                                </td>
+                                                <td dir="ltr">@(m.ExpectedSpec ?? "—")</td>
+                                                <td dir="ltr">
+                                                    <strong>@(m.MeasuredValue ?? "—")</strong>
+                                                    @if (!string.IsNullOrWhiteSpace(m.UnitSymbol) && !string.IsNullOrWhiteSpace(m.MeasuredValue))
+                                                    {
+                                                        <span class="read-sub-cell"> @m.UnitSymbol</span>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    <span class="read-badge @(m.IsPassed ? "qc-status-completed" : "rpt-shortage-badge")">
+                                                        @Text[m.IsPassed ? "QcPassedCheck" : "QcFailedLabel"]
+                                                    </span>
+                                                </td>
+                                                <td>@(m.Notes ?? "—")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(insp.Notes))
+                        {
+                            <p class="read-sub-cell">@Text["PoNotesLabel"]: @insp.Notes</p>
+                        }
+                    </div>
+                }
+            }
+        }
+    </ChildContent>
+    <FooterActions>
+        @if (ItemId > 0 && !string.IsNullOrWhiteSpace(LotCode))
+        {
+            <a class="po-trace-link-btn" href="@($"/traceability?itemId={ItemId}&lotCode={Uri.EscapeDataString(LotCode)}")">
+                @Text["QcViewTraceabilityLink"]
+            </a>
+        }
+    </FooterActions>
+    <FooterEnd>
+        <BitButton Variant="BitVariant.Outline" OnClick="() => OnIsOpenChanged(false)">@Text["ReadClose"]</BitButton>
+    </FooterEnd>
+</ForgeFormDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public OrganizationScope? Scope { get; set; }
+    [Parameter] public long OrganizationId { get; set; }
+    [Parameter] public long ItemId { get; set; }
+    [Parameter] public string LotCode { get; set; } = string.Empty;
+
+    private bool loading;
+    private string? errorKey;
+    private LotCertificateSummary? certificate;
+    private (bool open, long orgId, long itemId, string lot) lastKey;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = (IsOpen, OrganizationId, ItemId, LotCode.Trim());
+        if (!IsOpen)
+        {
+            lastKey = (false, 0, 0, string.Empty);
+            return;
+        }
+        if (key == lastKey) return;
+        lastKey = key;
+
+        if (Scope is null || OrganizationId <= 0 || ItemId <= 0 || string.IsNullOrWhiteSpace(LotCode))
+        {
+            certificate = null;
+            return;
+        }
+
+        loading = true;
+        errorKey = null;
+        certificate = null;
+        try
+        {
+            var res = await SpecService.GetLotCertificate(Scope, OrganizationId, ItemId, LotCode.Trim());
+            if (!res.Succeeded) errorKey = RolePermissionLocalization.FailureKey(res.Error!.Code);
+            else certificate = res.Value;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private Task OnIsOpenChanged(bool next) => IsOpenChanged.InvokeAsync(next);
+
+    private string BuildSubtitle() => certificate is not null
+        ? $"{certificate.ItemCode} — {certificate.ItemName} · {certificate.LotCode}"
+        : LotCode;
+
+    private string StatusLabel(QualityInspectionStatus status) => status switch
+    {
+        QualityInspectionStatus.Pending => Text["QcStatusPending"],
+        QualityInspectionStatus.InReview => Text["QcStatusInReview"],
+        QualityInspectionStatus.Completed => Text["QcStatusCompleted"],
+        QualityInspectionStatus.Cancelled => Text["QcStatusCancelled"],
+        _ => status.ToString()
+    };
+
+    private static string StatusBadgeClass(QualityInspectionStatus status) => status switch
+    {
+        QualityInspectionStatus.Pending => "qc-status-pending",
+        QualityInspectionStatus.InReview => "qc-status-review",
+        QualityInspectionStatus.Completed => "qc-status-completed",
+        QualityInspectionStatus.Cancelled => "qc-status-cancelled",
+        _ => "qc-status-pending"
+    };
+
+    private string SourceLabel(QualityInspectionSourceType source) => source switch
+    {
+        QualityInspectionSourceType.Receipt => Text["QcSourceReceipt"],
+        QualityInspectionSourceType.ProductionReceipt => Text["QcSourceProdReceipt"],
+        QualityInspectionSourceType.ManualHold => Text["QcSourceManualHold"],
+        _ => source.ToString()
+    };
+}

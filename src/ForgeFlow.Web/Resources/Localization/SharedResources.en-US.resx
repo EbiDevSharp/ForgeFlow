@@ -2643,4 +2643,63 @@
   <data name="PoResConfirmBtn" xml:space="preserve"><value>Confirm Reservation</value></data>
   <data name="PoResSavedNotice" xml:space="preserve"><value>Stock reserved for production order.</value></data>
   <data name="RptReservedSubLabel" xml:space="preserve"><value>Reserved: {0}</value></data>
+  <data name="AuditEv_QualityParameterCreated" xml:space="preserve"><value>Lab parameter created</value></data>
+  <data name="AuditEv_QualityParameterUpdated" xml:space="preserve"><value>Lab parameter updated</value></data>
+  <data name="AuditEv_QualityParameterActivated" xml:space="preserve"><value>Lab parameter activated</value></data>
+  <data name="AuditEv_QualityParameterDeactivated" xml:space="preserve"><value>Lab parameter deactivated</value></data>
+  <data name="AuditEv_QualitySpecCreated" xml:space="preserve"><value>Inspection specification created</value></data>
+  <data name="AuditEv_QualitySpecUpdated" xml:space="preserve"><value>Inspection specification updated</value></data>
+  <data name="AuditEv_QualitySpecActivated" xml:space="preserve"><value>Inspection specification activated</value></data>
+  <data name="AuditEv_QualitySpecDeactivated" xml:space="preserve"><value>Inspection specification deactivated</value></data>
+  <data name="QcTabParameters" xml:space="preserve"><value>Lab Parameters</value></data>
+  <data name="QcTabSpecs" xml:space="preserve"><value>Inspection Specs</value></data>
+  <data name="QcCreateParameterBtn" xml:space="preserve"><value>New Lab Parameter</value></data>
+  <data name="QcCreateSpecBtn" xml:space="preserve"><value>New Inspection Spec</value></data>
+  <data name="QcCreateParameterTitle" xml:space="preserve"><value>Create Lab Parameter</value></data>
+  <data name="QcEditParameterTitle" xml:space="preserve"><value>Edit Lab Parameter</value></data>
+  <data name="QcParamModalSubtitle" xml:space="preserve"><value>Define reusable laboratory test characteristics, scientific symbols, and units.</value></data>
+  <data name="QcCreateSpecTitle" xml:space="preserve"><value>Create Inspection Specification</value></data>
+  <data name="QcEditSpecTitle" xml:space="preserve"><value>Edit Inspection Specification</value></data>
+  <data name="QcSpecModalSubtitle" xml:space="preserve"><value>Attach parameter tolerances to an Item or Classification family for automatic QC checklists.</value></data>
+  <data name="QcParamSymbolLabel" xml:space="preserve"><value>Symbol</value></data>
+  <data name="QcParamUnitLabel" xml:space="preserve"><value>Lab Unit</value></data>
+  <data name="QcParamMethodLabel" xml:space="preserve"><value>Test Method</value></data>
+  <data name="QcParamDecimalLabel" xml:space="preserve"><value>Decimal Places</value></data>
+  <data name="QcSpecTargetKindLabel" xml:space="preserve"><value>Target Scope</value></data>
+  <data name="QcSpecTargetLabel" xml:space="preserve"><value>Target Item / Family</value></data>
+  <data name="QcSpecCheckpointLabel" xml:space="preserve"><value>Checkpoint</value></data>
+  <data name="QcSpecVersionLabel" xml:space="preserve"><value>Version</value></data>
+  <data name="QcSpecLinesCountCol" xml:space="preserve"><value>Parameters</value></data>
+  <data name="QcSpecLinesHeading" xml:space="preserve"><value>Specification Parameters &amp; Limits</value></data>
+  <data name="QcAddSpecLineBtn" xml:space="preserve"><value>Add Parameter</value></data>
+  <data name="QcSpecMinLabel" xml:space="preserve"><value>Min</value></data>
+  <data name="QcSpecMaxLabel" xml:space="preserve"><value>Max</value></data>
+  <data name="QcSpecTargetValLabel" xml:space="preserve"><value>Target</value></data>
+  <data name="QcMandatoryLabel" xml:space="preserve"><value>Mandatory</value></data>
+  <data name="QcTargetItem" xml:space="preserve"><value>Item</value></data>
+  <data name="QcTargetClassification" xml:space="preserve"><value>Classification</value></data>
+  <data name="QcCheckpointIncoming" xml:space="preserve"><value>Incoming</value></data>
+  <data name="QcCheckpointProduction" xml:space="preserve"><value>Production</value></data>
+  <data name="QcCheckpointAll" xml:space="preserve"><value>Incoming &amp; Production</value></data>
+  <data name="QcLoadTemplateBtn" xml:space="preserve"><value>Load Spec Template</value></data>
+  <data name="QcTemplateLoadedNotice" xml:space="preserve"><value>Inspection checklist loaded from applicable specification.</value></data>
+  <data name="QcCustomParamOption" xml:space="preserve"><value>Custom parameter (ad-hoc)</value></data>
+  <data name="QcCertNumberLabel" xml:space="preserve"><value>Lab Certificate (COA) No.</value></data>
+  <data name="QcCertNumberShort" xml:space="preserve"><value>COA</value></data>
+  <data name="QcConcessionWarning" xml:space="preserve"><value>Mandatory lab test failed: accepting blocked stock requires entering a Defect Reason or Concession Notes.</value></data>
+  <data name="QcCoaBtn" xml:space="preserve"><value>COA</value></data>
+  <data name="QcCoaTitle" xml:space="preserve"><value>Certificate of Analysis (COA)</value></data>
+  <data name="QcLotDatesSummaryLabel" xml:space="preserve"><value>Mfg / Exp Dates</value></data>
+  <data name="QcActiveSpecLabel" xml:space="preserve"><value>Applicable QC Spec</value></data>
+  <data name="QcCoaNoInspections" xml:space="preserve"><value>No quality inspections have been recorded for this lot yet.</value></data>
+  <data name="QcCoaNoMeasurements" xml:space="preserve"><value>No laboratory test measurements recorded on this inspection.</value></data>
+  <data name="QcViewTraceabilityLink" xml:space="preserve"><value>Open Lot Traceability</value></data>
+  <data name="QcErrorParameterSymbolInvalid" xml:space="preserve"><value>Enter a valid parameter symbol (1 to 24 characters).</value></data>
+  <data name="QcErrorParameterUnitInvalid" xml:space="preserve"><value>Unit symbol cannot exceed 24 characters.</value></data>
+  <data name="QcErrorParameterInactive" xml:space="preserve"><value>Selected lab parameter is inactive or does not exist.</value></data>
+  <data name="QcErrorSpecTargetInvalid" xml:space="preserve"><value>Select a valid target Item or Classification and checkpoint.</value></data>
+  <data name="QcErrorSpecActiveConflict" xml:space="preserve"><value>An active specification already exists for this target and checkpoint.</value></data>
+  <data name="QcErrorSpecRangeInvalid" xml:space="preserve"><value>Minimum tolerance cannot exceed maximum tolerance, and duplicate parameters are not allowed.</value></data>
+  <data name="QcErrorSpecLinesRequired" xml:space="preserve"><value>At least one specification parameter line is required.</value></data>
+  <data name="QcErrorConcessionReasonRequired" xml:space="preserve"><value>A mandatory test failed; enter a defect reason or concession notes before accepting this lot.</value></data>
 </root>

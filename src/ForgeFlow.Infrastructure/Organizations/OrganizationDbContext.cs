@@ -58,6 +58,9 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
     public DbSet<ItemLot> ItemLots => Set<ItemLot>();
     public DbSet<QualityInspection> QualityInspections => Set<QualityInspection>();
     public DbSet<QualityInspectionLine> QualityInspectionLines => Set<QualityInspectionLine>();
+    public DbSet<QualityParameter> QualityParameters => Set<QualityParameter>();
+    public DbSet<QualitySpec> QualitySpecs => Set<QualitySpec>();
+    public DbSet<QualitySpecLine> QualitySpecLines => Set<QualitySpecLine>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
     public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
@@ -107,6 +110,7 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                 or ProductionOrder or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext
                 or Warehouse or InventoryTransaction or InventoryLedgerEntry or InventoryBalance or StockReservation
                 or ItemLot or QualityInspection or QualityInspectionLine
+                or QualityParameter or QualitySpec or QualitySpecLine
                 or Supplier or PurchaseOrder or PurchaseOrderLine
                 or WorkCenter or Routing or RoutingOperation or ProductionOrderOperation))
             {
@@ -115,7 +119,7 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
             if (entry.State == EntityState.Deleted && entry.Entity is not (ItemClassification or ItemAttributeValue
                 or BomInput or BomOutput or BomApplicability or BomApplicabilityCondition
                 or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext
-                or QualityInspectionLine or PurchaseOrderLine
+                or QualityInspectionLine or QualitySpecLine or PurchaseOrderLine
                 or RoutingOperation or ProductionOrderOperation))
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             if (entry.State == EntityState.Modified)
@@ -144,8 +148,11 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                     StockReservation => new[] { "ConsumedBaseQuantity", "Status", "ReleasedAtUtc" },
                     InventoryTransaction or InventoryLedgerEntry => Array.Empty<string>(),
                     ItemLot => new[] { "ManufactureDate", "ExpirationDate", "Notes" },
-                    QualityInspection => new[] { "AcceptedBaseQuantity", "RejectedBaseQuantity", "RemainingBlockedBaseQuantity", "Status", "DefectReasonCode", "Notes", "InspectedAtUtc", "InspectedByActorId" },
+                    QualityInspection => new[] { "AcceptedBaseQuantity", "RejectedBaseQuantity", "RemainingBlockedBaseQuantity", "Status", "DefectReasonCode", "Notes", "CertificateNumber", "InspectedAtUtc", "InspectedByActorId" },
                     QualityInspectionLine => Array.Empty<string>(),
+                    QualityParameter => new[] { "Name", "Symbol", "UnitSymbol", "DecimalPlaces", "DefaultTestMethod", "IsActive" },
+                    QualitySpec => new[] { "Name", "Checkpoint", "Notes", "IsActive" },
+                    QualitySpecLine => Array.Empty<string>(),
                     Supplier => new[] { "Name", "ContactName", "Phone", "Email", "Address", "Notes", "IsActive" },
                     PurchaseOrder => new[] { "SupplierId", "OrderDate", "ExpectedDeliveryDate", "TargetWarehouseId", "CurrencyCode", "Notes", "CancellationReason", "Status", "ApprovedAtUtc", "ClosedAtUtc", "CancelledAtUtc" },
                     PurchaseOrderLine => new[] { "ReceivedBaseQuantity" },
@@ -245,6 +252,9 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         ItemLot lot => lot.OrganizationId,
         QualityInspection qi => qi.OrganizationId,
         QualityInspectionLine qil => qil.OrganizationId,
+        QualityParameter qp => qp.OrganizationId,
+        QualitySpec qs => qs.OrganizationId,
+        QualitySpecLine qsl => qsl.OrganizationId,
         Supplier sup => sup.OrganizationId,
         PurchaseOrder pur => pur.OrganizationId,
         PurchaseOrderLine pul => pul.OrganizationId,
@@ -293,6 +303,11 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
             .Select(e => ((QualityInspection)e.Entity).Id)
             .ToHashSet();
         var seenQualityLinesInspections = new HashSet<long>();
+        var headersWithSpecEvent = entries
+            .Where(e => e.Entity is QualitySpec)
+            .Select(e => ((QualitySpec)e.Entity).Id)
+            .ToHashSet();
+        var seenSpecLinesSpecs = new HashSet<long>();
         var headersWithPurchaseEvent = entries
             .Where(e => e.Entity is PurchaseOrder)
             .Select(e => ((PurchaseOrder)e.Entity).Id)
@@ -320,6 +335,15 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                 {
                     yield return new PendingChange(entry, "QualityInspection.Updated",
                         JsonSerializer.Serialize(new { QualityInspectionId = qLine.QualityInspectionId }, AuditJson));
+                }
+                continue;
+            }
+            if (entry.Entity is QualitySpecLine sLine)
+            {
+                if (!headersWithSpecEvent.Contains(sLine.QualitySpecId) && seenSpecLinesSpecs.Add(sLine.QualitySpecId))
+                {
+                    yield return new PendingChange(entry, "QualitySpec.Updated",
+                        JsonSerializer.Serialize(new { QualitySpecId = sLine.QualitySpecId }, AuditJson));
                 }
                 continue;
             }
@@ -576,6 +600,44 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
             }
             yield return new PendingChange(entry, "QualityInspection.Updated",
                 JsonSerializer.Serialize(new { qi.InspectionNumber, qi.DefectReasonCode, Status = qi.Status.ToString() }, AuditJson));
+            yield break;
+        }
+
+        if (entry.Entity is QualityParameter qp)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "QualityParameter.Created",
+                    JsonSerializer.Serialize(new { qp.Code, qp.Name, qp.Symbol, qp.UnitSymbol, DataType = qp.DataType.ToString() }, AuditJson));
+                yield break;
+            }
+            if (entry.Property("IsActive").IsModified)
+            {
+                yield return new PendingChange(entry, qp.IsActive ? "QualityParameter.Activated" : "QualityParameter.Deactivated",
+                    JsonSerializer.Serialize(new { qp.Code, qp.Name, qp.IsActive }, AuditJson));
+                yield break;
+            }
+            yield return new PendingChange(entry, "QualityParameter.Updated",
+                JsonSerializer.Serialize(new { qp.Code, qp.Name, qp.Symbol, qp.UnitSymbol, qp.DecimalPlaces, qp.DefaultTestMethod }, AuditJson));
+            yield break;
+        }
+
+        if (entry.Entity is QualitySpec qs)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "QualitySpec.Created",
+                    JsonSerializer.Serialize(new { qs.Code, qs.Name, TargetKind = qs.TargetKind.ToString(), qs.ItemId, qs.ClassificationId, Checkpoint = qs.Checkpoint.ToString() }, AuditJson));
+                yield break;
+            }
+            if (entry.Property("IsActive").IsModified)
+            {
+                yield return new PendingChange(entry, qs.IsActive ? "QualitySpec.Activated" : "QualitySpec.Deactivated",
+                    JsonSerializer.Serialize(new { qs.Code, qs.Name, qs.IsActive }, AuditJson));
+                yield break;
+            }
+            yield return new PendingChange(entry, "QualitySpec.Updated",
+                JsonSerializer.Serialize(new { qs.Code, qs.Name, Checkpoint = qs.Checkpoint.ToString(), qs.Version }, AuditJson));
             yield break;
         }
 

@@ -763,7 +763,21 @@
                                                 <tr>
                                                     <td><span dir="ltr">@resv.ItemCode</span> — @resv.ItemName</td>
                                                     <td><span dir="ltr">@resv.WarehouseCode</span> — @resv.WarehouseName</td>
-                                                    <td dir="ltr">@(string.IsNullOrEmpty(resv.LotCode) ? "—" : resv.LotCode)</td>
+                                                    <td dir="ltr">
+                                                        @if (string.IsNullOrEmpty(resv.LotCode))
+                                                        {
+                                                            <span>—</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <div class="qc-lot-inline-cell">
+                                                                <a class="qc-lot-link" href="@($"/traceability?itemId={resv.ItemId}&lotCode={Uri.EscapeDataString(resv.LotCode)}")">@resv.LotCode</a>
+                                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="qc-inline-coa-btn" OnClick="() => OpenCoaModal(resv.ItemId, resv.LotCode)">
+                                                                    @Text["QcCoaBtn"]
+                                                                </BitButton>
+                                                            </div>
+                                                        }
+                                                    </td>
                                                     <td dir="ltr"><strong>@Format.Number(resv.RemainingReservedBaseQuantity) @resv.BaseUnitSymbol</strong></td>
                                                     <td><span class="read-badge @ResBadgeClass(resv.Status)">@ResStatusLabel(resv.Status)</span></td>
                                                     @if (scopeCanManage || canManageInventory)
@@ -908,6 +922,12 @@
             </div>
         </Body>
     </BitDialog>
+
+    @if (CurrentScope is not null)
+    {
+        <LotCertificateDialog @bind-IsOpen="coaOpen" Scope="@CurrentScope" OrganizationId="@ScopeOrganizationId(CurrentScope)"
+                              ItemId="@coaItemId" LotCode="@coaLotCode" />
+    }
 </section>
 
 @code {
@@ -972,6 +992,17 @@
     private string? reserveLotCode;
     private string? reserveNotes;
     private string? reserveError;
+
+    private bool coaOpen;
+    private long coaItemId;
+    private string coaLotCode = string.Empty;
+
+    private void OpenCoaModal(long itemId, string lotCode)
+    {
+        coaItemId = itemId;
+        coaLotCode = lotCode;
+        coaOpen = true;
+    }
 
     private long siteFilter;
     private string statusFilter = string.Empty;

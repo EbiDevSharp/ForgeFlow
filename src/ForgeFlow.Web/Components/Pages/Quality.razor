@@ -8,7 +8,9 @@
 @using ForgeFlow.Application.Units
 @using ForgeFlow.Domain.Quality
 @using ForgeFlow.Web.Roles
+@using System.Globalization
 @inject QualityUseCases QualityService
+@inject QualitySpecUseCases SpecService
 @inject InventoryUseCases InvService
 @inject ProductionOrderUseCases OrderService
 @inject ItemUseCases ItemService
@@ -28,16 +30,25 @@
             <h1 id="qc-title">@Text["QualityControl"]</h1>
             <p class="write-hint">@Text["QualityCaption"]</p>
         </div>
-        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage && activeTab == TabInspections)
+        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage)
         {
             <div class="read-head-actions">
-                <BitButton Size="BitSize.Small" OnClick="OpenHoldModalAsync">@Text["QcCreateHoldBtn"]</BitButton>
-            </div>
-        }
-        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage && activeTab == TabLots)
-        {
-            <div class="read-head-actions">
-                <BitButton Size="BitSize.Small" OnClick="() => OpenLotModal(null)">@Text["QcLotUpsertBtn"]</BitButton>
+                @if (activeTab == TabInspections)
+                {
+                    <BitButton Size="BitSize.Small" OnClick="OpenHoldModalAsync">@Text["QcCreateHoldBtn"]</BitButton>
+                }
+                else if (activeTab == TabLots)
+                {
+                    <BitButton Size="BitSize.Small" OnClick="() => OpenLotModal(null)">@Text["QcLotUpsertBtn"]</BitButton>
+                }
+                else if (activeTab == TabParameters)
+                {
+                    <BitButton Size="BitSize.Small" OnClick="() => OpenParameterModal(null)">@Text["QcCreateParameterBtn"]</BitButton>
+                }
+                else if (activeTab == TabSpecs)
+                {
+                    <BitButton Size="BitSize.Small" OnClick="() => OpenSpecModalAsync(null)">@Text["QcCreateSpecBtn"]</BitButton>
+                }
             </div>
         }
     </div>
@@ -71,6 +82,12 @@
             <button type="button" role="tab" aria-selected="@(activeTab == TabLots)"
                     class="read-tab-btn @(activeTab == TabLots ? "active" : string.Empty)"
                     @onclick="() => SwitchTabAsync(TabLots)">@Text["QcTabLots"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabParameters)"
+                    class="read-tab-btn @(activeTab == TabParameters ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabParameters)">@Text["QcTabParameters"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabSpecs)"
+                    class="read-tab-btn @(activeTab == TabSpecs ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabSpecs)">@Text["QcTabSpecs"]</button>
         </div>
 
         <div class="read-toolbar-card">
@@ -114,11 +131,42 @@
                     </select>
                 </div>
             }
-            else
+            else if (activeTab == TabLots)
             {
                 <label class="read-inactive">
                     <input type="checkbox" checked="@onlyExpiringLots" @onchange="ToggleExpiringLotsAsync" />
                     <span>@Text["QcOnlyExpiringLabel"]</span>
+                </label>
+            }
+            else if (activeTab == TabParameters)
+            {
+                <label class="read-inactive">
+                    <input type="checkbox" checked="@includeInactiveParams" @onchange="ToggleInactiveParamsAsync" />
+                    <span>@Text["ReadInactive"]</span>
+                </label>
+            }
+            else if (activeTab == TabSpecs)
+            {
+                <div class="read-field">
+                    <label for="qc-spec-target-filter">@Text["QcSpecTargetKindLabel"]</label>
+                    <select id="qc-spec-target-filter" value="@specTargetFilter" @onchange="ChangeSpecTargetFilterAsync">
+                        <option value="">@Text["PoAllStatusesOption"]</option>
+                        <option value="@((byte)QualitySpecTargetKind.Item)">@Text["QcTargetItem"]</option>
+                        <option value="@((byte)QualitySpecTargetKind.Classification)">@Text["QcTargetClassification"]</option>
+                    </select>
+                </div>
+                <div class="read-field">
+                    <label for="qc-spec-ckpt-filter">@Text["QcSpecCheckpointLabel"]</label>
+                    <select id="qc-spec-ckpt-filter" value="@specCheckpointFilter" @onchange="ChangeSpecCheckpointFilterAsync">
+                        <option value="">@Text["PoAllStatusesOption"]</option>
+                        <option value="@((byte)QualitySpecCheckpoint.Incoming)">@Text["QcCheckpointIncoming"]</option>
+                        <option value="@((byte)QualitySpecCheckpoint.Production)">@Text["QcCheckpointProduction"]</option>
+                        <option value="@((byte)QualitySpecCheckpoint.All)">@Text["QcCheckpointAll"]</option>
+                    </select>
+                </div>
+                <label class="read-inactive">
+                    <input type="checkbox" checked="@includeInactiveSpecs" @onchange="ToggleInactiveSpecsAsync" />
+                    <span>@Text["ReadInactive"]</span>
                 </label>
             }
 
@@ -142,6 +190,10 @@
                                     <div>
                                         <div class="read-primary-cell"><bdi dir="ltr">@q.InspectionNumber</bdi></div>
                                         <div class="read-sub-cell"><span dir="ltr">@q.SiteCode / @q.WarehouseCode</span></div>
+                                        @if (!string.IsNullOrWhiteSpace(q.CertificateNumber))
+                                        {
+                                            <div class="read-sub-cell" dir="ltr">@Text["QcCertNumberShort"]: @q.CertificateNumber</div>
+                                        }
                                     </div>
                                 </Template>
                             </BitDataGridColumn>
@@ -192,6 +244,12 @@
                                                        IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
                                                        OnClick="() => OpenInspectionDetailsAsync(q.Id)" />
                                         </BitTooltip>
+                                        @if (!string.IsNullOrWhiteSpace(q.LotCode))
+                                        {
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OpenCoaModal(q.ItemId, q.LotCode)">
+                                                @Text["QcCoaBtn"]
+                                            </BitButton>
+                                        }
                                     </div>
                                 </Template>
                             </BitDataGridColumn>
@@ -200,7 +258,7 @@
                 </div>
             </div>
         }
-        else
+        else if (activeTab == TabLots)
         {
             <div class="read-grid-card">
                 <div class="read-grid">
@@ -240,6 +298,9 @@
                             <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["ReadActions"]">
                                 <Template Context="l">
                                     <div class="read-row-actions">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OpenCoaModal(l.ItemId, l.LotCode)">
+                                            @Text["QcCoaBtn"]
+                                        </BitButton>
                                         @if (scopeCanManage)
                                         {
                                             <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
@@ -247,6 +308,143 @@
                                                            Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
                                                            OnClick="() => OpenLotModal(l)" />
                                             </BitTooltip>
+                                        }
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else if (activeTab == TabParameters)
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="paramGrid" TItem="QualityParameterSummary" OnRead="ReadParametersAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="qc-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["ReadCode"]">
+                                <Template Context="p"><bdi dir="ltr">@p.Code</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["QcParamSymbolLabel"]">
+                                <Template Context="p"><span class="qc-symbol-chip" dir="ltr">@p.Symbol</span></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["ReadName"]">
+                                <Template Context="p">@p.Name</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["QcParamUnitLabel"]">
+                                <Template Context="p"><span dir="ltr">@(p.UnitSymbol ?? "—")</span></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["AttributeDataTypeLabel"]">
+                                <Template Context="p">
+                                    <span>@ParamDataTypeLabel(p.DataType)</span>
+                                    @if (p.DataType == QualityParameterDataType.Numeric)
+                                    {
+                                        <span class="read-sub-cell" dir="ltr"> (@p.DecimalPlaces)</span>
+                                    }
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["QcParamMethodLabel"]">
+                                <Template Context="p"><span dir="ltr">@(p.DefaultTestMethod ?? "—")</span></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["ReadStatus"]">
+                                <Template Context="p">
+                                    <span class="read-badge @(p.IsActive ? "active" : "inactive")">
+                                        @Text[p.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                                    </span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["ReadActions"]">
+                                <Template Context="p">
+                                    @if (scopeCanManage)
+                                    {
+                                        <div class="read-row-actions">
+                                            <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                           Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                                           OnClick="() => OpenParameterModal(p)" />
+                                            </BitTooltip>
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)"
+                                                       OnClick="() => ToggleParameterActiveAsync(p)">
+                                                @Text[p.IsActive ? "WriteDeactivate" : "WriteActivate"]
+                                            </BitButton>
+                                        </div>
+                                    }
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else if (activeTab == TabSpecs)
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="specGrid" TItem="QualitySpecSummary" OnRead="ReadSpecsAsync" Pageable="true" PageSize="25"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                                 AriaLabelledBy="qc-title" WrapCellText="true">
+                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                        <Columns>
+                            <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["ReadCode"]">
+                                <Template Context="s">
+                                    <div>
+                                        <div class="read-primary-cell"><bdi dir="ltr">@s.Code</bdi></div>
+                                        <div class="read-sub-cell" dir="ltr">v@s.Version</div>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["ReadName"]">
+                                <Template Context="s">@s.Name</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["QcSpecTargetLabel"]">
+                                <Template Context="s">
+                                    <div>
+                                        <div class="read-primary-cell">
+                                            @if (s.TargetKind == QualitySpecTargetKind.Item)
+                                            {
+                                                <span dir="ltr">@s.ItemCode</span> <span>— @s.ItemName</span>
+                                            }
+                                            else
+                                            {
+                                                <span dir="ltr">@s.ClassificationCode</span> <span>— @s.ClassificationName</span>
+                                            }
+                                        </div>
+                                        <div class="read-sub-cell">@TargetKindLabel(s.TargetKind)</div>
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["QcSpecCheckpointLabel"]">
+                                <Template Context="s"><span class="cap-badge">@CheckpointLabel(s.Checkpoint)</span></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["QcSpecLinesCountCol"]">
+                                <Template Context="s"><span dir="ltr">@s.LineCount</span></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["ReadStatus"]">
+                                <Template Context="s">
+                                    <span class="read-badge @(s.IsActive ? "active" : "inactive")">
+                                        @Text[s.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                                    </span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["ReadActions"]">
+                                <Template Context="s">
+                                    <div class="read-row-actions">
+                                        <BitTooltip Text="@Text[scopeCanManage ? "ReadEdit" : "ReadDetails"]" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                       Icon="@(scopeCanManage ? EditIcon : BitIconInfo.Css("ff-icon ff-icon--eye"))" IconOnly="true"
+                                                       aria-label="@Text[scopeCanManage ? "ReadEdit" : "ReadDetails"]"
+                                                       OnClick="() => OpenSpecModalAsync(s.Id)" />
+                                        </BitTooltip>
+                                        @if (scopeCanManage)
+                                        {
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)"
+                                                       OnClick="() => ToggleSpecActiveAsync(s)">
+                                                @Text[s.IsActive ? "WriteDeactivate" : "WriteActivate"]
+                                            </BitButton>
                                         }
                                     </div>
                                 </Template>
@@ -361,7 +559,17 @@
                                 <span class="audit-meta-label">@Text["InvLotCodeLabel"]</span>
                                 <span class="audit-meta-val" dir="ltr">
                                     <a class="qc-lot-link" href="@($"/traceability?itemId={q.ItemId}&lotCode={Uri.EscapeDataString(q.LotCode)}")">@q.LotCode</a>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="qc-inline-coa-btn" OnClick="() => OpenCoaModal(q.ItemId, q.LotCode)">
+                                        @Text["QcCoaBtn"]
+                                    </BitButton>
                                 </span>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(q.CertificateNumber))
+                        {
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["QcCertNumberLabel"]</span>
+                                <span class="audit-meta-val" dir="ltr">@q.CertificateNumber</span>
                             </div>
                         }
                         <div class="audit-meta-row">
@@ -385,28 +593,76 @@
                         <div class="po-context-card">
                             <div class="po-context-head">
                                 <strong>@Text["QcMeasurementsSection"]</strong>
-                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="po-add-cond-btn" Icon="@PlusIcon" OnClick="AddMeasurementLine">
-                                    @Text["QcAddLineBtn"]
-                                </BitButton>
+                                <div class="read-row-actions">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)" OnClick="ApplySpecToInspectionAsync">
+                                        @Text["QcLoadTemplateBtn"]
+                                    </BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="po-add-cond-btn" Icon="@PlusIcon" OnClick="AddMeasurementLine">
+                                        @Text["QcAddLineBtn"]
+                                    </BitButton>
+                                </div>
                             </div>
                             <div class="po-form-grid">
+                                <div class="write-field">
+                                    <label for="qc-det-cert">@Text["QcCertNumberLabel"]</label>
+                                    <input id="qc-det-cert" type="text" maxlength="64" @bind="editCertificateNumber" placeholder="COA-2026-001" />
+                                </div>
                                 <div class="write-field">
                                     <label for="qc-det-defect">@Text["QcDefectCodeLabel"]</label>
                                     <input id="qc-det-defect" type="text" maxlength="64" @bind="editDefectCode" />
                                 </div>
-                                <div class="write-field">
+                                <div class="write-field po-field-full">
                                     <label for="qc-det-notes">@Text["PoNotesLabel"]</label>
                                     <input id="qc-det-notes" type="text" maxlength="1000" @bind="editNotes" />
                                 </div>
                             </div>
                             @foreach (var line in editLines)
                             {
-                                <div class="qc-line-row">
-                                    <input type="text" maxlength="100" @bind="line.ParameterName" placeholder="@Text["QcParamNamePlaceholder"]" />
-                                    <input type="text" maxlength="100" @bind="line.ExpectedSpec" placeholder="@Text["QcExpectedSpecPlaceholder"]" />
-                                    <input type="text" maxlength="100" @bind="line.MeasuredValue" placeholder="@Text["QcMeasuredValPlaceholder"]" />
-                                    <label class="perm-check"><input type="checkbox" @bind="line.IsPassed" /><span>@Text["QcPassedCheck"]</span></label>
-                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => editLines.Remove(line)">@Text["BomRemoveRowBtn"]</BitButton>
+                                <div class="qc-spec-meas-card">
+                                    <div class="qc-spec-meas-head">
+                                        <select class="qc-param-select" value="@(line.QualityParameterId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty)"
+                                                @onchange="e => OnMeasurementParamChanged(line, e)">
+                                            <option value="">@Text["QcCustomParamOption"]</option>
+                                            @foreach (var p in activeParameters)
+                                            {
+                                                <option value="@p.Id">@p.Code — @p.Name (@p.Symbol@(string.IsNullOrWhiteSpace(p.UnitSymbol) ? string.Empty : $", {p.UnitSymbol}"))</option>
+                                            }
+                                        </select>
+                                        @if (!string.IsNullOrWhiteSpace(line.Symbol))
+                                        {
+                                            <span class="qc-symbol-chip" dir="ltr">@line.Symbol</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(line.UnitSymbol))
+                                        {
+                                            <span class="cap-badge" dir="ltr">@line.UnitSymbol</span>
+                                        }
+                                        @if (line.IsMandatory)
+                                        {
+                                            <span class="read-badge qc-status-pending">@Text["QcMandatoryLabel"]</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(line.TestMethod))
+                                        {
+                                            <span class="read-sub-cell" dir="ltr">@line.TestMethod</span>
+                                        }
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => editLines.Remove(line)">@Text["BomRemoveRowBtn"]</BitButton>
+                                    </div>
+                                    <div class="qc-line-row">
+                                        <input type="text" maxlength="100" @bind="line.ParameterName" placeholder="@Text["QcParamNamePlaceholder"]" disabled="@line.QualityParameterId.HasValue" />
+                                        <input type="text" maxlength="100" @bind="line.ExpectedSpec" placeholder="@Text["QcExpectedSpecPlaceholder"]" />
+                                        @if (line.DataType == QualityParameterDataType.Numeric)
+                                        {
+                                            <input type="number" step="any" value="@line.MeasuredNumericValue" @onchange="e => OnNumericMeasuredChanged(line, e)"
+                                                   placeholder="@Text["QcMeasuredValPlaceholder"]" />
+                                        }
+                                        else
+                                        {
+                                            <input type="text" maxlength="100" @bind="line.MeasuredValue" placeholder="@Text["QcMeasuredValPlaceholder"]" />
+                                        }
+                                        <label class="perm-check">
+                                            <input type="checkbox" @bind="line.IsPassed" disabled="@(line.DataType == QualityParameterDataType.Numeric && (line.MinValue.HasValue || line.MaxValue.HasValue) && line.MeasuredNumericValue.HasValue)" />
+                                            <span>@Text["QcPassedCheck"]</span>
+                                        </label>
+                                    </div>
                                 </div>
                             }
                             <div class="write-actions">
@@ -418,6 +674,10 @@
 
                         <div class="po-context-card">
                             <strong>@Text["QcDispositionSection"]</strong>
+                            @if (HasMandatoryFailure() && dispAcceptQty > 0m && string.IsNullOrWhiteSpace(editDefectCode) && string.IsNullOrWhiteSpace(dispNotes) && string.IsNullOrWhiteSpace(editNotes))
+                            {
+                                <p role="alert" class="write-error qc-concession-banner">@Text["QcConcessionWarning"]</p>
+                            }
                             <div class="po-form-grid">
                                 <div class="write-field">
                                     <label for="qc-disp-accept">@Text["QcAcceptQtyLabel"] (@q.BaseUnitSymbol)</label>
@@ -469,9 +729,26 @@
                                         {
                                             <tr>
                                                 <td>@l.LineNumber</td>
-                                                <td>@l.ParameterName</td>
+                                                <td>
+                                                    @if (!string.IsNullOrWhiteSpace(l.Symbol))
+                                                    {
+                                                        <strong class="qc-symbol-chip" dir="ltr">@l.Symbol</strong>
+                                                    }
+                                                    <span>@l.ParameterName</span>
+                                                    @if (l.IsMandatory) { <span class="qc-mandatory-star">*</span> }
+                                                    @if (!string.IsNullOrWhiteSpace(l.TestMethod))
+                                                    {
+                                                        <div class="read-sub-cell" dir="ltr">@l.TestMethod</div>
+                                                    }
+                                                </td>
                                                 <td dir="ltr">@(l.ExpectedSpec ?? "—")</td>
-                                                <td dir="ltr">@(l.MeasuredValue ?? "—")</td>
+                                                <td dir="ltr">
+                                                    @(l.MeasuredValue ?? "—")
+                                                    @if (!string.IsNullOrWhiteSpace(l.UnitSymbol) && !string.IsNullOrWhiteSpace(l.MeasuredValue))
+                                                    {
+                                                        <span class="read-sub-cell"> @l.UnitSymbol</span>
+                                                    }
+                                                </td>
                                                 <td>
                                                     <span class="read-badge @(l.IsPassed ? "qc-status-completed" : "rpt-shortage-badge")">
                                                         @Text[l.IsPassed ? "QcPassedCheck" : "QcFailedLabel"]
@@ -542,6 +819,186 @@
             </div>
         </Body>
     </BitDialog>
+
+    <ForgeFormDialog IsOpen="@paramModalOpen" IsOpenChanged="v => paramModalOpen = v" Width="640px"
+                     Title="@Text[editingParam is null ? "QcCreateParameterTitle" : "QcEditParameterTitle"]"
+                     Subtitle="@Text["QcParamModalSubtitle"]" CloseTitle="@Text["ReadClose"]">
+        <ChildContent>
+            @if (paramError is not null)
+            {
+                <p role="alert" class="write-error">@Text[paramError]</p>
+            }
+            <div class="po-form-grid">
+                <div class="write-field">
+                    <label for="qc-param-code">@Text["ReadCode"]</label>
+                    <input id="qc-param-code" type="text" maxlength="32" @bind="paramCode" disabled="@(editingParam is not null || modalBusy)" placeholder="MFI" />
+                </div>
+                <div class="write-field">
+                    <label for="qc-param-symbol">@Text["QcParamSymbolLabel"]</label>
+                    <input id="qc-param-symbol" type="text" maxlength="24" @bind="paramSymbol" disabled="@modalBusy" placeholder="MFI" />
+                </div>
+                <div class="write-field po-field-full">
+                    <label for="qc-param-name">@Text["ReadName"]</label>
+                    <input id="qc-param-name" type="text" maxlength="120" @bind="paramName" disabled="@modalBusy" placeholder="Melt Flow Index" />
+                </div>
+                <div class="write-field">
+                    <label for="qc-param-unit">@Text["QcParamUnitLabel"]</label>
+                    <input id="qc-param-unit" type="text" maxlength="24" @bind="paramUnitSymbol" disabled="@modalBusy" placeholder="g/10min" />
+                </div>
+                <div class="write-field">
+                    <label for="qc-param-type">@Text["AttributeDataTypeLabel"]</label>
+                    <select id="qc-param-type" @bind="paramDataType" disabled="@(editingParam is not null || modalBusy)">
+                        <option value="@QualityParameterDataType.Numeric">@ParamDataTypeLabel(QualityParameterDataType.Numeric)</option>
+                        <option value="@QualityParameterDataType.Text">@ParamDataTypeLabel(QualityParameterDataType.Text)</option>
+                        <option value="@QualityParameterDataType.Boolean">@ParamDataTypeLabel(QualityParameterDataType.Boolean)</option>
+                    </select>
+                </div>
+                @if (paramDataType == QualityParameterDataType.Numeric)
+                {
+                    <div class="write-field">
+                        <label for="qc-param-dec">@Text["QcParamDecimalLabel"]</label>
+                        <input id="qc-param-dec" type="number" min="0" max="6" @bind="paramDecimalPlaces" disabled="@modalBusy" />
+                    </div>
+                }
+                <div class="write-field @(paramDataType == QualityParameterDataType.Numeric ? string.Empty : "po-field-full")">
+                    <label for="qc-param-method">@Text["QcParamMethodLabel"]</label>
+                    <input id="qc-param-method" type="text" maxlength="64" @bind="paramTestMethod" disabled="@modalBusy" placeholder="ASTM D1238" />
+                </div>
+            </div>
+        </ChildContent>
+        <FooterActions>
+            <BitButton IsEnabled="@(!modalBusy && !string.IsNullOrWhiteSpace(paramCode) && !string.IsNullOrWhiteSpace(paramName) && !string.IsNullOrWhiteSpace(paramSymbol))"
+                       OnClick="SubmitParameterAsync">@Text["WriteSave"]</BitButton>
+            <BitButton Variant="BitVariant.Outline" OnClick="() => paramModalOpen = false">@Text["WriteCancel"]</BitButton>
+        </FooterActions>
+    </ForgeFormDialog>
+
+    <ForgeFormDialog IsOpen="@specModalOpen" IsOpenChanged="v => specModalOpen = v" Width="920px"
+                     Title="@Text[editingSpec is null ? "QcCreateSpecTitle" : "QcEditSpecTitle"]"
+                     Subtitle="@Text["QcSpecModalSubtitle"]" CloseTitle="@Text["ReadClose"]">
+        <ChildContent>
+            @if (specError is not null)
+            {
+                <p role="alert" class="write-error">@Text[specError]</p>
+            }
+            <div class="po-form-grid">
+                <div class="write-field">
+                    <label for="qc-spec-code">@Text["ReadCode"]</label>
+                    <input id="qc-spec-code" type="text" maxlength="32" @bind="specCode" disabled="@(editingSpec is not null || !scopeCanManage || modalBusy)" placeholder="SPEC-STYRENE-IN" />
+                </div>
+                <div class="write-field">
+                    <label for="qc-spec-ver">@Text["QcSpecVersionLabel"]</label>
+                    <input id="qc-spec-ver" type="number" min="1" @bind="specVersion" disabled="@(editingSpec is not null || !scopeCanManage || modalBusy)" />
+                </div>
+                <div class="write-field po-field-full">
+                    <label for="qc-spec-name">@Text["ReadName"]</label>
+                    <input id="qc-spec-name" type="text" maxlength="120" @bind="specName" disabled="@(!scopeCanManage || modalBusy)" />
+                </div>
+                <div class="write-field">
+                    <label for="qc-spec-tkind">@Text["QcSpecTargetKindLabel"]</label>
+                    <select id="qc-spec-tkind" @bind="specTargetKind" disabled="@(editingSpec is not null || !scopeCanManage || modalBusy)">
+                        <option value="@QualitySpecTargetKind.Item">@Text["QcTargetItem"]</option>
+                        <option value="@QualitySpecTargetKind.Classification">@Text["QcTargetClassification"]</option>
+                    </select>
+                </div>
+                @if (specTargetKind == QualitySpecTargetKind.Item)
+                {
+                    <div class="write-field">
+                        <label for="qc-spec-item">@Text["BomLineItemColumn"]</label>
+                        <select id="qc-spec-item" @bind="specTargetItemId" disabled="@(editingSpec is not null || !scopeCanManage || modalBusy)">
+                            <option value="0">@Text["InvSelectItemOption"]</option>
+                            @foreach (var it in activeItems)
+                            {
+                                <option value="@it.Id">@it.Code — @it.Name</option>
+                            }
+                        </select>
+                    </div>
+                }
+                else
+                {
+                    <div class="write-field">
+                        <label for="qc-spec-cls">@Text["QcTargetClassification"]</label>
+                        <select id="qc-spec-cls" @bind="specTargetClassId" disabled="@(editingSpec is not null || !scopeCanManage || modalBusy)">
+                            <option value="0">—</option>
+                            @foreach (var cls in activeClassifications)
+                            {
+                                <option value="@cls.Id">@cls.ClassificationSetName: @cls.Code — @cls.Name</option>
+                            }
+                        </select>
+                    </div>
+                }
+                <div class="write-field">
+                    <label for="qc-spec-ckpt">@Text["QcSpecCheckpointLabel"]</label>
+                    <select id="qc-spec-ckpt" @bind="specCheckpoint" disabled="@(!scopeCanManage || modalBusy)">
+                        <option value="@QualitySpecCheckpoint.Incoming">@Text["QcCheckpointIncoming"]</option>
+                        <option value="@QualitySpecCheckpoint.Production">@Text["QcCheckpointProduction"]</option>
+                        <option value="@QualitySpecCheckpoint.All">@Text["QcCheckpointAll"]</option>
+                    </select>
+                </div>
+                <div class="write-field">
+                    <label for="qc-spec-notes">@Text["PoNotesLabel"]</label>
+                    <input id="qc-spec-notes" type="text" maxlength="1000" @bind="specNotes" disabled="@(!scopeCanManage || modalBusy)" />
+                </div>
+            </div>
+
+            <div class="po-context-card qc-spec-lines-box">
+                <div class="po-context-head">
+                    <strong>@Text["QcSpecLinesHeading"]</strong>
+                    @if (scopeCanManage)
+                    {
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Icon="@PlusIcon" OnClick="AddSpecLine">
+                            @Text["QcAddSpecLineBtn"]
+                        </BitButton>
+                    }
+                </div>
+                @foreach (var sl in specLines)
+                {
+                    var selectedP = activeParameters.FirstOrDefault(p => p.Id == sl.QualityParameterId);
+                    <div class="qc-spec-line-row">
+                        <select value="@sl.QualityParameterId" @onchange="e => OnSpecLineParamChanged(sl, e)" disabled="@(!scopeCanManage || modalBusy)">
+                            <option value="0">—</option>
+                            @foreach (var p in activeParameters)
+                            {
+                                <option value="@p.Id">@p.Code — @p.Name (@p.Symbol@(string.IsNullOrWhiteSpace(p.UnitSymbol) ? string.Empty : $", {p.UnitSymbol}"))</option>
+                            }
+                        </select>
+                        @if (selectedP is null || selectedP.DataType == QualityParameterDataType.Numeric)
+                        {
+                            <input type="number" step="any" @bind="sl.MinValue" placeholder="@Text["QcSpecMinLabel"]" disabled="@(!scopeCanManage || modalBusy)" />
+                            <input type="number" step="any" @bind="sl.MaxValue" placeholder="@Text["QcSpecMaxLabel"]" disabled="@(!scopeCanManage || modalBusy)" />
+                            <input type="number" step="any" @bind="sl.TargetValue" placeholder="@Text["QcSpecTargetValLabel"]" disabled="@(!scopeCanManage || modalBusy)" />
+                        }
+                        else
+                        {
+                            <input type="text" maxlength="100" @bind="sl.ExpectedTextSpec" placeholder="@Text["QcExpectedSpecPlaceholder"]" disabled="@(!scopeCanManage || modalBusy)" />
+                        }
+                        <label class="perm-check">
+                            <input type="checkbox" @bind="sl.IsMandatory" disabled="@(!scopeCanManage || modalBusy)" />
+                            <span>@Text["QcMandatoryLabel"]</span>
+                        </label>
+                        @if (scopeCanManage)
+                        {
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => specLines.Remove(sl)">@Text["BomRemoveRowBtn"]</BitButton>
+                        }
+                    </div>
+                }
+            </div>
+        </ChildContent>
+        <FooterActions>
+            @if (scopeCanManage)
+            {
+                <BitButton IsEnabled="@(!modalBusy && !string.IsNullOrWhiteSpace(specCode) && !string.IsNullOrWhiteSpace(specName) && specLines.Count > 0)"
+                           OnClick="SubmitSpecAsync">@Text["WriteSave"]</BitButton>
+            }
+            <BitButton Variant="BitVariant.Outline" OnClick="() => specModalOpen = false">@Text[scopeCanManage ? "WriteCancel" : "ReadClose"]</BitButton>
+        </FooterActions>
+    </ForgeFormDialog>
+
+    @if (CurrentScope is not null)
+    {
+        <LotCertificateDialog @bind-IsOpen="coaOpen" Scope="@CurrentScope" OrganizationId="@ScopeOrganizationId(CurrentScope)"
+                              ItemId="@coaItemId" LotCode="@coaLotCode" />
+    }
 </section>
 
 @code {
@@ -549,6 +1006,8 @@
 
     private const int TabInspections = 0;
     private const int TabLots = 1;
+    private const int TabParameters = 2;
+    private const int TabSpecs = 3;
     private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
     private static readonly BitDialogClassStyles DialogClasses = new()
     {
@@ -571,6 +1030,8 @@
 
     private BitDataGrid<QualityInspectionSummary>? inspGrid;
     private BitDataGrid<ItemLotSummary>? lotGrid;
+    private BitDataGrid<QualityParameterSummary>? paramGrid;
+    private BitDataGrid<QualitySpecSummary>? specGrid;
 
     private int activeTab = TabInspections;
     private bool initialLoading = true;
@@ -586,10 +1047,16 @@
     private IReadOnlyList<WarehouseSummary> activeWarehouses = [];
     private IReadOnlyList<ItemSummary> activeItems = [];
     private IReadOnlyList<UnitSummary> activeUnits = [];
+    private IReadOnlyList<ClassificationSummary> activeClassifications = [];
+    private IReadOnlyList<QualityParameterSummary> activeParameters = [];
 
     private long siteFilter;
     private string statusFilter = string.Empty;
     private bool onlyExpiringLots;
+    private bool includeInactiveParams;
+    private bool includeInactiveSpecs;
+    private string specTargetFilter = string.Empty;
+    private string specCheckpointFilter = string.Empty;
     private string? search;
     private string? appliedSearch;
     private bool modalBusy;
@@ -608,6 +1075,7 @@
     private bool detailsOpen;
     private QualityInspectionDetails? selectedInspection;
     private string? detailsError;
+    private string? editCertificateNumber;
     private string? editDefectCode;
     private string? editNotes;
     private readonly List<MeasurementEditRow> editLines = [];
@@ -625,12 +1093,63 @@
     private DateTimeOffset? lotExpDateOffset;
     private string? lotEditNotes;
 
+    private bool coaOpen;
+    private long coaItemId;
+    private string coaLotCode = string.Empty;
+
+    private bool paramModalOpen;
+    private QualityParameterSummary? editingParam;
+    private string? paramError;
+    private string paramCode = string.Empty;
+    private string paramName = string.Empty;
+    private string paramSymbol = string.Empty;
+    private string? paramUnitSymbol;
+    private QualityParameterDataType paramDataType = QualityParameterDataType.Numeric;
+    private byte paramDecimalPlaces = 2;
+    private string? paramTestMethod;
+
+    private bool specModalOpen;
+    private QualitySpecSummary? editingSpec;
+    private string? specError;
+    private string specCode = string.Empty;
+    private string specName = string.Empty;
+    private int specVersion = 1;
+    private QualitySpecTargetKind specTargetKind = QualitySpecTargetKind.Classification;
+    private long specTargetItemId;
+    private long specTargetClassId;
+    private QualitySpecCheckpoint specCheckpoint = QualitySpecCheckpoint.Incoming;
+    private string? specNotes;
+    private readonly List<SpecLineEditRow> specLines = [];
+
     private sealed class MeasurementEditRow
     {
+        public long? QualityParameterId { get; set; }
+        public string? ParameterCode { get; set; }
         public string ParameterName { get; set; } = string.Empty;
+        public string? Symbol { get; set; }
+        public string? UnitSymbol { get; set; }
+        public string? TestMethod { get; set; }
+        public QualityParameterDataType DataType { get; set; } = QualityParameterDataType.Text;
+        public decimal? MinValue { get; set; }
+        public decimal? MaxValue { get; set; }
+        public decimal? TargetValue { get; set; }
+        public decimal? MeasuredNumericValue { get; set; }
         public string? ExpectedSpec { get; set; }
         public string? MeasuredValue { get; set; }
         public bool IsPassed { get; set; } = true;
+        public bool IsMandatory { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    private sealed class SpecLineEditRow
+    {
+        public long QualityParameterId { get; set; }
+        public decimal? MinValue { get; set; }
+        public decimal? MaxValue { get; set; }
+        public decimal? TargetValue { get; set; }
+        public string? ExpectedTextSpec { get; set; }
+        public bool IsMandatory { get; set; } = true;
+        public string? Notes { get; set; }
     }
 
     private OrganizationScope? CurrentScope => scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
@@ -688,6 +1207,8 @@
         activeWarehouses = [];
         activeItems = [];
         activeUnits = [];
+        activeClassifications = [];
+        activeParameters = [];
         var scope = CurrentScope;
         if (scope is null) return;
 
@@ -704,6 +1225,10 @@
         if (itemsRes.Succeeded) activeItems = itemsRes.Value!;
         var unitsRes = await UnitService.ListActiveUnits(scope, orgId);
         if (unitsRes.Succeeded) activeUnits = unitsRes.Value!;
+        var clsRes = await ItemService.ListActiveClassifications(scope, orgId);
+        if (clsRes.Succeeded) activeClassifications = clsRes.Value!;
+        var paramRes = await SpecService.ListParameters(scope, orgId, new QualityParameterListQuery(IncludeInactive: false, PageSize: 100));
+        if (paramRes.Succeeded) activeParameters = paramRes.Value!.Items;
     }
 
     private async Task SwitchTabAsync(int tab)
@@ -742,6 +1267,30 @@
         await ReloadActiveGridAsync(true);
     }
 
+    private async Task ToggleInactiveParamsAsync(ChangeEventArgs e)
+    {
+        includeInactiveParams = e.Value is bool b && b;
+        await ReloadActiveGridAsync(true);
+    }
+
+    private async Task ToggleInactiveSpecsAsync(ChangeEventArgs e)
+    {
+        includeInactiveSpecs = e.Value is bool b && b;
+        await ReloadActiveGridAsync(true);
+    }
+
+    private async Task ChangeSpecTargetFilterAsync(ChangeEventArgs e)
+    {
+        specTargetFilter = e.Value?.ToString() ?? string.Empty;
+        await ReloadActiveGridAsync(true);
+    }
+
+    private async Task ChangeSpecCheckpointFilterAsync(ChangeEventArgs e)
+    {
+        specCheckpointFilter = e.Value?.ToString() ?? string.Empty;
+        await ReloadActiveGridAsync(true);
+    }
+
     private async Task ApplySearchAsync()
     {
         appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
@@ -759,6 +1308,16 @@
         {
             if (fromFirstPage && lotGrid.CurrentPage > 1) await lotGrid.GoToPageAsync(1);
             else await lotGrid.RefreshAsync();
+        }
+        else if (activeTab == TabParameters && paramGrid is not null)
+        {
+            if (fromFirstPage && paramGrid.CurrentPage > 1) await paramGrid.GoToPageAsync(1);
+            else await paramGrid.RefreshAsync();
+        }
+        else if (activeTab == TabSpecs && specGrid is not null)
+        {
+            if (fromFirstPage && specGrid.CurrentPage > 1) await specGrid.GoToPageAsync(1);
+            else await specGrid.RefreshAsync();
         }
     }
 
@@ -785,6 +1344,34 @@
         var page = (req.Skip / size) + 1;
         var res = await QualityService.ListItemLots(scope, ScopeOrganizationId(scope),
             new ItemLotListQuery(null, appliedSearch, onlyExpiringLots, page, size), req.CancellationToken);
+        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private async Task<BitDataGridReadResult<QualityParameterSummary>> ReadParametersAsync(BitDataGridReadRequest req)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var size = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / size) + 1;
+        var res = await SpecService.ListParameters(scope, ScopeOrganizationId(scope),
+            new QualityParameterListQuery(includeInactiveParams, appliedSearch, page, size), req.CancellationToken);
+        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private async Task<BitDataGridReadResult<QualitySpecSummary>> ReadSpecsAsync(BitDataGridReadRequest req)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var size = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / size) + 1;
+        QualitySpecTargetKind? targetKind = byte.TryParse(specTargetFilter, out var tk) && Enum.IsDefined((QualitySpecTargetKind)tk)
+            ? (QualitySpecTargetKind)tk : null;
+        QualitySpecCheckpoint? checkpoint = byte.TryParse(specCheckpointFilter, out var ck) && Enum.IsDefined((QualitySpecCheckpoint)ck)
+            ? (QualitySpecCheckpoint)ck : null;
+        var res = await SpecService.ListSpecs(scope, ScopeOrganizationId(scope),
+            new QualitySpecListQuery(targetKind, checkpoint, includeInactiveSpecs, appliedSearch, page, size), req.CancellationToken);
         if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
         return new(res.Value!.Items.ToList(), res.Value.Total);
     }
@@ -848,11 +1435,32 @@
     {
         selectedInspection = details;
         detailsError = null;
+        editCertificateNumber = details.Summary.CertificateNumber;
         editDefectCode = details.Summary.DefectReasonCode;
         editNotes = details.Summary.Notes;
         editLines.Clear();
         foreach (var l in details.Lines)
-            editLines.Add(new MeasurementEditRow { ParameterName = l.ParameterName, ExpectedSpec = l.ExpectedSpec, MeasuredValue = l.MeasuredValue, IsPassed = l.IsPassed });
+        {
+            editLines.Add(new MeasurementEditRow
+            {
+                QualityParameterId = l.QualityParameterId,
+                ParameterCode = l.ParameterCode,
+                ParameterName = l.ParameterName,
+                Symbol = l.Symbol,
+                UnitSymbol = l.UnitSymbol,
+                TestMethod = l.TestMethod,
+                DataType = l.DataType,
+                MinValue = l.MinValue,
+                MaxValue = l.MaxValue,
+                TargetValue = l.TargetValue,
+                MeasuredNumericValue = l.MeasuredNumericValue,
+                ExpectedSpec = l.ExpectedSpec,
+                MeasuredValue = l.MeasuredValue,
+                IsPassed = l.IsPassed,
+                IsMandatory = l.IsMandatory,
+                Notes = l.Notes
+            });
+        }
         dispAcceptQty = details.Summary.RemainingBlockedBaseQuantity;
         dispRejectQty = 0m;
         dispScrapDoc = null;
@@ -860,6 +1468,70 @@
     }
 
     private void AddMeasurementLine() => editLines.Add(new MeasurementEditRow());
+
+    private void OnMeasurementParamChanged(MeasurementEditRow row, ChangeEventArgs e)
+    {
+        if (!long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var pid) || pid <= 0)
+        {
+            row.QualityParameterId = null;
+            row.ParameterCode = null;
+            row.Symbol = null;
+            row.UnitSymbol = null;
+            row.TestMethod = null;
+            row.DataType = QualityParameterDataType.Text;
+            return;
+        }
+        var p = activeParameters.FirstOrDefault(x => x.Id == pid);
+        if (p is null) return;
+        row.QualityParameterId = p.Id;
+        row.ParameterCode = p.Code;
+        row.ParameterName = p.Name;
+        row.Symbol = p.Symbol;
+        row.UnitSymbol = p.UnitSymbol;
+        row.TestMethod = p.DefaultTestMethod;
+        row.DataType = p.DataType;
+    }
+
+    private void OnNumericMeasuredChanged(MeasurementEditRow row, ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var val))
+        {
+            row.MeasuredNumericValue = val;
+            row.MeasuredValue = val.ToString("0.######", CultureInfo.InvariantCulture);
+            if (row.MinValue.HasValue || row.MaxValue.HasValue)
+                row.IsPassed = QualityInspectionLine.EvaluateNumericPass(row.MinValue, row.MaxValue, val);
+        }
+        else
+        {
+            row.MeasuredNumericValue = null;
+            row.MeasuredValue = null;
+            if (row.MinValue.HasValue || row.MaxValue.HasValue)
+                row.IsPassed = false;
+        }
+    }
+
+    private bool HasMandatoryFailure() => editLines.Any(l => l.IsMandatory && !l.IsPassed);
+
+    private async Task ApplySpecToInspectionAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedInspection is null) return;
+        modalBusy = true;
+        detailsError = null;
+        try
+        {
+            var res = await SpecService.ApplySpecToInspection(
+                scope,
+                selectedInspection.Summary.OrganizationId,
+                selectedInspection.Summary.Id,
+                selectedInspection.Summary.RowVersion);
+            if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            ApplyInspectionDetails(res.Value!);
+            pageNotice = Text["QcTemplateLoadedNotice"];
+            await ReloadActiveGridAsync(false);
+        }
+        finally { modalBusy = false; }
+    }
 
     private async Task SaveMeasurementsAsync()
     {
@@ -869,10 +1541,13 @@
         detailsError = null;
         try
         {
-            var lines = editLines.Select(l => new QualityInspectionLineInput(l.ParameterName, l.ExpectedSpec, l.MeasuredValue, l.IsPassed)).ToArray();
+            var lines = editLines.Select(l => new QualityInspectionLineInput(
+                l.ParameterName, l.ExpectedSpec, l.MeasuredValue, l.IsPassed, l.Notes,
+                l.QualityParameterId, l.ParameterCode, l.Symbol, l.UnitSymbol, l.TestMethod,
+                l.DataType, l.MinValue, l.MaxValue, l.TargetValue, l.MeasuredNumericValue, l.IsMandatory)).ToArray();
             var res = await QualityService.UpdateMeasurements(scope, new UpdateQualityMeasurementsRequest(
                 selectedInspection.Summary.OrganizationId, selectedInspection.Summary.Id,
-                editDefectCode, editNotes, lines, selectedInspection.Summary.RowVersion));
+                editDefectCode, editNotes, lines, selectedInspection.Summary.RowVersion, editCertificateNumber));
             if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
             ApplyInspectionDetails(res.Value!);
             pageNotice = Text["WriteSaved"];
@@ -880,6 +1555,194 @@
         }
         finally { modalBusy = false; }
     }
+
+    private void OpenCoaModal(long itemId, string lotCode)
+    {
+        coaItemId = itemId;
+        coaLotCode = lotCode;
+        coaOpen = true;
+    }
+
+    private void OpenParameterModal(QualityParameterSummary? param)
+    {
+        paramError = null;
+        editingParam = param;
+        paramCode = param?.Code ?? string.Empty;
+        paramName = param?.Name ?? string.Empty;
+        paramSymbol = param?.Symbol ?? string.Empty;
+        paramUnitSymbol = param?.UnitSymbol;
+        paramDataType = param?.DataType ?? QualityParameterDataType.Numeric;
+        paramDecimalPlaces = param?.DecimalPlaces ?? (byte)2;
+        paramTestMethod = param?.DefaultTestMethod;
+        paramModalOpen = true;
+    }
+
+    private async Task SubmitParameterAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        paramError = null;
+        try
+        {
+            var orgId = ScopeOrganizationId(scope);
+            OrganizationResult<QualityParameterSummary> res = editingParam is null
+                ? await SpecService.CreateParameter(scope, new CreateQualityParameterRequest(
+                    orgId, paramCode, paramName, paramSymbol, paramUnitSymbol, paramDataType, paramDecimalPlaces, paramTestMethod))
+                : await SpecService.UpdateParameter(scope, new UpdateQualityParameterRequest(
+                    orgId, editingParam.Id, paramName, paramSymbol, paramUnitSymbol, paramDecimalPlaces, paramTestMethod, editingParam.RowVersion));
+            if (!res.Succeeded) { paramError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            paramModalOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshScopeStateAsync();
+            await ReloadActiveGridAsync(editingParam is null);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task ToggleParameterActiveAsync(QualityParameterSummary p)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        try
+        {
+            var res = await SpecService.SetParameterActive(scope, new SetQualityParameterActiveRequest(
+                p.OrganizationId, p.Id, !p.IsActive, p.RowVersion));
+            if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            pageNotice = Text["WriteSaved"];
+            await RefreshScopeStateAsync();
+            await ReloadActiveGridAsync(false);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task OpenSpecModalAsync(long? specId)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        specError = null;
+        specLines.Clear();
+        if (specId is null)
+        {
+            editingSpec = null;
+            specCode = string.Empty;
+            specName = string.Empty;
+            specVersion = 1;
+            specTargetKind = QualitySpecTargetKind.Classification;
+            specTargetItemId = activeItems.FirstOrDefault()?.Id ?? 0;
+            specTargetClassId = activeClassifications.FirstOrDefault()?.Id ?? 0;
+            specCheckpoint = QualitySpecCheckpoint.Incoming;
+            specNotes = null;
+            AddSpecLine();
+            specModalOpen = true;
+            return;
+        }
+
+        var res = await SpecService.GetSpec(scope, ScopeOrganizationId(scope), specId.Value);
+        if (!res.Succeeded || res.Value is null)
+        {
+            pageError = res.Succeeded ? "ReadNotFound" : RolePermissionLocalization.FailureKey(res.Error!.Code);
+            return;
+        }
+        var d = res.Value;
+        editingSpec = d.Summary;
+        specCode = d.Summary.Code;
+        specName = d.Summary.Name;
+        specVersion = d.Summary.Version;
+        specTargetKind = d.Summary.TargetKind;
+        specTargetItemId = d.Summary.ItemId ?? 0;
+        specTargetClassId = d.Summary.ClassificationId ?? 0;
+        specCheckpoint = d.Summary.Checkpoint;
+        specNotes = d.Summary.Notes;
+        foreach (var l in d.Lines)
+        {
+            specLines.Add(new SpecLineEditRow
+            {
+                QualityParameterId = l.QualityParameterId,
+                MinValue = l.MinValue,
+                MaxValue = l.MaxValue,
+                TargetValue = l.TargetValue,
+                ExpectedTextSpec = l.ExpectedTextSpec,
+                IsMandatory = l.IsMandatory,
+                Notes = l.Notes
+            });
+        }
+        specModalOpen = true;
+    }
+
+    private void AddSpecLine() => specLines.Add(new SpecLineEditRow
+    {
+        QualityParameterId = activeParameters.FirstOrDefault()?.Id ?? 0,
+        IsMandatory = true
+    });
+
+    private void OnSpecLineParamChanged(SpecLineEditRow row, ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var pid))
+            row.QualityParameterId = pid;
+    }
+
+    private async Task SubmitSpecAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        specError = null;
+        try
+        {
+            var orgId = ScopeOrganizationId(scope);
+            var inputs = specLines.Select(l => new QualitySpecLineInput(
+                l.QualityParameterId, l.MinValue, l.MaxValue, l.TargetValue, l.ExpectedTextSpec, l.IsMandatory, l.Notes)).ToArray();
+
+            OrganizationResult<QualitySpecDetails> res = editingSpec is null
+                ? await SpecService.CreateSpec(scope, new CreateQualitySpecRequest(
+                    orgId, specCode, specName, specTargetKind,
+                    specTargetKind == QualitySpecTargetKind.Item ? specTargetItemId : null,
+                    specTargetKind == QualitySpecTargetKind.Classification ? specTargetClassId : null,
+                    specCheckpoint, specVersion, specNotes, inputs))
+                : await SpecService.UpdateSpec(scope, new UpdateQualitySpecRequest(
+                    orgId, editingSpec.Id, specName, specCheckpoint, specNotes, inputs, editingSpec.RowVersion));
+            if (!res.Succeeded) { specError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            specModalOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await ReloadActiveGridAsync(editingSpec is null);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task ToggleSpecActiveAsync(QualitySpecSummary s)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        try
+        {
+            var res = await SpecService.SetSpecActive(scope, new SetQualitySpecActiveRequest(
+                s.OrganizationId, s.Id, !s.IsActive, s.RowVersion));
+            if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            pageNotice = Text["WriteSaved"];
+            await ReloadActiveGridAsync(false);
+        }
+        finally { modalBusy = false; }
+    }
+
+    private string ParamDataTypeLabel(QualityParameterDataType dt) => dt switch
+    {
+        QualityParameterDataType.Numeric => Text["AttributeDataTypeDecimal"],
+        QualityParameterDataType.Boolean => Text["AttributeDataTypeBoolean"],
+        _ => Text["AttributeDataTypeText"]
+    };
+
+    private string TargetKindLabel(QualitySpecTargetKind kind) => kind == QualitySpecTargetKind.Item
+        ? Text["QcTargetItem"] : Text["QcTargetClassification"];
+
+    private string CheckpointLabel(QualitySpecCheckpoint ckpt) => ckpt switch
+    {
+        QualitySpecCheckpoint.Incoming => Text["QcCheckpointIncoming"],
+        QualitySpecCheckpoint.Production => Text["QcCheckpointProduction"],
+        _ => Text["QcCheckpointAll"]
+    };
 
     private async Task SubmitDispositionAsync()
     {

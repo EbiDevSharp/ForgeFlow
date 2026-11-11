@@ -1846,6 +1846,146 @@ BEGIN
     VALUES (N'20261111110939_StockReservationsAndDashboard', N'10.0.14');
 END;
 
+IF OBJECT_ID(N'organization.QualityParameter', N'U') IS NULL
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrganizationChange_Event' AND parent_object_id = OBJECT_ID(N'organization.OrganizationChange'))
+        ALTER TABLE [organization].[OrganizationChange] DROP CONSTRAINT [CK_OrganizationChange_Event];
+
+    IF COL_LENGTH(N'organization.QualityInspectionLine', N'DataType') IS NULL
+        ALTER TABLE [organization].[QualityInspectionLine] ADD [DataType] tinyint NOT NULL CONSTRAINT [DF_QualityInspectionLine_DataType] DEFAULT 2;
+    IF COL_LENGTH(N'organization.QualityInspectionLine', N'IsMandatory') IS NULL
+        ALTER TABLE [organization].[QualityInspectionLine] ADD [IsMandatory] bit NOT NULL CONSTRAINT [DF_QualityInspectionLine_IsMandatory] DEFAULT 0;
+    IF COL_LENGTH(N'organization.QualityInspectionLine', N'MaxValueSnapshot') IS NULL
+        ALTER TABLE [organization].[QualityInspectionLine] ADD [MaxValueSnapshot] decimal(18,6) NULL;
+    IF COL_LENGTH(N'organization.QualityInspectionLine', N'MeasuredNumericValue') IS NULL
+        ALTER TABLE [organization].[QualityInspectionLine] ADD [MeasuredNumericValue] decimal(18,6) NULL;
+    IF COL_LENGTH(N'organization.QualityInspectionLine', N'MinValueSnapshot') IS NULL
+        ALTER TABLE [organization].[QualityInspectionLine] ADD [MinValueSnapshot] decimal(18,6) NULL;
+    IF COL_LENGTH(N'organization.QualityInspectionLine', N'ParameterCodeSnapshot') IS NULL
+        ALTER TABLE [organization].[QualityInspectionLine] ADD [ParameterCodeSnapshot] varchar(32) COLLATE Latin1_General_100_BIN2 NULL;
+    IF COL_LENGTH(N'organization.QualityInspectionLine', N'QualityParameterId') IS NULL
+        ALTER TABLE [organization].[QualityInspectionLine] ADD [QualityParameterId] bigint NULL;
+    IF COL_LENGTH(N'organization.QualityInspectionLine', N'SymbolSnapshot') IS NULL
+        ALTER TABLE [organization].[QualityInspectionLine] ADD [SymbolSnapshot] nvarchar(24) NULL;
+    IF COL_LENGTH(N'organization.QualityInspectionLine', N'TargetValueSnapshot') IS NULL
+        ALTER TABLE [organization].[QualityInspectionLine] ADD [TargetValueSnapshot] decimal(18,6) NULL;
+    IF COL_LENGTH(N'organization.QualityInspectionLine', N'TestMethodSnapshot') IS NULL
+        ALTER TABLE [organization].[QualityInspectionLine] ADD [TestMethodSnapshot] nvarchar(64) NULL;
+    IF COL_LENGTH(N'organization.QualityInspectionLine', N'UnitSymbolSnapshot') IS NULL
+        ALTER TABLE [organization].[QualityInspectionLine] ADD [UnitSymbolSnapshot] nvarchar(24) NULL;
+    IF COL_LENGTH(N'organization.QualityInspection', N'CertificateNumber') IS NULL
+        ALTER TABLE [organization].[QualityInspection] ADD [CertificateNumber] nvarchar(64) NULL;
+
+    CREATE TABLE [organization].[QualityParameter] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(120) NOT NULL,
+        [Symbol] nvarchar(24) NOT NULL,
+        [UnitSymbol] nvarchar(24) NULL,
+        [DataType] tinyint NOT NULL,
+        [DecimalPlaces] tinyint NOT NULL,
+        [DefaultTestMethod] nvarchar(64) NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_QualityParameter] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_QualityParameter_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_QualityParameter_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_QualityParameter_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_QualityParameter_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 240 AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [CK_QualityParameter_Symbol] CHECK (DATALENGTH(LTRIM(RTRIM([Symbol]))) > 0),
+        CONSTRAINT [CK_QualityParameter_Type] CHECK ([DataType] IN (1,2,3) AND [DecimalPlaces] BETWEEN 0 AND 6),
+        CONSTRAINT [FK_QualityParameter_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id])
+    );
+
+    CREATE TABLE [organization].[QualitySpec] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(120) NOT NULL,
+        [TargetKind] tinyint NOT NULL,
+        [ItemId] bigint NULL,
+        [ClassificationId] bigint NULL,
+        [Checkpoint] tinyint NOT NULL,
+        [Version] int NOT NULL,
+        [IsActive] bit NOT NULL,
+        [Notes] nvarchar(1000) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_QualitySpec] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_QualitySpec_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [CK_QualitySpec_Checkpoint] CHECK ([Checkpoint] IN (1,2,3)),
+        CONSTRAINT [CK_QualitySpec_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_QualitySpec_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_QualitySpec_Target] CHECK (([TargetKind] = 1 AND [ItemId] IS NOT NULL AND [ClassificationId] IS NULL) OR ([TargetKind] = 2 AND [ClassificationId] IS NOT NULL AND [ItemId] IS NULL)),
+        CONSTRAINT [CK_QualitySpec_Version] CHECK ([Version] >= 1),
+        CONSTRAINT [FK_QualitySpec_Classification] FOREIGN KEY ([OrganizationId], [ClassificationId]) REFERENCES [organization].[Classification] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_QualitySpec_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_QualitySpec_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id])
+    );
+
+    CREATE TABLE [organization].[QualitySpecLine] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [QualitySpecId] bigint NOT NULL,
+        [Sequence] int NOT NULL,
+        [QualityParameterId] bigint NOT NULL,
+        [MinValue] decimal(18,6) NULL,
+        [MaxValue] decimal(18,6) NULL,
+        [TargetValue] decimal(18,6) NULL,
+        [ExpectedTextSpec] nvarchar(100) NULL,
+        [IsMandatory] bit NOT NULL,
+        [Notes] nvarchar(300) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_QualitySpecLine] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_QualitySpecLine_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_QualitySpecLine_Range] CHECK ([MinValue] IS NULL OR [MaxValue] IS NULL OR [MaxValue] >= [MinValue]),
+        CONSTRAINT [CK_QualitySpecLine_Seq] CHECK ([Sequence] > 0),
+        CONSTRAINT [FK_QualitySpecLine_Param] FOREIGN KEY ([OrganizationId], [QualityParameterId]) REFERENCES [organization].[QualityParameter] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_QualitySpecLine_Spec] FOREIGN KEY ([OrganizationId], [QualitySpecId]) REFERENCES [organization].[QualitySpec] ([OrganizationId], [Id])
+    );
+
+    EXEC(N'ALTER TABLE [organization].[OrganizationChange] ADD CONSTRAINT [CK_OrganizationChange_Event] CHECK (DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN (''Organization.Created'',''Organization.Renamed'',''Organization.Activated'',''Organization.Deactivated'',''Unit.Created'',''Unit.Updated'',''Unit.Activated'',''Unit.Deactivated'',''UnitConversion.Created'',''UnitConversion.Updated'',''UnitConversion.Activated'',''UnitConversion.Deactivated'',''Currency.Created'',''Currency.Updated'',''Currency.Activated'',''Currency.Deactivated'',''Item.Created'',''Item.Updated'',''Item.Activated'',''Item.Deactivated'',''ClassificationSet.Created'',''Classification.Created'',''Classification.Updated'',''Classification.Activated'',''Classification.Deactivated'',''ItemClassification.Updated'',''ItemUnitConversion.Created'',''ItemUnitConversion.Updated'',''ItemUnitConversion.Activated'',''ItemUnitConversion.Deactivated'',''AttributeDefinition.Created'',''AttributeDefinition.Updated'',''AttributeDefinition.Activated'',''AttributeDefinition.Deactivated'',''ItemAttributeValue.Updated'',''ContextDimension.Created'',''ContextDimension.Updated'',''ContextDimension.Activated'',''ContextDimension.Deactivated'',''Bom.Created'',''Bom.Renamed'',''Bom.Activated'',''Bom.Deactivated'',''BomVersion.Created'',''BomVersion.Updated'',''BomVersion.StatusChanged'',''BomVersion.LinesSaved'',''BomVersion.ApplicabilitySaved'',''ItemLot.Updated'',''QualityParameter.Created'',''QualityParameter.Updated'',''QualityParameter.Activated'',''QualityParameter.Deactivated'',''QualitySpec.Created'',''QualitySpec.Updated'',''QualitySpec.Activated'',''QualitySpec.Deactivated'',''Supplier.Created'',''Supplier.Updated'',''Supplier.Activated'',''Supplier.Deactivated'')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN (''Site.Created'',''Site.Renamed'',''Site.Activated'',''Site.Deactivated'',''ProductionOrder.Created'',''ProductionOrder.Updated'',''ProductionOrder.Refreshed'',''ProductionOrder.Released'',''ProductionOrder.Started'',''ProductionOrder.Completed'',''ProductionOrder.Cancelled'',''Warehouse.Created'',''Warehouse.Updated'',''Warehouse.Activated'',''Warehouse.Deactivated'',''InventoryTransaction.Posted'',''InventoryTransaction.Reversed'',''InventoryReservation.Created'',''InventoryReservation.Consumed'',''InventoryReservation.Released'',''QualityInspection.Created'',''QualityInspection.Updated'',''QualityInspection.Disposed'',''QualityInspection.Cancelled'',''PurchaseOrder.Created'',''PurchaseOrder.Updated'',''PurchaseOrder.Approved'',''PurchaseOrder.Received'',''PurchaseOrder.Closed'',''PurchaseOrder.Cancelled'',''WorkCenter.Created'',''WorkCenter.Updated'',''WorkCenter.Activated'',''WorkCenter.Deactivated'',''Routing.Created'',''Routing.Updated'',''Routing.OperationsSaved'',''Routing.Activated'',''Routing.Obsoleted'',''ProductionOrderOperation.Started'',''ProductionOrderOperation.Paused'',''ProductionOrderOperation.Completed'',''ProductionOrderOperation.Skipped''))));');
+
+    CREATE INDEX [IX_QualityInspectionLine_OrganizationId_QualityParameterId] ON [organization].[QualityInspectionLine] ([OrganizationId], [QualityParameterId]);
+    CREATE UNIQUE INDEX [UX_QualityParameter_Org_Code] ON [organization].[QualityParameter] ([OrganizationId], [Code]);
+    CREATE UNIQUE INDEX [UX_QualitySpec_ActiveClass] ON [organization].[QualitySpec] ([OrganizationId], [ClassificationId], [Checkpoint]) WHERE [IsActive] = 1 AND [TargetKind] = 2;
+    CREATE UNIQUE INDEX [UX_QualitySpec_ActiveItem] ON [organization].[QualitySpec] ([OrganizationId], [ItemId], [Checkpoint]) WHERE [IsActive] = 1 AND [TargetKind] = 1;
+    CREATE UNIQUE INDEX [UX_QualitySpec_Org_Code_Version] ON [organization].[QualitySpec] ([OrganizationId], [Code], [Version]);
+    CREATE INDEX [IX_QualitySpecLine_OrganizationId_QualityParameterId] ON [organization].[QualitySpecLine] ([OrganizationId], [QualityParameterId]);
+    CREATE UNIQUE INDEX [UX_QualitySpecLine_Spec_Param] ON [organization].[QualitySpecLine] ([OrganizationId], [QualitySpecId], [QualityParameterId]);
+    CREATE UNIQUE INDEX [UX_QualitySpecLine_Spec_Seq] ON [organization].[QualitySpecLine] ([OrganizationId], [QualitySpecId], [Sequence]);
+
+    EXEC(N'ALTER TABLE [organization].[QualityInspectionLine] ADD CONSTRAINT [FK_QualityInspectionLine_Parameter] FOREIGN KEY ([OrganizationId], [QualityParameterId]) REFERENCES [organization].[QualityParameter] ([OrganizationId], [Id]);');
+
+    IF DATABASE_PRINCIPAL_ID(N'ForgeFlowOrganizationRuntime') IS NOT NULL
+    BEGIN
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[QualityParameter] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[QualitySpec] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[QualitySpecLine] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[QualityParameter] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[QualitySpec] TO [ForgeFlowOrganizationRuntime];
+    END;
+END;
+
+IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [dbo].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261111125209_LabParametersSpecsAndCoa')
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261111125209_LabParametersSpecsAndCoa', N'10.0.14');
+END;
+
 COMMIT;
 "@
 
@@ -1855,7 +1995,7 @@ try {
     $cmd = $cn.CreateCommand()
     $cmd.CommandText = $sql
     [void]$cmd.ExecuteNonQuery()
-    Write-Host "testforgflow database upgraded to 20261111110939_StockReservationsAndDashboard." -ForegroundColor Green
+    Write-Host "testforgflow database upgraded to 20261111125209_LabParametersSpecsAndCoa." -ForegroundColor Green
 }
 finally {
     $cn.Dispose()

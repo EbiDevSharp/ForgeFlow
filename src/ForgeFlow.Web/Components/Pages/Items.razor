@@ -3,11 +3,14 @@
 @using System.Globalization
 @using ForgeFlow.Application.Items
 @using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Quality
 @using ForgeFlow.Application.Units
 @using ForgeFlow.Domain.Items
+@using ForgeFlow.Domain.Quality
 @using ForgeFlow.Web.Roles
 @inject ItemUseCases ItemService
 @inject UnitUseCases UnitService
+@inject QualitySpecUseCases SpecService
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
 @inject ITrustedActorAccessor Actors
 @inject IOrganizationPermissionEvaluator Permissions
@@ -475,6 +478,16 @@
                                 <span class="audit-meta-label">@Text["ItemQcModeLabel"]</span>
                                 <span class="audit-meta-val">@QcModeLabel(selectedItem.Summary.QualityControlMode)</span>
                             </div>
+                            @if (resolvedIncomingSpec is not null)
+                            {
+                                var sp = resolvedIncomingSpec.Summary;
+                                <div class="audit-meta-row">
+                                    <span class="audit-meta-label">@Text["QcActiveSpecLabel"]</span>
+                                    <span class="audit-meta-val">
+                                        <bdi dir="ltr">@sp.Code (v@sp.Version)</bdi> — @sp.Name (@sp.LineCount)
+                                    </span>
+                                </div>
+                            }
                         </div>
                     }
                     else
@@ -1086,6 +1099,7 @@
     private string? itemError;
     private bool? itemConfirmToggle;
     private ItemDetails? selectedItem;
+    private QualitySpecDetails? resolvedIncomingSpec;
     private string editItemName = string.Empty, editItemDescription = string.Empty;
     private long editItemBaseUnitId;
     private bool editCapPurchase, editCapManufacture, editCapSell, editCapConsume, editRequiresLotTracking;
@@ -1407,6 +1421,16 @@
         }
 
         ApplySelectedItem(res.Value);
+        resolvedIncomingSpec = null;
+        try
+        {
+            var specRes = await SpecService.ResolveApplicableSpec(CurrentScope, CurrentOrgId, id, QualitySpecCheckpoint.Incoming);
+            if (specRes.Succeeded) resolvedIncomingSpec = specRes.Value;
+        }
+        catch
+        {
+            resolvedIncomingSpec = null;
+        }
         itemEditMode = edit && scopeCanManage;
         itemModalOpen = true;
     }
