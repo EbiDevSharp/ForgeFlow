@@ -5,6 +5,7 @@ using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.Procurement;
 using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Quality;
+using ForgeFlow.Domain.Routings;
 using ForgeFlow.Domain.Units;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -38,7 +39,7 @@ internal static class OrganizationModel
         + "'Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated',"
         + "'BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved',"
         + "'ItemLot.Updated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated')) "
-        + "OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled')))";
+        + "OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled','WorkCenter.Created','WorkCenter.Updated','WorkCenter.Activated','WorkCenter.Deactivated','Routing.Created','Routing.Updated','Routing.OperationsSaved','Routing.Activated','Routing.Obsoleted','ProductionOrderOperation.Started','ProductionOrderOperation.Paused','ProductionOrderOperation.Completed','ProductionOrderOperation.Skipped')))";
 
     internal static void Configure(ModelBuilder model)
     {
@@ -517,6 +518,8 @@ internal static class OrganizationModel
             table.HasCheckConstraint("CK_ProductionOrder_Dates", "[PlannedDueDate] >= [PlannedStartDate]");
             table.HasCheckConstraint("CK_ProductionOrder_BaseOutputQty", "[BaseOutputQuantitySnapshot] > 0 AND [BomVersionNumberSnapshot] > 0");
             table.HasCheckConstraint("CK_ProductionOrder_Actuals", "[ActualProducedQuantity] >= 0 AND [ActualScrapQuantity] >= 0");
+            table.HasCheckConstraint("CK_ProductionOrder_RoutingCodeSnapshot", "[RoutingCodeSnapshot] IS NULL OR (DATALENGTH([RoutingCodeSnapshot]) BETWEEN 1 AND 32 AND DATALENGTH([RoutingCodeSnapshot]) = LEN([RoutingCodeSnapshot]) AND [RoutingCodeSnapshot] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([RoutingCodeSnapshot], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]')");
+            table.HasCheckConstraint("CK_ProductionOrder_RoutingPair", "([RoutingId] IS NULL AND [RoutingCodeSnapshot] IS NULL) OR ([RoutingId] IS NOT NULL AND [RoutingCodeSnapshot] IS NOT NULL)");
             table.HasCheckConstraint("CK_ProductionOrder_Metadata", MetadataCheck);
         });
         po.HasKey(x => x.Id).HasName("PK_ProductionOrder");
@@ -536,6 +539,8 @@ internal static class OrganizationModel
         po.Property(x => x.BomVersionNumberSnapshot).IsRequired();
         po.Property(x => x.BaseOutputQuantitySnapshot).HasPrecision(18, 6).IsRequired();
         po.Property(x => x.BaseOutputUnitIdSnapshot).IsRequired();
+        po.Property(x => x.RoutingId);
+        po.Property(x => x.RoutingCodeSnapshot).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation);
         po.Property(x => x.ActualProducedQuantity).HasPrecision(18, 6).IsRequired();
         po.Property(x => x.ActualScrapQuantity).HasPrecision(18, 6).IsRequired();
         po.Property(x => x.Notes).HasMaxLength(500);
@@ -569,6 +574,9 @@ internal static class OrganizationModel
         po.HasOne<Unit>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.BaseOutputUnitIdSnapshot })
             .HasPrincipalKey(u => new { u.OrganizationId, u.Id }).OnDelete(DeleteBehavior.NoAction)
             .HasConstraintName("FK_ProductionOrder_BaseOutputUnitSnapshot");
+        po.HasOne<Routing>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.SiteId, x.RoutingId })
+            .HasPrincipalKey(r => new { r.OrganizationId, r.SiteId, r.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_ProductionOrder_Routing");
 
         var poInput = model.Entity<ProductionOrderInput>();
         poInput.ToTable("ProductionOrderInput", Schema, table =>
@@ -1025,6 +1033,169 @@ internal static class OrganizationModel
         poLine.HasOne<Unit>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.BaseUnitIdSnapshot })
             .HasPrincipalKey(u => new { u.OrganizationId, u.Id }).OnDelete(DeleteBehavior.NoAction)
             .HasConstraintName("FK_PurchaseOrderLine_BaseUnitSnapshot");
+
+        var workCenter = model.Entity<WorkCenter>();
+        workCenter.ToTable("WorkCenter", Schema, table =>
+        {
+            table.HasCheckConstraint("CK_WorkCenter_Code", CodeCheck);
+            table.HasCheckConstraint("CK_WorkCenter_Name", NameCheck);
+            table.HasCheckConstraint("CK_WorkCenter_Type", "[WorkCenterType] BETWEEN 1 AND 5");
+            table.HasCheckConstraint("CK_WorkCenter_Capacity", "[CapacityUnitsPerHour] > 0 AND [DailyAvailableHours] > 0 AND [DailyAvailableHours] <= 24 AND ([HourlyCostRate] IS NULL OR [HourlyCostRate] >= 0)");
+            table.HasCheckConstraint("CK_WorkCenter_Metadata", MetadataCheck);
+        });
+        workCenter.HasKey(x => x.Id).HasName("PK_WorkCenter");
+        workCenter.Property(x => x.Id).UseIdentityColumn();
+        workCenter.Property(x => x.OrganizationId).IsRequired();
+        workCenter.Property(x => x.SiteId).IsRequired();
+        workCenter.Property(x => x.Code).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation).IsRequired();
+        workCenter.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        workCenter.Property(x => x.WorkCenterType).HasConversion<byte>().IsRequired();
+        workCenter.Property(x => x.CapacityUnitsPerHour).HasPrecision(18, 6).IsRequired();
+        workCenter.Property(x => x.DailyAvailableHours).HasPrecision(18, 6).IsRequired();
+        workCenter.Property(x => x.HourlyCostRate).HasPrecision(18, 6);
+        workCenter.Property(x => x.Notes).HasMaxLength(500);
+        workCenter.Property(x => x.IsActive).IsRequired();
+        AddAuditMetadata(workCenter);
+        workCenter.HasAlternateKey(x => new { x.OrganizationId, x.Id }).HasName("AK_WorkCenter_Org_Id");
+        workCenter.HasAlternateKey(x => new { x.OrganizationId, x.SiteId, x.Id }).HasName("AK_WorkCenter_Org_Site_Id");
+        workCenter.HasIndex(x => new { x.OrganizationId, x.SiteId, x.Code }).IsUnique().HasDatabaseName("UX_WorkCenter_Org_Site_Code");
+        workCenter.HasIndex(x => new { x.OrganizationId, x.SiteId, x.IsActive, x.Code }).HasDatabaseName("IX_WorkCenter_Org_Site_Active");
+        workCenter.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId)
+            .OnDelete(DeleteBehavior.NoAction).HasConstraintName("FK_WorkCenter_Organization");
+        workCenter.HasOne<Site>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.SiteId })
+            .HasPrincipalKey(s => new { s.OrganizationId, s.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_WorkCenter_Site");
+
+        var routing = model.Entity<Routing>();
+        routing.ToTable("Routing", Schema, table =>
+        {
+            table.HasCheckConstraint("CK_Routing_Code", CodeCheck);
+            table.HasCheckConstraint("CK_Routing_Name", NameCheck);
+            table.HasCheckConstraint("CK_Routing_Version", "[VersionNumber] >= 1");
+            table.HasCheckConstraint("CK_Routing_Status", "[Status] BETWEEN 1 AND 3");
+            table.HasCheckConstraint("CK_Routing_Metadata", MetadataCheck);
+        });
+        routing.HasKey(x => x.Id).HasName("PK_Routing");
+        routing.Property(x => x.Id).UseIdentityColumn();
+        routing.Property(x => x.OrganizationId).IsRequired();
+        routing.Property(x => x.SiteId).IsRequired();
+        routing.Property(x => x.Code).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation).IsRequired();
+        routing.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        routing.Property(x => x.ItemId).IsRequired();
+        routing.Property(x => x.BomVersionId);
+        routing.Property(x => x.VersionNumber).IsRequired();
+        routing.Property(x => x.Status).HasConversion<byte>().IsRequired();
+        routing.Property(x => x.IsDefault).IsRequired();
+        routing.Property(x => x.Notes).HasMaxLength(500);
+        routing.Property(x => x.ActivatedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
+        AddAuditMetadata(routing);
+        routing.HasAlternateKey(x => new { x.OrganizationId, x.Id }).HasName("AK_Routing_Org_Id");
+        routing.HasAlternateKey(x => new { x.OrganizationId, x.SiteId, x.Id }).HasName("AK_Routing_Org_Site_Id");
+        routing.HasIndex(x => new { x.OrganizationId, x.SiteId, x.Code, x.VersionNumber }).IsUnique().HasDatabaseName("UX_Routing_Org_Site_Code_Version");
+        routing.HasIndex(x => new { x.OrganizationId, x.SiteId, x.ItemId }).IsUnique().HasFilter("[Status] = 2 AND [IsDefault] = 1").HasDatabaseName("UX_Routing_Org_Site_Item_Default");
+        routing.HasIndex(x => new { x.OrganizationId, x.SiteId, x.ItemId, x.Status }).HasDatabaseName("IX_Routing_Org_Site_Item_Status");
+        routing.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId)
+            .OnDelete(DeleteBehavior.NoAction).HasConstraintName("FK_Routing_Organization");
+        routing.HasOne<Site>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.SiteId })
+            .HasPrincipalKey(s => new { s.OrganizationId, s.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_Routing_Site");
+        routing.HasOne<Item>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.ItemId })
+            .HasPrincipalKey(i => new { i.OrganizationId, i.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_Routing_Item");
+        routing.HasOne<BomVersion>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.BomVersionId })
+            .HasPrincipalKey(v => new { v.OrganizationId, v.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_Routing_BomVersion");
+        routing.Navigation(x => x.Operations).HasField("_operations").UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        var routingOp = model.Entity<RoutingOperation>();
+        routingOp.ToTable("RoutingOperation", Schema, table =>
+        {
+            table.HasCheckConstraint("CK_RoutingOperation_Seq", "[Sequence] >= 1");
+            table.HasCheckConstraint("CK_RoutingOperation_Code", "DATALENGTH([OperationCode]) BETWEEN 1 AND 32 AND DATALENGTH([OperationCode]) = LEN([OperationCode]) AND [OperationCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([OperationCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'");
+            table.HasCheckConstraint("CK_RoutingOperation_Name", "DATALENGTH([OperationName]) BETWEEN 2 AND 400 AND DATALENGTH([OperationName]) = DATALENGTH(LTRIM(RTRIM([OperationName]))) AND DATALENGTH(LTRIM(RTRIM([OperationName]))) > 0");
+            table.HasCheckConstraint("CK_RoutingOperation_Times", "[SetupMinutes] >= 0 AND [RunMinutesPerUnit] > 0 AND [QueueMinutes] >= 0 AND [WaitMinutes] >= 0");
+            table.HasCheckConstraint("CK_RoutingOperation_Metadata", MetadataCheck);
+        });
+        routingOp.HasKey(x => x.Id).HasName("PK_RoutingOperation");
+        routingOp.Property(x => x.Id).UseIdentityColumn();
+        routingOp.Property(x => x.OrganizationId).IsRequired();
+        routingOp.Property(x => x.SiteId).IsRequired();
+        routingOp.Property(x => x.RoutingId).IsRequired();
+        routingOp.Property(x => x.Sequence).IsRequired();
+        routingOp.Property(x => x.OperationCode).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation).IsRequired();
+        routingOp.Property(x => x.OperationName).HasMaxLength(200).IsRequired();
+        routingOp.Property(x => x.WorkCenterId).IsRequired();
+        routingOp.Property(x => x.SetupMinutes).HasPrecision(18, 2).IsRequired();
+        routingOp.Property(x => x.RunMinutesPerUnit).HasPrecision(18, 4).IsRequired();
+        routingOp.Property(x => x.QueueMinutes).HasPrecision(18, 2).IsRequired();
+        routingOp.Property(x => x.WaitMinutes).HasPrecision(18, 2).IsRequired();
+        routingOp.Property(x => x.RequiresQualityCheck).IsRequired();
+        routingOp.Property(x => x.Instructions).HasMaxLength(500);
+        AddAuditMetadata(routingOp);
+        routingOp.HasIndex(x => new { x.OrganizationId, x.RoutingId, x.Sequence }).IsUnique().HasDatabaseName("UX_RoutingOperation_Routing_Seq");
+        routingOp.HasIndex(x => new { x.OrganizationId, x.SiteId, x.WorkCenterId }).HasDatabaseName("IX_RoutingOperation_Org_Site_WC");
+        routingOp.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId)
+            .OnDelete(DeleteBehavior.NoAction).HasConstraintName("FK_RoutingOperation_Organization");
+        routingOp.HasOne<Routing>().WithMany(r => r.Operations)
+            .HasForeignKey(x => new { x.OrganizationId, x.SiteId, x.RoutingId })
+            .HasPrincipalKey(r => new { r.OrganizationId, r.SiteId, r.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_RoutingOperation_Routing");
+        routingOp.HasOne<WorkCenter>().WithMany()
+            .HasForeignKey(x => new { x.OrganizationId, x.SiteId, x.WorkCenterId })
+            .HasPrincipalKey(w => new { w.OrganizationId, w.SiteId, w.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_RoutingOperation_WorkCenter");
+
+        var poOp = model.Entity<ProductionOrderOperation>();
+        poOp.ToTable("ProductionOrderOperation", Schema, table =>
+        {
+            table.HasCheckConstraint("CK_ProductionOrderOperation_Seq", "[Sequence] >= 1");
+            table.HasCheckConstraint("CK_ProductionOrderOperation_Code", "DATALENGTH([OperationCode]) BETWEEN 1 AND 32 AND DATALENGTH([OperationCode]) = LEN([OperationCode]) AND [OperationCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([OperationCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'");
+            table.HasCheckConstraint("CK_ProductionOrderOperation_Name", "DATALENGTH([OperationName]) BETWEEN 2 AND 400 AND DATALENGTH([OperationName]) = DATALENGTH(LTRIM(RTRIM([OperationName]))) AND DATALENGTH(LTRIM(RTRIM([OperationName]))) > 0");
+            table.HasCheckConstraint("CK_ProductionOrderOperation_Times", "[PlannedSetupMinutes] >= 0 AND [PlannedRunMinutes] >= 0 AND [PlannedQueueMinutes] >= 0 AND [PlannedWaitMinutes] >= 0 AND [ActualSetupMinutes] >= 0 AND [ActualRunMinutes] >= 0");
+            table.HasCheckConstraint("CK_ProductionOrderOperation_Qty", "[CompletedQuantity] >= 0 AND [ScrapQuantity] >= 0");
+            table.HasCheckConstraint("CK_ProductionOrderOperation_Status", "[Status] BETWEEN 1 AND 6");
+            table.HasCheckConstraint("CK_ProductionOrderOperation_Metadata", MetadataCheck);
+        });
+        poOp.HasKey(x => x.Id).HasName("PK_ProductionOrderOperation");
+        poOp.Property(x => x.Id).UseIdentityColumn();
+        poOp.Property(x => x.OrganizationId).IsRequired();
+        poOp.Property(x => x.SiteId).IsRequired();
+        poOp.Property(x => x.ProductionOrderId).IsRequired();
+        poOp.Property(x => x.Sequence).IsRequired();
+        poOp.Property(x => x.OperationCode).HasMaxLength(32).IsUnicode(false).UseCollation(CodeCollation).IsRequired();
+        poOp.Property(x => x.OperationName).HasMaxLength(200).IsRequired();
+        poOp.Property(x => x.WorkCenterId).IsRequired();
+        poOp.Property(x => x.PlannedSetupMinutes).HasPrecision(18, 2).IsRequired();
+        poOp.Property(x => x.PlannedRunMinutes).HasPrecision(18, 2).IsRequired();
+        poOp.Property(x => x.PlannedQueueMinutes).HasPrecision(18, 2).IsRequired();
+        poOp.Property(x => x.PlannedWaitMinutes).HasPrecision(18, 2).IsRequired();
+        poOp.Property(x => x.ActualSetupMinutes).HasPrecision(18, 2).IsRequired();
+        poOp.Property(x => x.ActualRunMinutes).HasPrecision(18, 2).IsRequired();
+        poOp.Property(x => x.CompletedQuantity).HasPrecision(18, 6).IsRequired();
+        poOp.Property(x => x.ScrapQuantity).HasPrecision(18, 6).IsRequired();
+        poOp.Property(x => x.RequiresQualityCheck).IsRequired();
+        poOp.Property(x => x.Instructions).HasMaxLength(500);
+        poOp.Property(x => x.OperatorNotes).HasMaxLength(500);
+        poOp.Property(x => x.Status).HasConversion<byte>().IsRequired();
+        poOp.Property(x => x.StartedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
+        poOp.Property(x => x.CompletedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
+        poOp.Ignore(x => x.PlannedTotalMinutes);
+        AddAuditMetadata(poOp);
+        poOp.HasIndex(x => new { x.OrganizationId, x.ProductionOrderId, x.Sequence }).IsUnique().HasDatabaseName("UX_ProductionOrderOperation_Order_Seq");
+        poOp.HasIndex(x => new { x.OrganizationId, x.SiteId, x.WorkCenterId, x.Status }).HasDatabaseName("IX_ProductionOrderOperation_Org_Site_WC_Status");
+        poOp.HasOne<Organization>().WithMany().HasForeignKey(x => x.OrganizationId)
+            .OnDelete(DeleteBehavior.NoAction).HasConstraintName("FK_ProductionOrderOperation_Organization");
+        poOp.HasOne<Site>().WithMany().HasForeignKey(x => new { x.OrganizationId, x.SiteId })
+            .HasPrincipalKey(s => new { s.OrganizationId, s.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_ProductionOrderOperation_Site");
+        poOp.HasOne<ProductionOrder>().WithMany()
+            .HasForeignKey(x => new { x.OrganizationId, x.ProductionOrderId })
+            .HasPrincipalKey(p => new { p.OrganizationId, p.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_ProductionOrderOperation_Order");
+        poOp.HasOne<WorkCenter>().WithMany()
+            .HasForeignKey(x => new { x.OrganizationId, x.SiteId, x.WorkCenterId })
+            .HasPrincipalKey(w => new { w.OrganizationId, w.SiteId, w.Id }).OnDelete(DeleteBehavior.NoAction)
+            .HasConstraintName("FK_ProductionOrderOperation_WorkCenter");
     }
 
     private static void Business<T>(EntityTypeBuilder<T> entity, string tableName) where T : class

@@ -1,5 +1,6 @@
 using ForgeFlow.Application.Boms;
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Application.Routings;
 using ForgeFlow.Domain.Boms;
 using ForgeFlow.Domain.ProductionOrders;
 
@@ -44,7 +45,9 @@ public sealed record ProductionOrderSummary(
     DateTime? StartedAtUtc,
     DateTime? CompletedAtUtc,
     DateTime? CancelledAtUtc,
-    string RowVersion);
+    string RowVersion,
+    long? RoutingId = null,
+    string? RoutingCodeSnapshot = null);
 
 public sealed record ProductionOrderInputSummary(
     long Id,
@@ -86,7 +89,8 @@ public sealed record ProductionOrderDetails(
     ProductionOrderSummary Summary,
     IReadOnlyList<ProductionOrderInputSummary> Inputs,
     IReadOnlyList<ProductionOrderOutputSummary> Outputs,
-    IReadOnlyList<ProductionOrderContextSummary> Contexts);
+    IReadOnlyList<ProductionOrderContextSummary> Contexts,
+    IReadOnlyList<ProductionOrderOperationSummary>? Operations = null);
 
 public sealed record ProductionOrderListQuery(
     long? SiteId = null,
@@ -106,7 +110,8 @@ public sealed record CreateProductionOrderRequest(
     DateOnly PlannedStartDate,
     DateOnly PlannedDueDate,
     IReadOnlyDictionary<string, string>? ContextValues = null,
-    string? Notes = null);
+    string? Notes = null,
+    long? RoutingId = null);
 
 public sealed record UpdateDraftProductionOrderRequest(
     long OrganizationId,
@@ -117,7 +122,8 @@ public sealed record UpdateDraftProductionOrderRequest(
     DateOnly PlannedDueDate,
     IReadOnlyDictionary<string, string>? ContextValues = null,
     string? Notes = null,
-    string? ExpectedRowVersion = null);
+    string? ExpectedRowVersion = null,
+    long? RoutingId = null);
 
 public sealed record RefreshProductionOrderSnapshotRequest(
     long OrganizationId,
@@ -190,7 +196,8 @@ public interface IProductionOrderOperationsStore
         CreateProductionOrderRequest request,
         ResolvedBomSnapshotWrite snapshot,
         OrganizationWriteAccess access,
-        CancellationToken ct);
+        CancellationToken ct,
+        ResolvedRoutingSnapshotWrite? routingSnapshot = null);
 
     Task<OrganizationResult<ProductionOrderDetails>> UpdateDraft(
         long organizationId,
@@ -199,7 +206,8 @@ public interface IProductionOrderOperationsStore
         UpdateDraftProductionOrderRequest request,
         ResolvedBomSnapshotWrite snapshot,
         OrganizationWriteAccess access,
-        CancellationToken ct);
+        CancellationToken ct,
+        ResolvedRoutingSnapshotWrite? routingSnapshot = null);
 
     Task<OrganizationResult<ProductionOrderDetails>> RefreshDraftSnapshot(
         long organizationId,
@@ -207,7 +215,8 @@ public interface IProductionOrderOperationsStore
         byte[] version,
         ResolvedBomSnapshotWrite snapshot,
         OrganizationWriteAccess access,
-        CancellationToken ct);
+        CancellationToken ct,
+        ResolvedRoutingSnapshotWrite? routingSnapshot = null);
 
     Task<OrganizationResult<ProductionOrderDetails>> ReleaseOrder(
         long organizationId,
@@ -216,7 +225,8 @@ public interface IProductionOrderOperationsStore
         ResolvedBomSnapshotWrite snapshot,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct);
+        CancellationToken ct,
+        ResolvedRoutingSnapshotWrite? routingSnapshot = null);
 
     Task<OrganizationResult<ProductionOrderDetails>> StartOrder(
         long organizationId,

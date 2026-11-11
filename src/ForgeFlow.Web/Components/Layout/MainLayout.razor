@@ -190,6 +190,7 @@
             unitScopes = await ReadScopes.LoadUnitScopesAsync();
             itemScopes = await ReadScopes.LoadItemScopesAsync();
             bomScopes = await ReadScopes.LoadBomScopesAsync();
+            routingScopes = await ReadScopes.LoadRoutingScopesAsync();
             productionOrderScopes = await ReadScopes.LoadProductionOrderScopesAsync();
             inventoryScopes = await ReadScopes.LoadInventoryScopesAsync();
             reportScopes = await ReadScopes.LoadReportScopesAsync();
@@ -207,6 +208,7 @@
             unitScopes = [];
             itemScopes = [];
             bomScopes = [];
+            routingScopes = [];
             productionOrderScopes = [];
             inventoryScopes = [];
             reportScopes = [];
@@ -312,6 +314,7 @@
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> unitScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> itemScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> bomScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> routingScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> productionOrderScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> inventoryScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> reportScopes = [];
@@ -335,7 +338,7 @@
                 System.Globalization.CultureInfo.CurrentUICulture.Name, "|",
                 orgScopes.Count, ",", readScopes.Count, ",", userScopes.Count, ",",
                 roleScopes.Count, ",", auditScopes.Count, ",", unitScopes.Count, ",",
-                itemScopes.Count, ",", bomScopes.Count, ",", productionOrderScopes.Count, ",",
+                itemScopes.Count, ",", bomScopes.Count, ",", routingScopes.Count, ",", productionOrderScopes.Count, ",",
                 inventoryScopes.Count, ",", reportScopes.Count, ",", qualityScopes.Count, ",",
                 procurementScopes.Count, ",", diagnosticScopes.Count);
             if (string.Equals(navSignature, sig, StringComparison.Ordinal))
@@ -458,6 +461,11 @@
                 items.Add(new() { Text = Text["Items"], Icon = Icon("items"), Url = "/items", Match = BitNavMatch.Exact });
             if (bomScopes.Count > 0)
                 items.Add(new() { Text = Text["Boms"], Icon = Icon("boms"), Url = "/boms", Match = BitNavMatch.Exact });
+            if (routingScopes.Count > 0)
+            {
+                items.Add(new() { Text = Text["WorkCenters"], Icon = Icon("work-centers"), Url = "/work-centers", Match = BitNavMatch.Exact });
+                items.Add(new() { Text = Text["Routings"], Icon = Icon("routings"), Url = "/routings", Match = BitNavMatch.Exact });
+            }
             return items;
         }
     }

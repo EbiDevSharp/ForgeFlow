@@ -2,9 +2,11 @@ using ForgeFlow.Application.Boms;
 using ForgeFlow.Application.Common;
 using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Application.Routings;
 using ForgeFlow.Domain.Boms;
 using ForgeFlow.Domain.Diagnostics;
 using ForgeFlow.Domain.ProductionOrders;
+using ForgeFlow.Domain.Routings;
 using ForgeFlow.Domain.Units;
 
 namespace ForgeFlow.Application.ProductionOrders;
@@ -18,7 +20,8 @@ public sealed class ProductionOrderUseCases(
     ITrustedActorAccessor? actors = null,
     IOrganizationPermissionEvaluator? permissions = null,
     IUserOperationRecorder? operationRecorder = null,
-    IOperationContextAccessor? opContext = null)
+    IOperationContextAccessor? opContext = null,
+    IRoutingOperationsStore? routingStore = null)
 {
     private readonly BomUseCases bomEngine = new(bomStore, actors, permissions);
 
@@ -93,6 +96,7 @@ public sealed class ProductionOrderUseCases(
         catch (BomRuleException ex) { return OrganizationResult<T>.Failure(MapBomError(ex.Code), ex.Parameters); }
         catch (UnitRuleException ex) { return OrganizationResult<T>.Failure(MapUnitError(ex.Code), ex.Parameters); }
         catch (BomStoreUnavailableException) { return OrganizationResult<T>.Failure(ProductionOrderErrors.PersistenceUnavailable); }
+        catch (RoutingStoreUnavailableException) { return OrganizationResult<T>.Failure(ProductionOrderErrors.PersistenceUnavailable); }
         catch (ProductionOrderStoreUnavailableException) { return OrganizationResult<T>.Failure(ProductionOrderErrors.PersistenceUnavailable); }
     }
 
@@ -212,7 +216,17 @@ public sealed class ProductionOrderUseCases(
                 if (!snapshotRes.Succeeded)
                     return OrganizationResult<ProductionOrderDetails>.Failure(snapshotRes.Error!.Code, snapshotRes.Error.Parameters);
 
-                return await store.CreateDraft(request, snapshotRes.Value!, Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct);
+                var routingRes = await BuildRoutingSnapshotAsync(
+                    request.OrganizationId,
+                    request.SiteId,
+                    request.ItemId,
+                    request.RequestedQuantity,
+                    request.RoutingId,
+                    ct);
+                if (!routingRes.Succeeded)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(routingRes.Error!.Code, routingRes.Error.Parameters);
+
+                return await store.CreateDraft(request, snapshotRes.Value!, Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct, routingRes.Value);
             });
         await OperationAuditHelper.RecordIfRejectedAsync(res, operationRecorder, opContext,
             UserOperationCatalog.ProductionOrderActionRejected, auth.Actor, scope, request.OrganizationId,
@@ -261,8 +275,18 @@ public sealed class ProductionOrderUseCases(
                 if (!snapshotRes.Succeeded)
                     return OrganizationResult<ProductionOrderDetails>.Failure(snapshotRes.Error!.Code, snapshotRes.Error.Parameters);
 
+                var routingRes = await BuildRoutingSnapshotAsync(
+                    request.OrganizationId,
+                    existing.Summary.SiteId,
+                    existing.Summary.ItemId,
+                    request.RequestedQuantity,
+                    request.RoutingId,
+                    ct);
+                if (!routingRes.Succeeded)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(routingRes.Error!.Code, routingRes.Error.Parameters);
+
                 return await store.UpdateDraft(request.OrganizationId, request.Id, version, request, snapshotRes.Value!,
-                    Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct);
+                    Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct, routingRes.Value);
             });
         await RecordIfRejectedAsync(res, auth.Actor, scope, request.OrganizationId, null, request.Id, "UpdateDraft");
         return res;
@@ -304,8 +328,18 @@ public sealed class ProductionOrderUseCases(
                 if (!snapshotRes.Succeeded)
                     return OrganizationResult<ProductionOrderDetails>.Failure(snapshotRes.Error!.Code, snapshotRes.Error.Parameters);
 
+                var routingRes = await BuildRoutingSnapshotAsync(
+                    request.OrganizationId,
+                    existing.Summary.SiteId,
+                    existing.Summary.ItemId,
+                    existing.Summary.RequestedQuantity,
+                    existing.Summary.RoutingId,
+                    ct);
+                if (!routingRes.Succeeded)
+                    return OrganizationResult<ProductionOrderDetails>.Failure(routingRes.Error!.Code, routingRes.Error.Parameters);
+
                 return await store.RefreshDraftSnapshot(request.OrganizationId, request.Id, version, snapshotRes.Value!,
-                    Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct);
+                    Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct, routingRes.Value);
             });
         await RecordIfRejectedAsync(res, auth.Actor, scope, request.OrganizationId, null, request.Id, "RefreshSnapshot");
         return res;
@@ -347,8 +381,18 @@ public sealed class ProductionOrderUseCases(
             if (!snapshotRes.Succeeded)
                 return OrganizationResult<ProductionOrderDetails>.Failure(snapshotRes.Error!.Code, snapshotRes.Error.Parameters);
 
+            var routingRes = await BuildRoutingSnapshotAsync(
+                request.OrganizationId,
+                existing.Summary.SiteId,
+                existing.Summary.ItemId,
+                existing.Summary.RequestedQuantity,
+                existing.Summary.RoutingId,
+                ct);
+            if (!routingRes.Succeeded)
+                return OrganizationResult<ProductionOrderDetails>.Failure(routingRes.Error!.Code, routingRes.Error.Parameters);
+
             return await store.ReleaseOrder(request.OrganizationId, request.Id, version, snapshotRes.Value!, DateTime.UtcNow,
-                Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct);
+                Access(auth.Actor!, scope!, ProductionOrderPermissions.ProductionOrdersManage), ct, routingRes.Value);
         });
 
         await RecordIfRejectedAsync(res, auth.Actor!, scope!, request.OrganizationId, forcedSiteId, request.Id, "ReleaseOrder");
@@ -525,5 +569,46 @@ public sealed class ProductionOrderUseCases(
             exp.ConsumedInputs,
             exp.ProducedOutputs,
             mergedContext));
+    }
+
+    private async Task<OrganizationResult<ResolvedRoutingSnapshotWrite?>> BuildRoutingSnapshotAsync(
+        long organizationId,
+        long siteId,
+        long itemId,
+        decimal requestedQuantity,
+        long? requestedRoutingId,
+        CancellationToken ct)
+    {
+        if (routingStore is null)
+            return OrganizationResult<ResolvedRoutingSnapshotWrite?>.Success(null);
+
+        var resolved = await routingStore.ResolveRoutingForProductionOrder(organizationId, siteId, itemId, requestedRoutingId, ct);
+        if (resolved is null)
+        {
+            if (requestedRoutingId.HasValue)
+                return OrganizationResult<ResolvedRoutingSnapshotWrite?>.Failure(ProductionOrderErrors.RoutingInvalid);
+            return OrganizationResult<ResolvedRoutingSnapshotWrite?>.Success(null);
+        }
+
+        if (resolved.Operations.Count == 0)
+            return OrganizationResult<ResolvedRoutingSnapshotWrite?>.Failure(ProductionOrderErrors.RoutingInvalid);
+
+        var ops = resolved.Operations
+            .OrderBy(o => o.Sequence)
+            .Select(o => new ResolvedRoutingOperationSnapshotWrite(
+                o.Sequence,
+                o.OperationCode,
+                o.OperationName,
+                o.WorkCenterId,
+                o.SetupMinutes,
+                decimal.Round(o.RunMinutesPerUnit * requestedQuantity, 2, MidpointRounding.AwayFromZero),
+                o.QueueMinutes,
+                o.WaitMinutes,
+                o.RequiresQualityCheck,
+                o.Instructions))
+            .ToArray();
+
+        return OrganizationResult<ResolvedRoutingSnapshotWrite?>.Success(
+            new ResolvedRoutingSnapshotWrite(resolved.Summary.Id, resolved.Summary.Code, ops));
     }
 }

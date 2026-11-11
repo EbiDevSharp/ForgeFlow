@@ -1,9 +1,11 @@
 using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.ProductionOrders;
+using ForgeFlow.Application.Routings;
 using ForgeFlow.Application.Users;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.ProductionOrders;
+using ForgeFlow.Domain.Routings;
 using ForgeFlow.Infrastructure.Diagnostics;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -89,7 +91,8 @@ public sealed class SqlProductionOrderOperationsStore(
         CreateProductionOrderRequest request,
         ResolvedBomSnapshotWrite snapshot,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct,
+        ResolvedRoutingSnapshotWrite? routingSnapshot = null) => Write(access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
@@ -122,10 +125,13 @@ public sealed class SqlProductionOrderOperationsStore(
             snapshot.BaseOutputUnitId,
             request.Notes);
 
+        if (routingSnapshot is not null)
+            order.ApplyRoutingSnapshot(routingSnapshot.RoutingId, routingSnapshot.RoutingCode);
+
         db.ProductionOrders.Add(order);
         await db.SaveInOperation(access.Actor, ct);
 
-        ReplaceSnapshotChildren(db, request.OrganizationId, order.Id, snapshot);
+        ReplaceSnapshotChildren(db, request.OrganizationId, order.SiteId, order.Id, order.Status, snapshot, routingSnapshot);
         await db.SaveInOperation(access.Actor, ct);
 
         return OrganizationResult<ProductionOrderDetails>.Success((await BuildOrderDetailsAsync(db, request.OrganizationId, order.Id, ct))!);
@@ -138,7 +144,8 @@ public sealed class SqlProductionOrderOperationsStore(
         UpdateDraftProductionOrderRequest request,
         ResolvedBomSnapshotWrite snapshot,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct,
+        ResolvedRoutingSnapshotWrite? routingSnapshot = null) => Write(access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
@@ -149,9 +156,10 @@ public sealed class SqlProductionOrderOperationsStore(
 
         order.UpdateDraftHeader(request.RequestedQuantity, snapshot.EffectiveRequestedUnitId, request.PlannedStartDate, request.PlannedDueDate, request.Notes);
         order.ApplyResolvedBomSnapshot(snapshot.BomId, snapshot.BomCode, snapshot.BomVersionId, snapshot.VersionNumber, snapshot.BaseOutputQuantity, snapshot.BaseOutputUnitId);
+        order.ApplyRoutingSnapshot(routingSnapshot?.RoutingId, routingSnapshot?.RoutingCode);
 
         await ClearSnapshotChildrenAsync(db, organizationId, order.Id, ct);
-        ReplaceSnapshotChildren(db, organizationId, order.Id, snapshot);
+        ReplaceSnapshotChildren(db, organizationId, order.SiteId, order.Id, order.Status, snapshot, routingSnapshot);
 
         await db.SaveInOperation(access.Actor, ct);
         return OrganizationResult<ProductionOrderDetails>.Success((await BuildOrderDetailsAsync(db, organizationId, order.Id, ct))!);
@@ -163,7 +171,8 @@ public sealed class SqlProductionOrderOperationsStore(
         byte[] version,
         ResolvedBomSnapshotWrite snapshot,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct,
+        ResolvedRoutingSnapshotWrite? routingSnapshot = null) => Write(access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
@@ -173,8 +182,9 @@ public sealed class SqlProductionOrderOperationsStore(
         if (!Matches(db, order, version)) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict);
 
         order.ApplyResolvedBomSnapshot(snapshot.BomId, snapshot.BomCode, snapshot.BomVersionId, snapshot.VersionNumber, snapshot.BaseOutputQuantity, snapshot.BaseOutputUnitId);
+        order.ApplyRoutingSnapshot(routingSnapshot?.RoutingId, routingSnapshot?.RoutingCode);
         await ClearSnapshotChildrenAsync(db, organizationId, order.Id, ct);
-        ReplaceSnapshotChildren(db, organizationId, order.Id, snapshot);
+        ReplaceSnapshotChildren(db, organizationId, order.SiteId, order.Id, order.Status, snapshot, routingSnapshot);
 
         await db.SaveInOperation(access.Actor, ct);
         return OrganizationResult<ProductionOrderDetails>.Success((await BuildOrderDetailsAsync(db, organizationId, order.Id, ct))!);
@@ -187,15 +197,17 @@ public sealed class SqlProductionOrderOperationsStore(
         ResolvedBomSnapshotWrite snapshot,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct)
+        CancellationToken ct,
+        ResolvedRoutingSnapshotWrite? routingSnapshot = null)
         => TransitionAndNotifyAsync(organizationId, id, version, NotificationSeverity.Info, access, async (db, order) =>
         {
             var site = await db.Sites.AsNoTracking().SingleOrDefaultAsync(s => s.OrganizationId == organizationId && s.Id == order.SiteId, ct);
             if (site is null || !site.IsActive) return OrganizationResult<bool>.Failure(ProductionOrderErrors.SiteInactive);
             order.ApplyResolvedBomSnapshot(snapshot.BomId, snapshot.BomCode, snapshot.BomVersionId, snapshot.VersionNumber, snapshot.BaseOutputQuantity, snapshot.BaseOutputUnitId);
-            await ClearSnapshotChildrenAsync(db, organizationId, order.Id, ct);
-            ReplaceSnapshotChildren(db, organizationId, order.Id, snapshot);
+            order.ApplyRoutingSnapshot(routingSnapshot?.RoutingId, routingSnapshot?.RoutingCode);
             order.Release(utcNow);
+            await ClearSnapshotChildrenAsync(db, organizationId, order.Id, ct);
+            ReplaceSnapshotChildren(db, organizationId, order.SiteId, order.Id, order.Status, snapshot, routingSnapshot);
             return OrganizationResult<bool>.Success(true);
         }, ct);
 
@@ -326,12 +338,21 @@ public sealed class SqlProductionOrderOperationsStore(
         var oldInputs = await db.ProductionOrderInputs.Where(x => x.OrganizationId == organizationId && x.ProductionOrderId == productionOrderId).ToListAsync(ct);
         var oldOutputs = await db.ProductionOrderOutputs.Where(x => x.OrganizationId == organizationId && x.ProductionOrderId == productionOrderId).ToListAsync(ct);
         var oldContexts = await db.ProductionOrderContexts.Where(x => x.OrganizationId == organizationId && x.ProductionOrderId == productionOrderId).ToListAsync(ct);
+        var oldOperations = await db.ProductionOrderOperations.Where(x => x.OrganizationId == organizationId && x.ProductionOrderId == productionOrderId).ToListAsync(ct);
         db.ProductionOrderInputs.RemoveRange(oldInputs);
         db.ProductionOrderOutputs.RemoveRange(oldOutputs);
         db.ProductionOrderContexts.RemoveRange(oldContexts);
+        db.ProductionOrderOperations.RemoveRange(oldOperations);
     }
 
-    private static void ReplaceSnapshotChildren(OrganizationDbContext db, long organizationId, long productionOrderId, ResolvedBomSnapshotWrite snapshot)
+    private static void ReplaceSnapshotChildren(
+        OrganizationDbContext db,
+        long organizationId,
+        long siteId,
+        long productionOrderId,
+        ProductionOrderStatus orderStatus,
+        ResolvedBomSnapshotWrite snapshot,
+        ResolvedRoutingSnapshotWrite? routingSnapshot = null)
     {
         for (var i = 0; i < snapshot.ConsumedInputs.Count; i++)
         {
@@ -373,6 +394,30 @@ public sealed class SqlProductionOrderOperationsStore(
                 productionOrderId,
                 kv.Key,
                 kv.Value));
+        }
+
+        if (routingSnapshot is not null)
+        {
+            foreach (var rOp in routingSnapshot.Operations.OrderBy(o => o.Sequence))
+            {
+                var entity = ProductionOrderOperation.Create(
+                    organizationId,
+                    siteId,
+                    productionOrderId,
+                    rOp.Sequence,
+                    rOp.OperationCode,
+                    rOp.OperationName,
+                    rOp.WorkCenterId,
+                    rOp.PlannedSetupMinutes,
+                    rOp.PlannedRunMinutes,
+                    rOp.PlannedQueueMinutes,
+                    rOp.PlannedWaitMinutes,
+                    rOp.RequiresQualityCheck,
+                    rOp.Instructions);
+                if (orderStatus == ProductionOrderStatus.Released)
+                    entity.MarkReady();
+                db.ProductionOrderOperations.Add(entity);
+            }
         }
     }
 
@@ -424,11 +469,14 @@ public sealed class SqlProductionOrderOperationsStore(
             .Select(c => new ProductionOrderContextSummary(c.DimensionCode, c.DimensionValue))
             .ToListAsync(ct);
 
+        var operations = await SqlRoutingOperationsStore.ListOperationsForOrderInDb(db, organizationId, id, ct);
+
         return new ProductionOrderDetails(
             ToSummary(row.po, row.s, row.it, row.ru, row.bu, row.CreatedAtUtc, row.RowVersion),
             inputs,
             outputs,
-            contexts);
+            contexts,
+            operations);
     }
 
     private static ProductionOrderSummary ToSummary(
@@ -471,7 +519,9 @@ public sealed class SqlProductionOrderOperationsStore(
             po.StartedAtUtc,
             po.CompletedAtUtc,
             po.CancelledAtUtc,
-            Convert.ToBase64String(rowVersion));
+            Convert.ToBase64String(rowVersion),
+            po.RoutingId,
+            po.RoutingCodeSnapshot);
 
     private async Task<T> Read<T>(Func<OrganizationDbContext, Task<T>> query, CancellationToken ct)
     {

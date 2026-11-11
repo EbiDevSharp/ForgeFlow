@@ -197,24 +197,12 @@
         </div>
     }
 
-    <BitDialog Width="1020px" MaxWidth="calc(100vw - 24px)" Classes="@PoDialogClasses" @bind-IsOpen="editorModalOpen"
-               AriaLabel="@(isEditingDraft ? Text["ProcPoEditTitle"] : Text["ProcPoCreateTitle"])"
-               ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="false"
-               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-        <Body>
-            <header class="proc-po-modal-header">
-                <div class="proc-po-modal-title-group">
-                    <h2>@(isEditingDraft ? Text["ProcPoEditTitle"] : Text["ProcPoCreateTitle"])</h2>
-                    <p>@Text["ProcPoModalSubtitle"]</p>
-                </div>
-                <button type="button" class="proc-po-close-btn" aria-label="@Text["ReadClose"]" title="@Text["ReadClose"]"
-                        @onclick="() => editorModalOpen = false">
-                    <span class="ff-icon ff-icon--close" aria-hidden="true"></span>
-                </button>
-            </header>
-
-            <div class="proc-po-modal-body">
-                @if (modalError is not null)
+    <ForgeFormDialog Width="1020px" @bind-IsOpen="editorModalOpen"
+                     Title="@(isEditingDraft ? Text["ProcPoEditTitle"] : Text["ProcPoCreateTitle"])"
+                     Subtitle="@Text["ProcPoModalSubtitle"]"
+                     CloseTitle="@Text["ReadClose"]">
+        <ChildContent>
+            @if (modalError is not null)
                 {
                     <p role="alert" class="write-error">@modalError</p>
                 }
@@ -348,20 +336,18 @@
                         }
                     </div>
                 </div>
+        </ChildContent>
+        <FooterActions>
+            <BitButton Class="proc-po-primary-btn" IsEnabled="@(!modalBusy)" OnClick="SubmitDraftAsync">@Text["PoSaveDraftButton"]</BitButton>
+            <BitButton Variant="BitVariant.Outline" Class="proc-po-cancel-btn" OnClick="() => editorModalOpen = false">@Text["WriteCancel"]</BitButton>
+        </FooterActions>
+        <FooterEnd>
+            <div class="proc-po-footer-total">
+                <span class="proc-po-total-label">@Text["ProcGrandTotalLabel"]</span>
+                <strong class="proc-po-total-val" dir="ltr">@Format.CurrencyAmount(DraftEstimatedTotal, editCurrencyCode)</strong>
             </div>
-
-            <footer class="proc-po-modal-footer">
-                <div class="proc-po-footer-actions">
-                    <BitButton Class="proc-po-primary-btn" IsEnabled="@(!modalBusy)" OnClick="SubmitDraftAsync">@Text["PoSaveDraftButton"]</BitButton>
-                    <BitButton Variant="BitVariant.Outline" Class="proc-po-cancel-btn" OnClick="() => editorModalOpen = false">@Text["WriteCancel"]</BitButton>
-                </div>
-                <div class="proc-po-footer-total">
-                    <span class="proc-po-total-label">@Text["ProcGrandTotalLabel"]</span>
-                    <strong class="proc-po-total-val" dir="ltr">@Format.CurrencyAmount(DraftEstimatedTotal, editCurrencyCode)</strong>
-                </div>
-            </footer>
-        </Body>
-    </BitDialog>
+        </FooterEnd>
+    </ForgeFormDialog>
 
     <BitDialog Width="880px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailModalOpen"
                Title="@Text["ProcPoDetailTitle"]" AriaLabel="@Text["ProcPoDetailTitle"]"
@@ -634,15 +620,6 @@
         Container = "read-dialog",
         Header = "read-dialog-header",
         Body = "read-dialog-body",
-        CloseButton = "read-dialog-close",
-        Overlay = "read-dialog-overlay"
-    };
-
-    private static readonly BitDialogClassStyles PoDialogClasses = new()
-    {
-        Container = "read-dialog proc-po-dialog",
-        Header = "proc-po-dialog-hidden-hdr",
-        Body = "proc-po-dialog-shell",
         CloseButton = "read-dialog-close",
         Overlay = "read-dialog-overlay"
     };

@@ -15,7 +15,8 @@ public enum PermissionModule : byte
     Reports = 11,
     Diagnostics = 12,
     Quality = 13,
-    Procurement = 14
+    Procurement = 14,
+    Routings = 15
 }
 
 public enum PermissionScopeApplicability : byte
@@ -90,7 +91,10 @@ public static class PermissionCatalog
         new("Procurement.Read", PermissionModule.Procurement, "Read", PermissionScopeApplicability.OrganizationOrSite),
         new("Procurement.ManageSuppliers", PermissionModule.Procurement, "ManageSuppliers", PermissionScopeApplicability.OrganizationOnly),
         new("Procurement.ManageOrders", PermissionModule.Procurement, "ManageOrders", PermissionScopeApplicability.OrganizationOrSite),
-        new("Procurement.ReceiveOrders", PermissionModule.Procurement, "ReceiveOrders", PermissionScopeApplicability.OrganizationOrSite)
+        new("Procurement.ReceiveOrders", PermissionModule.Procurement, "ReceiveOrders", PermissionScopeApplicability.OrganizationOrSite),
+        new("Routings.Read", PermissionModule.Routings, "Read", PermissionScopeApplicability.OrganizationOrSite),
+        new("Routings.Manage", PermissionModule.Routings, "ManageRoutings", PermissionScopeApplicability.OrganizationOrSite),
+        new("Operations.Execute", PermissionModule.Routings, "ExecuteOperations", PermissionScopeApplicability.OrganizationOrSite)
     ];
 
     private static readonly Dictionary<string, PermissionDescriptor> ByCode =
@@ -153,7 +157,7 @@ public static class PermissionCatalog
         {
             1 => descriptor.Applicability != PermissionScopeApplicability.PlatformOnly,
             2 => descriptor.Applicability == PermissionScopeApplicability.OrganizationOrSite
-                 && descriptor.Module is PermissionModule.Sites or PermissionModule.Audit or PermissionModule.Units or PermissionModule.Items or PermissionModule.Boms or PermissionModule.ProductionOrders or PermissionModule.Inventory or PermissionModule.Reports or PermissionModule.Quality or PermissionModule.Procurement,
+                 && descriptor.Module is PermissionModule.Sites or PermissionModule.Audit or PermissionModule.Units or PermissionModule.Items or PermissionModule.Boms or PermissionModule.ProductionOrders or PermissionModule.Inventory or PermissionModule.Reports or PermissionModule.Quality or PermissionModule.Procurement or PermissionModule.Routings,
             _ => false
         };
     }

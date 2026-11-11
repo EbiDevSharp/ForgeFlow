@@ -25,6 +25,7 @@ public sealed class RoleDomainTests
             .Concat(typeof(ForgeFlow.Application.Reporting.ReportingPermissions).GetFields(BindingFlags.Public | BindingFlags.Static))
             .Concat(typeof(ForgeFlow.Application.Quality.QualityPermissions).GetFields(BindingFlags.Public | BindingFlags.Static))
             .Concat(typeof(ForgeFlow.Application.Procurement.ProcurementPermissions).GetFields(BindingFlags.Public | BindingFlags.Static))
+            .Concat(typeof(ForgeFlow.Application.Routings.RoutingPermissions).GetFields(BindingFlags.Public | BindingFlags.Static))
             .Concat(typeof(ForgeFlow.Application.Diagnostics.DiagnosticPermissions).GetFields(BindingFlags.Public | BindingFlags.Static))
             .Select(f => (string)f.GetValue(null)!)
             .ToArray();

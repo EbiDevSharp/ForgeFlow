@@ -1,0 +1,657 @@
+@page "/work-centers"
+@page "/organizations/{OrganizationId:long}/work-centers"
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Application.Routings
+@using ForgeFlow.Domain.Routings
+@using ForgeFlow.Web.Organizations
+@using ForgeFlow.Web.Roles
+@inject RoutingUseCases RoutingService
+@inject ProductionOrderUseCases OrderService
+@inject ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["WorkCenters"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="wc-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="wc-title">@Text["WorkCenters"]</h1>
+            <p class="write-hint">@Text["WorkCentersCaption"]</p>
+        </div>
+        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage)
+        {
+            <div class="read-head-actions">
+                <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateModal">
+                    @Text["WcCreateButton"]
+                </BitButton>
+            </div>
+        }
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div role="alert" class="read-alert">
+            <span>@Text[pageError]</span>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else if (available.Count == 0)
+    {
+        <p role="status" class="read-empty">@Text["ReadDenied"]</p>
+    }
+    else
+    {
+        <div class="read-toolbar">
+            @if (available.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="wc-scope">@Text["ReadScope"]</label>
+                    <select id="wc-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                        @for (var i = 0; i < available.Count; i++)
+                        {
+                            <option value="@i">@ScopeLabel(available[i])</option>
+                        }
+                    </select>
+                </div>
+            }
+            @if (CurrentScope is OrganizationScope.Organization && authorizedSites.Count > 0)
+            {
+                <div class="read-field">
+                    <label for="wc-site-filter">@Text["PoSiteColumn"]</label>
+                    <select id="wc-site-filter" value="@siteFilter" @onchange="OnSiteFilterChangedAsync">
+                        <option value="0">@Text["PoAllSitesOption"]</option>
+                        @foreach (var s in authorizedSites)
+                        {
+                            <option value="@s.Id">@s.Code — @s.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+            <div class="read-field">
+                <label for="wc-type-filter">@Text["WcTypeLabel"]</label>
+                <select id="wc-type-filter" value="@typeFilter" @onchange="OnTypeFilterChangedAsync">
+                    <option value="">@Text["InvAllTypesOption"]</option>
+                    @foreach (var t in Enum.GetValues<WorkCenterType>())
+                    {
+                        <option value="@((byte)t)">@TypeLabel(t)</option>
+                    }
+                </select>
+            </div>
+            <label class="read-inactive">
+                <input type="checkbox" checked="@includeInactive" @onchange="OnIncludeInactiveChangedAsync" />
+                <span>@Text["ReadInactive"]</span>
+            </label>
+            <div class="read-field read-search">
+                <label for="wc-search">@Text["ReadSearch"]</label>
+                <input id="wc-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="100"
+                       placeholder="@Text["ReadSearchPlaceholder"]" />
+            </div>
+        </div>
+
+        @if (loads.Count > 0)
+        {
+            <div class="item-sub-card" style="margin-bottom:14px;">
+                <strong>@Text["WcLoadSection"]</strong>
+                <div class="wc-load-grid" style="margin-top:10px; margin-bottom:0;">
+                    @foreach (var load in loads)
+                    {
+                        var widthPct = Math.Clamp((double)load.UtilizationPercent, 0d, 100d);
+                        <div class="wc-load-card">
+                            <div style="display:flex; justify-content:space-between; gap:8px; align-items:center;">
+                                <span dir="ltr"><strong>@load.WorkCenterCode</strong></span>
+                                <span class="cap-badge" title="@Text["WcUtilizationCol"]" dir="ltr">@Format.Number(load.UtilizationPercent)%</span>
+                            </div>
+                            <span style="font-size:.86rem;">@load.WorkCenterName</span>
+                            <div class="wc-load-bar @(load.UtilizationPercent > 100m ? "over" : null)">
+                                <span style="width:@(widthPct.ToString("0.#", CultureInfo.InvariantCulture))%"></span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; font-size:.78rem; color:#64748b;">
+                                <span>@Text["WcActiveOpsCol"]: @load.ActiveOperationCount</span>
+                                <span title="@Text["WcPlannedMinsCol"]" dir="ltr">@Format.Number(load.TotalPlannedMinutes) m / @Format.Number(load.DailyAvailableHours) h</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="read-grid-card">
+            <div class="read-grid">
+                <BitDataGrid @ref="grid" TItem="WorkCenterSummary" OnRead="ReadWorkCentersAsync" Pageable="true" PageSize="25"
+                             PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["WorkCenters"]">
+                    <Columns>
+                        <BitDataGridColumn TItem="WorkCenterSummary" Title="@Text["ReadCode"]">
+                            <Template Context="wc"><bdi dir="ltr">@wc.Code</bdi></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="WorkCenterSummary" Title="@Text["ReadName"]">
+                            <Template Context="wc">@wc.Name</Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="WorkCenterSummary" Title="@Text["PoSiteColumn"]">
+                            <Template Context="wc"><bdi dir="ltr">@wc.SiteCode</bdi></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="WorkCenterSummary" Title="@Text["WcTypeLabel"]">
+                            <Template Context="wc"><span class="cap-badge">@TypeLabel(wc.WorkCenterType)</span></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="WorkCenterSummary" Title="@Text["WcCapacityLabel"]">
+                            <Template Context="wc"><bdi dir="ltr">@Format.Number(wc.CapacityUnitsPerHour)</bdi></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="WorkCenterSummary" Title="@Text["WcDailyHoursLabel"]">
+                            <Template Context="wc"><bdi dir="ltr">@Format.Number(wc.DailyAvailableHours)</bdi></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="WorkCenterSummary" Title="@Text["ReadStatus"]">
+                            <Template Context="wc">
+                                <span class="read-badge @(wc.IsActive ? "active" : "inactive")">
+                                    @(wc.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
+                                </span>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="WorkCenterSummary" Title="@Text["ReadActions"]">
+                            <Template Context="wc">
+                                <div class="read-row-actions">
+                                    <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                   IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                                   OnClick="() => OpenDetailModal(wc)" />
+                                    </BitTooltip>
+                                    @if (scopeCanManage)
+                                    {
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => ToggleActiveAsync(wc)">
+                                            @(wc.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
+                                        </BitButton>
+                                    }
+                                </div>
+                            </Template>
+                        </BitDataGridColumn>
+                    </Columns>
+                </BitDataGrid>
+            </div>
+        </div>
+    }
+
+    <BitDialog Width="620px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createOpen"
+               Title="@Text["WcCreateTitle"]" AriaLabel="@Text["WcCreateTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="write-form audit-modal-body">
+                @if (modalError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[modalError]</p>
+                }
+                <div class="write-grid">
+                    <div class="write-field">
+                        <label for="wc-create-site">@Text["PoSiteColumn"]</label>
+                        @if (CurrentScope is OrganizationScope.Site siteScope)
+                        {
+                            var activeSite = authorizedSites.FirstOrDefault(s => s.Id == siteScope.SiteId);
+                            <input id="wc-create-site" type="text" readonly value="@(activeSite is null ? siteScope.SiteId.ToString(CultureInfo.InvariantCulture) : $"{activeSite.Code} — {activeSite.Name}")" />
+                        }
+                        else
+                        {
+                            <select id="wc-create-site" @bind="newSiteId">
+                                @foreach (var s in authorizedSites)
+                                {
+                                    <option value="@s.Id">@s.Code — @s.Name</option>
+                                }
+                            </select>
+                        }
+                    </div>
+                    <div class="write-field">
+                        <label for="wc-create-type">@Text["WcTypeLabel"]</label>
+                        <select id="wc-create-type" @bind="newType">
+                            @foreach (var t in Enum.GetValues<WorkCenterType>())
+                            {
+                                <option value="@t">@TypeLabel(t)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="write-field">
+                        <label for="wc-create-code">@Text["ReadCode"]</label>
+                        <input id="wc-create-code" type="text" maxlength="32" @bind="newCode" placeholder="WC-CNC-01" dir="ltr" />
+                        <span class="write-hint">@Text["BomCreateHint"]</span>
+                    </div>
+                    <div class="write-field">
+                        <label for="wc-create-name">@Text["ReadName"]</label>
+                        <input id="wc-create-name" type="text" maxlength="200" @bind="newName" />
+                    </div>
+                    <div class="write-field">
+                        <label for="wc-create-cap">@Text["WcCapacityLabel"]</label>
+                        <input id="wc-create-cap" type="number" step="0.01" min="0.01" @bind="newCapacity" />
+                    </div>
+                    <div class="write-field">
+                        <label for="wc-create-hrs">@Text["WcDailyHoursLabel"]</label>
+                        <input id="wc-create-hrs" type="number" step="0.5" min="0.5" max="24" @bind="newDailyHours" />
+                    </div>
+                    <div class="write-field">
+                        <label for="wc-create-cost">@Text["WcHourlyCostLabel"]</label>
+                        <input id="wc-create-cost" type="number" step="0.01" min="0" @bind="newHourlyCost" />
+                    </div>
+                    <div class="write-field po-field-full">
+                        <label for="wc-create-notes">@Text["PoNotesLabel"]</label>
+                        <textarea id="wc-create-notes" rows="2" maxlength="500" @bind="newNotes"></textarea>
+                    </div>
+                </div>
+                <div class="write-actions">
+                    <BitButton IsEnabled="@(!modalBusy)" OnClick="SubmitCreateAsync">@Text["CreateSubmit"]</BitButton>
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => createOpen = false">@Text["WriteCancel"]</BitButton>
+                </div>
+            </div>
+        </Body>
+    </BitDialog>
+
+    <BitDialog Width="620px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailOpen"
+               Title="@Text["WcDetailTitle"]" AriaLabel="@Text["WcDetailTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            @if (selectedWc is not null)
+            {
+                <div class="write-form audit-modal-body">
+                    @if (modalError is not null)
+                    {
+                        <p role="alert" class="write-error">@Text[modalError]</p>
+                    }
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["ReadCode"]</span>
+                            <span class="audit-meta-val" dir="ltr">@selectedWc.Code</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["PoSiteColumn"]</span>
+                            <span class="audit-meta-val" dir="ltr">@selectedWc.SiteCode — @selectedWc.SiteName</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["ReadStatus"]</span>
+                            <span class="read-badge @(selectedWc.IsActive ? "active" : "inactive")">
+                                @(selectedWc.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
+                            </span>
+                        </div>
+                    </div>
+
+                    @if (scopeCanManage && selectedWc.IsActive)
+                    {
+                        <div class="write-grid">
+                            <div class="write-field">
+                                <label for="wc-edit-name">@Text["ReadName"]</label>
+                                <input id="wc-edit-name" type="text" maxlength="200" @bind="editName" />
+                            </div>
+                            <div class="write-field">
+                                <label for="wc-edit-type">@Text["WcTypeLabel"]</label>
+                                <select id="wc-edit-type" @bind="editType">
+                                    @foreach (var t in Enum.GetValues<WorkCenterType>())
+                                    {
+                                        <option value="@t">@TypeLabel(t)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="write-field">
+                                <label for="wc-edit-cap">@Text["WcCapacityLabel"]</label>
+                                <input id="wc-edit-cap" type="number" step="0.01" min="0.01" @bind="editCapacity" />
+                            </div>
+                            <div class="write-field">
+                                <label for="wc-edit-hrs">@Text["WcDailyHoursLabel"]</label>
+                                <input id="wc-edit-hrs" type="number" step="0.5" min="0.5" max="24" @bind="editDailyHours" />
+                            </div>
+                            <div class="write-field">
+                                <label for="wc-edit-cost">@Text["WcHourlyCostLabel"]</label>
+                                <input id="wc-edit-cost" type="number" step="0.01" min="0" @bind="editHourlyCost" />
+                            </div>
+                            <div class="write-field po-field-full">
+                                <label for="wc-edit-notes">@Text["PoNotesLabel"]</label>
+                                <textarea id="wc-edit-notes" rows="2" maxlength="500" @bind="editNotes"></textarea>
+                            </div>
+                        </div>
+                    }
+                    <div class="write-actions">
+                        @if (scopeCanManage && selectedWc.IsActive)
+                        {
+                            <BitButton IsEnabled="@(!modalBusy)" OnClick="SubmitUpdateAsync">@Text["WriteSave"]</BitButton>
+                        }
+                        @if (scopeCanManage)
+                        {
+                            <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="() => ToggleActiveAsync(selectedWc)">
+                                @(selectedWc.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
+                            </BitButton>
+                        }
+                        <BitButton Variant="BitVariant.Outline" OnClick="() => detailOpen = false">@Text["ReadClose"]</BitButton>
+                    </div>
+                </div>
+            }
+        </Body>
+    </BitDialog>
+</section>
+
+@code {
+    [Parameter] public long? OrganizationId { get; set; }
+
+    private static readonly int[] PageSizeOptions = [10, 25, 50];
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+
+    private BitDataGrid<WorkCenterSummary>? grid;
+
+    private bool initialLoading = true;
+    private string? pageError;
+    private string? pageNotice;
+    private List<OrganizationScope> available = [];
+    private IReadOnlyDictionary<OrganizationScope, ScopeDisplayInfo> scopeLabels =
+        new Dictionary<OrganizationScope, ScopeDisplayInfo>();
+    private int scopeIndex;
+    private bool scopeCanManage;
+
+    private IReadOnlyList<ProductionOrderSiteInfo> authorizedSites = [];
+    private IReadOnlyList<WorkCenterLoadSummary> loads = [];
+    private long siteFilter;
+    private string typeFilter = string.Empty;
+    private bool includeInactive;
+    private string? search;
+    private string? appliedSearch;
+
+    private bool createOpen;
+    private bool detailOpen;
+    private bool modalBusy;
+    private string? modalError;
+    private long newSiteId;
+    private string newCode = string.Empty;
+    private string newName = string.Empty;
+    private WorkCenterType newType = WorkCenterType.Machine;
+    private decimal newCapacity = 10m;
+    private decimal newDailyHours = 8m;
+    private decimal? newHourlyCost;
+    private string? newNotes;
+
+    private WorkCenterSummary? selectedWc;
+    private string editName = string.Empty;
+    private WorkCenterType editType = WorkCenterType.Machine;
+    private decimal editCapacity;
+    private decimal editDailyHours;
+    private decimal? editHourlyCost;
+    private string? editNotes;
+
+    private OrganizationScope? CurrentScope =>
+        scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
+
+    private static long ScopeOrganizationId(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site s => s.OrganizationId,
+        _ => 0
+    };
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["WorkCenters"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    protected override async Task OnParametersSetAsync() => await ReloadScopeAsync();
+
+    private async Task ReloadScopeAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        pageNotice = null;
+        try
+        {
+            var loaded = await Scopes.LoadRoutingScopesAsync();
+            available = OrganizationId is long orgId
+                ? loaded.Where(s => ScopeOrganizationId(s) == orgId).ToList()
+                : loaded.ToList();
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+            if (available.Count == 0 && OrganizationId is long fallbackOrgId)
+                available = [new OrganizationScope.Organization(fallbackOrgId)];
+            scopeIndex = 0;
+            await RefreshScopeStateAsync();
+        }
+        catch { pageError = "ReadError"; }
+        finally { initialLoading = false; }
+    }
+
+    private async Task RefreshScopeStateAsync()
+    {
+        scopeCanManage = false;
+        authorizedSites = [];
+        loads = [];
+        siteFilter = 0;
+
+        var scope = CurrentScope;
+        if (scope is null) return;
+
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is not null)
+        {
+            scopeCanManage = (await Permissions.EvaluateAsync(actor, scope, RoutingPermissions.RoutingsManage, default)).IsAllowed;
+        }
+
+        var orgId = ScopeOrganizationId(scope);
+        var sitesRes = await OrderService.ListAuthorizedSites(scope, orgId);
+        if (sitesRes.Succeeded) authorizedSites = sitesRes.Value!;
+        if (scope is OrganizationScope.Site siteScope) siteFilter = siteScope.SiteId;
+
+        await LoadWorkCenterLoadsAsync();
+    }
+
+    private async Task LoadWorkCenterLoadsAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) { loads = []; return; }
+        long? filterSite = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
+        var res = await RoutingService.GetWorkCenterLoads(scope, ScopeOrganizationId(scope), filterSite);
+        if (res.Succeeded) loads = res.Value!;
+    }
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx) && idx >= 0 && idx < available.Count)
+        {
+            scopeIndex = idx;
+            await RefreshScopeStateAsync();
+            await ReloadGridFromFirstPageAsync();
+        }
+    }
+
+    private async Task OnSiteFilterChangedAsync(ChangeEventArgs e)
+    {
+        siteFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
+        await LoadWorkCenterLoadsAsync();
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task OnTypeFilterChangedAsync(ChangeEventArgs e)
+    {
+        typeFilter = e.Value?.ToString() ?? string.Empty;
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task OnIncludeInactiveChangedAsync(ChangeEventArgs e)
+    {
+        includeInactive = e.Value is bool b && b;
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task ReloadGridFromFirstPageAsync()
+    {
+        if (grid is null) return;
+        if (grid.CurrentPage <= 1) await grid.RefreshAsync();
+        else await grid.GoToPageAsync(1);
+    }
+
+    private async Task<BitDataGridReadResult<WorkCenterSummary>> ReadWorkCentersAsync(BitDataGridReadRequest request)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var orgId = ScopeOrganizationId(scope);
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        WorkCenterType? parsedType = byte.TryParse(typeFilter, out var t) && Enum.IsDefined((WorkCenterType)t) ? (WorkCenterType)t : null;
+        long? filterSite = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
+        bool? activeFilter = includeInactive ? null : true;
+
+        try
+        {
+            var res = await RoutingService.ListWorkCenters(scope, orgId,
+                new WorkCenterListQuery(filterSite, parsedType, activeFilter, appliedSearch, page, size), request.CancellationToken);
+            if (!res.Succeeded)
+            {
+                pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                StateHasChanged();
+                return new([], 0);
+            }
+            return new(res.Value!.Items.ToList(), res.Value.Total);
+        }
+        catch (OperationCanceledException) { return new([], 0); }
+        catch
+        {
+            pageError = "ReadError";
+            StateHasChanged();
+            return new([], 0);
+        }
+    }
+
+    private void OpenCreateModal()
+    {
+        modalError = null;
+        newSiteId = CurrentScope is OrganizationScope.Site siteScope ? siteScope.SiteId : authorizedSites.FirstOrDefault()?.Id ?? 0;
+        newCode = string.Empty;
+        newName = string.Empty;
+        newType = WorkCenterType.Machine;
+        newCapacity = 10m;
+        newDailyHours = 8m;
+        newHourlyCost = null;
+        newNotes = null;
+        createOpen = true;
+    }
+
+    private async Task SubmitCreateAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        modalError = null;
+        try
+        {
+            var res = await RoutingService.CreateWorkCenter(scope, new CreateWorkCenterRequest(
+                ScopeOrganizationId(scope), newSiteId, newCode, newName, newType, newCapacity, newDailyHours, newHourlyCost, newNotes));
+            if (!res.Succeeded) { modalError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            createOpen = false;
+            pageNotice = Text["WcCreatedNotice"];
+            await LoadWorkCenterLoadsAsync();
+            await ReloadGridFromFirstPageAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private void OpenDetailModal(WorkCenterSummary wc)
+    {
+        modalError = null;
+        selectedWc = wc;
+        editName = wc.Name;
+        editType = wc.WorkCenterType;
+        editCapacity = wc.CapacityUnitsPerHour;
+        editDailyHours = wc.DailyAvailableHours;
+        editHourlyCost = wc.HourlyCostRate;
+        editNotes = wc.Notes;
+        detailOpen = true;
+    }
+
+    private async Task SubmitUpdateAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedWc is null) return;
+        modalBusy = true;
+        modalError = null;
+        try
+        {
+            var res = await RoutingService.UpdateWorkCenter(scope, new UpdateWorkCenterRequest(
+                selectedWc.OrganizationId, selectedWc.Id, editName, editType, editCapacity, editDailyHours, editHourlyCost, editNotes, selectedWc.RowVersion));
+            if (!res.Succeeded) { modalError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            selectedWc = res.Value!;
+            pageNotice = Text["WcSavedNotice"];
+            detailOpen = false;
+            await LoadWorkCenterLoadsAsync();
+            if (grid is not null) await grid.RefreshAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task ToggleActiveAsync(WorkCenterSummary wc)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        modalError = null;
+        try
+        {
+            var res = await RoutingService.SetWorkCenterActive(scope, new SetWorkCenterActiveRequest(wc.OrganizationId, wc.Id, !wc.IsActive, wc.RowVersion));
+            if (!res.Succeeded)
+            {
+                var errKey = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                if (detailOpen) modalError = errKey;
+                else pageError = errKey;
+                return;
+            }
+            pageNotice = res.Value!.IsActive ? Text["WcActivatedNotice"] : Text["WcDeactivatedNotice"];
+            if (detailOpen) detailOpen = false;
+            await LoadWorkCenterLoadsAsync();
+            if (grid is not null) await grid.RefreshAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private string TypeLabel(WorkCenterType t) => t switch
+    {
+        WorkCenterType.Machine => Text["WcTypeMachine"],
+        WorkCenterType.AssemblyLine => Text["WcTypeAssemblyLine"],
+        WorkCenterType.WorkCell => Text["WcTypeWorkCell"],
+        WorkCenterType.QualityStation => Text["WcTypeQualityStation"],
+        WorkCenterType.ExternalVendor => Text["WcTypeExternalVendor"],
+        _ => t.ToString()
+    };
+
+    private string ScopeLabel(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o when scopeLabels.TryGetValue(scope, out var info) && info.OrgCode is not null
+            => $"{info.OrgCode} — {info.OrgName}",
+        OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId],
+        OrganizationScope.Site s when scopeLabels.TryGetValue(scope, out var info) && info.SiteCode is not null
+            => $"{info.OrgCode} / {info.SiteCode} — {info.SiteName}",
+        OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
+        _ => string.Empty
+    };
+}

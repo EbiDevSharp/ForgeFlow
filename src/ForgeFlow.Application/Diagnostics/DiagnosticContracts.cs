@@ -83,6 +83,7 @@ public static class UserOperationCatalog
     public const string ReportingActionRejected = "Reporting.ActionRejected";
     public const string QualityActionRejected = "Quality.ActionRejected";
     public const string ProcurementActionRejected = "Procurement.ActionRejected";
+    public const string RoutingActionRejected = "Routing.ActionRejected";
 
     public static readonly IReadOnlyList<string> KnownOperationCodes =
     [
@@ -100,7 +101,8 @@ public static class UserOperationCatalog
         RoleActionRejected,
         ReportingActionRejected,
         QualityActionRejected,
-        ProcurementActionRejected
+        ProcurementActionRejected,
+        RoutingActionRejected
     ];
 }
 

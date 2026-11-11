@@ -22,6 +22,7 @@ public static class ProductionOrderErrors
     public const string NotesInvalid = "ProductionOrders.NotesInvalid";
     public const string NoActiveBomFound = "ProductionOrders.NoActiveBomFound";
     public const string AmbiguousResolution = "ProductionOrders.AmbiguousResolution";
+    public const string RoutingInvalid = "ProductionOrders.RoutingInvalid";
 
     public const string AccessDenied = "ProductionOrders.AccessDenied";
     public const string ActorRequired = "ProductionOrders.ActorRequired";

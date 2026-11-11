@@ -86,7 +86,7 @@ public sealed class ProductionOrderTests
         public Task<ProductionOrderDetails?> GetOrder(long organizationId, long id, CancellationToken ct)
             => Task.FromResult(Orders.TryGetValue(id, out var d) && d.Summary.OrganizationId == organizationId ? d : null);
 
-        public Task<OrganizationResult<ProductionOrderDetails>> CreateDraft(CreateProductionOrderRequest request, ResolvedBomSnapshotWrite snapshot, OrganizationWriteAccess access, CancellationToken ct)
+        public Task<OrganizationResult<ProductionOrderDetails>> CreateDraft(CreateProductionOrderRequest request, ResolvedBomSnapshotWrite snapshot, OrganizationWriteAccess access, CancellationToken ct, ForgeFlow.Application.Routings.ResolvedRoutingSnapshotWrite? routingSnapshot = null)
         {
             var number = ProductionOrderText.OrderNumber(request.OrderNumber);
             if (Orders.Values.Any(o => o.Summary.OrganizationId == request.OrganizationId && o.Summary.OrderNumber == number))
@@ -100,7 +100,7 @@ public sealed class ProductionOrderTests
             return Task.FromResult(OrganizationResult<ProductionOrderDetails>.Success(details));
         }
 
-        public Task<OrganizationResult<ProductionOrderDetails>> UpdateDraft(long organizationId, long id, byte[] version, UpdateDraftProductionOrderRequest request, ResolvedBomSnapshotWrite snapshot, OrganizationWriteAccess access, CancellationToken ct)
+        public Task<OrganizationResult<ProductionOrderDetails>> UpdateDraft(long organizationId, long id, byte[] version, UpdateDraftProductionOrderRequest request, ResolvedBomSnapshotWrite snapshot, OrganizationWriteAccess access, CancellationToken ct, ForgeFlow.Application.Routings.ResolvedRoutingSnapshotWrite? routingSnapshot = null)
         {
             if (!Orders.TryGetValue(id, out var existing)) return Task.FromResult(OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound));
             if (!Versions[id].SequenceEqual(version)) return Task.FromResult(OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict));
@@ -113,7 +113,7 @@ public sealed class ProductionOrderTests
             return Task.FromResult(OrganizationResult<ProductionOrderDetails>.Success(details));
         }
 
-        public Task<OrganizationResult<ProductionOrderDetails>> RefreshDraftSnapshot(long organizationId, long id, byte[] version, ResolvedBomSnapshotWrite snapshot, OrganizationWriteAccess access, CancellationToken ct)
+        public Task<OrganizationResult<ProductionOrderDetails>> RefreshDraftSnapshot(long organizationId, long id, byte[] version, ResolvedBomSnapshotWrite snapshot, OrganizationWriteAccess access, CancellationToken ct, ForgeFlow.Application.Routings.ResolvedRoutingSnapshotWrite? routingSnapshot = null)
         {
             if (!Orders.TryGetValue(id, out var existing)) return Task.FromResult(OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound));
             if (!Versions[id].SequenceEqual(version)) return Task.FromResult(OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict));
@@ -126,7 +126,7 @@ public sealed class ProductionOrderTests
             return Task.FromResult(OrganizationResult<ProductionOrderDetails>.Success(details));
         }
 
-        public Task<OrganizationResult<ProductionOrderDetails>> ReleaseOrder(long organizationId, long id, byte[] version, ResolvedBomSnapshotWrite snapshot, DateTime utcNow, OrganizationWriteAccess access, CancellationToken ct)
+        public Task<OrganizationResult<ProductionOrderDetails>> ReleaseOrder(long organizationId, long id, byte[] version, ResolvedBomSnapshotWrite snapshot, DateTime utcNow, OrganizationWriteAccess access, CancellationToken ct, ForgeFlow.Application.Routings.ResolvedRoutingSnapshotWrite? routingSnapshot = null)
             => Transition(id, version, ProductionOrderStatus.Draft, ProductionOrderStatus.Released, snapshot, null, null, utcNow);
 
         public Task<OrganizationResult<ProductionOrderDetails>> StartOrder(long organizationId, long id, byte[] version, DateTime utcNow, OrganizationWriteAccess access, CancellationToken ct)

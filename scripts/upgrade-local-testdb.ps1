@@ -1591,6 +1591,192 @@ BEGIN
     VALUES (N'20261111094413_CurrenciesMasterData', N'10.0.14');
 END;
 
+IF OBJECT_ID(N'organization.WorkCenter', N'U') IS NULL
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_OrganizationChange_Event' AND parent_object_id = OBJECT_ID(N'organization.OrganizationChange'))
+        ALTER TABLE [organization].[OrganizationChange] DROP CONSTRAINT [CK_OrganizationChange_Event];
+
+    IF COL_LENGTH(N'organization.ProductionOrder', N'RoutingCodeSnapshot') IS NULL
+        ALTER TABLE [organization].[ProductionOrder] ADD [RoutingCodeSnapshot] varchar(32) COLLATE Latin1_General_100_BIN2 NULL;
+
+    IF COL_LENGTH(N'organization.ProductionOrder', N'RoutingId') IS NULL
+        ALTER TABLE [organization].[ProductionOrder] ADD [RoutingId] bigint NULL;
+
+    CREATE TABLE [organization].[WorkCenter] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [SiteId] bigint NOT NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [WorkCenterType] tinyint NOT NULL,
+        [CapacityUnitsPerHour] decimal(18,6) NOT NULL,
+        [DailyAvailableHours] decimal(18,6) NOT NULL,
+        [HourlyCostRate] decimal(18,6) NULL,
+        [Notes] nvarchar(500) NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_WorkCenter] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_WorkCenter_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [AK_WorkCenter_Org_Site_Id] UNIQUE ([OrganizationId], [SiteId], [Id]),
+        CONSTRAINT [CK_WorkCenter_Capacity] CHECK ([CapacityUnitsPerHour] > 0 AND [DailyAvailableHours] > 0 AND [DailyAvailableHours] <= 24 AND ([HourlyCostRate] IS NULL OR [HourlyCostRate] >= 0)),
+        CONSTRAINT [CK_WorkCenter_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_WorkCenter_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_WorkCenter_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [CK_WorkCenter_Type] CHECK ([WorkCenterType] BETWEEN 1 AND 5),
+        CONSTRAINT [FK_WorkCenter_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id]),
+        CONSTRAINT [FK_WorkCenter_Site] FOREIGN KEY ([OrganizationId], [SiteId]) REFERENCES [organization].[Site] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[Routing] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [SiteId] bigint NOT NULL,
+        [Code] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [Name] nvarchar(200) NOT NULL,
+        [ItemId] bigint NOT NULL,
+        [BomVersionId] bigint NULL,
+        [VersionNumber] int NOT NULL,
+        [Status] tinyint NOT NULL,
+        [IsDefault] bit NOT NULL,
+        [Notes] nvarchar(500) NULL,
+        [ActivatedAtUtc] datetime2(7) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_Routing] PRIMARY KEY ([Id]),
+        CONSTRAINT [AK_Routing_Org_Id] UNIQUE ([OrganizationId], [Id]),
+        CONSTRAINT [AK_Routing_Org_Site_Id] UNIQUE ([OrganizationId], [SiteId], [Id]),
+        CONSTRAINT [CK_Routing_Code] CHECK (DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_Routing_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_Routing_Name] CHECK (DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0),
+        CONSTRAINT [CK_Routing_Status] CHECK ([Status] BETWEEN 1 AND 3),
+        CONSTRAINT [CK_Routing_Version] CHECK ([VersionNumber] >= 1),
+        CONSTRAINT [FK_Routing_BomVersion] FOREIGN KEY ([OrganizationId], [BomVersionId]) REFERENCES [organization].[BomVersion] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_Routing_Item] FOREIGN KEY ([OrganizationId], [ItemId]) REFERENCES [organization].[Item] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_Routing_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id]),
+        CONSTRAINT [FK_Routing_Site] FOREIGN KEY ([OrganizationId], [SiteId]) REFERENCES [organization].[Site] ([OrganizationId], [Id])
+    );
+
+    CREATE TABLE [organization].[RoutingOperation] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [SiteId] bigint NOT NULL,
+        [RoutingId] bigint NOT NULL,
+        [Sequence] int NOT NULL,
+        [OperationCode] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [OperationName] nvarchar(200) NOT NULL,
+        [WorkCenterId] bigint NOT NULL,
+        [SetupMinutes] decimal(18,2) NOT NULL,
+        [RunMinutesPerUnit] decimal(18,4) NOT NULL,
+        [QueueMinutes] decimal(18,2) NOT NULL,
+        [WaitMinutes] decimal(18,2) NOT NULL,
+        [RequiresQualityCheck] bit NOT NULL,
+        [Instructions] nvarchar(500) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_RoutingOperation] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_RoutingOperation_Code] CHECK (DATALENGTH([OperationCode]) BETWEEN 1 AND 32 AND DATALENGTH([OperationCode]) = LEN([OperationCode]) AND [OperationCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([OperationCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_RoutingOperation_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_RoutingOperation_Name] CHECK (DATALENGTH([OperationName]) BETWEEN 2 AND 400 AND DATALENGTH([OperationName]) = DATALENGTH(LTRIM(RTRIM([OperationName]))) AND DATALENGTH(LTRIM(RTRIM([OperationName]))) > 0),
+        CONSTRAINT [CK_RoutingOperation_Seq] CHECK ([Sequence] >= 1),
+        CONSTRAINT [CK_RoutingOperation_Times] CHECK ([SetupMinutes] >= 0 AND [RunMinutesPerUnit] > 0 AND [QueueMinutes] >= 0 AND [WaitMinutes] >= 0),
+        CONSTRAINT [FK_RoutingOperation_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id]),
+        CONSTRAINT [FK_RoutingOperation_Routing] FOREIGN KEY ([OrganizationId], [SiteId], [RoutingId]) REFERENCES [organization].[Routing] ([OrganizationId], [SiteId], [Id]),
+        CONSTRAINT [FK_RoutingOperation_WorkCenter] FOREIGN KEY ([OrganizationId], [SiteId], [WorkCenterId]) REFERENCES [organization].[WorkCenter] ([OrganizationId], [SiteId], [Id])
+    );
+
+    CREATE TABLE [organization].[ProductionOrderOperation] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [OrganizationId] bigint NOT NULL,
+        [SiteId] bigint NOT NULL,
+        [ProductionOrderId] bigint NOT NULL,
+        [Sequence] int NOT NULL,
+        [OperationCode] varchar(32) COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [OperationName] nvarchar(200) NOT NULL,
+        [WorkCenterId] bigint NOT NULL,
+        [PlannedSetupMinutes] decimal(18,2) NOT NULL,
+        [PlannedRunMinutes] decimal(18,2) NOT NULL,
+        [PlannedQueueMinutes] decimal(18,2) NOT NULL,
+        [PlannedWaitMinutes] decimal(18,2) NOT NULL,
+        [ActualSetupMinutes] decimal(18,2) NOT NULL,
+        [ActualRunMinutes] decimal(18,2) NOT NULL,
+        [CompletedQuantity] decimal(18,6) NOT NULL,
+        [ScrapQuantity] decimal(18,6) NOT NULL,
+        [RequiresQualityCheck] bit NOT NULL,
+        [Instructions] nvarchar(500) NULL,
+        [OperatorNotes] nvarchar(500) NULL,
+        [Status] tinyint NOT NULL,
+        [StartedAtUtc] datetime2(7) NULL,
+        [CompletedAtUtc] datetime2(7) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [CreatedByActorId] bigint NOT NULL,
+        [RowVersion] rowversion NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [UpdatedByActorId] bigint NULL,
+        CONSTRAINT [PK_ProductionOrderOperation] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_ProductionOrderOperation_Code] CHECK (DATALENGTH([OperationCode]) BETWEEN 1 AND 32 AND DATALENGTH([OperationCode]) = LEN([OperationCode]) AND [OperationCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([OperationCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'),
+        CONSTRAINT [CK_ProductionOrderOperation_Metadata] CHECK ([CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))),
+        CONSTRAINT [CK_ProductionOrderOperation_Name] CHECK (DATALENGTH([OperationName]) BETWEEN 2 AND 400 AND DATALENGTH([OperationName]) = DATALENGTH(LTRIM(RTRIM([OperationName]))) AND DATALENGTH(LTRIM(RTRIM([OperationName]))) > 0),
+        CONSTRAINT [CK_ProductionOrderOperation_Qty] CHECK ([CompletedQuantity] >= 0 AND [ScrapQuantity] >= 0),
+        CONSTRAINT [CK_ProductionOrderOperation_Seq] CHECK ([Sequence] >= 1),
+        CONSTRAINT [CK_ProductionOrderOperation_Status] CHECK ([Status] BETWEEN 1 AND 6),
+        CONSTRAINT [CK_ProductionOrderOperation_Times] CHECK ([PlannedSetupMinutes] >= 0 AND [PlannedRunMinutes] >= 0 AND [PlannedQueueMinutes] >= 0 AND [PlannedWaitMinutes] >= 0 AND [ActualSetupMinutes] >= 0 AND [ActualRunMinutes] >= 0),
+        CONSTRAINT [FK_ProductionOrderOperation_Order] FOREIGN KEY ([OrganizationId], [ProductionOrderId]) REFERENCES [organization].[ProductionOrder] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrderOperation_Organization] FOREIGN KEY ([OrganizationId]) REFERENCES [organization].[Organization] ([Id]),
+        CONSTRAINT [FK_ProductionOrderOperation_Site] FOREIGN KEY ([OrganizationId], [SiteId]) REFERENCES [organization].[Site] ([OrganizationId], [Id]),
+        CONSTRAINT [FK_ProductionOrderOperation_WorkCenter] FOREIGN KEY ([OrganizationId], [SiteId], [WorkCenterId]) REFERENCES [organization].[WorkCenter] ([OrganizationId], [SiteId], [Id])
+    );
+
+    EXEC(N'
+        CREATE INDEX [IX_ProductionOrder_OrganizationId_SiteId_RoutingId] ON [organization].[ProductionOrder] ([OrganizationId], [SiteId], [RoutingId]);
+        ALTER TABLE [organization].[ProductionOrder] ADD CONSTRAINT [CK_ProductionOrder_RoutingCodeSnapshot] CHECK ([RoutingCodeSnapshot] IS NULL OR (DATALENGTH([RoutingCodeSnapshot]) BETWEEN 1 AND 32 AND DATALENGTH([RoutingCodeSnapshot]) = LEN([RoutingCodeSnapshot]) AND [RoutingCodeSnapshot] COLLATE Latin1_General_100_BIN2 NOT LIKE ''%[^A-Z0-9_-]%'' AND LEFT([RoutingCodeSnapshot], 1) COLLATE Latin1_General_100_BIN2 LIKE ''[A-Z0-9]''));
+        ALTER TABLE [organization].[ProductionOrder] ADD CONSTRAINT [CK_ProductionOrder_RoutingPair] CHECK (([RoutingId] IS NULL AND [RoutingCodeSnapshot] IS NULL) OR ([RoutingId] IS NOT NULL AND [RoutingCodeSnapshot] IS NOT NULL));
+        ALTER TABLE [organization].[ProductionOrder] ADD CONSTRAINT [FK_ProductionOrder_Routing] FOREIGN KEY ([OrganizationId], [SiteId], [RoutingId]) REFERENCES [organization].[Routing] ([OrganizationId], [SiteId], [Id]);
+    ');
+
+    ALTER TABLE [organization].[OrganizationChange] ADD CONSTRAINT [CK_OrganizationChange_Event]
+        CHECK (DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Currency.Created','Currency.Updated','Currency.Activated','Currency.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved','ItemLot.Updated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled','WorkCenter.Created','WorkCenter.Updated','WorkCenter.Activated','WorkCenter.Deactivated','Routing.Created','Routing.Updated','Routing.OperationsSaved','Routing.Activated','Routing.Obsoleted','ProductionOrderOperation.Started','ProductionOrderOperation.Paused','ProductionOrderOperation.Completed','ProductionOrderOperation.Skipped'))));
+
+    CREATE INDEX [IX_ProductionOrderOperation_Org_Site_WC_Status] ON [organization].[ProductionOrderOperation] ([OrganizationId], [SiteId], [WorkCenterId], [Status]);
+    CREATE UNIQUE INDEX [UX_ProductionOrderOperation_Order_Seq] ON [organization].[ProductionOrderOperation] ([OrganizationId], [ProductionOrderId], [Sequence]);
+    CREATE INDEX [IX_Routing_Org_Site_Item_Status] ON [organization].[Routing] ([OrganizationId], [SiteId], [ItemId], [Status]);
+    CREATE INDEX [IX_Routing_OrganizationId_BomVersionId] ON [organization].[Routing] ([OrganizationId], [BomVersionId]);
+    CREATE INDEX [IX_Routing_OrganizationId_ItemId] ON [organization].[Routing] ([OrganizationId], [ItemId]);
+    CREATE UNIQUE INDEX [UX_Routing_Org_Site_Code_Version] ON [organization].[Routing] ([OrganizationId], [SiteId], [Code], [VersionNumber]);
+    CREATE UNIQUE INDEX [UX_Routing_Org_Site_Item_Default] ON [organization].[Routing] ([OrganizationId], [SiteId], [ItemId]) WHERE [Status] = 2 AND [IsDefault] = 1;
+    CREATE INDEX [IX_RoutingOperation_Org_Site_WC] ON [organization].[RoutingOperation] ([OrganizationId], [SiteId], [WorkCenterId]);
+    CREATE INDEX [IX_RoutingOperation_OrganizationId_SiteId_RoutingId] ON [organization].[RoutingOperation] ([OrganizationId], [SiteId], [RoutingId]);
+    CREATE UNIQUE INDEX [UX_RoutingOperation_Routing_Seq] ON [organization].[RoutingOperation] ([OrganizationId], [RoutingId], [Sequence]);
+    CREATE INDEX [IX_WorkCenter_Org_Site_Active] ON [organization].[WorkCenter] ([OrganizationId], [SiteId], [IsActive], [Code]);
+    CREATE UNIQUE INDEX [UX_WorkCenter_Org_Site_Code] ON [organization].[WorkCenter] ([OrganizationId], [SiteId], [Code]);
+
+    IF DATABASE_PRINCIPAL_ID(N'ForgeFlowOrganizationRuntime') IS NOT NULL
+    BEGIN
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[WorkCenter] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE ON OBJECT::[organization].[Routing] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[RoutingOperation] TO [ForgeFlowOrganizationRuntime];
+        GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[organization].[ProductionOrderOperation] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[WorkCenter] TO [ForgeFlowOrganizationRuntime];
+        DENY DELETE ON OBJECT::[organization].[Routing] TO [ForgeFlowOrganizationRuntime];
+    END;
+END;
+
+IF OBJECT_ID(N'dbo.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [dbo].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261111102337_WorkCentersAndRoutings')
+BEGIN
+    INSERT INTO [dbo].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261111102337_WorkCentersAndRoutings', N'10.0.14');
+END;
+
 COMMIT;
 "@
 
@@ -1600,7 +1786,7 @@ try {
     $cmd = $cn.CreateCommand()
     $cmd.CommandText = $sql
     [void]$cmd.ExecuteNonQuery()
-    Write-Host "testforgflow database upgraded to 20261111094413_CurrenciesMasterData." -ForegroundColor Green
+    Write-Host "testforgflow database upgraded to 20261111102337_WorkCentersAndRoutings." -ForegroundColor Green
 }
 finally {
     $cn.Dispose()

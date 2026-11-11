@@ -1,0 +1,838 @@
+@page "/routings"
+@page "/organizations/{OrganizationId:long}/routings"
+@using ForgeFlow.Application.Boms
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Application.Routings
+@using ForgeFlow.Domain.Routings
+@using ForgeFlow.Web.Organizations
+@using ForgeFlow.Web.Roles
+@inject RoutingUseCases RoutingService
+@inject ProductionOrderUseCases OrderService
+@inject ItemUseCases ItemService
+@inject BomUseCases BomService
+@inject ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["Routings"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="rt-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="rt-title">@Text["Routings"]</h1>
+            <p class="write-hint">@Text["RoutingsCaption"]</p>
+        </div>
+        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage)
+        {
+            <div class="read-head-actions">
+                <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateModal">
+                    @Text["RtCreateButton"]
+                </BitButton>
+            </div>
+        }
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div role="alert" class="read-alert">
+            <span>@Text[pageError]</span>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else if (available.Count == 0)
+    {
+        <p role="status" class="read-empty">@Text["ReadDenied"]</p>
+    }
+    else
+    {
+        <div class="read-toolbar">
+            @if (available.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="rt-scope">@Text["ReadScope"]</label>
+                    <select id="rt-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                        @for (var i = 0; i < available.Count; i++)
+                        {
+                            <option value="@i">@ScopeLabel(available[i])</option>
+                        }
+                    </select>
+                </div>
+            }
+            @if (CurrentScope is OrganizationScope.Organization && authorizedSites.Count > 0)
+            {
+                <div class="read-field">
+                    <label for="rt-site-filter">@Text["PoSiteColumn"]</label>
+                    <select id="rt-site-filter" value="@siteFilter" @onchange="OnSiteFilterChangedAsync">
+                        <option value="0">@Text["PoAllSitesOption"]</option>
+                        @foreach (var s in authorizedSites)
+                        {
+                            <option value="@s.Id">@s.Code — @s.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+            <div class="read-field">
+                <label for="rt-status-filter">@Text["ReadStatus"]</label>
+                <select id="rt-status-filter" value="@statusFilter" @onchange="OnStatusFilterChangedAsync">
+                    <option value="">@Text["PoAllStatusesOption"]</option>
+                    <option value="@((byte)RoutingStatus.Draft)">@Text["RtStatusDraft"]</option>
+                    <option value="@((byte)RoutingStatus.Active)">@Text["RtStatusActive"]</option>
+                    <option value="@((byte)RoutingStatus.Obsolete)">@Text["RtStatusObsolete"]</option>
+                </select>
+            </div>
+            <div class="read-field read-search">
+                <label for="rt-search">@Text["ReadSearch"]</label>
+                <input id="rt-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="100"
+                       placeholder="@Text["ReadSearchPlaceholder"]" />
+            </div>
+        </div>
+
+        <div class="read-grid-card">
+            <div class="read-grid">
+                <BitDataGrid @ref="grid" TItem="RoutingSummary" OnRead="ReadRoutingsAsync" Pageable="true" PageSize="25"
+                             PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["Routings"]">
+                    <Columns>
+                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["ReadCode"]">
+                            <Template Context="r">
+                                <bdi dir="ltr"><strong>@r.Code</strong> v@r.VersionNumber</bdi>
+                                @if (r.IsDefault)
+                                {
+                                    <span class="cap-badge">@Text["RtDefaultBadge"]</span>
+                                }
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["ReadName"]">
+                            <Template Context="r">@r.Name</Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["PoSiteColumn"]">
+                            <Template Context="r"><bdi dir="ltr">@r.SiteCode</bdi></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["PoItemColumn"]">
+                            <Template Context="r"><bdi dir="ltr">@r.ItemSku</bdi> — @r.ItemName</Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["RtOpsSummaryCol"]">
+                            <Template Context="r">
+                                <bdi dir="ltr">@r.OperationCount · @Format.Number(r.TotalSetupMinutes) + @Format.Number(r.TotalRunMinutesPerUnit)/u</bdi>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["ReadStatus"]">
+                            <Template Context="r">
+                                <span class="read-badge @StatusBadgeClass(r.Status)">@StatusLabel(r.Status)</span>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["ReadActions"]">
+                            <Template Context="r">
+                                <div class="read-row-actions">
+                                    <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                   IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                                   OnClick="() => OpenWorkbenchAsync(r.Id)" />
+                                    </BitTooltip>
+                                </div>
+                            </Template>
+                        </BitDataGridColumn>
+                    </Columns>
+                </BitDataGrid>
+            </div>
+        </div>
+    }
+
+    <ForgeFormDialog Width="760px" @bind-IsOpen="createOpen"
+                     Title="@Text["RtCreateTitle"]"
+                     Subtitle="@Text["RtCreateSubtitle"]"
+                     CloseTitle="@Text["ReadClose"]">
+        <ChildContent>
+            @if (createError is not null)
+            {
+                <p role="alert" class="write-error">@Text[createError]</p>
+            }
+
+            <div class="ff-rt-row-3">
+                <div class="proc-po-field">
+                    <label for="rt-create-site">@Text["PoSiteColumn"]</label>
+                    <select id="rt-create-site" @bind="newSiteId" disabled="@(CurrentScope is OrganizationScope.Site)">
+                        @foreach (var s in authorizedSites)
+                        {
+                            <option value="@s.Id">@s.Code — @s.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="proc-po-field">
+                    <label for="rt-create-code">@Text["ReadCode"] <span class="proc-req-star" aria-hidden="true">*</span></label>
+                    <input id="rt-create-code" type="text" maxlength="32" @bind="newCode" placeholder="RT-MAIN-01" dir="ltr" />
+                </div>
+                <div class="proc-po-field">
+                    <label for="rt-create-ver">@Text["BomVersionNumberLabel"]</label>
+                    <input id="rt-create-ver" type="number" min="1" step="1" @bind="newVersionNumber" dir="ltr" />
+                </div>
+            </div>
+
+            <div class="proc-po-field">
+                <label for="rt-create-name">@Text["ReadName"] <span class="proc-req-star" aria-hidden="true">*</span></label>
+                <input id="rt-create-name" type="text" maxlength="200" @bind="newName" placeholder="@Text["RtNamePlaceholder"]" />
+            </div>
+
+            <div class="ff-rt-row-2">
+                <div class="proc-po-field">
+                    <label for="rt-create-item">@Text["PoItemColumn"] <span class="proc-req-star" aria-hidden="true">*</span></label>
+                    <select id="rt-create-item" value="@newItemId" @onchange="OnNewItemChangedAsync">
+                        <option value="0">@Text["BomSelectItemOption"]</option>
+                        @foreach (var it in manufacturableItems)
+                        {
+                            <option value="@it.Id">@it.Code — @it.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="proc-po-field">
+                    <label for="rt-create-bomv">@Text["RtBomVersionLabel"]</label>
+                    <select id="rt-create-bomv" @bind="newBomVersionId">
+                        <option value="0">@Text["RtNoBomLinkOption"]</option>
+                        @foreach (var bv in itemBomVersions)
+                        {
+                            <option value="@bv.Id">@bv.Label</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <label class="ff-check-card" for="rt-create-default">
+                <input id="rt-create-default" type="checkbox" class="ff-check-input" @bind="newIsDefault" />
+                <span class="ff-check-copy">
+                    <strong>@Text["RtIsDefaultLabel"]</strong>
+                    <span>@Text["RtIsDefaultDesc"]</span>
+                </span>
+            </label>
+
+            <div class="proc-po-field">
+                <label for="rt-create-notes">@Text["PoNotesLabel"]</label>
+                <textarea id="rt-create-notes" rows="3" maxlength="500" @bind="newNotes" placeholder="@Text["RtNotesOptionalPlaceholder"]"></textarea>
+            </div>
+        </ChildContent>
+        <FooterActions>
+            <BitButton Class="proc-po-primary-btn" IsEnabled="@(!modalBusy)" OnClick="SubmitCreateAsync">@Text["CreateSubmit"]</BitButton>
+            <BitButton Variant="BitVariant.Outline" Class="proc-po-cancel-btn" OnClick="() => createOpen = false">@Text["WriteCancel"]</BitButton>
+        </FooterActions>
+    </ForgeFormDialog>
+
+    <BitDialog Width="980px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="workbenchOpen"
+               Title="@Text["RtDetailTitle"]" AriaLabel="@Text["RtDetailTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            @if (selectedRouting is not null)
+            {
+                var summary = selectedRouting.Summary;
+                <div class="write-form audit-modal-body po-workbench-body">
+                    <div class="po-wb-top">
+                        <div>
+                            <strong dir="ltr">@summary.Code v@summary.VersionNumber</strong> — @summary.Name
+                            <div class="write-hint" dir="ltr">@summary.ItemSku — @summary.ItemName (@summary.SiteCode)</div>
+                        </div>
+                        <div style="display:flex; gap:6px; align-items:center;">
+                            @if (summary.IsDefault)
+                            {
+                                <span class="cap-badge">@Text["RtDefaultBadge"]</span>
+                            }
+                            <span class="read-badge @StatusBadgeClass(summary.Status)">@StatusLabel(summary.Status)</span>
+                        </div>
+                    </div>
+
+                    @if (workbenchError is not null)
+                    {
+                        <p role="alert" class="write-error">@Text[workbenchError]</p>
+                    }
+                    @if (workbenchSaved is not null)
+                    {
+                        <p role="status" class="write-saved">@Text[workbenchSaved]</p>
+                    }
+
+                    @if (scopeCanManage && summary.Status == RoutingStatus.Draft)
+                    {
+                        <div class="item-sub-card">
+                            <div class="write-grid">
+                                <div class="write-field">
+                                    <label for="rt-edit-name">@Text["ReadName"]</label>
+                                    <input id="rt-edit-name" type="text" maxlength="200" @bind="editName" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="rt-edit-bomv">@Text["RtBomVersionLabel"]</label>
+                                    <select id="rt-edit-bomv" @bind="editBomVersionId">
+                                        <option value="0">@Text["RtNoBomLinkOption"]</option>
+                                        @foreach (var bv in itemBomVersions)
+                                        {
+                                            <option value="@bv.Id">@bv.Label</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="write-field po-field-full">
+                                    <label class="read-inactive">
+                                        <input type="checkbox" @bind="editIsDefault" />
+                                        <span>@Text["RtIsDefaultLabel"]</span>
+                                    </label>
+                                </div>
+                                <div class="write-field po-field-full">
+                                    <label for="rt-edit-notes">@Text["PoNotesLabel"]</label>
+                                    <textarea id="rt-edit-notes" rows="2" maxlength="500" @bind="editNotes"></textarea>
+                                </div>
+                            </div>
+                            <div class="write-actions">
+                                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="SaveHeaderAsync">@Text["RtSaveHeaderBtn"]</BitButton>
+                                <BitButton IsEnabled="@(!modalBusy && selectedRouting.Operations.Count > 0)" OnClick="ActivateRoutingAsync">@Text["RtActivateBtn"]</BitButton>
+                            </div>
+                        </div>
+
+                        <div class="audit-modal-section">
+                            <div class="po-context-head">
+                                <h3 class="audit-section-heading" style="margin:0;">@Text["RtOperationsHeading"]</h3>
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IconName="Add" OnClick="AddOpRow">
+                                    @Text["RtAddOpBtn"]
+                                </BitButton>
+                            </div>
+                            <div class="rt-ops-scroll">
+                                @foreach (var op in editOps)
+                                {
+                                    <div class="rt-ops-row">
+                                        <input type="number" min="1" step="1" title="@Text["BomLevelColumn"]" @bind="op.Sequence" />
+                                        <input type="text" maxlength="32" placeholder="OP-10" dir="ltr" @bind="op.OperationCode" />
+                                        <input type="text" maxlength="200" placeholder="@Text["RtOpNameCol"]" @bind="op.OperationName" />
+                                        <select aria-label="@Text["RtWorkCenterCol"]" @bind="op.WorkCenterId">
+                                            @foreach (var wc in siteWorkCenters)
+                                            {
+                                                <option value="@wc.Id">@wc.Code — @wc.Name</option>
+                                            }
+                                        </select>
+                                        <input type="number" min="0" step="0.5" title="@Text["RtSetupMinCol"]" @bind="op.SetupMinutes" />
+                                        <input type="number" min="0.01" step="0.1" title="@Text["RtRunPerUnitCol"]" @bind="op.RunMinutesPerUnit" />
+                                        <input type="number" min="0" step="0.5" title="@Text["RtQueueMinCol"]" @bind="op.QueueMinutes" />
+                                        <input type="number" min="0" step="0.5" title="@Text["RtWaitMinCol"]" @bind="op.WaitMinutes" />
+                                        <label class="read-inactive" title="@Text["RtQcCol"]">
+                                            <input type="checkbox" @bind="op.RequiresQualityCheck" />
+                                            <span>@Text["RtQcCol"]</span>
+                                        </label>
+                                        <input type="text" maxlength="500" placeholder="@Text["RtInstructionsCol"]" @bind="op.Instructions" />
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => editOps.Remove(op)">
+                                            @Text["BomRemoveRowBtn"]
+                                        </BitButton>
+                                    </div>
+                                }
+                            </div>
+                            <div class="write-actions">
+                                <BitButton IsEnabled="@(!modalBusy && editOps.Count > 0)" OnClick="SaveOperationsAsync">@Text["RtSaveOpsBtn"]</BitButton>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="audit-modal-section">
+                            <h3 class="audit-section-heading">@Text["RtOperationsHeading"]</h3>
+                            <div class="audit-fields-box">
+                                <table class="audit-fields-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>@Text["RtOpCodeCol"]</th>
+                                            <th>@Text["RtOpNameCol"]</th>
+                                            <th>@Text["RtWorkCenterCol"]</th>
+                                            <th>@Text["RtSetupMinCol"]</th>
+                                            <th>@Text["RtRunPerUnitCol"]</th>
+                                            <th>@Text["RtQueueMinCol"]</th>
+                                            <th>@Text["RtWaitMinCol"]</th>
+                                            <th>@Text["RtQcCol"]</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var op in selectedRouting.Operations)
+                                        {
+                                            <tr>
+                                                <td>@op.Sequence</td>
+                                                <td dir="ltr">@op.OperationCode</td>
+                                                <td>@op.OperationName</td>
+                                                <td dir="ltr">@op.WorkCenterCode — @op.WorkCenterName</td>
+                                                <td dir="ltr">@Format.Number(op.SetupMinutes)</td>
+                                                <td dir="ltr">@Format.Number(op.RunMinutesPerUnit)</td>
+                                                <td dir="ltr">@Format.Number(op.QueueMinutes)</td>
+                                                <td dir="ltr">@Format.Number(op.WaitMinutes)</td>
+                                                <td>@(op.RequiresQualityCheck ? "✓" : "—")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        @if (scopeCanManage && summary.Status == RoutingStatus.Active)
+                        {
+                            <div class="write-actions">
+                                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="MarkObsoleteAsync">
+                                    @Text["RtMarkObsoleteBtn"]
+                                </BitButton>
+                            </div>
+                        }
+                    }
+
+                    <div class="write-actions">
+                        <BitButton Variant="BitVariant.Outline" OnClick="() => workbenchOpen = false">@Text["ReadClose"]</BitButton>
+                    </div>
+                </div>
+            }
+        </Body>
+    </BitDialog>
+</section>
+
+@code {
+    [Parameter] public long? OrganizationId { get; set; }
+
+    private sealed record BomVersionOption(long Id, string Label);
+
+    private sealed class EditableOpRow
+    {
+        public int Sequence { get; set; }
+        public string OperationCode { get; set; } = string.Empty;
+        public string OperationName { get; set; } = string.Empty;
+        public long WorkCenterId { get; set; }
+        public decimal SetupMinutes { get; set; }
+        public decimal RunMinutesPerUnit { get; set; } = 1m;
+        public decimal QueueMinutes { get; set; }
+        public decimal WaitMinutes { get; set; }
+        public bool RequiresQualityCheck { get; set; }
+        public string? Instructions { get; set; }
+    }
+
+    private static readonly int[] PageSizeOptions = [10, 25, 50];
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+
+    private BitDataGrid<RoutingSummary>? grid;
+
+    private bool initialLoading = true;
+    private string? pageError;
+    private string? pageNotice;
+    private List<OrganizationScope> available = [];
+    private IReadOnlyDictionary<OrganizationScope, ScopeDisplayInfo> scopeLabels =
+        new Dictionary<OrganizationScope, ScopeDisplayInfo>();
+    private int scopeIndex;
+    private bool scopeCanManage;
+
+    private IReadOnlyList<ProductionOrderSiteInfo> authorizedSites = [];
+    private IReadOnlyList<ItemSummary> manufacturableItems = [];
+    private IReadOnlyList<WorkCenterSummary> activeWorkCenters = [];
+    private IReadOnlyList<WorkCenterSummary> siteWorkCenters = [];
+    private List<BomVersionOption> itemBomVersions = [];
+
+    private long siteFilter;
+    private string statusFilter = string.Empty;
+    private string? search;
+    private string? appliedSearch;
+
+    private bool createOpen;
+    private bool workbenchOpen;
+    private bool modalBusy;
+    private string? createError;
+    private string? workbenchError;
+    private string? workbenchSaved;
+
+    private long newSiteId;
+    private string newCode = string.Empty;
+    private string newName = string.Empty;
+    private long newItemId;
+    private long newBomVersionId;
+    private int newVersionNumber = 1;
+    private bool newIsDefault = true;
+    private string? newNotes;
+
+    private RoutingDetails? selectedRouting;
+    private string editName = string.Empty;
+    private long editBomVersionId;
+    private bool editIsDefault;
+    private string? editNotes;
+    private readonly List<EditableOpRow> editOps = [];
+
+    private OrganizationScope? CurrentScope =>
+        scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
+
+    private static long ScopeOrganizationId(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site s => s.OrganizationId,
+        _ => 0
+    };
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["Routings"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    protected override async Task OnParametersSetAsync() => await ReloadScopeAsync();
+
+    private async Task ReloadScopeAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        pageNotice = null;
+        try
+        {
+            var loaded = await Scopes.LoadRoutingScopesAsync();
+            available = OrganizationId is long orgId
+                ? loaded.Where(s => ScopeOrganizationId(s) == orgId).ToList()
+                : loaded.ToList();
+            scopeLabels = await Scopes.LoadDisplayInfoAsync(available);
+            if (available.Count == 0 && OrganizationId is long fallbackOrgId)
+                available = [new OrganizationScope.Organization(fallbackOrgId)];
+            scopeIndex = 0;
+            await RefreshScopeStateAsync();
+        }
+        catch { pageError = "ReadError"; }
+        finally { initialLoading = false; }
+    }
+
+    private async Task RefreshScopeStateAsync()
+    {
+        scopeCanManage = false;
+        authorizedSites = [];
+        manufacturableItems = [];
+        activeWorkCenters = [];
+        siteFilter = 0;
+
+        var scope = CurrentScope;
+        if (scope is null) return;
+
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is not null)
+            scopeCanManage = (await Permissions.EvaluateAsync(actor, scope, RoutingPermissions.RoutingsManage, default)).IsAllowed;
+
+        var orgId = ScopeOrganizationId(scope);
+        var sitesRes = await OrderService.ListAuthorizedSites(scope, orgId);
+        if (sitesRes.Succeeded) authorizedSites = sitesRes.Value!;
+        if (scope is OrganizationScope.Site siteScope) siteFilter = siteScope.SiteId;
+
+        var itemsRes = await ItemService.ListItems(scope, orgId, new ItemListQuery(CanBeManufactured: true, IncludeInactive: false, Page: 1, PageSize: 100));
+        if (itemsRes.Succeeded) manufacturableItems = itemsRes.Value!.Items;
+
+        var wcRes = await RoutingService.ListActiveWorkCenters(scope, orgId);
+        if (wcRes.Succeeded) activeWorkCenters = wcRes.Value!;
+    }
+
+    private async Task LoadBomVersionsForItemAsync(long itemId)
+    {
+        itemBomVersions = [];
+        var scope = CurrentScope;
+        if (scope is null || itemId <= 0) return;
+
+        var bomsRes = await BomService.ListBoms(scope, ScopeOrganizationId(scope), new BomListQuery(PrimaryOutputItemId: itemId, IncludeInactive: false, Page: 1, PageSize: 25));
+        if (!bomsRes.Succeeded) return;
+
+        foreach (var b in bomsRes.Value!.Items)
+        {
+            var detailsRes = await BomService.GetBom(scope, ScopeOrganizationId(scope), b.Id);
+            if (!detailsRes.Succeeded) continue;
+            foreach (var v in detailsRes.Value!.Versions)
+                itemBomVersions.Add(new BomVersionOption(v.Id, $"{b.Code} v{v.VersionNumber} ({v.Status})"));
+        }
+    }
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var idx) && idx >= 0 && idx < available.Count)
+        {
+            scopeIndex = idx;
+            await RefreshScopeStateAsync();
+            await ReloadGridFromFirstPageAsync();
+        }
+    }
+
+    private async Task OnSiteFilterChangedAsync(ChangeEventArgs e)
+    {
+        siteFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task OnStatusFilterChangedAsync(ChangeEventArgs e)
+    {
+        statusFilter = e.Value?.ToString() ?? string.Empty;
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        await ReloadGridFromFirstPageAsync();
+    }
+
+    private async Task ReloadGridFromFirstPageAsync()
+    {
+        if (grid is null) return;
+        if (grid.CurrentPage <= 1) await grid.RefreshAsync();
+        else await grid.GoToPageAsync(1);
+    }
+
+    private async Task<BitDataGridReadResult<RoutingSummary>> ReadRoutingsAsync(BitDataGridReadRequest request)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var orgId = ScopeOrganizationId(scope);
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        RoutingStatus? parsedStatus = byte.TryParse(statusFilter, out var st) && Enum.IsDefined((RoutingStatus)st) ? (RoutingStatus)st : null;
+        long? filterSite = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
+
+        try
+        {
+            var res = await RoutingService.ListRoutings(scope, orgId,
+                new RoutingListQuery(filterSite, null, parsedStatus, appliedSearch, page, size), request.CancellationToken);
+            if (!res.Succeeded)
+            {
+                pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                StateHasChanged();
+                return new([], 0);
+            }
+            return new(res.Value!.Items.ToList(), res.Value.Total);
+        }
+        catch (OperationCanceledException) { return new([], 0); }
+        catch
+        {
+            pageError = "ReadError";
+            StateHasChanged();
+            return new([], 0);
+        }
+    }
+
+    private void OpenCreateModal()
+    {
+        createError = null;
+        newSiteId = CurrentScope is OrganizationScope.Site siteScope ? siteScope.SiteId : authorizedSites.FirstOrDefault()?.Id ?? 0;
+        newCode = string.Empty;
+        newName = string.Empty;
+        newItemId = 0;
+        newBomVersionId = 0;
+        itemBomVersions = [];
+        newVersionNumber = 1;
+        newIsDefault = true;
+        newNotes = null;
+        createOpen = true;
+    }
+
+    private async Task OnNewItemChangedAsync(ChangeEventArgs e)
+    {
+        newItemId = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
+        newBomVersionId = 0;
+        await LoadBomVersionsForItemAsync(newItemId);
+    }
+
+    private async Task SubmitCreateAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        modalBusy = true;
+        createError = null;
+        try
+        {
+            var res = await RoutingService.CreateDraftRouting(scope, new CreateRoutingRequest(
+                ScopeOrganizationId(scope), newSiteId, newCode, newName, newItemId,
+                newBomVersionId > 0 ? newBomVersionId : null, newVersionNumber, newIsDefault, newNotes));
+            if (!res.Succeeded) { createError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            createOpen = false;
+            pageNotice = Text["RtCreatedNotice"];
+            await ReloadGridFromFirstPageAsync();
+            await PopulateWorkbenchAsync(res.Value!);
+            workbenchOpen = true;
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task OpenWorkbenchAsync(long id)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return;
+        var res = await RoutingService.GetRouting(scope, ScopeOrganizationId(scope), id);
+        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+        await PopulateWorkbenchAsync(res.Value!);
+        workbenchOpen = true;
+    }
+
+    private async Task PopulateWorkbenchAsync(RoutingDetails details)
+    {
+        selectedRouting = details;
+        workbenchError = null;
+        workbenchSaved = null;
+        var s = details.Summary;
+        editName = s.Name;
+        editBomVersionId = s.BomVersionId ?? 0;
+        editIsDefault = s.IsDefault;
+        editNotes = s.Notes;
+        siteWorkCenters = activeWorkCenters.Where(w => w.SiteId == s.SiteId).ToArray();
+        await LoadBomVersionsForItemAsync(s.ItemId);
+
+        editOps.Clear();
+        foreach (var op in details.Operations)
+        {
+            editOps.Add(new EditableOpRow
+            {
+                Sequence = op.Sequence,
+                OperationCode = op.OperationCode,
+                OperationName = op.OperationName,
+                WorkCenterId = op.WorkCenterId,
+                SetupMinutes = op.SetupMinutes,
+                RunMinutesPerUnit = op.RunMinutesPerUnit,
+                QueueMinutes = op.QueueMinutes,
+                WaitMinutes = op.WaitMinutes,
+                RequiresQualityCheck = op.RequiresQualityCheck,
+                Instructions = op.Instructions
+            });
+        }
+        if (editOps.Count == 0 && s.Status == RoutingStatus.Draft && siteWorkCenters.Count > 0)
+            AddOpRow();
+    }
+
+    private void AddOpRow()
+    {
+        var nextSeq = editOps.Count == 0 ? 10 : editOps.Max(o => o.Sequence) + 10;
+        var defaultWc = siteWorkCenters.FirstOrDefault()?.Id ?? 0;
+        editOps.Add(new EditableOpRow
+        {
+            Sequence = nextSeq,
+            OperationCode = $"OP-{nextSeq:00}",
+            OperationName = string.Empty,
+            WorkCenterId = defaultWc,
+            SetupMinutes = 0m,
+            RunMinutesPerUnit = 1m
+        });
+    }
+
+    private async Task SaveHeaderAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedRouting is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var s = selectedRouting.Summary;
+            var res = await RoutingService.UpdateDraftRouting(scope, new UpdateDraftRoutingRequest(
+                s.OrganizationId, s.Id, editName, editBomVersionId > 0 ? editBomVersionId : null, editIsDefault, editNotes, s.RowVersion));
+            if (!res.Succeeded) { workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            await PopulateWorkbenchAsync(res.Value!);
+            workbenchSaved = Text["RtSavedNotice"];
+            if (grid is not null) await grid.RefreshAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task SaveOperationsAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedRouting is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var s = selectedRouting.Summary;
+            var inputs = editOps.Select(o => new RoutingOperationInput(
+                o.Sequence, o.OperationCode, o.OperationName, o.WorkCenterId,
+                o.SetupMinutes, o.RunMinutesPerUnit, o.QueueMinutes, o.WaitMinutes,
+                o.RequiresQualityCheck, o.Instructions)).ToArray();
+            var res = await RoutingService.SaveRoutingOperations(scope, new SaveRoutingOperationsRequest(s.OrganizationId, s.Id, inputs, s.RowVersion));
+            if (!res.Succeeded) { workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            await PopulateWorkbenchAsync(res.Value!);
+            workbenchSaved = Text["RtOpsSavedNotice"];
+            if (grid is not null) await grid.RefreshAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task ActivateRoutingAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedRouting is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var s = selectedRouting.Summary;
+            var res = await RoutingService.ActivateRouting(scope, new ActivateRoutingRequest(s.OrganizationId, s.Id, s.RowVersion));
+            if (!res.Succeeded) { workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            await PopulateWorkbenchAsync(res.Value!);
+            workbenchSaved = Text["RtActivatedNotice"];
+            if (grid is not null) await grid.RefreshAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private async Task MarkObsoleteAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedRouting is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var s = selectedRouting.Summary;
+            var res = await RoutingService.MarkRoutingObsolete(scope, new MarkRoutingObsoleteRequest(s.OrganizationId, s.Id, s.RowVersion));
+            if (!res.Succeeded) { workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            await PopulateWorkbenchAsync(res.Value!);
+            workbenchSaved = Text["RtObsoletedNotice"];
+            if (grid is not null) await grid.RefreshAsync();
+        }
+        finally { modalBusy = false; }
+    }
+
+    private string StatusLabel(RoutingStatus st) => st switch
+    {
+        RoutingStatus.Draft => Text["RtStatusDraft"],
+        RoutingStatus.Active => Text["RtStatusActive"],
+        RoutingStatus.Obsolete => Text["RtStatusObsolete"],
+        _ => st.ToString()
+    };
+
+    private static string StatusBadgeClass(RoutingStatus st) => st switch
+    {
+        RoutingStatus.Draft => "inactive",
+        RoutingStatus.Active => "active",
+        _ => "inactive"
+    };
+
+    private string ScopeLabel(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o when scopeLabels.TryGetValue(scope, out var info) && info.OrgCode is not null
+            => $"{info.OrgCode} — {info.OrgName}",
+        OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId],
+        OrganizationScope.Site s when scopeLabels.TryGetValue(scope, out var info) && info.SiteCode is not null
+            => $"{info.OrgCode} / {info.SiteCode} — {info.SiteName}",
+        OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
+        _ => string.Empty
+    };
+}

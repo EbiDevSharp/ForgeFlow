@@ -3758,8 +3758,8 @@ ode .\scripts\drafts.test.mjs: **19 pass, 0 fail**.
   - Full non-SQL + HTTP suite (`FORGEFLOW_AUTH_HTTP_TESTS=1`, `FORGEFLOW_TEST_SQLSERVER=''`): **Passed: 386, Failed: 0, Skipped: 59, Total: 445**.
   - `node .\scripts\drafts.test.mjs`: **19 pass, 0 fail**.
   - `node .\verification\slice01-ui\browser-check.cjs`: **4/4 pass** (`fa-IR` & `en-US`, `1440px` & `320px`).
-- **Remaining Acceptance Gaps**:
-  - Live browser visual/functional verification in Persian RTL, English LTR, and `320px` mobile at `https://localhost:5001` for `/suppliers`, `/purchase-orders`, and updated `/reports` (`OnOrder` column) before formally closing `Slice 10`.
+- **Slice 10 (`10-procurement`) Status: ACCEPTED (`10.5`)** (2026-11-11): User reviewed `/suppliers`, `/purchase-orders` (including redesigned 3-section Create/Edit modal), and `/units` Currencies tab live on `https://localhost:5001`, confirmed acceptance, and requested moving to Slice 11 (`11-work-centers-routings`).
+- **Remaining Acceptance Gaps**: None blocking Slice 10 acceptance.
 
 ### Purchase Order Modal Redesign (`10.4` Follow-up) — 2026-11-11
 
@@ -3781,4 +3781,33 @@ ode .\scripts\drafts.test.mjs: **19 pass, 0 fail**.
   - `dotnet ef migrations has-pending-model-changes --context AuthDbContext ...`: **No changes have been made to the model since the last migration.**
   - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
   - Targeted live SQL + unit + model + role + localization + scanner suite (`ProcurementTests|ProcurementSqlTests|UnitTests|UnitSqlTests|OrganizationPersistenceModelTests|OrganizationSqlServerTests|RoleDomainTests|RoleManagementPageTests|ResourceContractTests|HardcodedDisplayTextScannerTests`): **Passed: 69, Failed: 0, Skipped: 0, Total: 69**.
+
+---
+
+## Slice 11 (`11-work-centers-routings`) — Work Centers, Routings & Shop-Floor Operations (ACCEPTED)
+
+- **11.0 Design Artifacts**: Added `docs/slices/11-work-centers-routings/{README.md,decisions.md,physical-erd.md,test-plan.md}` establishing `W-Q01`–`W-Q06` (site-scoped `WorkCenter` and `Routing`, minute-based standard/planned/actual times, nullable `ProductionOrder.RoutingId`/`RoutingCodeSnapshot` with snapshot into `ProductionOrderOperation`, `PermissionModule.Routings = 15`, and `WorkCenters`/`Routings` in `MasterDataNavGroup` after `Boms`).
+- **11.1 Domain (`ForgeFlow.Domain`)**:
+  - Extended `PermissionCatalog` with `PermissionModule.Routings = 15` (`Routings.Read`, `Routings.Manage`, `Operations.Execute`).
+  - Added `WorkCenter`, `Routing`, `RoutingOperation`, `ProductionOrderOperation`, `WorkCenterType`, `RoutingStatus`, `ProductionOrderOperationStatus`, `RoutingErrors`, and `RoutingText` in `src/ForgeFlow.Domain/Routings/`, and extended `ProductionOrder` with `RoutingId`, `RoutingCodeSnapshot`, and `ApplyRoutingSnapshot`.
+- **11.2 Application (`ForgeFlow.Application`)**:
+  - Added `RoutingContracts.cs` (`RoutingPermissions`, WorkCenter/Routing/Operation/WorkCenterLoad DTOs & `IRoutingOperationsStore`) and `RoutingUseCases.cs` (RBAC, site isolation, work center load calculation, operation lifecycle execution).
+  - Extended `ProductionOrderContracts.cs`, `ProductionOrderUseCases.cs` (optional explicit or auto-default routing snapshot + operation time calculation on CreateDraft/UpdateDraft/RefreshDraftSnapshot/ReleaseOrder), `AuditEventCatalog.cs`, and `DiagnosticContracts.cs`.
+- **11.3 Infrastructure & Database (`ForgeFlow.Infrastructure`)**:
+  - Configured the 4 new site-scoped tables (`38` business entities) in `OrganizationModel.cs` & `OrganizationDbContext.cs`, ignored them in `AuthDbContext.cs`, implemented `SqlRoutingOperationsStore`, extended `SqlProductionOrderOperationsStore`, generated migration `20261111102337_WorkCentersAndRoutings` with `[ForgeFlowOrganizationRuntime]` privileges & non-empty rollback guard, and updated `scripts/upgrade-local-testdb.ps1`.
+- **11.4 Web & Localization (`ForgeFlow.Web`)**:
+  - Added `/work-centers` (`WorkCenters.razor` with work center planned load summary and CRUD/activate modal), `/routings` (`Routings.razor` with draft operations sequence builder & lifecycle controls), integrated Routing selection + shop-floor operation execution (`Start`/`Pause`/`Complete`/`Skip`) into `ProductionOrders.razor`, added `WorkCenters` & `Routings` under `MasterDataNavGroup` in `MainLayout.razor`, and added complete `en-US`/`fa-IR` `.resx` resources.
+  - Extracted shared [`ForgeFormDialog.razor`](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Layout/ForgeFormDialog.razor) (header with subtitle + square `38px` close button, scrollable `44px`-field/`10px`-radius/`16px`-gap body, fixed footer bar with `#0F5675` primary button), adopted it in [`PurchaseOrders.razor`](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/PurchaseOrders.razor), and redesigned the Create Draft Routing modal in [`Routings.razor`](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Routings.razor) with a 3-col first row (Site, Code*, Version), full-width Name*, 2-col Item*/BOM row, clickable `#0F5675` `20px` default-routing checkbox card (`.ff-check-card`), and optional notes.
+- **Verification Evidence (2026-11-11, after final edit)**:
+  - `.\scripts\upgrade-local-testdb.ps1`: `testforgflow database upgraded to 20261111102337_WorkCentersAndRoutings.`
+  - `dotnet ef migrations has-pending-model-changes --context AuthDbContext`: **No changes have been made to the model since the last migration.**
+  - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Targeted Slice 11 SQL + Unit + Persistence + Model + Role + Localization + Scanner suite (`RoutingTests|RoutingSqlTests|ProductionOrderTests|ProductionOrderSqlTests|OrganizationPersistenceModelTests|OrganizationSqlServerTests|RoleDomainTests|RoleManagementPageTests|ResourceContractTests|HardcodedDisplayTextScannerTests`): **Passed: 71, Failed: 0, Skipped: 0, Total: 71**.
+  - Full non-SQL + HTTP suite (`FORGEFLOW_AUTH_HTTP_TESTS=1`, `FORGEFLOW_TEST_SQLSERVER=''`): **Passed: 389, Failed: 0, Skipped: 60, Total: 449**.
+  - `node .\scripts\drafts.test.mjs`: **19 pass, 0 fail**.
+  - Post UI-redesign build & targeted suite (`ResourceContractTests|HardcodedDisplayTextScannerTests|RoleManagementPageTests|RoutingTests|ProcurementTests`): **Passed: 44, Failed: 0, Skipped: 0**.
+  - `node .\verification\slice01-ui\browser-check.cjs`: **4/4 pass** (`fa-IR` / `en-US`, `1440px` / `320px`).
+- **Slice 11 (`11-work-centers-routings`) Status: ACCEPTED (`11.6`)** (2026-11-11): User reviewed live UI on `https://localhost:5001` including the redesigned Create Draft Routing modal and shared dialog shell and approved advancing to next work (Slice 12: Stock Reservations & Operations Dashboard).
+- **Remaining Acceptance Gaps**: None blocking Slice 11 acceptance.
+
 

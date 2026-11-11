@@ -1894,6 +1894,15 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                     b.Property<long>("RequestedUnitId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("RoutingCodeSnapshot")
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<long?>("RoutingId")
+                        .HasColumnType("bigint");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -1936,6 +1945,8 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
 
                     b.HasIndex("OrganizationId", "RequestedUnitId");
 
+                    b.HasIndex("OrganizationId", "SiteId", "RoutingId");
+
                     b.HasIndex("OrganizationId", "SiteId", "Status", "PlannedStartDate")
                         .HasDatabaseName("IX_ProductionOrder_Org_Site_Status_Date");
 
@@ -1954,6 +1965,10 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                             t.HasCheckConstraint("CK_ProductionOrder_Number", "DATALENGTH([OrderNumber]) BETWEEN 1 AND 32 AND DATALENGTH([OrderNumber]) = LEN([OrderNumber]) AND [OrderNumber] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([OrderNumber], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'");
 
                             t.HasCheckConstraint("CK_ProductionOrder_RequestedQty", "[RequestedQuantity] > 0");
+
+                            t.HasCheckConstraint("CK_ProductionOrder_RoutingCodeSnapshot", "[RoutingCodeSnapshot] IS NULL OR (DATALENGTH([RoutingCodeSnapshot]) BETWEEN 1 AND 32 AND DATALENGTH([RoutingCodeSnapshot]) = LEN([RoutingCodeSnapshot]) AND [RoutingCodeSnapshot] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([RoutingCodeSnapshot], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]')");
+
+                            t.HasCheckConstraint("CK_ProductionOrder_RoutingPair", "([RoutingId] IS NULL AND [RoutingCodeSnapshot] IS NULL) OR ([RoutingId] IS NOT NULL AND [RoutingCodeSnapshot] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_ProductionOrder_Status", "[Status] BETWEEN 1 AND 5");
                         });
@@ -2471,6 +2486,442 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ForgeFlow.Domain.Routings.ProductionOrderOperation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("ActualRunMinutes")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ActualSetupMinutes")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<decimal>("CompletedQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long>("CreatedByActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Instructions")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("OperationCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<string>("OperationName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OperatorNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("OrganizationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("PlannedQueueMinutes")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PlannedRunMinutes")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PlannedSetupMinutes")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("PlannedWaitMinutes")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("ProductionOrderId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("RequiresQualityCheck")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<decimal>("ScrapQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.Property<long>("SiteId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("StartedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long?>("UpdatedByActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("WorkCenterId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id")
+                        .HasName("PK_ProductionOrderOperation");
+
+                    b.HasIndex("OrganizationId", "ProductionOrderId", "Sequence")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProductionOrderOperation_Order_Seq");
+
+                    b.HasIndex("OrganizationId", "SiteId", "WorkCenterId", "Status")
+                        .HasDatabaseName("IX_ProductionOrderOperation_Org_Site_WC_Status");
+
+                    b.ToTable("ProductionOrderOperation", "organization", t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductionOrderOperation_Code", "DATALENGTH([OperationCode]) BETWEEN 1 AND 32 AND DATALENGTH([OperationCode]) = LEN([OperationCode]) AND [OperationCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([OperationCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'");
+
+                            t.HasCheckConstraint("CK_ProductionOrderOperation_Metadata", "[CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))");
+
+                            t.HasCheckConstraint("CK_ProductionOrderOperation_Name", "DATALENGTH([OperationName]) BETWEEN 2 AND 400 AND DATALENGTH([OperationName]) = DATALENGTH(LTRIM(RTRIM([OperationName]))) AND DATALENGTH(LTRIM(RTRIM([OperationName]))) > 0");
+
+                            t.HasCheckConstraint("CK_ProductionOrderOperation_Qty", "[CompletedQuantity] >= 0 AND [ScrapQuantity] >= 0");
+
+                            t.HasCheckConstraint("CK_ProductionOrderOperation_Seq", "[Sequence] >= 1");
+
+                            t.HasCheckConstraint("CK_ProductionOrderOperation_Status", "[Status] BETWEEN 1 AND 6");
+
+                            t.HasCheckConstraint("CK_ProductionOrderOperation_Times", "[PlannedSetupMinutes] >= 0 AND [PlannedRunMinutes] >= 0 AND [PlannedQueueMinutes] >= 0 AND [PlannedWaitMinutes] >= 0 AND [ActualSetupMinutes] >= 0 AND [ActualRunMinutes] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.Routings.Routing", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("ActivatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long?>("BomVersionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long>("CreatedByActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("ItemId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("OrganizationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("SiteId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte>("Status")
+                        .HasColumnType("tinyint");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long?>("UpdatedByActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id")
+                        .HasName("PK_Routing");
+
+                    b.HasAlternateKey("OrganizationId", "Id")
+                        .HasName("AK_Routing_Org_Id");
+
+                    b.HasAlternateKey("OrganizationId", "SiteId", "Id")
+                        .HasName("AK_Routing_Org_Site_Id");
+
+                    b.HasIndex("OrganizationId", "BomVersionId");
+
+                    b.HasIndex("OrganizationId", "ItemId");
+
+                    b.HasIndex("OrganizationId", "SiteId", "ItemId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Routing_Org_Site_Item_Default")
+                        .HasFilter("[Status] = 2 AND [IsDefault] = 1");
+
+                    b.HasIndex("OrganizationId", "SiteId", "Code", "VersionNumber")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Routing_Org_Site_Code_Version");
+
+                    b.HasIndex("OrganizationId", "SiteId", "ItemId", "Status")
+                        .HasDatabaseName("IX_Routing_Org_Site_Item_Status");
+
+                    b.ToTable("Routing", "organization", t =>
+                        {
+                            t.HasCheckConstraint("CK_Routing_Code", "DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'");
+
+                            t.HasCheckConstraint("CK_Routing_Metadata", "[CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))");
+
+                            t.HasCheckConstraint("CK_Routing_Name", "DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0");
+
+                            t.HasCheckConstraint("CK_Routing_Status", "[Status] BETWEEN 1 AND 3");
+
+                            t.HasCheckConstraint("CK_Routing_Version", "[VersionNumber] >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.Routings.RoutingOperation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long>("CreatedByActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Instructions")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("OperationCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<string>("OperationName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long>("OrganizationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("QueueMinutes")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("RequiresQualityCheck")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("RoutingId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<decimal>("RunMinutesPerUnit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SetupMinutes")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("SiteId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long?>("UpdatedByActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("WaitMinutes")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long>("WorkCenterId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id")
+                        .HasName("PK_RoutingOperation");
+
+                    b.HasIndex("OrganizationId", "RoutingId", "Sequence")
+                        .IsUnique()
+                        .HasDatabaseName("UX_RoutingOperation_Routing_Seq");
+
+                    b.HasIndex("OrganizationId", "SiteId", "RoutingId");
+
+                    b.HasIndex("OrganizationId", "SiteId", "WorkCenterId")
+                        .HasDatabaseName("IX_RoutingOperation_Org_Site_WC");
+
+                    b.ToTable("RoutingOperation", "organization", t =>
+                        {
+                            t.HasCheckConstraint("CK_RoutingOperation_Code", "DATALENGTH([OperationCode]) BETWEEN 1 AND 32 AND DATALENGTH([OperationCode]) = LEN([OperationCode]) AND [OperationCode] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([OperationCode], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'");
+
+                            t.HasCheckConstraint("CK_RoutingOperation_Metadata", "[CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))");
+
+                            t.HasCheckConstraint("CK_RoutingOperation_Name", "DATALENGTH([OperationName]) BETWEEN 2 AND 400 AND DATALENGTH([OperationName]) = DATALENGTH(LTRIM(RTRIM([OperationName]))) AND DATALENGTH(LTRIM(RTRIM([OperationName]))) > 0");
+
+                            t.HasCheckConstraint("CK_RoutingOperation_Seq", "[Sequence] >= 1");
+
+                            t.HasCheckConstraint("CK_RoutingOperation_Times", "[SetupMinutes] >= 0 AND [RunMinutesPerUnit] > 0 AND [QueueMinutes] >= 0 AND [WaitMinutes] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.Routings.WorkCenter", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("CapacityUnitsPerHour")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long>("CreatedByActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("DailyAvailableHours")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal?>("HourlyCostRate")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("OrganizationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("SiteId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long?>("UpdatedByActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte>("WorkCenterType")
+                        .HasColumnType("tinyint");
+
+                    b.HasKey("Id")
+                        .HasName("PK_WorkCenter");
+
+                    b.HasAlternateKey("OrganizationId", "Id")
+                        .HasName("AK_WorkCenter_Org_Id");
+
+                    b.HasAlternateKey("OrganizationId", "SiteId", "Id")
+                        .HasName("AK_WorkCenter_Org_Site_Id");
+
+                    b.HasIndex("OrganizationId", "SiteId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_WorkCenter_Org_Site_Code");
+
+                    b.HasIndex("OrganizationId", "SiteId", "IsActive", "Code")
+                        .HasDatabaseName("IX_WorkCenter_Org_Site_Active");
+
+                    b.ToTable("WorkCenter", "organization", t =>
+                        {
+                            t.HasCheckConstraint("CK_WorkCenter_Capacity", "[CapacityUnitsPerHour] > 0 AND [DailyAvailableHours] > 0 AND [DailyAvailableHours] <= 24 AND ([HourlyCostRate] IS NULL OR [HourlyCostRate] >= 0)");
+
+                            t.HasCheckConstraint("CK_WorkCenter_Code", "DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'");
+
+                            t.HasCheckConstraint("CK_WorkCenter_Metadata", "[CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))");
+
+                            t.HasCheckConstraint("CK_WorkCenter_Name", "DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0");
+
+                            t.HasCheckConstraint("CK_WorkCenter_Type", "[WorkCenterType] BETWEEN 1 AND 5");
+                        });
+                });
+
             modelBuilder.Entity("ForgeFlow.Domain.Units.Currency", b =>
                 {
                     b.Property<long>("Id")
@@ -2745,7 +3196,7 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                         {
                             t.HasCheckConstraint("CK_OrganizationChange_Actor", "[ActorId] > 0");
 
-                            t.HasCheckConstraint("CK_OrganizationChange_Event", "DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Currency.Created','Currency.Updated','Currency.Activated','Currency.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved','ItemLot.Updated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled')))");
+                            t.HasCheckConstraint("CK_OrganizationChange_Event", "DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Currency.Created','Currency.Updated','Currency.Activated','Currency.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved','ItemLot.Updated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled','WorkCenter.Created','WorkCenter.Updated','WorkCenter.Activated','WorkCenter.Deactivated','Routing.Created','Routing.Updated','Routing.OperationsSaved','Routing.Activated','Routing.Obsoleted','ProductionOrderOperation.Started','ProductionOrderOperation.Paused','ProductionOrderOperation.Completed','ProductionOrderOperation.Skipped')))");
 
                             t.HasCheckConstraint("CK_OrganizationChange_Json", "ISJSON([ChangesJson]) = 1");
                         });
@@ -3329,6 +3780,13 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("FK_ProductionOrder_Site");
+
+                    b.HasOne("ForgeFlow.Domain.Routings.Routing", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "SiteId", "RoutingId")
+                        .HasPrincipalKey("OrganizationId", "SiteId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("FK_ProductionOrder_Routing");
                 });
 
             modelBuilder.Entity("ForgeFlow.Domain.ProductionOrders.ProductionOrderContext", b =>
@@ -3496,6 +3954,117 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                         .HasConstraintName("FK_QualityInspectionLine_Inspection");
                 });
 
+            modelBuilder.Entity("ForgeFlow.Domain.Routings.ProductionOrderOperation", b =>
+                {
+                    b.HasOne("ForgeFlow.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_ProductionOrderOperation_Organization");
+
+                    b.HasOne("ForgeFlow.Domain.ProductionOrders.ProductionOrder", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "ProductionOrderId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_ProductionOrderOperation_Order");
+
+                    b.HasOne("ForgeFlow.Domain.Organizations.Site", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "SiteId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_ProductionOrderOperation_Site");
+
+                    b.HasOne("ForgeFlow.Domain.Routings.WorkCenter", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "SiteId", "WorkCenterId")
+                        .HasPrincipalKey("OrganizationId", "SiteId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_ProductionOrderOperation_WorkCenter");
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.Routings.Routing", b =>
+                {
+                    b.HasOne("ForgeFlow.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_Routing_Organization");
+
+                    b.HasOne("ForgeFlow.Domain.Boms.BomVersion", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "BomVersionId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("FK_Routing_BomVersion");
+
+                    b.HasOne("ForgeFlow.Domain.Items.Item", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "ItemId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_Routing_Item");
+
+                    b.HasOne("ForgeFlow.Domain.Organizations.Site", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "SiteId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_Routing_Site");
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.Routings.RoutingOperation", b =>
+                {
+                    b.HasOne("ForgeFlow.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_RoutingOperation_Organization");
+
+                    b.HasOne("ForgeFlow.Domain.Routings.Routing", null)
+                        .WithMany("Operations")
+                        .HasForeignKey("OrganizationId", "SiteId", "RoutingId")
+                        .HasPrincipalKey("OrganizationId", "SiteId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_RoutingOperation_Routing");
+
+                    b.HasOne("ForgeFlow.Domain.Routings.WorkCenter", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "SiteId", "WorkCenterId")
+                        .HasPrincipalKey("OrganizationId", "SiteId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_RoutingOperation_WorkCenter");
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.Routings.WorkCenter", b =>
+                {
+                    b.HasOne("ForgeFlow.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_WorkCenter_Organization");
+
+                    b.HasOne("ForgeFlow.Domain.Organizations.Site", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "SiteId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_WorkCenter_Site");
+                });
+
             modelBuilder.Entity("ForgeFlow.Domain.Units.Currency", b =>
                 {
                     b.HasOne("ForgeFlow.Domain.Organizations.Organization", null)
@@ -3565,6 +4134,11 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
             modelBuilder.Entity("ForgeFlow.Domain.Quality.QualityInspection", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.Routings.Routing", b =>
+                {
+                    b.Navigation("Operations");
                 });
 #pragma warning restore 612, 618
         }

@@ -307,10 +307,11 @@ public sealed class RoleManagementPageTests
         typeof(MainLayout).GetProperty("Text", flags)!.SetValue(layout, localizer);
 
         var scope = new List<OrganizationScope> { new OrganizationScope.Organization(1) };
-        foreach (var field in new[] { "unitScopes", "procurementScopes", "inventoryScopes", "productionOrderScopes", "qualityScopes", "reportScopes", "orgScopes" })
+        foreach (var field in new[] { "unitScopes", "bomScopes", "routingScopes", "procurementScopes", "inventoryScopes", "productionOrderScopes", "qualityScopes", "reportScopes", "orgScopes" })
             typeof(MainLayout).GetField(field, flags)!.SetValue(layout, scope);
 
         var navItems = (IList<BitNavItem>)typeof(MainLayout).GetProperty("NavigationItems", flags)!.GetValue(layout)!;
+        Assert.Equal(["/units", "/boms", "/work-centers", "/routings"], navItems[1].ChildItems.Select(c => c.Url ?? string.Empty).ToArray());
         Assert.Equal(
             [
                 localizer["Home"].Value,

@@ -1,0 +1,61 @@
+<BitDialog Width="@Width" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged"
+           AriaLabel="@Title" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="false"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <header class="proc-po-modal-header">
+            <div class="proc-po-modal-title-group">
+                <h2>@Title</h2>
+                @if (!string.IsNullOrWhiteSpace(Subtitle))
+                {
+                    <p>@Subtitle</p>
+                }
+            </div>
+            <button type="button" class="proc-po-close-btn" aria-label="@CloseTitle" title="@CloseTitle" @onclick="CloseAsync">
+                <span class="ff-icon ff-icon--close" aria-hidden="true"></span>
+            </button>
+        </header>
+
+        <div class="proc-po-modal-body">
+            @ChildContent
+        </div>
+
+        @if (FooterActions is not null || FooterEnd is not null)
+        {
+            <footer class="proc-po-modal-footer">
+                @if (FooterActions is not null)
+                {
+                    <div class="proc-po-footer-actions">
+                        @FooterActions
+                    </div>
+                }
+                @if (FooterEnd is not null)
+                {
+                    @FooterEnd
+                }
+            </footer>
+        }
+    </Body>
+</BitDialog>
+
+@code {
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog proc-po-dialog",
+        Header = "proc-po-dialog-hidden-hdr",
+        Body = "proc-po-dialog-shell",
+        Overlay = "read-dialog-overlay"
+    };
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public string Width { get; set; } = "760px";
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter, EditorRequired] public string CloseTitle { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? FooterActions { get; set; }
+    [Parameter] public RenderFragment? FooterEnd { get; set; }
+
+    private Task OnIsOpenChanged(bool next) => IsOpenChanged.InvokeAsync(next);
+    private Task CloseAsync() => IsOpenChanged.InvokeAsync(false);
+}

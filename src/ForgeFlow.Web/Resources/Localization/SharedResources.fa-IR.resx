@@ -2489,4 +2489,113 @@
   <data name="AuditEv_CurrencyUpdated" xml:space="preserve"><value>به‌روزرسانی واحد پولی</value></data>
   <data name="AuditEv_CurrencyActivated" xml:space="preserve"><value>فعال‌سازی واحد پولی</value></data>
   <data name="AuditEv_CurrencyDeactivated" xml:space="preserve"><value>غیرفعال‌سازی واحد پولی</value></data>
+  <data name="WorkCenters" xml:space="preserve"><value>مراکز کاری</value></data>
+  <data name="Routings" xml:space="preserve"><value>فرآیندهای ساخت</value></data>
+  <data name="PermPageRoutings" xml:space="preserve"><value>فرآیندهای ساخت و مراکز کاری</value></data>
+  <data name="PermOpManageRoutings" xml:space="preserve"><value>مدیریت</value></data>
+  <data name="PermOpExecuteOperations" xml:space="preserve"><value>اجرای عملیات کارگاهی</value></data>
+  <data name="WorkCentersCaption" xml:space="preserve"><value>مدیریت ماشین‌آلات، خطوط مونتاژ، سلول‌های کاری و ظرفیت هر سایت.</value></data>
+  <data name="WcCreateButton" xml:space="preserve"><value>مرکز کاری جدید</value></data>
+  <data name="WcCreateTitle" xml:space="preserve"><value>ایجاد مرکز کاری</value></data>
+  <data name="WcDetailTitle" xml:space="preserve"><value>جزئیات مرکز کاری</value></data>
+  <data name="WcTypeLabel" xml:space="preserve"><value>نوع</value></data>
+  <data name="WcTypeMachine" xml:space="preserve"><value>ماشین</value></data>
+  <data name="WcTypeAssemblyLine" xml:space="preserve"><value>خط مونتاژ</value></data>
+  <data name="WcTypeWorkCell" xml:space="preserve"><value>سلول کاری</value></data>
+  <data name="WcTypeQualityStation" xml:space="preserve"><value>ایستگاه کنترل کیفیت</value></data>
+  <data name="WcTypeExternalVendor" xml:space="preserve"><value>پیمانکار بیرونی</value></data>
+  <data name="WcCapacityLabel" xml:space="preserve"><value>ظرفیت (واحد در ساعت)</value></data>
+  <data name="WcDailyHoursLabel" xml:space="preserve"><value>ساعت کاری روزانه</value></data>
+  <data name="WcHourlyCostLabel" xml:space="preserve"><value>نرخ هزینه ساعتی</value></data>
+  <data name="WcCreatedNotice" xml:space="preserve"><value>مرکز کاری ایجاد شد.</value></data>
+  <data name="WcSavedNotice" xml:space="preserve"><value>مرکز کاری به‌روزرسانی شد.</value></data>
+  <data name="WcActivatedNotice" xml:space="preserve"><value>مرکز کاری فعال شد.</value></data>
+  <data name="WcDeactivatedNotice" xml:space="preserve"><value>مرکز کاری غیرفعال شد.</value></data>
+  <data name="WcLoadSection" xml:space="preserve"><value>بار برنامه‌ریزی‌شده مراکز کاری</value></data>
+  <data name="WcActiveOpsCol" xml:space="preserve"><value>عملیات باز</value></data>
+  <data name="WcPlannedMinsCol" xml:space="preserve"><value>زمان برنامه‌ریزی (دقیقه)</value></data>
+  <data name="WcUtilizationCol" xml:space="preserve"><value>درصد بار روزانه</value></data>
+  <data name="RoutingsCaption" xml:space="preserve"><value>تعریف توالی عملیات ساخت، زمان‌های استاندارد و فرآیند پیش‌فرض هر سایت.</value></data>
+  <data name="RtCreateButton" xml:space="preserve"><value>فرآیند جدید</value></data>
+  <data name="RtCreateTitle" xml:space="preserve"><value>ایجاد پیش‌نویس فرآیند</value></data>
+  <data name="RtCreateSubtitle" xml:space="preserve"><value>توالی عملیات ساخت یک کالا را تعریف کنید.</value></data>
+  <data name="RtNamePlaceholder" xml:space="preserve"><value>نام فرآیند</value></data>
+  <data name="RtDetailTitle" xml:space="preserve"><value>جزئیات فرآیند ساخت</value></data>
+  <data name="RtBomVersionLabel" xml:space="preserve"><value>نسخهٔ BOM مرتبط</value></data>
+  <data name="RtNoBomLinkOption" xml:space="preserve"><value>بدون اتصال به نسخهٔ BOM</value></data>
+  <data name="RtIsDefaultLabel" xml:space="preserve"><value>فرآیند پیش‌فرض برای این کالا</value></data>
+  <data name="RtIsDefaultDesc" xml:space="preserve"><value>این فرآیند به‌عنوان فرآیند اصلی کالای انتخاب‌شده استفاده می‌شود.</value></data>
+  <data name="RtNotesOptionalPlaceholder" xml:space="preserve"><value>توضیحات (اختیاری)</value></data>
+  <data name="RtDefaultBadge" xml:space="preserve"><value>پیش‌فرض</value></data>
+  <data name="RtStatusDraft" xml:space="preserve"><value>پیش‌نویس</value></data>
+  <data name="RtStatusActive" xml:space="preserve"><value>فعال</value></data>
+  <data name="RtStatusObsolete" xml:space="preserve"><value>منسوخ</value></data>
+  <data name="RtOpsSummaryCol" xml:space="preserve"><value>عملیات / زمان استاندارد</value></data>
+  <data name="RtSaveHeaderBtn" xml:space="preserve"><value>ذخیره مشخصات</value></data>
+  <data name="RtOperationsHeading" xml:space="preserve"><value>مراحل و عملیات فرآیند</value></data>
+  <data name="RtAddOpBtn" xml:space="preserve"><value>افزودن عملیات</value></data>
+  <data name="RtSaveOpsBtn" xml:space="preserve"><value>ذخیره عملیات</value></data>
+  <data name="RtActivateBtn" xml:space="preserve"><value>فعال‌سازی فرآیند</value></data>
+  <data name="RtMarkObsoleteBtn" xml:space="preserve"><value>منسوخ کردن</value></data>
+  <data name="RtCreatedNotice" xml:space="preserve"><value>پیش‌نویس فرآیند ایجاد شد.</value></data>
+  <data name="RtSavedNotice" xml:space="preserve"><value>فرآیند به‌روزرسانی شد.</value></data>
+  <data name="RtOpsSavedNotice" xml:space="preserve"><value>عملیات فرآیند ذخیره شدند.</value></data>
+  <data name="RtActivatedNotice" xml:space="preserve"><value>فرآیند ساخت فعال شد.</value></data>
+  <data name="RtObsoletedNotice" xml:space="preserve"><value>فرآیند منسوخ شد.</value></data>
+  <data name="RtOpCodeCol" xml:space="preserve"><value>کد عملیات</value></data>
+  <data name="RtOpNameCol" xml:space="preserve"><value>نام عملیات</value></data>
+  <data name="RtWorkCenterCol" xml:space="preserve"><value>مرکز کاری</value></data>
+  <data name="RtSetupMinCol" xml:space="preserve"><value>آماده‌سازی (دقیقه)</value></data>
+  <data name="RtRunPerUnitCol" xml:space="preserve"><value>اجرا (دقیقه/واحد)</value></data>
+  <data name="RtQueueMinCol" xml:space="preserve"><value>صف (دقیقه)</value></data>
+  <data name="RtWaitMinCol" xml:space="preserve"><value>توقف (دقیقه)</value></data>
+  <data name="RtQcCol" xml:space="preserve"><value>کنترل کیفیت</value></data>
+  <data name="RtInstructionsCol" xml:space="preserve"><value>دستورالعمل</value></data>
+  <data name="PoRoutingColumn" xml:space="preserve"><value>فرآیند ساخت</value></data>
+  <data name="PoAutoDefaultRouting" xml:space="preserve"><value>خودکار (فرآیند پیش‌فرض فعال در صورت وجود)</value></data>
+  <data name="PoNoRouting" xml:space="preserve"><value>بدون فرآیند ساخت</value></data>
+  <data name="PoOperationsHeading" xml:space="preserve"><value>عملیات کارگاهی سفارش</value></data>
+  <data name="PoOpPlannedCol" xml:space="preserve"><value>برنامه‌ریزی (دقیقه)</value></data>
+  <data name="PoOpActualCol" xml:space="preserve"><value>واقعی (دقیقه)</value></data>
+  <data name="PoOpQtyCol" xml:space="preserve"><value>سالم / ضایعات</value></data>
+  <data name="PoOpStatusPending" xml:space="preserve"><value>در انتظار</value></data>
+  <data name="PoOpStatusReady" xml:space="preserve"><value>آماده اجرا</value></data>
+  <data name="PoOpStatusInProgress" xml:space="preserve"><value>در حال اجرا</value></data>
+  <data name="PoOpStatusPaused" xml:space="preserve"><value>متوقف‌شده</value></data>
+  <data name="PoOpStatusCompleted" xml:space="preserve"><value>تکمیل‌شده</value></data>
+  <data name="PoOpStatusSkipped" xml:space="preserve"><value>رد شده</value></data>
+  <data name="PoOpStartBtn" xml:space="preserve"><value>شروع</value></data>
+  <data name="PoOpPauseBtn" xml:space="preserve"><value>توقف موقت</value></data>
+  <data name="PoOpCompleteBtn" xml:space="preserve"><value>تکمیل</value></data>
+  <data name="PoOpSkipBtn" xml:space="preserve"><value>رد کردن</value></data>
+  <data name="PoOpActualSetupLabel" xml:space="preserve"><value>آماده‌سازی واقعی (دقیقه)</value></data>
+  <data name="PoOpActualRunLabel" xml:space="preserve"><value>اجرای واقعی (دقیقه)</value></data>
+  <data name="PoOpCompletedQtyLabel" xml:space="preserve"><value>تعداد تکمیل‌شده</value></data>
+  <data name="PoOpScrapQtyLabel" xml:space="preserve"><value>تعداد ضایعات</value></data>
+  <data name="PoOpSavedNotice" xml:space="preserve"><value>وضعیت عملیات کارگاهی ثبت شد.</value></data>
+  <data name="RoutingErrorWorkCenterInactive" xml:space="preserve"><value>مرکز کاری انتخاب‌شده غیرفعال است.</value></data>
+  <data name="RoutingErrorTypeInvalid" xml:space="preserve"><value>نوع مرکز کاری معتبر انتخاب کنید.</value></data>
+  <data name="RoutingErrorCapacityInvalid" xml:space="preserve"><value>ظرفیت، ساعت روزانه (۰ تا ۲۴) و نرخ هزینه باید معتبر باشند.</value></data>
+  <data name="RoutingErrorBomVersionInvalid" xml:space="preserve"><value>نسخه BOM انتخاب‌شده متعلق به این کالا نیست.</value></data>
+  <data name="RoutingErrorNotDraft" xml:space="preserve"><value>فقط فرآیندهای پیش‌نویس قابل ویرایش هستند.</value></data>
+  <data name="RoutingErrorInvalidTransition" xml:space="preserve"><value>تغییر وضعیت در این مرحله مجاز نیست.</value></data>
+  <data name="RoutingErrorEmptyOperations" xml:space="preserve"><value>حداقل یک عملیات برای فرآیند الزامی است.</value></data>
+  <data name="RoutingErrorSequenceInvalid" xml:space="preserve"><value>شماره ترتیب عملیات باید مثبت و یکتا باشد.</value></data>
+  <data name="RoutingErrorTimeInvalid" xml:space="preserve"><value>زمان‌های آماده‌سازی، صف و توقف باید نامنفی و زمان اجرای واحد مثبت باشد.</value></data>
+  <data name="RoutingErrorQuantityInvalid" xml:space="preserve"><value>مقادیر تکمیل‌شده و ضایعات نباید منفی باشند.</value></data>
+  <data name="PoErrorRoutingInvalid" xml:space="preserve"><value>فرآیند انتخاب‌شده غیرفعال یا خالی است یا با سایت و کالا مطابقت ندارد.</value></data>
+  <data name="AuditEv_WorkCenterCreated" xml:space="preserve"><value>ایجاد مرکز کاری</value></data>
+  <data name="AuditEv_WorkCenterUpdated" xml:space="preserve"><value>به‌روزرسانی مرکز کاری</value></data>
+  <data name="AuditEv_WorkCenterActivated" xml:space="preserve"><value>فعال‌سازی مرکز کاری</value></data>
+  <data name="AuditEv_WorkCenterDeactivated" xml:space="preserve"><value>غیرفعال‌سازی مرکز کاری</value></data>
+  <data name="AuditEv_RoutingCreated" xml:space="preserve"><value>ایجاد فرآیند ساخت</value></data>
+  <data name="AuditEv_RoutingUpdated" xml:space="preserve"><value>به‌روزرسانی فرآیند ساخت</value></data>
+  <data name="AuditEv_RoutingOperationsSaved" xml:space="preserve"><value>ذخیره عملیات فرآیند ساخت</value></data>
+  <data name="AuditEv_RoutingActivated" xml:space="preserve"><value>فعال‌سازی فرآیند ساخت</value></data>
+  <data name="AuditEv_RoutingObsoleted" xml:space="preserve"><value>منسوخ‌سازی فرآیند ساخت</value></data>
+  <data name="AuditEv_ProductionOrderOperationStarted" xml:space="preserve"><value>شروع عملیات کارگاهی</value></data>
+  <data name="AuditEv_ProductionOrderOperationPaused" xml:space="preserve"><value>توقف موقت عملیات کارگاهی</value></data>
+  <data name="AuditEv_ProductionOrderOperationCompleted" xml:space="preserve"><value>تکمیل عملیات کارگاهی</value></data>
+  <data name="AuditEv_ProductionOrderOperationSkipped" xml:space="preserve"><value>رد کردن عملیات کارگاهی</value></data>
+  <data name="AuditEv_RoutingActionRejected" xml:space="preserve"><value>رد درخواست در فرآیند ساخت یا عملیات کارگاهی</value></data>
 </root>

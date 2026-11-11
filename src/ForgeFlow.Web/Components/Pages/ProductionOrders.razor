@@ -5,11 +5,14 @@
 @using ForgeFlow.Application.Items
 @using ForgeFlow.Application.Organizations
 @using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Application.Routings
 @using ForgeFlow.Application.Units
 @using ForgeFlow.Domain.Boms
 @using ForgeFlow.Domain.ProductionOrders
+@using ForgeFlow.Domain.Routings
 @using ForgeFlow.Web.Roles
 @inject ProductionOrderUseCases OrderService
+@inject RoutingUseCases RoutingService
 @inject BomUseCases BomService
 @inject ItemUseCases ItemService
 @inject UnitUseCases UnitService
@@ -190,7 +193,7 @@
                         }
                         else
                         {
-                            <select id="po-create-site" @bind="newSiteId">
+                            <select id="po-create-site" value="@newSiteId" @onchange="OnNewSiteChangedAsync">
                                 @foreach (var s in authorizedSites)
                                 {
                                     <option value="@s.Id">@s.Code — @s.Name</option>
@@ -200,11 +203,21 @@
                     </div>
                     <div class="write-field po-field-full">
                         <label for="po-create-item">@Text["PoItemColumn"]</label>
-                        <select id="po-create-item" value="@newItemId" @onchange="OnNewItemChanged">
+                        <select id="po-create-item" value="@newItemId" @onchange="OnNewItemChangedAsync">
                             <option value="0">@Text["BomSelectItemOption"]</option>
                             @foreach (var it in manufacturableItems)
                             {
                                 <option value="@it.Id">@it.Code — @it.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="write-field po-field-full">
+                        <label for="po-create-routing">@Text["PoRoutingColumn"]</label>
+                        <select id="po-create-routing" @bind="newRoutingId">
+                            <option value="0">@Text["PoAutoDefaultRouting"]</option>
+                            @foreach (var rt in newItemRoutings)
+                            {
+                                <option value="@rt.Id">@rt.Code v@rt.VersionNumber — @rt.Name @(rt.IsDefault ? $"({Text["RtDefaultBadge"]})" : string.Empty)</option>
                             }
                         </select>
                     </div>
@@ -352,6 +365,12 @@
                             <span class="audit-meta-val" dir="ltr">@summary.BomCodeSnapshot v@summary.BomVersionNumberSnapshot (@Format.Number(summary.BaseOutputQuantitySnapshot) @summary.BaseOutputUnitSymbolSnapshot)</span>
                         </div>
                         <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["PoRoutingColumn"]</span>
+                            <span class="audit-meta-val" dir="@(string.IsNullOrEmpty(summary.RoutingCodeSnapshot) ? "auto" : "ltr")">
+                                @(string.IsNullOrEmpty(summary.RoutingCodeSnapshot) ? Text["PoNoRouting"] : summary.RoutingCodeSnapshot)
+                            </span>
+                        </div>
+                        <div class="audit-meta-row">
                             <span class="audit-meta-label">@Text["PoActualsColumn"]</span>
                             <span class="audit-meta-val" dir="ltr">@Format.Number(summary.ActualProducedQuantity) / @Format.Number(summary.ActualScrapQuantity) @summary.RequestedUnitSymbol</span>
                         </div>
@@ -436,6 +455,16 @@
                                                    NextYearNavIcon="@NextYearIcon"
                                                    PrevYearNavIcon="@PrevYearIcon"
                                                    ClearButtonIcon="@CloseIcon" />
+                                </div>
+                                <div class="write-field po-field-full">
+                                    <label for="po-edit-routing">@Text["PoRoutingColumn"]</label>
+                                    <select id="po-edit-routing" @bind="editRoutingId">
+                                        <option value="0">@Text["PoAutoDefaultRouting"]</option>
+                                        @foreach (var rt in editItemRoutings)
+                                        {
+                                            <option value="@rt.Id">@rt.Code v@rt.VersionNumber — @rt.Name @(rt.IsDefault ? $"({Text["RtDefaultBadge"]})" : string.Empty)</option>
+                                        }
+                                    </select>
                                 </div>
                                 <div class="write-field po-field-full">
                                     <label for="po-edit-notes">@Text["PoNotesLabel"]</label>
@@ -525,6 +554,105 @@
                                     @Text["PoCancelButton"]
                                 </BitButton>
                             </div>
+                        </div>
+                    }
+
+                    @if (selectedOrder.Operations is { Count: > 0 } opsList)
+                    {
+                        <div class="audit-modal-section">
+                            <h3 class="audit-section-heading">@Text["PoOperationsHeading"]</h3>
+                            <div class="audit-fields-box">
+                                <table class="audit-fields-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>@Text["RtOpNameCol"]</th>
+                                            <th>@Text["RtWorkCenterCol"]</th>
+                                            <th>@Text["PoOpPlannedCol"]</th>
+                                            <th>@Text["PoOpActualCol"]</th>
+                                            <th>@Text["PoOpQtyCol"]</th>
+                                            <th>@Text["ReadStatus"]</th>
+                                            <th>@Text["ReadActions"]</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var op in opsList)
+                                        {
+                                            var actualTotal = op.ActualSetupMinutes + op.ActualRunMinutes;
+                                            <tr>
+                                                <td>@op.Sequence</td>
+                                                <td>
+                                                    <span dir="ltr">@op.OperationCode</span> — @op.OperationName
+                                                    @if (op.RequiresQualityCheck)
+                                                    {
+                                                        <span class="cap-badge">@Text["RtQcCol"]</span>
+                                                    }
+                                                </td>
+                                                <td dir="ltr">@op.WorkCenterCode</td>
+                                                <td dir="ltr">@Format.Number(op.PlannedTotalMinutes)</td>
+                                                <td dir="ltr">@Format.Number(actualTotal)</td>
+                                                <td dir="ltr">@Format.Number(op.CompletedQuantity) / @Format.Number(op.ScrapQuantity)</td>
+                                                <td><span class="read-badge @OpStatusBadgeClass(op.Status)">@OpStatusLabel(op.Status)</span></td>
+                                                <td>
+                                                    @if (canExecuteOperations && summary.Status is ProductionOrderStatus.Released or ProductionOrderStatus.InProgress)
+                                                    {
+                                                        <div class="read-row-actions">
+                                                            @if (op.Status is ProductionOrderOperationStatus.Pending or ProductionOrderOperationStatus.Ready or ProductionOrderOperationStatus.Paused)
+                                                            {
+                                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)" OnClick="() => StartOperationAsync(op)">
+                                                                    @Text["PoOpStartBtn"]
+                                                                </BitButton>
+                                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)" OnClick="() => SkipOperationAsync(op)">
+                                                                    @Text["PoOpSkipBtn"]
+                                                                </BitButton>
+                                                            }
+                                                            @if (op.Status is ProductionOrderOperationStatus.InProgress or ProductionOrderOperationStatus.Paused or ProductionOrderOperationStatus.Ready)
+                                                            {
+                                                                <BitButton Size="BitSize.Small" IsEnabled="@(!modalBusy)" OnClick="() => SelectOperationForLog(op)">
+                                                                    @Text["PoOpCompleteBtn"]
+                                                                </BitButton>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            @if (activeEditOp is not null && canExecuteOperations && summary.Status is ProductionOrderStatus.Released or ProductionOrderStatus.InProgress)
+                            {
+                                <div class="rt-op-exec-bar">
+                                    <div class="write-field">
+                                        <label for="op-act-setup">@Text["PoOpActualSetupLabel"]</label>
+                                        <input id="op-act-setup" type="number" min="0" step="0.5" @bind="opActualSetup" />
+                                    </div>
+                                    <div class="write-field">
+                                        <label for="op-act-run">@Text["PoOpActualRunLabel"]</label>
+                                        <input id="op-act-run" type="number" min="0" step="0.5" @bind="opActualRun" />
+                                    </div>
+                                    <div class="write-field">
+                                        <label for="op-comp-qty">@Text["PoOpCompletedQtyLabel"]</label>
+                                        <input id="op-comp-qty" type="number" min="0" step="0.001" @bind="opCompletedQty" />
+                                    </div>
+                                    <div class="write-field">
+                                        <label for="op-scrap-qty">@Text["PoOpScrapQtyLabel"]</label>
+                                        <input id="op-scrap-qty" type="number" min="0" step="0.001" @bind="opScrapQty" />
+                                    </div>
+                                    <div class="write-field" style="grid-column:1/-1;">
+                                        <label for="op-notes">@Text["PoNotesLabel"]</label>
+                                        <input id="op-notes" type="text" maxlength="500" @bind="opLogNotes" />
+                                    </div>
+                                    <div class="write-actions" style="grid-column:1/-1;">
+                                        @if (activeEditOp.Status == ProductionOrderOperationStatus.InProgress)
+                                        {
+                                            <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="PauseOperationAsync">@Text["PoOpPauseBtn"]</BitButton>
+                                        }
+                                        <BitButton IsEnabled="@(!modalBusy)" OnClick="CompleteOperationAsync">@Text["PoOpCompleteBtn"]</BitButton>
+                                        <BitButton Variant="BitVariant.Outline" OnClick="() => activeEditOp = null">@Text["WriteCancel"]</BitButton>
+                                    </div>
+                                </div>
+                            }
                         </div>
                     }
 
@@ -675,6 +803,17 @@
     private int scopeIndex;
     private bool scopeCanManage;
     private bool canManageInventory;
+    private bool canExecuteOperations;
+    private IReadOnlyList<RoutingSummary> newItemRoutings = [];
+    private IReadOnlyList<RoutingSummary> editItemRoutings = [];
+    private long newRoutingId;
+    private long editRoutingId;
+    private ProductionOrderOperationSummary? activeEditOp;
+    private decimal opActualSetup;
+    private decimal opActualRun;
+    private decimal opCompletedQty;
+    private decimal opScrapQty;
+    private string? opLogNotes;
 
     private IReadOnlyList<ProductionOrderSiteInfo> authorizedSites = [];
     private IReadOnlyList<ItemSummary> manufacturableItems = [];
@@ -826,6 +965,8 @@
             scopeCanManage = eval.IsAllowed;
             var invEval = await Permissions.EvaluateAsync(actor, scope, InventoryPermissions.InventoryManage, default);
             canManageInventory = invEval.IsAllowed;
+            var opEval = await Permissions.EvaluateAsync(actor, scope, RoutingPermissions.OperationsExecute, default);
+            canExecuteOperations = opEval.IsAllowed;
         }
 
         var orgId = ScopeOrganizationId(scope);
@@ -944,18 +1085,45 @@
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
         newStartDate = today;
         newDueDate = today.AddDays(1);
+        newRoutingId = 0;
+        newItemRoutings = [];
         newNotes = null;
         newContextPairs.Clear();
         createOpen = true;
     }
 
-    private void OnNewItemChanged(ChangeEventArgs e)
+    private async Task OnNewSiteChangedAsync(ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+        {
+            newSiteId = id;
+            await LoadNewItemRoutingsAsync();
+        }
+    }
+
+    private async Task OnNewItemChangedAsync(ChangeEventArgs e)
     {
         if (long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
         {
             newItemId = id;
             var item = manufacturableItems.FirstOrDefault(i => i.Id == id);
             if (item is not null) newUnitId = item.BaseUnitId;
+            await LoadNewItemRoutingsAsync();
+        }
+    }
+
+    private async Task LoadNewItemRoutingsAsync()
+    {
+        newRoutingId = 0;
+        newItemRoutings = [];
+        var scope = CurrentScope;
+        if (scope is null || newSiteId <= 0 || newItemId <= 0) return;
+        var res = await RoutingService.ListActiveRoutingsForItem(scope, ScopeOrganizationId(scope), newSiteId, newItemId);
+        if (res.Succeeded)
+        {
+            newItemRoutings = res.Value!;
+            var def = newItemRoutings.FirstOrDefault(r => r.IsDefault);
+            if (def is not null) newRoutingId = def.Id;
         }
     }
 
@@ -997,7 +1165,8 @@
                 newStartDate,
                 newDueDate,
                 BuildContextDictionary(newContextPairs),
-                newNotes);
+                newNotes,
+                newRoutingId > 0 ? newRoutingId : null);
             var res = await OrderService.CreateDraftOrder(scope, req);
             if (!res.Succeeded)
             {
@@ -1027,7 +1196,17 @@
             return;
         }
         PopulateWorkbench(res.Value!);
+        await LoadEditRoutingsAsync(res.Value!.Summary);
         workbenchOpen = true;
+    }
+
+    private async Task LoadEditRoutingsAsync(ProductionOrderSummary s)
+    {
+        editItemRoutings = [];
+        var scope = CurrentScope;
+        if (scope is null) return;
+        var res = await RoutingService.ListActiveRoutingsForItem(scope, s.OrganizationId, s.SiteId, s.ItemId);
+        if (res.Succeeded) editItemRoutings = res.Value!;
     }
 
     private void PopulateWorkbench(ProductionOrderDetails details)
@@ -1035,11 +1214,13 @@
         selectedOrder = details;
         workbenchError = null;
         workbenchSaved = null;
+        activeEditOp = null;
         var s = details.Summary;
         editQuantity = s.RequestedQuantity;
         editUnitId = s.RequestedUnitId;
         editStartDate = s.PlannedStartDate;
         editDueDate = s.PlannedDueDate;
+        editRoutingId = s.RoutingId ?? 0;
         editNotes = s.Notes;
         editContextPairs.Clear();
         foreach (var ctx in details.Contexts)
@@ -1062,7 +1243,8 @@
             var s = selectedOrder.Summary;
             var res = await OrderService.UpdateDraftOrder(scope, new UpdateDraftProductionOrderRequest(
                 s.OrganizationId, s.Id, editQuantity, editUnitId > 0 ? editUnitId : null, editStartDate, editDueDate,
-                BuildContextDictionary(editContextPairs), editNotes, s.RowVersion));
+                BuildContextDictionary(editContextPairs), editNotes, s.RowVersion,
+                editRoutingId > 0 ? editRoutingId : null));
             if (!res.Succeeded)
             {
                 workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code);
@@ -1255,5 +1437,82 @@
         BomOutputType.ByProduct => "bom-out-byproduct",
         BomOutputType.Waste => "bom-out-waste",
         _ => "bom-out-main"
+    };
+
+    private void SelectOperationForLog(ProductionOrderOperationSummary op)
+    {
+        activeEditOp = op;
+        opActualSetup = op.ActualSetupMinutes > 0m ? op.ActualSetupMinutes : op.PlannedSetupMinutes;
+        opActualRun = op.ActualRunMinutes > 0m ? op.ActualRunMinutes : op.PlannedRunMinutes;
+        opCompletedQty = op.CompletedQuantity > 0m ? op.CompletedQuantity : (selectedOrder?.Summary.RequestedQuantity ?? 0m);
+        opScrapQty = op.ScrapQuantity;
+        opLogNotes = op.OperatorNotes;
+    }
+
+    private Task StartOperationAsync(ProductionOrderOperationSummary op) =>
+        RunOperationMutationAsync(scope => RoutingService.StartOperation(
+            scope, new StartProductionOrderOperationRequest(op.OrganizationId, op.Id, op.OperatorNotes, op.RowVersion)));
+
+    private Task SkipOperationAsync(ProductionOrderOperationSummary op) =>
+        RunOperationMutationAsync(scope => RoutingService.SkipOperation(
+            scope, new SkipProductionOrderOperationRequest(op.OrganizationId, op.Id, op.OperatorNotes, op.RowVersion)));
+
+    private Task PauseOperationAsync() => activeEditOp is null
+        ? Task.CompletedTask
+        : RunOperationMutationAsync(scope => RoutingService.PauseOperation(
+            scope, new PauseProductionOrderOperationRequest(
+                activeEditOp.OrganizationId, activeEditOp.Id, opActualSetup, opActualRun,
+                opCompletedQty, opScrapQty, opLogNotes, activeEditOp.RowVersion)));
+
+    private Task CompleteOperationAsync() => activeEditOp is null
+        ? Task.CompletedTask
+        : RunOperationMutationAsync(scope => RoutingService.CompleteOperation(
+            scope, new CompleteProductionOrderOperationRequest(
+                activeEditOp.OrganizationId, activeEditOp.Id, opActualSetup, opActualRun,
+                opCompletedQty, opScrapQty, opLogNotes, activeEditOp.RowVersion)));
+
+    private async Task RunOperationMutationAsync(Func<OrganizationScope, Task<OrganizationResult<ProductionOrderOperationSummary>>> call)
+    {
+        var scope = CurrentScope;
+        if (scope is null || selectedOrder is null) return;
+        modalBusy = true;
+        workbenchError = null;
+        workbenchSaved = null;
+        try
+        {
+            var res = await call(scope);
+            if (!res.Succeeded)
+            {
+                workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            var reloaded = await OrderService.GetOrder(scope, selectedOrder.Summary.OrganizationId, selectedOrder.Summary.Id);
+            if (reloaded.Succeeded)
+            {
+                PopulateWorkbench(reloaded.Value!);
+                workbenchSaved = "PoOpSavedNotice";
+            }
+        }
+        finally { modalBusy = false; }
+    }
+
+    private string OpStatusLabel(ProductionOrderOperationStatus st) => st switch
+    {
+        ProductionOrderOperationStatus.Pending => Text["PoOpStatusPending"],
+        ProductionOrderOperationStatus.Ready => Text["PoOpStatusReady"],
+        ProductionOrderOperationStatus.InProgress => Text["PoOpStatusInProgress"],
+        ProductionOrderOperationStatus.Paused => Text["PoOpStatusPaused"],
+        ProductionOrderOperationStatus.Completed => Text["PoOpStatusCompleted"],
+        ProductionOrderOperationStatus.Skipped => Text["PoOpStatusSkipped"],
+        _ => st.ToString()
+    };
+
+    private static string OpStatusBadgeClass(ProductionOrderOperationStatus st) => st switch
+    {
+        ProductionOrderOperationStatus.Completed => "po-status-completed",
+        ProductionOrderOperationStatus.InProgress => "po-status-inprogress",
+        ProductionOrderOperationStatus.Ready => "po-status-released",
+        ProductionOrderOperationStatus.Skipped => "po-status-cancelled",
+        _ => "po-status-draft"
     };
 }

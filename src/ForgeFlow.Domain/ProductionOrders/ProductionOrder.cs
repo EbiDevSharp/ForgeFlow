@@ -77,6 +77,8 @@ public sealed class ProductionOrder
 
     public decimal ActualProducedQuantity { get; private set; }
     public decimal ActualScrapQuantity { get; private set; }
+    public long? RoutingId { get; private set; }
+    public string? RoutingCodeSnapshot { get; private set; }
     public string? Notes { get; private set; }
     public string? CancellationReason { get; private set; }
 
@@ -163,6 +165,21 @@ public sealed class ProductionOrder
         BomVersionNumberSnapshot = bomVersionNumberSnapshot;
         BaseOutputQuantitySnapshot = ProductionOrderText.ValidatePositiveQuantity(baseOutputQuantitySnapshot);
         BaseOutputUnitIdSnapshot = baseOutputUnitIdSnapshot;
+    }
+
+    public void ApplyRoutingSnapshot(long? routingId, string? routingCodeSnapshot)
+    {
+        EnsureDraftMutable();
+        if (routingId is > 0 && !string.IsNullOrWhiteSpace(routingCodeSnapshot))
+        {
+            RoutingId = routingId.Value;
+            RoutingCodeSnapshot = ProductionOrderText.OrderNumber(routingCodeSnapshot);
+        }
+        else
+        {
+            RoutingId = null;
+            RoutingCodeSnapshot = null;
+        }
     }
 
     public void Release(DateTime utcNow)

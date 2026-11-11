@@ -11,6 +11,7 @@ using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Quality;
 using ForgeFlow.Domain.Reporting;
 using ForgeFlow.Domain.Roles;
+using ForgeFlow.Domain.Routings;
 using ForgeFlow.Domain.Units;
 using ForgeFlow.Domain.Users;
 using ForgeFlow.Web.Localization;
@@ -30,6 +31,7 @@ public static class RolePermissionLocalization
         PermissionModule.Units,
         PermissionModule.Items,
         PermissionModule.Boms,
+        PermissionModule.Routings,
         PermissionModule.Procurement,
         PermissionModule.ProductionOrders,
         PermissionModule.Inventory,
@@ -58,6 +60,7 @@ public static class RolePermissionLocalization
         PermissionModule.Units => "PermPageUnits",
         PermissionModule.Items => "PermPageItems",
         PermissionModule.Boms => "PermPageBoms",
+        PermissionModule.Routings => "PermPageRoutings",
         PermissionModule.Procurement => "PermPageProcurement",
         PermissionModule.ProductionOrders => "PermPageProductionOrders",
         PermissionModule.Inventory => "PermPageInventory",
@@ -69,7 +72,7 @@ public static class RolePermissionLocalization
 
     public static string OperationLabelKey(string permissionCode) => permissionCode switch
     {
-        "Organizations.Read" or "Sites.Read" or "Users.Read" or "Roles.Read" or "Audit.Read" or "Units.Read" or "Items.Read" or "Boms.Read" or "Procurement.Read" or "ProductionOrders.Read" or "Inventory.Read" or "Reports.Read" or "Quality.Read" => "PermOpRead",
+        "Organizations.Read" or "Sites.Read" or "Users.Read" or "Roles.Read" or "Audit.Read" or "Units.Read" or "Items.Read" or "Boms.Read" or "Routings.Read" or "Procurement.Read" or "ProductionOrders.Read" or "Inventory.Read" or "Reports.Read" or "Quality.Read" => "PermOpRead",
         "Organizations.Create" or "Sites.Create" or "Users.Create" => "PermOpCreate",
         "Organizations.Update" or "Sites.Update" => "PermOpUpdate",
         "Organizations.SetActive" or "Sites.SetActive" or "Users.SetActive" => "PermOpSetActive",
@@ -82,6 +85,8 @@ public static class RolePermissionLocalization
         "Units.Manage" => "PermOpManageUnits",
         "Items.Manage" => "PermOpManageItems",
         "Boms.Manage" => "PermOpManageBoms",
+        "Routings.Manage" => "PermOpManageRoutings",
+        "Operations.Execute" => "PermOpExecuteOperations",
         "Procurement.ManageSuppliers" => "PermOpManageSuppliers",
         "Procurement.ManageOrders" => "PermOpManageOrders",
         "Procurement.ReceiveOrders" => "PermOpReceiveOrders",
@@ -136,10 +141,10 @@ public static class RolePermissionLocalization
         RolePermissionErrors.MembershipRequired or UserManagementErrors.OrganizationMembershipRequired => "UserErrorOrgMembershipRequired",
         RolePermissionErrors.LastOrganizationAdminRequired or UserManagementErrors.LastOrganizationAdminRequired => "UserErrorLastOrgAdmin",
         RolePermissionErrors.SelfDeactivationForbidden or UserManagementErrors.SelfDeactivationForbidden => "UserErrorSelfDeactivation",
-        RolePermissionErrors.ParentOrganizationInactive or UserManagementErrors.ParentOrganizationInactive or OrganizationSiteErrors.OrganizationInactive or UnitErrors.ParentOrganizationInactive or ItemErrors.ParentOrganizationInactive or BomErrors.ParentOrganizationInactive or ProductionOrderErrors.ParentOrganizationInactive or InventoryErrors.ParentOrganizationInactive or QualityErrors.ParentOrganizationInactive or ProcurementErrors.ParentOrganizationInactive => "WriteParentInactive",
+        RolePermissionErrors.ParentOrganizationInactive or UserManagementErrors.ParentOrganizationInactive or OrganizationSiteErrors.OrganizationInactive or UnitErrors.ParentOrganizationInactive or ItemErrors.ParentOrganizationInactive or BomErrors.ParentOrganizationInactive or ProductionOrderErrors.ParentOrganizationInactive or InventoryErrors.ParentOrganizationInactive or QualityErrors.ParentOrganizationInactive or ProcurementErrors.ParentOrganizationInactive or RoutingErrors.ParentOrganizationInactive => "WriteParentInactive",
         RolePermissionErrors.ParentSiteInactive or UserManagementErrors.ParentSiteInactive => "UserErrorParentSiteInactive",
-        RolePermissionErrors.ConcurrencyConflict or UserManagementErrors.ConcurrencyConflict or OrganizationAccessErrors.ConcurrencyConflict or UnitErrors.ConcurrencyConflict or ItemErrors.ConcurrencyConflict or BomErrors.ConcurrencyConflict or ProductionOrderErrors.ConcurrencyConflict or InventoryErrors.ConcurrencyConflict or QualityErrors.ConcurrencyConflict or ProcurementErrors.ConcurrencyConflict => "WriteConflict",
-        RolePermissionErrors.OutcomeUnknown or UserManagementErrors.OutcomeUnknown or OrganizationAccessErrors.OutcomeUnknown or UnitErrors.OutcomeUnknown or ItemErrors.OutcomeUnknown or BomErrors.OutcomeUnknown or ProductionOrderErrors.OutcomeUnknown or InventoryErrors.OutcomeUnknown or QualityErrors.OutcomeUnknown or ProcurementErrors.OutcomeUnknown => "WriteOutcomeUnknown",
+        RolePermissionErrors.ConcurrencyConflict or UserManagementErrors.ConcurrencyConflict or OrganizationAccessErrors.ConcurrencyConflict or UnitErrors.ConcurrencyConflict or ItemErrors.ConcurrencyConflict or BomErrors.ConcurrencyConflict or ProductionOrderErrors.ConcurrencyConflict or InventoryErrors.ConcurrencyConflict or QualityErrors.ConcurrencyConflict or ProcurementErrors.ConcurrencyConflict or RoutingErrors.ConcurrencyConflict => "WriteConflict",
+        RolePermissionErrors.OutcomeUnknown or UserManagementErrors.OutcomeUnknown or OrganizationAccessErrors.OutcomeUnknown or UnitErrors.OutcomeUnknown or ItemErrors.OutcomeUnknown or BomErrors.OutcomeUnknown or ProductionOrderErrors.OutcomeUnknown or InventoryErrors.OutcomeUnknown or QualityErrors.OutcomeUnknown or ProcurementErrors.OutcomeUnknown or RoutingErrors.OutcomeUnknown => "WriteOutcomeUnknown",
         RolePermissionErrors.AccessDenied or RolePermissionErrors.ActorRequired or RolePermissionErrors.ScopeRequired
             or UserManagementErrors.AccessDenied or UserManagementErrors.ActorRequired or UserManagementErrors.ScopeRequired
             or AuditErrors.AccessDenied or AuditErrors.ActorRequired or AuditErrors.ScopeRequired
@@ -150,6 +155,7 @@ public static class RolePermissionLocalization
             or InventoryErrors.AccessDenied or InventoryErrors.ActorRequired or InventoryErrors.ScopeRequired
             or QualityErrors.AccessDenied or QualityErrors.ActorRequired or QualityErrors.ScopeRequired
             or ProcurementErrors.AccessDenied or ProcurementErrors.ActorRequired or ProcurementErrors.ScopeRequired
+            or RoutingErrors.AccessDenied or RoutingErrors.ActorRequired or RoutingErrors.ScopeRequired
             or ReportingErrors.AccessDenied or ReportingErrors.ActorRequired or ReportingErrors.ScopeRequired
             or DiagnosticErrors.AccessDenied or DiagnosticErrors.ActorRequired or DiagnosticErrors.ScopeRequired => "ReadDenied",
         RolePermissionErrors.NotFound or UserManagementErrors.NotFound or OrganizationSiteErrors.OrganizationNotFound or OrganizationSiteErrors.SiteNotFound
@@ -161,15 +167,19 @@ public static class RolePermissionLocalization
             or InventoryErrors.WarehouseNotFound or InventoryErrors.TransactionNotFound
             or QualityErrors.InspectionNotFound or QualityErrors.LotNotFound or QualityErrors.LineNotFound
             or ProcurementErrors.NotFound or ProcurementErrors.SupplierNotFound or ProcurementErrors.LineNotFound
+            or RoutingErrors.NotFound or RoutingErrors.WorkCenterNotFound or RoutingErrors.RoutingNotFound or RoutingErrors.OperationNotFound
             or DiagnosticErrors.NotFound => "ReadNotFound",
         UnitErrors.CodeInvalid or UnitErrors.CurrencyCodeInvalid or ItemErrors.CodeInvalid or BomErrors.CodeInvalid or ProductionOrderErrors.OrderNumberInvalid or InventoryErrors.CodeInvalid or InventoryErrors.DocumentNumberInvalid or QualityErrors.InspectionNumberInvalid
-            or ProcurementErrors.SupplierCodeInvalid or ProcurementErrors.OrderNumberInvalid or ProcurementErrors.ReceiptDocumentInvalid => "CreateCodeInvalid",
+            or ProcurementErrors.SupplierCodeInvalid or ProcurementErrors.OrderNumberInvalid or ProcurementErrors.ReceiptDocumentInvalid
+            or RoutingErrors.WorkCenterCodeInvalid or RoutingErrors.RoutingCodeInvalid or RoutingErrors.OperationCodeInvalid => "CreateCodeInvalid",
         UnitErrors.CodeDuplicate or UnitErrors.CurrencyCodeDuplicate or ItemErrors.CodeDuplicate or ItemErrors.ClassificationSetCodeDuplicate or ItemErrors.ClassificationCodeDuplicate or ItemErrors.AttributeCodeDuplicate
             or BomErrors.CodeDuplicate or BomErrors.VersionDuplicate or BomErrors.ContextDimensionCodeDuplicate
             or ProductionOrderErrors.OrderNumberDuplicate
             or InventoryErrors.CodeDuplicate or InventoryErrors.DocumentNumberDuplicate or QualityErrors.InspectionNumberDuplicate
-            or ProcurementErrors.SupplierCodeDuplicate or ProcurementErrors.OrderNumberDuplicate => "CreateCodeDuplicate",
-        UnitErrors.NameInvalid or ItemErrors.NameInvalid or BomErrors.NameInvalid or InventoryErrors.NameInvalid or ProcurementErrors.SupplierNameInvalid => "WriteNameInvalid",
+            or ProcurementErrors.SupplierCodeDuplicate or ProcurementErrors.OrderNumberDuplicate
+            or RoutingErrors.WorkCenterCodeDuplicate or RoutingErrors.RoutingCodeDuplicate => "CreateCodeDuplicate",
+        RoutingErrors.VersionDuplicate => "BomErrorVersionDuplicate",
+        UnitErrors.NameInvalid or ItemErrors.NameInvalid or BomErrors.NameInvalid or InventoryErrors.NameInvalid or ProcurementErrors.SupplierNameInvalid or RoutingErrors.NameInvalid => "WriteNameInvalid",
         ItemErrors.DescriptionInvalid => "ItemErrorDescriptionInvalid",
         ItemErrors.BaseUnitNotFound or ItemErrors.BaseUnitInactive => "ItemErrorBaseUnitInvalid",
         ItemErrors.CapabilityRequired => "ItemErrorCapabilityRequired",
@@ -272,6 +282,22 @@ public static class RolePermissionLocalization
         ProcurementErrors.InvalidTransition => "ProcErrorInvalidTransition",
         ProcurementErrors.HasReceiptsCannotCancel => "ProcErrorHasReceiptsCannotCancel",
         ProcurementErrors.OverReceipt => "ProcErrorOverReceipt",
+        ProductionOrderErrors.RoutingInvalid => "PoErrorRoutingInvalid",
+        RoutingErrors.SiteInvalid => "PoErrorSiteInvalid",
+        RoutingErrors.WorkCenterInactive => "RoutingErrorWorkCenterInactive",
+        RoutingErrors.TypeInvalid => "RoutingErrorTypeInvalid",
+        RoutingErrors.CapacityInvalid or RoutingErrors.DailyHoursInvalid or RoutingErrors.CostRateInvalid => "RoutingErrorCapacityInvalid",
+        RoutingErrors.VersionInvalid => "BomErrorVersionNumberInvalid",
+        RoutingErrors.ItemInvalid => "BomErrorItemInvalid",
+        RoutingErrors.ItemNotManufacturable => "BomErrorPrimaryNotManufacturable",
+        RoutingErrors.BomVersionInvalid => "RoutingErrorBomVersionInvalid",
+        RoutingErrors.RoutingNotDraft => "RoutingErrorNotDraft",
+        RoutingErrors.RoutingInvalidTransition or RoutingErrors.OperationTransitionInvalid => "RoutingErrorInvalidTransition",
+        RoutingErrors.EmptyOperations => "RoutingErrorEmptyOperations",
+        RoutingErrors.DuplicateSequence or RoutingErrors.SequenceInvalid => "RoutingErrorSequenceInvalid",
+        RoutingErrors.OperationTimeInvalid or RoutingErrors.RunTimeInvalid => "RoutingErrorTimeInvalid",
+        RoutingErrors.QuantityInvalid => "RoutingErrorQuantityInvalid",
+        RoutingErrors.NotesInvalid => "PoErrorNotesInvalid",
         ReportingErrors.ProductionOrderNotFound => "RptErrorOrderNotFound",
         ReportingErrors.ExportInvalid => "RptErrorExportInvalid",
         DiagnosticErrors.InvalidRetentionDays => "DiagErrorRetentionInvalid",
