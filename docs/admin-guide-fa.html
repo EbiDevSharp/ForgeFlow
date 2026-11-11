@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>راهنمای مدیر سیستم ForgeFlow</title>
+<!-- SLICE: 13 | Last updated: 2026-11-11 | App version: main@154ca00 -->
+<style>
+  @font-face {
+    font-family: 'Vazirmatn';
+    src: url('assets/Vazirmatn.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+  }
+  :root {
+    --primary: #0b4ab8;
+    --primary-dark: #071b3d;
+    --accent: #0789ed;
+    --cyan: #08c7e8;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --muted: #475569;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Vazirmatn', 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.85;
+    font-size: 15px;
+  }
+  code {
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    background: #e2e8f0;
+    color: #0f172a;
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 0.84em;
+    direction: ltr;
+    display: inline-block;
+  }
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, #031b58 0%, #0646b8 55%, #0789ed 100%);
+    color: white;
+    padding: 46px 28px;
+    text-align: center;
+  }
+  .header .logo-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .header .logo-icon {
+    width: 60px; height: 60px;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    flex-shrink: 0;
+  }
+  .header h1 { font-size: 1.95rem; font-weight: 800; margin-bottom: 4px; }
+  .header p  { font-size: 1rem; opacity: 0.9; }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+  .badge-slice {
+    display: inline-block;
+    background: rgba(255,255,255,0.16);
+    border: 1px solid rgba(255,255,255,0.32);
+    color: white;
+    font-size: 0.78rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+  .print-btn {
+    background: rgba(255,255,255,0.95);
+    color: #0646b8;
+    border: none;
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  /* ── Workflow strip ── */
+  .workflow-strip {
+    background: white;
+    border-bottom: 1px solid var(--border);
+    padding: 18px 20px;
+    overflow-x: auto;
+  }
+  .workflow-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: max-content;
+    margin: 0 auto;
+  }
+  .wf-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    text-decoration: none;
+    color: var(--text);
+  }
+  .wf-bubble {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: #eff6ff;
+    border: 2px solid var(--primary);
+    color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+    font-weight: 800;
+    margin-bottom: 6px;
+  }
+  .wf-step span { font-size: 0.75rem; color: var(--muted); max-width: 82px; line-height: 1.35; font-weight: 600; }
+  .wf-arrow { font-size: 1.2rem; color: #94a3b8; margin: 0 4px; padding-bottom: 22px; }
+  /* ── Layout ── */
+  .container { max-width: 980px; margin: 0 auto; padding: 36px 20px 80px; }
+  /* ── TOC ── */
+  .toc {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 26px;
+    margin-bottom: 36px;
+  }
+  .toc h2 { font-size: 1rem; color: var(--muted); margin-bottom: 14px; font-weight: 700; }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 8px 22px;
+  }
+  .toc a { color: var(--primary); text-decoration: none; font-size: 0.9rem; font-weight: 500; }
+  .toc a:hover { text-decoration: underline; }
+  /* ── Section ── */
+  .section { margin-bottom: 56px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 3px solid var(--primary);
+  }
+  .section-num {
+    width: 42px; height: 42px;
+    background: var(--primary);
+    color: white;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 1.05rem;
+    flex-shrink: 0;
+  }
+  .section h2 { font-size: 1.3rem; font-weight: 800; color: var(--text); }
+  .section-desc { font-size: 0.86rem; color: var(--muted); }
+  /* ── Cards / Subs ── */
+  .sub {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin-bottom: 18px;
+    box-shadow: 0 2px 8px rgba(15,23,42,0.03);
+  }
+  .sub h3 { font-size: 1.02rem; font-weight: 700; color: var(--primary-dark); margin-bottom: 12px; }
+  /* ── Screenshots (real & placeholder) ── */
+  .shot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin: 14px 0;
+  }
+  .shot-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f8fafc;
+  }
+  .shot-card img { width: 100%; height: auto; display: block; }
+  .shot-caption { padding: 10px 14px; font-size: 0.8rem; color: var(--muted); border-top: 1px solid var(--border); }
+  .screenshot-slot {
+    background: linear-gradient(135deg, #f8fafc, #eff6ff);
+    border: 2px dashed #93c5fd;
+    border-radius: 12px;
+    padding: 22px 18px;
+    margin: 14px 0 4px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .screenshot-slot .ss-title { font-size: 0.88rem; font-weight: 700; color: #1e40af; }
+  .screenshot-slot .ss-hint  { font-size: 0.78rem; margin-top: 4px; }
+  /* ── Steps ── */
+  .steps { counter-reset: step; }
+  .step {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 18px;
+    counter-increment: step;
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 30px; height: 30px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.84rem;
+    margin-top: 2px;
+  }
+  .step-num::before { content: counter(step); }
+  .step-body { flex: 1; min-width: 0; }
+  .step-body h4 { font-size: 0.94rem; font-weight: 700; margin-bottom: 4px; }
+  .step-body p  { font-size: 0.88rem; color: var(--muted); }
+  /* ── Diagrams ── */
+  .diagram-wrap {
+    margin: 14px 0;
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow-x: auto;
+  }
+  .diagram-wrap svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+  /* ── Tags & Pills ── */
+  .tag {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    margin: 2px;
+  }
+  .tag.blue   { background: #dbeafe; color: #1e40af; }
+  .tag.green  { background: #dcfce7; color: #15803d; }
+  .tag.orange { background: #ffedd5; color: #c2410c; }
+  .tag.red    { background: #fee2e2; color: #991b1b; }
+  .tag.gray   { background: #f1f5f9; color: #475569; }
+  .nav-path {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #eff6ff;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+    padding: 2px 10px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+  /* ── Tables ── */
+  .table-wrap { overflow-x: auto; margin: 10px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 500px; }
+  th { background: var(--primary-dark); color: white; padding: 10px 12px; text-align: right; font-weight: 600; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  /* ── Alerts ── */
+  .alert {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    display: flex;
+    gap: 10px;
+    font-size: 0.87rem;
+    align-items: flex-start;
+  }
+  .alert.info    { background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af; }
+  .alert.warning { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
+  .alert.success { background: #f0fdf4; border: 1px solid #86efac; color: #15803d; }
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    margin-top: 64px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+  @media (max-width: 640px) {
+    .header { padding: 32px 18px; }
+    .sub { padding: 18px 16px; }
+  }
+  @media print {
+    .print-btn { display: none; }
+    .header, .section-num { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .sub, .shot-card { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════ -->
+<div class="header">
+  <div class="logo-row">
+    <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" aria-label="ForgeFlow">
+      <defs><linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#087FE8"/><stop offset="1" stop-color="#031B58"/></linearGradient></defs>
+      <rect width="500" height="500" rx="104" fill="url(#tile)"/>
+      <g transform="translate(62 35) scale(.76)">
+        <path d="M148 64H408C397 112 367 139 321 139H207C165 139 132 158 109 194C118 133 126 64 148 64Z" fill="#FFFFFF"/>
+        <path d="M106 185H344C332 233 301 260 256 260H169C130 260 96 280 73 314C81 257 89 214 106 185Z" fill="#08C7E8"/>
+        <path d="M79 327C119 292 165 291 204 320L329 414H220L141 354C122 340 101 330 79 327Z" fill="#FFFFFF"/>
+        <rect x="52" y="354" width="40" height="40" rx="5" fill="#08C7E8"/>
+        <rect x="100" y="316" width="40" height="40" rx="5" fill="#FFFFFF"/>
+      </g>
+    </svg>
+    <div>
+      <h1>راهنمای مدیر سیستم ForgeFlow</h1>
+      <p>آموزش گام‌به‌گام و مصور از اولین ورود تا پایان کامل یک چرخه خرید، آزمایشگاه، تولید و ردیابی</p>
+    </div>
+  </div>
+  <div class="header-actions">
+    <span class="badge-slice">اسلایس ۱۳ | نسخه main@154ca00</span>
+    <button type="button" class="print-btn" onclick="window.print()">چاپ / ذخیره PDF</button>
+  </div>
+</div>
+
+<!-- ── End-to-End Strip ── -->
+<div class="workflow-strip">
+  <div class="workflow-steps">
+    <a class="wf-step" href="#login"><div class="wf-bubble">۱</div><span>ورود و منوها</span></a>
+    <div class="wf-arrow">←</div>
+    <a class="wf-step" href="#org"><div class="wf-bubble">۲</div><span>سازمان و سایت</span></a>
+    <div class="wf-arrow">←</div>
+    <a class="wf-step" href="#users"><div class="wf-bubble">۳</div><span>کاربران و نقش‌ها</span></a>
+    <div class="wf-arrow">←</div>
+    <a class="wf-step" href="#master"><div class="wf-bubble">۴</div><span>واحد، کالا، BOM و مسیر</span></a>
+    <div class="wf-arrow">←</div>
+    <a class="wf-step" href="#procurement"><div class="wf-bubble">۵</div><span>خرید و رسید انبار</span></a>
+    <div class="wf-arrow">←</div>
+    <a class="wf-step" href="#qc"><div class="wf-bubble">۶</div><span>آزمایشگاه و گواهی COA</span></a>
+    <div class="wf-arrow">←</div>
+    <a class="wf-step" href="#production"><div class="wf-bubble">۷</div><span>رزرو و سفارش تولید</span></a>
+    <div class="wf-arrow">←</div>
+    <a class="wf-step" href="#trace-reports"><div class="wf-bubble">۸</div><span>ردیابی و گزارش‌ها</span></a>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ── TOC ── -->
+  <div class="toc">
+    <h2>فهرست راهنمای مدیر سیستم</h2>
+    <div class="toc-grid">
+      <a href="#login">۱. ورود، زبان، تم و نقشه منوهای سیستم</a>
+      <a href="#org">۲. سازمان‌ها و سایت‌ها (تنظیمات پایه)</a>
+      <a href="#users">۳. کاربران، نقش‌های سیستمی و دسترسی‌ها</a>
+      <a href="#master">۴. داده‌های پایه: واحد، کالا، BOM، مراکز کاری و فرآیند ساخت</a>
+      <a href="#procurement">۵. تأمین‌کنندگان، سفارش‌های خرید و دریافت کالا</a>
+      <a href="#qc">۶. کنترل کیفیت، پارامترهای آزمایشگاهی، الگوها و COA</a>
+      <a href="#production">۷. سفارش‌های تولید، رزرو مواد و اجرای عملیات</a>
+      <a href="#inventory">۸. انبار، گردش کالا و رزروها</a>
+      <a href="#trace-reports">۹. ردیابی لات/بچ، گزارش‌ها، ممیزی و لاگ خطاها</a>
+    </div>
+  </div>
+
+  <!-- ══ 1. LOGIN & MENU MAP ══ -->
+  <div class="section" id="login">
+    <div class="section-header">
+      <div class="section-num">۱</div>
+      <div>
+        <h2>ورود، زبان، تم و نقشه منوهای سیستم</h2>
+        <div class="section-desc">آشنایی با صفحه ورود واقعی و ساختار ۵ گروهی منوی کناری</div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>ورود به سیستم (مسیر <code>/account/login</code>)</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>ورود با حساب Bootstrap اولیه</h4>
+            <p>پس از راه‌اندازی پایگاه‌داده با ابزار Bootstrap، با نام کاربری و رمز عبور ادمین وارد شوید. در پایین کارت ورود می‌توانید بین <strong>فارسی (RTL)</strong> و <strong>English (LTR)</strong> جابه‌جا شوید.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>میانبرهای صفحه‌کلید و منوی هدر</h4>
+            <p>در بالای صفحه پس از ورود، دکمه جمع‌کردن منوی کناری، مسیر صفحه (Breadcrumb)، سوییچ زبان، زنگ اعلان‌ها و منوی پروفایل کاربر (تغییر تم روشن/تیره/سیستم، نشست‌های فعال، تغییر گذرواژه و خروج) قرار دارد. با کلید <code>Ctrl + K</code> پنجره جستجوی سریع صفحات باز می‌شود.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="shot-grid">
+        <div class="shot-card">
+          <img src="screenshots/login-light-fa.png" alt="صفحه ورود ForgeFlow در تم روشن">
+          <div class="shot-caption">تصویر واقعی برنامه — صفحه ورود <code>/account/login</code> (تم روشن، فارسی RTL)</div>
+        </div>
+        <div class="shot-card">
+          <img src="screenshots/login-dark-fa.png" alt="صفحه ورود ForgeFlow در تم تیره">
+          <div class="shot-caption">تصویر واقعی برنامه — صفحه ورود <code>/account/login</code> (تم تیره، فارسی RTL)</div>
+        </div>
+        <div class="shot-card">
+          <img src="screenshots/dashboard-fa.png" alt="داشبورد عملیاتی ForgeFlow">
+          <div class="shot-caption">تصویر واقعی برنامه — داشبورد عملیات (<code>/</code>) و ظرفیت مراکز کاری</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>نقشه کامل منوی کناری برنامه (۵ گروه اصلی)</h3>
+      <p style="font-size:0.88rem;color:var(--muted);margin-bottom:10px;">
+        آیتم‌های منو بر اساس دسترسی‌های کاربر (Role / Permission) نمایش داده می‌شوند:
+      </p>
+      <div class="table-wrap">
+        <table>
+          <tr><th>گروه منو</th><th>آیتم‌های زیرمجموعه</th><th>مسیر URL</th></tr>
+          <tr><td><strong>بدون گروه</strong></td><td>خانه (داشبورد عملیاتی)</td><td><code>/</code></td></tr>
+          <tr>
+            <td><strong>تولید</strong></td>
+            <td>سفارش‌های تولید • ساختارهای محصول (BOM) • مراکز کاری • فرآیندهای ساخت • بازرسی و قرنطینه</td>
+            <td><code>/production-orders</code>، <code>/boms</code>، <code>/work-centers</code>، <code>/routings</code>، <code>/quality</code></td>
+          </tr>
+          <tr>
+            <td><strong>انبار و موجودی</strong></td>
+            <td>انبار و گردش کالا • ردیابی لات/بچ • سفارش‌های خرید • تأمین‌کنندگان • کاتالوگ کالا • واحدهای سنجش</td>
+            <td><code>/inventory</code>، <code>/traceability</code>، <code>/purchase-orders</code>، <code>/suppliers</code>، <code>/items</code>، <code>/units</code></td>
+          </tr>
+          <tr>
+            <td><strong>تحلیل و گزارش</strong></td>
+            <td>گزارش‌ها</td>
+            <td><code>/reports</code></td>
+          </tr>
+          <tr>
+            <td><strong>مدیریت</strong></td>
+            <td>سازمان‌ها • سایت‌ها • کاربران • نقش‌ها • ممیزی و رویدادها • لاگ خطاها</td>
+            <td><code>/organizations</code>، <code>/sites</code>، <code>/users</code>، <code>/roles</code>، <code>/audit</code>، <code>/errors</code></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 2. ORG & SITES ══ -->
+  <div class="section" id="org">
+    <div class="section-header">
+      <div class="section-num">۲</div>
+      <div>
+        <h2>سازمان‌ها و سایت‌ها</h2>
+        <div class="section-desc">مدیریت ← سازمان‌ها (<code>/organizations</code>) و سایت‌ها (<code>/sites</code>)</div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>بررسی و توسعه ساختار سازمانی</h3>
+      <p style="font-size:0.88rem;color:var(--muted);margin-bottom:12px;">
+        سازمان و سایت اول هنگام Bootstrap ساخته شده‌اند. تمام داده‌های عملیاتی (کالا، انبار، خرید، تولید و کنترل کیفیت) در سطح یک <strong>سازمان</strong> و در صورت نیاز محدود به یک <strong>سایت (کارخانه/انبار)</strong> ثبت می‌شوند.
+      </p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>بررسی سازمان و تعریف ارزها</h4>
+            <p>از مسیر <span class="nav-path">مدیریت › سازمان‌ها</span> می‌توانید نام و وضعیت سازمان را مدیریت کنید. واحدهای پولی معاملاتی (مثل <code>IRR</code> و <code>USD</code>) از مسیر <span class="nav-path">انبار و موجودی › واحدهای سنجش › واحدهای پولی</span> قابل مدیریت هستند.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>تعریف سایت‌های جدید (کارخانه / سایت تولیدی)</h4>
+            <p>از مسیر <span class="nav-path">مدیریت › سایت‌ها</span> سازمان مربوطه را انتخاب کرده و با زدن دکمه افزودن سایت، کد یکتا (پس از ایجاد فقط خواندنی است) و نام سایت را ثبت کنید.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 3. USERS & ROLES ══ -->
+  <div class="section" id="users">
+    <div class="section-header">
+      <div class="section-num">۳</div>
+      <div>
+        <h2>کاربران، نقش‌های سیستمی و دسترسی‌ها</h2>
+        <div class="section-desc">مدیریت ← کاربران (<code>/users</code>) و نقش‌ها (<code>/roles</code>)</div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>نقش‌های سیستمی ثابت در مقابل نقش‌های سفارشی</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>نام نقش سیستمی</th><th>سطح اعمال (Scope)</th><th>کاربرد</th></tr>
+          <tr><td><code>OrganizationAdministrator</code></td><td>سازمان</td><td>مدیر کامل سازمان (کاربران، نقش‌ها، سازمان، سایت‌ها و دسترسی کامل)</td></tr>
+          <tr><td><code>SiteOperator</code></td><td>سایت</td><td>اپراتور محدود به سایت‌های مجاز</td></tr>
+          <tr><td><code>DeploymentProvisioner</code></td><td>پلتفرم</td><td>ایجاد سازمان‌های جدید (ساخته شده در سطح استقرار)</td></tr>
+        </table>
+      </div>
+      <div class="alert info">
+        <div>💡</div>
+        <div>برای تفکیک وظایف عملیاتی (مثل <strong>مسئول آزمایشگاه QC</strong>، <strong>کارپرداز خرید</strong>، <strong>برنامه‌ریز تولید</strong> و <strong>انباردار</strong>)، در صفحه <span class="nav-path">مدیریت › نقش‌ها</span> نقش سفارشی بسازید و مجوزهای دقیق هر ماژول را تیک بزنید.</div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <tr><th>ماژول</th><th>کدهای مجوز واقعی در سیستم</th></tr>
+          <tr><td>خرید و تأمین</td><td><code>Procurement.Read</code> • <code>Procurement.ManageSuppliers</code> • <code>Procurement.ManageOrders</code> • <code>Procurement.ReceiveOrders</code></td></tr>
+          <tr><td>آزمایشگاه و کیفیت</td><td><code>Quality.Read</code> • <code>Quality.Manage</code></td></tr>
+          <tr><td>تولید و عملیات</td><td><code>ProductionOrders.Read</code> • <code>ProductionOrders.Manage</code> • <code>Routings.Manage</code> • <code>Operations.Execute</code></td></tr>
+          <tr><td>انبار و کاتالوگ</td><td><code>Inventory.Read</code> • <code>Inventory.Manage</code> • <code>Items.Read/Manage</code> • <code>Units.Read/Manage</code> • <code>Boms.Read/Manage</code></td></tr>
+          <tr><td>گزارش و ممیزی</td><td><code>Reports.Read</code> • <code>Reports.Export</code> • <code>Audit.Read</code> • <code>Audit.Export</code> • <code>Diagnostics.ErrorLogsRead/Manage</code></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 4. MASTER DATA ══ -->
+  <div class="section" id="master">
+    <div class="section-header">
+      <div class="section-num">۴</div>
+      <div>
+        <h2>داده‌های پایه (قبل از اولین خرید و تولید)</h2>
+        <div class="section-desc">ترتیب صحیح ثبت اطلاعات پایه در ForgeFlow</div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>گام ۱: واحدهای سنجش (<span class="nav-path">انبار و موجودی › واحدهای سنجش</span> — <code>/units</code>)</h3>
+      <p style="font-size:0.88rem;color:var(--muted);">ابتدا واحدهای پایه مثل کیلوگرم (<code>KG</code>)، گرم (<code>G</code>)، لیتر (<code>L</code>) و عدد (<code>PCS</code>) و تبدیل‌های متناظر (یا با یک کلیک «افزودن واحدهای استاندارد») و واحدهای پولی را ثبت کنید.</p>
+    </div>
+
+    <div class="sub">
+      <h3>گام ۲: کاتالوگ کالا (<span class="nav-path">انبار و موجودی › کاتالوگ کالا</span> — <code>/items</code>)</h3>
+      <p style="font-size:0.88rem;color:var(--muted);margin-bottom:10px;">
+        برای هر ماده اولیه (مثل <strong>استایرن منومر</strong>)، نیمه‌ساخته یا محصول نهایی (مثل <strong>گرانول GPPS</strong>):
+      </p>
+      <ul style="padding-right:20px;font-size:0.88rem;color:var(--muted);">
+        <li>کد کالا، نام کالا، نوع کالا و واحد پایه را وارد کنید.</li>
+        <li><strong>ردیابی لات (Lot Tracking):</strong> برای مواد شیمیایی، مواد اولیه حساس و محصولات نیازمند گواهی COA حتماً فعال کنید.</li>
+        <li><strong>حالت کنترل کیفیت (QC Mode):</strong> برای مواد اولیه روی «بازرسی رسیدهای خرید/ورودی» و برای محصول نهایی روی «بازرسی رسیدهای تولید» بگذارید تا موجودی در قرنطینه قرار گیرد.</li>
+        <li><strong>واحدهای مجاز و دسته‌بندی:</strong> از جزئیات کالا می‌توانید واحدهای خرید/تولید مجاز، ویژگی‌های طبقه‌بندی و الگوی QC فعال آن کالا را مشاهده کنید.</li>
+      </ul>
+      <div class="shot-grid">
+        <div class="shot-card">
+          <img src="screenshots/units-fa.png" alt="واحدهای سنجش ForgeFlow">
+          <div class="shot-caption">واحدهای سنجش و ضرایب تبدیل استاندارد (<code>/units</code>)</div>
+        </div>
+        <div class="shot-card">
+          <img src="screenshots/items-fa.png" alt="کاتالوگ کالا ForgeFlow">
+          <div class="shot-caption">کاتالوگ کالاهای واقعی کیس‌استادی تولید پلی‌استایرن GPPS (<code>/items</code>)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>گام ۳: ساختار محصول (<span class="nav-path">تولید › ساختارهای محصول (BOM)</span> — <code>/boms</code>)</h3>
+      <p style="font-size:0.88rem;color:var(--muted);">کالای خروجی، مقدار مبنای تولید (مثلاً ۱۰۰۰ کیلوگرم بچ: ۹۷۹ کیلوگرم استایرن منومر + ۱۹ کیلوگرم روغن سفید + ۲ کیلوگرم زینک استئارات) را ثبت، «تایید نسخه» و «فعال‌سازی» کنید.</p>
+      <div class="shot-grid">
+        <div class="shot-card">
+          <img src="screenshots/bom-fa.png" alt="نسخه‌های ساختار محصول BOM">
+          <div class="shot-caption">جزئیات و نسخه‌های BOM برای محصول GPPS (<code>/boms</code>)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>گام ۴: مراکز کاری و فرآیندهای ساخت (<span class="nav-path">تولید › مراکز کاری</span> و <span class="nav-path">فرآیندهای ساخت</span>)</h3>
+      <p style="font-size:0.88rem;color:var(--muted);">ابتدا مراکز کاری (مثل راکتور، خط اکستروژن، بسته‌بندی) را در <code>/work-centers</code> بسازید، سپس در <code>/routings</code> مراحل توالی تولید هر محصول را با زمان راه‌اندازی و اجرا به مراکز کاری متصل کنید.</p>
+    </div>
+  </div>
+
+  <!-- ══ 5. PROCUREMENT -->
+  <div class="section" id="procurement">
+    <div class="section-header">
+      <div class="section-num">۵</div>
+      <div>
+        <h2>تأمین‌کنندگان، سفارش‌های خرید و دریافت کالا</h2>
+        <div class="section-desc">انبار و موجودی ← تأمین‌کنندگان (<code>/suppliers</code>) و سفارش‌های خرید (<code>/purchase-orders</code>)</div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>فرآیند خرید تا قرنطینه ورودی</h3>
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 860 110" xmlns="http://www.w3.org/2000/svg">
+          <defs><marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="#475569"/></marker></defs>
+          <rect x="680" y="20" width="160" height="65" rx="10" fill="#f8fafc" stroke="#64748b" stroke-width="2"/><text x="760" y="48" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="13" font-weight="700">۱. ثبت تأمین‌کننده</text><text x="760" y="68" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#475569">/suppliers</text>
+          <line x1="678" y1="52" x2="635" y2="52" stroke="#475569" stroke-width="2" marker-end="url(#a1)"/>
+          <rect x="470" y="20" width="160" height="65" rx="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/><text x="550" y="48" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="13" font-weight="700" fill="#1e40af">۲. ایجاد و تأیید PO</text><text x="550" y="68" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#3b82f6">/purchase-orders</text>
+          <line x1="468" y1="52" x2="425" y2="52" stroke="#475569" stroke-width="2" marker-end="url(#a1)"/>
+          <rect x="245" y="20" width="175" height="65" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="2"/><text x="332" y="48" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="13" font-weight="700" fill="#92400e">۳. دریافت کالا + شماره لات</text><text x="332" y="68" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#b45309">ورود به قرنطینه (در صورت QC)</text>
+          <line x1="243" y1="52" x2="200" y2="52" stroke="#475569" stroke-width="2" marker-end="url(#a1)"/>
+          <rect x="20" y="20" width="175" height="65" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/><text x="107" y="48" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="13" font-weight="700" fill="#166534">۴. ایجاد خودکار بازرسی QC</text><text x="107" y="68" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#15803d">با الگوی آزمایشگاهی کالا</text>
+        </svg>
+      </div>
+      <p style="font-size:0.88rem;color:var(--muted);">
+        هنگام زدن دکمه «ثبت رسید کالا» روی سفارش خرید تأییدشده، انبار مقصد، مقدار دریافتی و کد لات (Lot Code) وارد می‌شود. اگر کالا دارای مشخصات بازرسی (Spec) فعال برای نقطه کنترل ورودی باشد، سطرهای آزمایش به‌صورت خودکار روی برگه بازرسی قرار می‌گیرند.
+      </p>
+      <div class="shot-grid">
+        <div class="shot-card">
+          <img src="screenshots/suppliers-fa.png" alt="تأمین‌کنندگان">
+          <div class="shot-caption">فهرست تأمین‌کنندگان مواد اولیه و افزودنی‌ها (<code>/suppliers</code>)</div>
+        </div>
+        <div class="shot-card">
+          <img src="screenshots/purchase-orders-fa.png" alt="سفارش‌های خرید">
+          <div class="shot-caption">سفارش‌های خرید تأیید و دریافت‌شده (<code>/purchase-orders</code>)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 6. QC & LAB SPECS & COA ══ -->
+  <div class="section" id="qc">
+    <div class="section-header">
+      <div class="section-num">۶</div>
+      <div>
+        <h2>کنترل کیفیت، پارامترهای آزمایشگاهی، الگوها و COA</h2>
+        <div class="section-desc">تولید ← بازرسی و قرنطینه (<code>/quality</code>) — ۴ تب تخصصی</div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>معماری داینامیک پارامترهای آزمایشگاهی برای هزاران کالا</h3>
+      <p style="font-size:0.88rem;color:var(--muted);margin-bottom:12px;">
+        برای جلوگیری از محدودیت به یک نوع پارامتر، در صفحه <span class="nav-path">تولید › بازرسی و قرنطینه</span> سیستم به ۲ لایه تقسیم شده است:
+      </p>
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 880 185" xmlns="http://www.w3.org/2000/svg">
+          <defs><marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 1 L10 5 L0 9 z" fill="#0b4ab8"/></marker></defs>
+          <rect x="640" y="18" width="225" height="145" rx="12" fill="#eff6ff" stroke="#0b4ab8" stroke-width="2"/>
+          <text x="752" y="45" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="13" font-weight="800" fill="#071b3d">تب: پارامترهای آزمایشگاهی</text>
+          <text x="752" y="72" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11.5" fill="#1e40af">کتابخانه عمومی تست‌ها:</text>
+          <text x="752" y="96" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#334155">• کد و نام (مثلاً MFI)</text>
+          <text x="752" y="116" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#334155">• نماد / روش آزمون (ASTM)</text>
+          <text x="752" y="136" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#334155">• واحد (g/10min) + نوع داده</text>
+
+          <line x1="636" y1="90" x2="592" y2="90" stroke="#0b4ab8" stroke-width="2" marker-end="url(#a2)"/>
+
+          <rect x="345" y="18" width="242" height="145" rx="12" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+          <text x="466" y="45" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="13" font-weight="800" fill="#78350f">تب: الگوها و مشخصات بازرسی</text>
+          <text x="466" y="72" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11.5" fill="#92400e">انتساب حدود مجاز به کالا/دسته:</text>
+          <text x="466" y="96" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#334155">• هدف: کالا یا دسته‌بندی</text>
+          <text x="466" y="116" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#334155">• حداقل / حداکثر / مقدار هدف</text>
+          <text x="466" y="136" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#334155">• الزامی بودن + نسخه الگو</text>
+
+          <line x1="341" y1="90" x2="297" y2="90" stroke="#0b4ab8" stroke-width="2" marker-end="url(#a2)"/>
+
+          <rect x="18" y="18" width="275" height="145" rx="12" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+          <text x="155" y="45" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="13" font-weight="800" fill="#14532d">تب: بازرسی‌ها و گواهی COA</text>
+          <text x="155" y="72" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11.5" fill="#15803d">اجرای خودکار هنگام ورود لات:</text>
+          <text x="155" y="96" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#334155">• ورود عدد ← تشخیص Pass/Fail</text>
+          <text x="155" y="116" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#334155">• ثبت شماره گواهی (COA)</text>
+          <text x="155" y="136" text-anchor="middle" font-family="Vazirmatn,Tahoma" font-size="11" fill="#334155">• صدور و چاپ برگه آنالیز لات</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>گام‌به‌گام ثبت گزارش آزمایشگاه برای یک لات ورودی (مثال: استایرن منومر)</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>۱) تعریف پارامترها در تب «پارامترهای آزمایشگاهی»</h4>
+            <p>برای هر نوع آزمون (مثلاً <code>MFI</code>، خلوص، رطوبت، دانسیته) یک بار پارامتر را با کد، نام، نماد نمایشی، روش آزمون، واحد و نوع داده (عددی / متنی / بولین) تعریف کنید.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>۲) ساخت الگو در تب «الگوها و مشخصات بازرسی»</h4>
+            <p>الگو را برای کالا (مثلاً استایرن منومر) یا دسته‌بندی کالا ایجاد کرده و پارامترهای مورد نظر را با حداقل، حداکثر، مقدار هدف و وضعیت الزامی اضافه کنید. در صفحه کاتالوگ کالا هم الگوی فعال آن کالا قابل مشاهده است.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>۳) ورود اندازه‌گیری‌های واقعی در تب «بازرسی‌ها و قرنطینه»</h4>
+            <p>روی بازرسی در انتظار کلیک کنید. اگر الگو بعداً ساخته شده، دکمه <strong>بارگذاری الگوی مشخصات</strong> را بزنید. مقادیر عددی آزمایشگاه را وارد کرده و شماره گواهی (<code>CertificateNumber</code>) را ثبت کنید. سیستم به‌طور خودکار انطباق با محدوده (Pass/Fail) را محاسبه می‌کند.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>۴) ثبت رأی نهایی (Disposition) و مشاهده گواهی آنالیز (COA)</h4>
+            <p>در صورت رد شدن یک پارامتر، قبول با ارفاق (Concession) نیازمند ثبت دلیل ارفاق است. پس از ثبت رأی، در صفحه کنترل کیفیت، جزئیات لات، سفارش تولید، انبار و ردیابی، دکمه مشاهده و چاپ <strong>گواهی آنالیز (COA)</strong> برای ارائه به واحد تولید یا مشتری در دسترس است.</p>
+          </div>
+        </div>
+      </div>
+      <div class="shot-grid">
+        <div class="shot-card">
+          <img src="screenshots/quality-params-fa.png" alt="پارامترهای آزمایشگاهی">
+          <div class="shot-caption">کتابخانه پارامترهای آزمایشگاهی (<code>MFI</code>، <code>Vicat</code>، <code>PURITY</code> و ...)</div>
+        </div>
+        <div class="shot-card">
+          <img src="screenshots/quality-specs-fa.png" alt="الگوها و مشخصات بازرسی">
+          <div class="shot-caption">الگوها و حدود استاندارد بازرسی به ازای هر کالا</div>
+        </div>
+        <div class="shot-card">
+          <img src="screenshots/qc-lab-fa.png" alt="ثبت نتایج آزمایشگاه">
+          <div class="shot-caption">ثبت مقادیر عددی آزمایشگاه و ارزیابی خودکار Pass/Fail</div>
+        </div>
+        <div class="shot-card">
+          <img src="screenshots/gpps-final-coa-fa.png" alt="گواهی آنالیز نهایی GPPS">
+          <div class="shot-caption">گواهی آنالیز لات محصول نهایی GPPS (<code>COA</code>)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 7. PRODUCTION ORDERS ══ -->
+  <div class="section" id="production">
+    <div class="section-header">
+      <div class="section-num">۷</div>
+      <div>
+        <h2>سفارش‌های تولید، رزرو مواد و اجرای عملیات</h2>
+        <div class="section-desc">تولید ← سفارش‌های تولید (<code>/production-orders</code>)</div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>چرخه کامل تولید از پیش‌نویس تا محصول نهایی</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>ایجاد و آزادسازی (Draft ← Released)</h4>
+            <p>محصول، مقدار برنامه‌ریزی‌شده، سایت و انبار مقصد را انتخاب کنید. سیستم ساختار BOM و مراحل فرآیند ساخت را روی سفارش اسنپ‌شات می‌کند. با زدن «آزادسازی» سفارش آماده تأمین مواد و اجرا می‌شود.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>رزرو موجودی مواد اولیه</h4>
+            <p>برای هر ماده مصرفی، دکمه <strong>رزرو</strong> را بزنید تا به روش FIFO یا با انتخاب دستی انبار/لات (همراه با گواهی COA قابل مشاهده)، موجودی از مقدار آزاد (Available) کسر و به این سفارش اختصاص یابد.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>شروع، اجرای عملیات کارگاهی و مصرف مواد</h4>
+            <p>مراحل Routing را در بخش عملیات شروع و تکمیل کنید و اسناد مصرف مواد اولیه (<code>ProductionIssue</code>) را ثبت نمایید؛ رزروهای تخصیص‌یافته به‌صورت خودکار با مصرف کالا تسویه (Consume) می‌شوند.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>تکمیل تولید (<code>Complete</code>)</h4>
+            <p>با ثبت مقدار واقعی تولیدشده، موجودی محصول نهایی (و لات تولیدی) در انبار مقصد ثبت شده و رزروهای باقی‌مانده به‌صورت خودکار آزاد (Release) می‌شوند.</p>
+          </div>
+        </div>
+      </div>
+      <div class="shot-grid">
+        <div class="shot-card">
+          <img src="screenshots/production-order-fa.png" alt="میز کار سفارش تولید">
+          <div class="shot-caption">میز کار سفارش تولید تکمیل‌شده GPPS (<code>/production-orders</code>)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 8. INVENTORY ══ -->
+  <div class="section" id="inventory">
+    <div class="section-header">
+      <div class="section-num">۸</div>
+      <div>
+        <h2>انبار، گردش کالا و رزروها</h2>
+        <div class="section-desc">انبار و موجودی ← انبار و گردش کالا (<code>/inventory</code>)</div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>تب‌های صفحه انبار</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>نام تب</th><th>کاربرد مدیریتی</th></tr>
+          <tr><td><strong>موجودی فعلی</strong></td><td>مشاهده موجودی کل، مقدار مسدود (قرنطینه)، مقدار رزرو شده و مقدار قابل دسترس (Available) به تفکیک انبار و لات + مشاهده COA</td></tr>
+          <tr><td><strong>اسناد و گردش کالا</strong></td><td>ثبت رسید دستی، حواله مصرف، انتقال بین انبارها و تعدیل موجودی</td></tr>
+          <tr><td><strong>انبارها</strong></td><td>تعریف انبارهای هر سایت (مواد اولیه، قرنطینه، محصول نهایی)</td></tr>
+          <tr><td><strong>رزروها</strong></td><td>مدیریت یکپارچه همه رزروهای فعال سفارش‌های تولید و آزادسازی دستی در صورت نیاز</td></tr>
+        </table>
+      </div>
+      <div class="shot-grid">
+        <div class="shot-card">
+          <img src="screenshots/inventory-fa.png" alt="انبار و گردش کالا">
+          <div class="shot-caption">موجودی لات‌های مواد اولیه و محصول نهایی GPPS (<code>/inventory</code>)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 9. TRACEABILITY, REPORTS, AUDIT ══ -->
+  <div class="section" id="trace-reports">
+    <div class="section-header">
+      <div class="section-num">۹</div>
+      <div>
+        <h2>ردیابی لات/بچ، گزارش‌ها، ممیزی و لاگ خطاها</h2>
+        <div class="section-desc">پایش زنجیره تأمین، انحراف مصرف و سلامت سیستم</div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>ردیابی کامل زنجیره (<span class="nav-path">انبار و موجودی › ردیابی لات/بچ</span> — <code>/traceability</code>)</h3>
+      <p style="font-size:0.88rem;color:var(--muted);">با انتخاب کالا و شماره لات، مسیر کامل از تأمین‌کننده و سفارش خرید، نتایج بازرسی و گواهی COA تا مصرف در سفارش‌های تولید و لات محصول نهایی را ردیابی کنید.</p>
+      <div class="shot-grid">
+        <div class="shot-card">
+          <img src="screenshots/traceability-fa.png" alt="ردیابی لات/بچ">
+          <div class="shot-caption">ردیابی رو به عقب گرانول <code>LOT-GPPS-1405-02</code> تا مواد اولیه (<code>/traceability</code>)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>گزارش‌های تحلیلی و مدیریتی (<span class="nav-path">تحلیل و گزارش › گزارش‌ها</span> — <code>/reports</code>)</h3>
+      <p style="font-size:0.88rem;color:var(--muted);">شامل گزارش کمبود مواد (با کسر موجودی رزرو شده و مسدود)، انحراف مصرف واقعی نسبت به BOM استاندارد، خلاصه تولید و وضعیت کیفیت، همراه با خروجی قابل دانلود.</p>
+      <div class="shot-grid">
+        <div class="shot-card">
+          <img src="screenshots/reports-fa.png" alt="گزارش مغایرت مصرف و بازده">
+          <div class="shot-caption">گزارش مغایرت مصرف و بازده تولید سفارش‌های GPPS (<code>/reports</code>)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub">
+      <h3>ممیزی و عیب‌یابی (<span class="nav-path">مدیریت › ممیزی و رویدادها</span> و <span class="nav-path">لاگ خطاها</span>)</h3>
+      <p style="font-size:0.88rem;color:var(--muted);">تمام تغییرات سازمانی، امنیتی و عملیاتی با شناسه Correlation و عامل ثبت می‌شوند و ادمین می‌تواند سوابق ممیزی را در <code>/audit</code> و خطاهای احتمالی سیستم را در <code>/errors</code> بررسی کند.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>سند زنده راهنمای مدیر سیستم ForgeFlow | هماهنگ با اسلایس ۱۳ (<code>main@154ca00</code>)</p>
+    <p style="margin-top:4px;">مسیر نگهداری در مخزن: <code>docs/admin-guide-fa.html</code> — پس از افزودن هر اسلایس جدید، بخش متناظر و اسکرین‌شات آن را به‌روزرسانی کنید.</p>
+  </div>
+
+</div>
+</body>
+</html>

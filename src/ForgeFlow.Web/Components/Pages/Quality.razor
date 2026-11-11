@@ -182,7 +182,7 @@
                 <div class="read-grid">
                     <BitDataGrid @ref="inspGrid" TItem="QualityInspectionSummary" OnRead="ReadInspectionsAsync" Pageable="true" PageSize="25"
                                  PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="qc-title" WrapCellText="true">
+                                 AriaLabelledBy="qc-title" WrapCellText="true" Resizable="true">
                         <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
                         <Columns>
                             <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["QcNumberColumn"]">
@@ -264,7 +264,7 @@
                 <div class="read-grid">
                     <BitDataGrid @ref="lotGrid" TItem="ItemLotSummary" OnRead="ReadLotsAsync" Pageable="true" PageSize="25"
                                  PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="qc-title" WrapCellText="true">
+                                 AriaLabelledBy="qc-title" WrapCellText="true" Resizable="true">
                         <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
                         <Columns>
                             <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["BomLineItemColumn"]">
@@ -323,7 +323,7 @@
                 <div class="read-grid">
                     <BitDataGrid @ref="paramGrid" TItem="QualityParameterSummary" OnRead="ReadParametersAsync" Pageable="true" PageSize="25"
                                  PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="qc-title" WrapCellText="true">
+                                 AriaLabelledBy="qc-title" WrapCellText="true" Resizable="true">
                         <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
                         <Columns>
                             <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["ReadCode"]">
@@ -367,10 +367,16 @@
                                                            Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
                                                            OnClick="() => OpenParameterModal(p)" />
                                             </BitTooltip>
-                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)"
-                                                       OnClick="() => ToggleParameterActiveAsync(p)">
-                                                @Text[p.IsActive ? "WriteDeactivate" : "WriteActivate"]
-                                            </BitButton>
+                                            @{
+                                                var paramToggleLabel = Text[p.IsActive ? "WriteDeactivate" : "WriteActivate"];
+                                            }
+                                            <BitTooltip Text="@paramToggleLabel" ShowOnFocus="true">
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)"
+                                                           Class="@($"read-detail-action {(p.IsActive ? "read-action-deactivate" : "read-action-activate")}")"
+                                                           Icon="@(p.IsActive ? DeactivateIcon : ActivateIcon)" IconOnly="true"
+                                                           aria-label="@paramToggleLabel"
+                                                           OnClick="() => ToggleParameterActiveAsync(p)" />
+                                            </BitTooltip>
                                         </div>
                                     }
                                 </Template>
@@ -386,14 +392,14 @@
                 <div class="read-grid">
                     <BitDataGrid @ref="specGrid" TItem="QualitySpecSummary" OnRead="ReadSpecsAsync" Pageable="true" PageSize="25"
                                  PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="qc-title" WrapCellText="true">
+                                 AriaLabelledBy="qc-title" WrapCellText="true" Resizable="true">
                         <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
                         <Columns>
                             <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["ReadCode"]">
                                 <Template Context="s">
                                     <div>
                                         <div class="read-primary-cell"><bdi dir="ltr">@s.Code</bdi></div>
-                                        <div class="read-sub-cell" dir="ltr">v@s.Version</div>
+                                        <div class="read-sub-cell" dir="ltr">v@(s.Version)</div>
                                     </div>
                                 </Template>
                             </BitDataGridColumn>
@@ -441,10 +447,14 @@
                                         </BitTooltip>
                                         @if (scopeCanManage)
                                         {
-                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)"
-                                                       OnClick="() => ToggleSpecActiveAsync(s)">
-                                                @Text[s.IsActive ? "WriteDeactivate" : "WriteActivate"]
-                                            </BitButton>
+                                            var specToggleLabel = Text[s.IsActive ? "WriteDeactivate" : "WriteActivate"];
+                                            <BitTooltip Text="@specToggleLabel" ShowOnFocus="true">
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)"
+                                                           Class="@($"read-detail-action {(s.IsActive ? "read-action-deactivate" : "read-action-activate")}")"
+                                                           Icon="@(s.IsActive ? DeactivateIcon : ActivateIcon)" IconOnly="true"
+                                                           aria-label="@specToggleLabel"
+                                                           OnClick="() => ToggleSpecActiveAsync(s)" />
+                                            </BitTooltip>
                                         }
                                     </div>
                                 </Template>
@@ -651,7 +661,7 @@
                                         <input type="text" maxlength="100" @bind="line.ExpectedSpec" placeholder="@Text["QcExpectedSpecPlaceholder"]" />
                                         @if (line.DataType == QualityParameterDataType.Numeric)
                                         {
-                                            <input type="number" step="any" value="@line.MeasuredNumericValue" @onchange="e => OnNumericMeasuredChanged(line, e)"
+                                            <input type="number" step="any" dir="ltr" value="@(line.MeasuredNumericValue?.ToString("0.######", CultureInfo.InvariantCulture))" @onchange="e => OnNumericMeasuredChanged(line, e)"
                                                    placeholder="@Text["QcMeasuredValPlaceholder"]" />
                                         }
                                         else
@@ -1018,6 +1028,8 @@
         Overlay = "read-dialog-overlay"
     };
     private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
+    private static readonly BitIconInfo DeactivateIcon = BitIconInfo.Css("ff-icon ff-icon--deactivate");
+    private static readonly BitIconInfo ActivateIcon = BitIconInfo.Css("ff-icon ff-icon--activate");
     private static readonly BitIconInfo PlusIcon = BitIconInfo.Css("ff-icon ff-icon--plus");
     private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
     private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");

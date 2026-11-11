@@ -79,6 +79,7 @@
         <div class="read-grid-card">
             <div class="read-grid">
                 <BitDataGrid @ref="grid" TItem="SupplierSummary" OnRead="ReadSuppliersAsync" Pageable="true" PageSize="25"
+                             Resizable="true" WrapCellText="true"
                              PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["Suppliers"]">
                     <Columns>
                         <BitDataGridColumn TItem="SupplierSummary" Title="@Text["ReadCode"]">
@@ -113,10 +114,14 @@
                                     </BitTooltip>
                                     @if (scopeCanManage)
                                     {
-                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
-                                                   OnClick="() => OpenToggleActiveConfirm(s)">
-                                            @(s.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
-                                        </BitButton>
+                                        var toggleLabel = Text[s.IsActive ? "WriteDeactivate" : "WriteActivate"];
+                                        <BitTooltip Text="@toggleLabel" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                                                       Class="@($"read-detail-action {(s.IsActive ? "read-action-deactivate" : "read-action-activate")}")"
+                                                       Icon="@(s.IsActive ? DeactivateIcon : ActivateIcon)" IconOnly="true"
+                                                       aria-label="@toggleLabel"
+                                                       OnClick="() => OpenToggleActiveConfirm(s)" />
+                                        </BitTooltip>
                                     }
                                 </div>
                             </Template>
@@ -267,6 +272,8 @@
     };
 
     private BitDataGrid<SupplierSummary>? grid;
+    private static readonly BitIconInfo DeactivateIcon = BitIconInfo.Css("ff-icon ff-icon--deactivate");
+    private static readonly BitIconInfo ActivateIcon = BitIconInfo.Css("ff-icon ff-icon--activate");
     private List<OrganizationScope> available = [];
     private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
         new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();

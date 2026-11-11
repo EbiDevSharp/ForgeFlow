@@ -174,7 +174,7 @@
                 <div class="read-grid">
                     <BitDataGrid @ref="balGrid" TItem="InventoryBalanceSummary" OnRead="ReadBalancesAsync" Pageable="true" PageSize="25"
                                  PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="inv-title" WrapCellText="true">
+                                 AriaLabelledBy="inv-title" WrapCellText="true" Resizable="true">
                         <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
                         <Columns>
                             <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvWarehouseLabel"]">
@@ -247,7 +247,7 @@
                 <div class="read-grid">
                     <BitDataGrid @ref="txnGrid" TItem="InventoryTransactionSummary" OnRead="ReadTransactionsAsync" Pageable="true" PageSize="25"
                                  PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="inv-title" WrapCellText="true">
+                                 AriaLabelledBy="inv-title" WrapCellText="true" Resizable="true">
                         <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
                         <Columns>
                             <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["InvDocNumberLabel"]">
@@ -295,7 +295,7 @@
                 <div class="read-grid">
                     <BitDataGrid @ref="whGrid" TItem="WarehouseSummary" OnRead="ReadWarehousesAsync" Pageable="true" PageSize="25"
                                  PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="inv-title" WrapCellText="true">
+                                 AriaLabelledBy="inv-title" WrapCellText="true" Resizable="true">
                         <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
                         <Columns>
                             <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["ReadCode"]">
@@ -349,7 +349,7 @@
                 <div class="read-grid">
                     <BitDataGrid @ref="resGrid" TItem="StockReservationSummary" OnRead="ReadReservationsAsync" Pageable="true" PageSize="25"
                                  PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="inv-title" WrapCellText="true">
+                                 AriaLabelledBy="inv-title" WrapCellText="true" Resizable="true">
                         <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
                         <Columns>
                             <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvResOrderColumn"]">
@@ -507,7 +507,7 @@
                     </div>
                     <div class="write-field">
                         <label for="inv-post-wh">@Text["InvWarehouseLabel"]</label>
-                        <select id="inv-post-wh" @bind="postWarehouseId">
+                        <select id="inv-post-wh" @bind="postWarehouseId" @bind:after="() => postWarehouseManual = true">
                             @foreach (var w in activeWarehouses)
                             {
                                 <option value="@w.Id">@w.Code — @w.Name (@w.SiteCode)</option>
@@ -816,6 +816,7 @@
     private string postDocNumber = string.Empty;
     private InventoryTransactionType postType = InventoryTransactionType.Receipt;
     private long postWarehouseId;
+    private bool postWarehouseManual;
     private long postDestWarehouseId;
     private long postProductionOrderId;
     private string? postReferenceNote;
@@ -1193,6 +1194,7 @@
         postLines.Clear();
         postType = prefillPoId.HasValue ? InventoryTransactionType.ProductionIssue : InventoryTransactionType.Receipt;
         postProductionOrderId = prefillPoId ?? 0;
+        postWarehouseManual = false;
         postWarehouseId = activeWarehouses.FirstOrDefault(w => w.IsDefaultForSite)?.Id ?? activeWarehouses.FirstOrDefault()?.Id ?? 0;
 
         if (prefillPoId.HasValue)
@@ -1224,16 +1226,36 @@
         var res = await OrderService.GetOrder(scope, ScopeOrganizationId(scope), poId);
         if (!res.Succeeded) return;
         var details = res.Value!;
-        var matchingWh = activeWarehouses.FirstOrDefault(w => w.SiteId == details.Summary.SiteId && w.IsDefaultForSite)
-                         ?? activeWarehouses.FirstOrDefault(w => w.SiteId == details.Summary.SiteId);
-        if (matchingWh is not null)
-            postWarehouseId = matchingWh.Id;
+        IReadOnlyList<StockReservationSummary> reservations = [];
+        if (postType == InventoryTransactionType.ProductionIssue)
+        {
+            var resList = await ResService.ListReservations(scope, details.Summary.OrganizationId,
+                new ReservationListQuery(ProductionOrderId: poId, OpenOnly: true, Page: 1, PageSize: 100));
+            if (resList.Succeeded)
+                reservations = resList.Value!.Items;
+        }
+
+        var hasManualSiteWh = postWarehouseManual && activeWarehouses.Any(w => w.Id == postWarehouseId && w.SiteId == details.Summary.SiteId);
+        if (!hasManualSiteWh)
+        {
+            var reservedWhId = reservations.FirstOrDefault()?.WarehouseId;
+            var matchingWh = (reservedWhId.HasValue ? activeWarehouses.FirstOrDefault(w => w.Id == reservedWhId.Value && w.SiteId == details.Summary.SiteId) : null)
+                             ?? activeWarehouses.FirstOrDefault(w => w.SiteId == details.Summary.SiteId && w.IsDefaultForSite)
+                             ?? activeWarehouses.FirstOrDefault(w => w.SiteId == details.Summary.SiteId);
+            if (matchingWh is not null)
+                postWarehouseId = matchingWh.Id;
+        }
 
         postLines.Clear();
         if (postType == InventoryTransactionType.ProductionIssue)
         {
             foreach (var inp in details.Inputs.Where(i => !i.IsSubAssembly))
-                postLines.Add(new PostLineRow { ItemId = inp.ItemId, Quantity = inp.GrossQuantity, UnitId = inp.UnitId });
+            {
+                var lot = reservations.FirstOrDefault(r => r.WarehouseId == postWarehouseId && r.ItemId == inp.ItemId)?.LotCode
+                          ?? reservations.FirstOrDefault(r => r.ItemId == inp.ItemId)?.LotCode
+                          ?? string.Empty;
+                postLines.Add(new PostLineRow { ItemId = inp.ItemId, LotCode = lot, Quantity = inp.GrossQuantity, UnitId = inp.UnitId });
+            }
         }
         else if (postType == InventoryTransactionType.ProductionReceipt)
         {

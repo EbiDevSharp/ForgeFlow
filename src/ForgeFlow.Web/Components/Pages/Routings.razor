@@ -103,11 +103,12 @@
         <div class="read-grid-card">
             <div class="read-grid">
                 <BitDataGrid @ref="grid" TItem="RoutingSummary" OnRead="ReadRoutingsAsync" Pageable="true" PageSize="25"
+                             Resizable="true" WrapCellText="true"
                              PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["Routings"]">
                     <Columns>
                         <BitDataGridColumn TItem="RoutingSummary" Title="@Text["ReadCode"]">
                             <Template Context="r">
-                                <bdi dir="ltr"><strong>@r.Code</strong> v@r.VersionNumber</bdi>
+                                <bdi dir="ltr"><strong>@r.Code</strong> v@(r.VersionNumber)</bdi>
                                 @if (r.IsDefault)
                                 {
                                     <span class="cap-badge">@Text["RtDefaultBadge"]</span>
@@ -238,7 +239,7 @@
                 <div class="write-form audit-modal-body po-workbench-body">
                     <div class="po-wb-top">
                         <div>
-                            <strong dir="ltr">@summary.Code v@summary.VersionNumber</strong> — @summary.Name
+                            <strong dir="ltr">@summary.Code v@(summary.VersionNumber)</strong> — @summary.Name
                             <div class="write-hint" dir="ltr">@summary.ItemSku — @summary.ItemName (@summary.SiteCode)</div>
                         </div>
                         <div style="display:flex; gap:6px; align-items:center;">
@@ -278,7 +279,7 @@
                                     </select>
                                 </div>
                                 <div class="write-field po-field-full">
-                                    <label class="read-inactive">
+                                    <label class="perm-check">
                                         <input type="checkbox" @bind="editIsDefault" />
                                         <span>@Text["RtIsDefaultLabel"]</span>
                                     </label>

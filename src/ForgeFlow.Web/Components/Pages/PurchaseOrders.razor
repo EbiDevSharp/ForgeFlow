@@ -120,15 +120,16 @@
         <div class="read-grid-card">
             <div class="read-grid">
                 <BitDataGrid @ref="grid" TItem="PurchaseOrderSummary" OnRead="ReadOrdersAsync" Pageable="true" PageSize="25"
+                             Resizable="true" WrapCellText="true"
                              PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["PurchaseOrders"]">
                     <Columns>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcPoNumberLabel"]">
+                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcPoNumberLabel"]" Width="150px" MinWidth="140">
                             <Template Context="o"><bdi dir="ltr">@o.OrderNumber</bdi></Template>
                         </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["PoSiteColumn"]">
+                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["PoSiteColumn"]" Width="106px" MinWidth="92">
                             <Template Context="o"><bdi dir="ltr">@o.SiteCode</bdi> — @o.SiteName</Template>
                         </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcSupplierLabel"]">
+                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcSupplierLabel"]" Width="144px" MinWidth="120">
                             <Template Context="o">
                                 <div>
                                     <div class="read-primary-cell">@o.SupplierName</div>
@@ -136,15 +137,15 @@
                                 </div>
                             </Template>
                         </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["PoStatusColumn"]">
+                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["PoStatusColumn"]" Width="94px" MinWidth="84">
                             <Template Context="o">
                                 <span class="read-badge @StatusBadgeClass(o.Status)">@StatusLabel(o.Status)</span>
                             </Template>
                         </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcOrderDateLabel"]">
+                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcOrderDateLabel"]" Width="104px" MinWidth="96">
                             <Template Context="o"><bdi dir="ltr">@Format.Date(o.OrderDate)</bdi></Template>
                         </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcExpectedDateLabel"]">
+                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcExpectedDateLabel"]" Width="96px" MinWidth="84">
                             <Template Context="o">
                                 @if (o.ExpectedDeliveryDate is DateOnly d)
                                 {
@@ -156,12 +157,12 @@
                                 }
                             </Template>
                         </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcProgressColumn"]">
+                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcProgressColumn"]" Width="138px" MinWidth="126">
                             <Template Context="o">
                                 <bdi dir="ltr">@Format.Number(o.TotalReceivedBaseQuantity) / @Format.Number(o.TotalOrderedBaseQuantity)</bdi>
                             </Template>
                         </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcEstimatedTotalLabel"]">
+                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcEstimatedTotalLabel"]" Width="146px" MinWidth="136">
                             <Template Context="o">
                                 @if (o.TotalEstimatedAmount is decimal amt)
                                 {
@@ -173,7 +174,7 @@
                                 }
                             </Template>
                         </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ReadActions"]">
+                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ReadActions"]" Width="72px" MinWidth="66">
                             <Template Context="o">
                                 <div class="read-row-actions">
                                     <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
@@ -362,42 +363,71 @@
                     {
                         <p role="alert" class="write-error">@modalError</p>
                     }
-                    <div class="audit-meta">
-                        <div><span class="audit-meta-label">@Text["ProcPoNumberLabel"]</span><span class="audit-meta-val" dir="ltr">@summary.OrderNumber</span></div>
-                        <div><span class="audit-meta-label">@Text["PoSiteColumn"]</span><span class="audit-meta-val" dir="ltr">@summary.SiteCode — @summary.SiteName</span></div>
-                        <div><span class="audit-meta-label">@Text["ProcSupplierLabel"]</span><span class="audit-meta-val">@summary.SupplierName (<bdi dir="ltr">@summary.SupplierCode</bdi>)</span></div>
-                        <div>
-                            <span class="audit-meta-label">@Text["PoStatusColumn"]</span>
+                    <div class="ff-detail-hero">
+                        <div class="ff-detail-hero-main">
+                            <span class="ff-detail-hero-code" dir="ltr">@summary.OrderNumber</span>
+                            <span class="ff-detail-hero-sub">@summary.SupplierName (<bdi dir="ltr">@summary.SupplierCode</bdi>) · <bdi dir="ltr">@summary.SiteCode — @summary.SiteName</bdi></span>
+                        </div>
+                        <div class="ff-detail-hero-badges">
+                            @if (summary.TotalEstimatedAmount is decimal estHeroTotal)
+                            {
+                                <span class="cap-badge" dir="ltr">@Format.CurrencyAmount(estHeroTotal, summary.CurrencyCode)</span>
+                            }
                             <span class="read-badge @StatusBadgeClass(summary.Status)">@StatusLabel(summary.Status)</span>
                         </div>
-                        <div><span class="audit-meta-label">@Text["ProcOrderDateLabel"]</span><span class="audit-meta-val" dir="ltr">@Format.Date(summary.OrderDate)</span></div>
-                        @if (summary.ExpectedDeliveryDate is DateOnly expDate)
-                        {
-                            <div><span class="audit-meta-label">@Text["ProcExpectedDateLabel"]</span><span class="audit-meta-val" dir="ltr">@Format.Date(expDate)</span></div>
-                        }
-                        @if (summary.TargetWarehouseCode is not null)
-                        {
-                            <div><span class="audit-meta-label">@Text["ProcTargetWarehouseLabel"]</span><span class="audit-meta-val" dir="ltr">@summary.TargetWarehouseCode — @summary.TargetWarehouseName</span></div>
-                        }
-                        <div><span class="audit-meta-label">@Text["ProcCurrencyLabel"]</span><span class="audit-meta-val" dir="ltr">@summary.CurrencyCode</span></div>
-                        @if (summary.TotalEstimatedAmount is decimal estTotal)
-                        {
-                            <div><span class="audit-meta-label">@Text["ProcEstimatedTotalLabel"]</span><span class="audit-meta-val" dir="ltr">@Format.CurrencyAmount(estTotal, summary.CurrencyCode)</span></div>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(summary.Notes))
-                        {
-                            <div><span class="audit-meta-label">@Text["PoNotesLabel"]</span><span class="audit-meta-val">@summary.Notes</span></div>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(summary.CancellationReason))
-                        {
-                            <div><span class="audit-meta-label">@Text["PoCancelReasonLabel"]</span><span class="audit-meta-val">@summary.CancellationReason</span></div>
-                        }
                     </div>
 
-                    <div class="item-sub-card">
-                        <strong>@Text["ProcLinesSection"]</strong>
-                        <div class="bom-lines-wrap">
-                            <table class="read-table">
+                    <div class="ff-kv-table-wrap">
+                        <table class="ff-kv-table">
+                            <tbody>
+                                <tr>
+                                    <th scope="row">@Text["ProcPoNumberLabel"]</th>
+                                    <td dir="ltr">@summary.OrderNumber</td>
+                                    <th scope="row">@Text["PoStatusColumn"]</th>
+                                    <td><span class="read-badge @StatusBadgeClass(summary.Status)">@StatusLabel(summary.Status)</span></td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">@Text["ProcSupplierLabel"]</th>
+                                    <td>@summary.SupplierName (<bdi dir="ltr">@summary.SupplierCode</bdi>)</td>
+                                    <th scope="row">@Text["PoSiteColumn"]</th>
+                                    <td dir="ltr">@summary.SiteCode — @summary.SiteName</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">@Text["ProcOrderDateLabel"]</th>
+                                    <td dir="ltr">@Format.Date(summary.OrderDate)</td>
+                                    <th scope="row">@Text["ProcExpectedDateLabel"]</th>
+                                    <td dir="ltr">@(summary.ExpectedDeliveryDate is DateOnly expDate ? Format.Date(expDate) : "—")</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">@Text["ProcTargetWarehouseLabel"]</th>
+                                    <td dir="ltr">@(summary.TargetWarehouseCode is not null ? $"{summary.TargetWarehouseCode} — {summary.TargetWarehouseName}" : "—")</td>
+                                    <th scope="row">@Text["ProcCurrencyLabel"]</th>
+                                    <td dir="ltr">@summary.CurrencyCode</td>
+                                </tr>
+                                @if (summary.TotalEstimatedAmount.HasValue || !string.IsNullOrWhiteSpace(summary.Notes))
+                                {
+                                    <tr>
+                                        <th scope="row">@Text["ProcEstimatedTotalLabel"]</th>
+                                        <td dir="ltr">@(summary.TotalEstimatedAmount is decimal estTotal ? Format.CurrencyAmount(estTotal, summary.CurrencyCode) : "—")</td>
+                                        <th scope="row">@Text["PoNotesLabel"]</th>
+                                        <td>@(string.IsNullOrWhiteSpace(summary.Notes) ? "—" : summary.Notes)</td>
+                                    </tr>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(summary.CancellationReason))
+                                {
+                                    <tr>
+                                        <th scope="row">@Text["PoCancelReasonLabel"]</th>
+                                        <td colspan="3">@summary.CancellationReason</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="audit-modal-section">
+                        <h3 class="audit-section-heading">@Text["ProcLinesSection"]</h3>
+                        <div class="audit-fields-box" style="overflow-x:auto;">
+                            <table class="audit-fields-table">
                                 <thead>
                                     <tr>
                                         <th>#</th>
@@ -437,10 +467,10 @@
 
                     @if (selectedOrder.Receipts.Count > 0)
                     {
-                        <div class="item-sub-card">
-                            <strong>@Text["ProcReceiptsHistoryTitle"]</strong>
-                            <div class="bom-lines-wrap">
-                                <table class="read-table">
+                        <div class="audit-modal-section">
+                            <h3 class="audit-section-heading">@Text["ProcReceiptsHistoryTitle"]</h3>
+                            <div class="audit-fields-box" style="overflow-x:auto;">
+                                <table class="audit-fields-table">
                                     <thead>
                                         <tr>
                                             <th>@Text["InvDocNumberLabel"]</th>

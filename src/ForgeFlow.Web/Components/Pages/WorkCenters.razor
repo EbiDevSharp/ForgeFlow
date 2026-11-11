@@ -131,6 +131,7 @@
         <div class="read-grid-card">
             <div class="read-grid">
                 <BitDataGrid @ref="grid" TItem="WorkCenterSummary" OnRead="ReadWorkCentersAsync" Pageable="true" PageSize="25"
+                             Resizable="true" WrapCellText="true"
                              PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["WorkCenters"]">
                     <Columns>
                         <BitDataGridColumn TItem="WorkCenterSummary" Title="@Text["ReadCode"]">
@@ -168,9 +169,14 @@
                                     </BitTooltip>
                                     @if (scopeCanManage)
                                     {
-                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => ToggleActiveAsync(wc)">
-                                            @(wc.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
-                                        </BitButton>
+                                        var toggleLabel = Text[wc.IsActive ? "WriteDeactivate" : "WriteActivate"];
+                                        <BitTooltip Text="@toggleLabel" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                                                       Class="@($"read-detail-action {(wc.IsActive ? "read-action-deactivate" : "read-action-activate")}")"
+                                                       Icon="@(wc.IsActive ? DeactivateIcon : ActivateIcon)" IconOnly="true"
+                                                       aria-label="@toggleLabel"
+                                                       OnClick="() => ToggleActiveAsync(wc)" />
+                                        </BitTooltip>
                                     }
                                 </div>
                             </Template>
@@ -348,6 +354,8 @@
     };
 
     private BitDataGrid<WorkCenterSummary>? grid;
+    private static readonly BitIconInfo DeactivateIcon = BitIconInfo.Css("ff-icon ff-icon--deactivate");
+    private static readonly BitIconInfo ActivateIcon = BitIconInfo.Css("ff-icon ff-icon--activate");
 
     private bool initialLoading = true;
     private string? pageError;

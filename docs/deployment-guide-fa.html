@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>راهنمای استقرار ForgeFlow</title>
+<!-- SLICE: 13 | Last updated: 2026-11-11 | App version: main@154ca00 -->
+<style>
+  @font-face {
+    font-family: 'Vazirmatn';
+    src: url('assets/Vazirmatn.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+  }
+  :root {
+    --primary: #0b4ab8;
+    --primary-dark: #071b3d;
+    --accent: #0789ed;
+    --cyan: #08c7e8;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --muted: #475569;
+    --code-bg: #0f172a;
+    --code-text: #e2e8f0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Vazirmatn', 'Segoe UI', Tahoma, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.85;
+    font-size: 15px;
+  }
+  code {
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    background: #e2e8f0;
+    color: #0f172a;
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 0.85em;
+    direction: ltr;
+    display: inline-block;
+  }
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, #031b58 0%, #0646b8 55%, #0789ed 100%);
+    color: white;
+    padding: 44px 28px;
+    text-align: center;
+  }
+  .header .logo-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .header .logo-icon {
+    width: 60px; height: 60px;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+    flex-shrink: 0;
+  }
+  .header h1 { font-size: 1.95rem; font-weight: 800; margin-bottom: 4px; }
+  .header p { font-size: 1rem; opacity: 0.9; }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+  .badge-slice {
+    display: inline-block;
+    background: rgba(255,255,255,0.16);
+    border: 1px solid rgba(255,255,255,0.32);
+    color: white;
+    font-size: 0.78rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+  .print-btn {
+    background: rgba(255,255,255,0.95);
+    color: #0646b8;
+    border: none;
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  /* ── Layout ── */
+  .container { max-width: 960px; margin: 0 auto; padding: 36px 20px 80px; }
+  /* ── TOC ── */
+  .toc {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 26px;
+    margin-bottom: 36px;
+    box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+  }
+  .toc h2 { font-size: 1rem; color: var(--muted); margin-bottom: 14px; font-weight: 700; }
+  .toc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px 20px;
+  }
+  .toc a { color: var(--primary); text-decoration: none; font-weight: 500; font-size: 0.92rem; }
+  .toc a:hover { text-decoration: underline; }
+  /* ── Section ── */
+  .section { margin-bottom: 52px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 22px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+  }
+  .section-num {
+    width: 40px; height: 40px;
+    background: var(--primary);
+    color: white;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 1.05rem;
+    flex-shrink: 0;
+  }
+  .section h2 { font-size: 1.28rem; font-weight: 700; color: var(--text); }
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin-bottom: 18px;
+    box-shadow: 0 2px 8px rgba(15,23,42,0.03);
+  }
+  .card h3 { font-size: 1.02rem; font-weight: 700; margin-bottom: 12px; color: var(--primary-dark); }
+  /* ── Prereq grid ── */
+  .prereq-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .prereq-item {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 14px;
+    text-align: center;
+  }
+  .prereq-item .icon { font-size: 1.8rem; margin-bottom: 8px; }
+  .prereq-item strong { display: block; font-size: 0.94rem; margin-bottom: 4px; }
+  .prereq-item span { font-size: 0.82rem; color: var(--muted); }
+  /* ── Steps ── */
+  .steps { counter-reset: step; }
+  .step {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+    counter-increment: step;
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 34px; height: 34px;
+    background: var(--primary);
+    color: white;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-top: 2px;
+  }
+  .step-num::before { content: counter(step); }
+  .step-body { flex: 1; min-width: 0; }
+  .step-body h4 { font-size: 0.96rem; font-weight: 700; margin-bottom: 6px; }
+  .step-body p { font-size: 0.9rem; color: var(--muted); margin-bottom: 8px; }
+  /* ── Code ── */
+  .code-label {
+    font-size: 0.76rem;
+    color: var(--muted);
+    margin: 10px 0 4px;
+    font-weight: 600;
+  }
+  .code-block {
+    background: var(--code-bg);
+    color: var(--code-text);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 6px 0 12px;
+    overflow-x: auto;
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    font-size: 0.83rem;
+    line-height: 1.65;
+    direction: ltr;
+    text-align: left;
+    white-space: pre;
+  }
+  .cmd { color: #93c5fd; }
+  .cmt { color: #64748b; }
+  .val { color: #86efac; }
+  .kw  { color: #f9a8d4; }
+  /* ── Arch diagram ── */
+  .diagram-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 18px;
+    overflow-x: auto;
+  }
+  .diagram-card svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+  /* ── Checklist ── */
+  .checklist-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .progress-pill {
+    background: #dbeafe;
+    color: #1e40af;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+  .reset-check-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-family: inherit;
+    font-size: 0.78rem;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .checklist { list-style: none; }
+  .checklist li {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist input[type="checkbox"] {
+    width: 18px; height: 18px;
+    margin-top: 4px;
+    accent-color: var(--primary);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .checklist li.checked span { text-decoration: line-through; color: var(--muted); }
+  /* ── Alerts ── */
+  .alert {
+    border-radius: 10px;
+    padding: 13px 16px;
+    margin: 12px 0;
+    display: flex;
+    gap: 10px;
+    font-size: 0.88rem;
+    align-items: flex-start;
+  }
+  .alert.warning { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
+  .alert.info    { background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af; }
+  .alert.success { background: #f0fdf4; border: 1px solid #86efac; color: #15803d; }
+  .alert.danger  { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
+  /* ── Tables ── */
+  .table-wrap { overflow-x: auto; margin: 10px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.87rem; min-width: 520px; }
+  th { background: var(--primary-dark); color: white; padding: 10px 14px; text-align: right; font-weight: 600; }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  /* ── Rollback ── */
+  .rollback-steps { background: #fef2f2; border: 1px solid #fca5a5; border-radius: 14px; padding: 22px; }
+  .rollback-steps h4 { color: #991b1b; margin-bottom: 12px; }
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    margin-top: 64px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+  @media (max-width: 640px) {
+    .header { padding: 32px 18px; }
+    .card { padding: 18px 16px; }
+    .step { gap: 12px; }
+  }
+  @media print {
+    .print-btn, .reset-check-btn { display: none; }
+    .header, .section-num { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .card, .diagram-card { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════ -->
+<div class="header">
+  <div class="logo-row">
+    <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" aria-label="ForgeFlow">
+      <defs><linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#087FE8"/><stop offset="1" stop-color="#031B58"/></linearGradient></defs>
+      <rect width="500" height="500" rx="104" fill="url(#tile)"/>
+      <g transform="translate(62 35) scale(.76)">
+        <path d="M148 64H408C397 112 367 139 321 139H207C165 139 132 158 109 194C118 133 126 64 148 64Z" fill="#FFFFFF"/>
+        <path d="M106 185H344C332 233 301 260 256 260H169C130 260 96 280 73 314C81 257 89 214 106 185Z" fill="#08C7E8"/>
+        <path d="M79 327C119 292 165 291 204 320L329 414H220L141 354C122 340 101 330 79 327Z" fill="#FFFFFF"/>
+        <rect x="52" y="354" width="40" height="40" rx="5" fill="#08C7E8"/>
+        <rect x="100" y="316" width="40" height="40" rx="5" fill="#FFFFFF"/>
+      </g>
+    </svg>
+    <div>
+      <h1>راهنمای استقرار ForgeFlow</h1>
+      <p>نصب، مایگریشن ۳ اسکیما، مقداردهی اولیه (Bootstrap)، پیکربندی IIS و چک‌لیست راه‌اندازی</p>
+    </div>
+  </div>
+  <div class="header-actions">
+    <span class="badge-slice">اسلایس ۱۳ | نسخه main@154ca00 | Target: .NET 10.0.14</span>
+    <button type="button" class="print-btn" onclick="window.print()">چاپ / ذخیره PDF</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ── TOC ── -->
+  <div class="toc">
+    <h2>فهرست بخش‌ها</h2>
+    <div class="toc-grid">
+      <a href="#arch">۱. معماری استقرار و اسکیماها</a>
+      <a href="#prereq">۲. پیش‌نیازهای سرور</a>
+      <a href="#publish">۳. ساخت و انتشار برنامه (Publish)</a>
+      <a href="#config">۴. پیکربندی، Data Protection و امنیت</a>
+      <a href="#db">۵. ایجاد DB و اجرای Migration‌ها</a>
+      <a href="#bootstrap">۶. راه‌اندازی اولیه با ForgeFlow.Bootstrap</a>
+      <a href="#iis">۷. پیکربندی IIS و HTTPS</a>
+      <a href="#verify">۸. تست اولین اجرا و کنترل سلامت</a>
+      <a href="#checklist">۹. چک‌لیست تعاملی Go-Live</a>
+      <a href="#update-rollback">۱۰. به‌روزرسانی و بازگشت (Rollback)</a>
+    </div>
+  </div>
+
+  <!-- ══ 1. ARCH ══ -->
+  <div class="section" id="arch">
+    <div class="section-header">
+      <div class="section-num">۱</div>
+      <h2>معماری استقرار و اسکیماهای پایگاه داده</h2>
+    </div>
+
+    <div class="diagram-card">
+      <svg viewBox="0 0 880 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="نمودار معماری ForgeFlow">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 z" fill="#475569"/>
+          </marker>
+        </defs>
+        <!-- Client -->
+        <rect x="650" y="65" width="205" height="120" rx="14" fill="#eff6ff" stroke="#3b82f6" stroke-width="2"/>
+        <text x="752" y="102" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="15" font-weight="700" fill="#1e3a8a">مرورگر کاربر</text>
+        <text x="752" y="128" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="12" fill="#3b82f6">HTTPS :443 + SignalR (WSS)</text>
+        <text x="752" y="152" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="11" fill="#475569">Secure Cookie + Antiforgery</text>
+
+        <!-- Arrow Client <-> IIS/App -->
+        <line x1="646" y1="125" x2="578" y2="125" stroke="#475569" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+
+        <!-- Web Host -->
+        <rect x="330" y="30" width="242" height="195" rx="14" fill="#f0fdf4" stroke="#16a34a" stroke-width="2"/>
+        <text x="451" y="62" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="15" font-weight="700" fill="#14532d">IIS + ForgeFlow.Web</text>
+        <text x="451" y="86" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="11.5" fill="#15803d">ASP.NET Core 10.0 / Blazor Server</text>
+        <rect x="348" y="102" width="206" height="44" rx="8" fill="#ffffff" stroke="#bbf7d0"/>
+        <text x="451" y="121" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="11" font-weight="700" fill="#166534">Data Protection Key Ring</text>
+        <text x="451" y="138" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="10.5" fill="#475569">کلید رمزنگاری کوکی نشست‌ها</text>
+        <rect x="348" y="158" width="206" height="48" rx="8" fill="#ffffff" stroke="#bbf7d0"/>
+        <text x="451" y="178" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="11" font-weight="700" fill="#166534">ConnectionStrings:ForgeFlow</text>
+        <text x="451" y="196" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="10.5" fill="#475569">دسترسی محدود Runtime (بدون دسترسی DDL)</text>
+
+        <!-- Arrow App <-> SQL -->
+        <line x1="326" y1="125" x2="262" y2="125" stroke="#475569" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+
+        <!-- SQL Server -->
+        <rect x="20" y="25" width="236" height="205" rx="14" fill="#fffbeb" stroke="#d97706" stroke-width="2"/>
+        <text x="138" y="55" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="15" font-weight="700" fill="#78350f">SQL Server</text>
+        <text x="138" y="74" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="11" fill="#92400e">یک پایگاه‌داده با ۳ DbContext</text>
+        <rect x="36" y="88" width="204" height="36" rx="7" fill="#ffffff" stroke="#fde68a"/>
+        <text x="138" y="110" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="11" font-weight="700" fill="#92400e">AuthDbContext (اسکیما auth)</text>
+        <rect x="36" y="132" width="204" height="36" rx="7" fill="#ffffff" stroke="#fde68a"/>
+        <text x="138" y="154" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="11" font-weight="700" fill="#92400e">OrganizationDbContext (کسب‌وکار)</text>
+        <rect x="36" y="176" width="204" height="36" rx="7" fill="#ffffff" stroke="#fde68a"/>
+        <text x="138" y="198" text-anchor="middle" font-family="Vazirmatn, Tahoma" font-size="11" font-weight="700" fill="#92400e">DiagnosticsDbContext (لاگ خطا)</text>
+      </svg>
+    </div>
+
+    <div class="card">
+      <h3>مشخصات فنی واقعی پروژه</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>مؤلفه</th><th>مقدار دقیق در مخزن</th><th>توضیح استقرار</th></tr>
+          <tr><td>پلتفرم و SDK</td><td><code>net10.0</code> / SDK <code>10.0.403</code></td><td>Runtime روی سرور باید <code>10.0.14</code> یا بالاتر در سری 10.0 باشد</td></tr>
+          <tr><td>رابط کاربری</td><td>Blazor Server + Bit.BlazorUI</td><td>نیازمند WebSocket فعال در IIS برای Circuit</td></tr>
+          <tr><td>پایگاه داده</td><td>SQL Server 2019+</td><td>میزبانی ۳ کانتکست: Auth (۶ مایگریشن)، Organization (۱۲)، Diagnostics (۱)</td></tr>
+          <tr><td>ابزار راه‌اندازی اولیه</td><td><code>tools/ForgeFlow.Bootstrap</code></td><td>جدا از Web؛ تنها راه ایجاد حساب Admin، سازمان و سایت اول</td></tr>
+          <tr><td>پروتکل ارتباطی</td><td>HTTPS + Secure Cookies</td><td>کوکی نشست روی HTTP ساده کار نمی‌کند؛ گواهی TLS الزامی است</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 2. PREREQ ══ -->
+  <div class="section" id="prereq">
+    <div class="section-header">
+      <div class="section-num">۲</div>
+      <h2>پیش‌نیازهای سرور</h2>
+    </div>
+
+    <div class="prereq-grid">
+      <div class="prereq-item">
+        <div class="icon">🖥️</div>
+        <strong>سیستم‌عامل</strong>
+        <span>Windows Server 2019 / 2022 (64-bit)</span>
+      </div>
+      <div class="prereq-item">
+        <div class="icon">⚙️</div>
+        <strong>.NET 10 Hosting Bundle</strong>
+        <span>ASP.NET Core Runtime <code>10.0.14+</code> و ANCM v2</span>
+      </div>
+      <div class="prereq-item">
+        <div class="icon">🗄️</div>
+        <strong>SQL Server</strong>
+        <span>SQL Server 2019+ (با TLS فعال / گواهی معتبر)</span>
+      </div>
+      <div class="prereq-item">
+        <div class="icon">🌐</div>
+        <strong>IIS + WebSocket</strong>
+        <span>نقش IIS با ویژگی WebSocket Protocol</span>
+      </div>
+      <div class="prereq-item">
+        <div class="icon">🔒</div>
+        <strong>گواهی SSL/TLS</strong>
+        <span>گواهی معتبر دامنه برای پورت 443</span>
+      </div>
+      <div class="prereq-item">
+        <div class="icon">💾</div>
+        <strong>منابع سخت‌افزاری</strong>
+        <span>حداقل ۴GB RAM (پیشنهاد ۸GB) و ۱۰GB فضای دیسک</span>
+      </div>
+    </div>
+
+    <div class="alert info">
+      <div>💡</div>
+      <div>حتماً پس از نصب IIS، ماژول <strong>WebSocket Protocol</strong> را از مسیر <code>Server Manager → Web Server (IIS) → Application Development</code> فعال کنید تا ارتباط Blazor Server قطع و وصل نشود.</div>
+    </div>
+  </div>
+
+  <!-- ══ 3. PUBLISH ══ -->
+  <div class="section" id="publish">
+    <div class="section-header">
+      <div class="section-num">۳</div>
+      <h2>ساخت و انتشار برنامه (Publish)</h2>
+    </div>
+
+    <div class="card">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>انتشار فایل‌های وب (<code>ForgeFlow.Web</code>)</h4>
+            <p>در سرور بیلد یا سیستم استقرار، پروژه وب را با پیکربندی Release منتشر کنید. فایل <code>packages.lock.json</code> باید دست‌نخورده بماند.</p>
+            <div class="code-label">PowerShell — پوشه ریشه مخزن</div>
+            <div class="code-block"><span class="cmd">dotnet</span> publish .\src\ForgeFlow.Web\ForgeFlow.Web.csproj -c Release -o .\publish\web</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>انتشار ابزار مقداردهی اولیه (<code>ForgeFlow.Bootstrap</code>)</h4>
+            <p>این ابزار فقط روی میزبان استقرار (نه در پوشه عمومی IIS) قرار می‌گیرد و برای ساخت اولین ادمین یا بازیابی رمز استفاده می‌شود.</p>
+            <div class="code-label">PowerShell — پوشه ریشه مخزن</div>
+            <div class="code-block"><span class="cmd">dotnet</span> publish .\tools\ForgeFlow.Bootstrap\ForgeFlow.Bootstrap.csproj -c Release -o .\publish\bootstrap</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>انتقال به مسیرهای جداگانه روی سرور</h4>
+            <p>پوشه <code>.\publish\web</code> را به <code>C:\inetpub\forgeflow\</code> و پوشه <code>.\publish\bootstrap</code> را به یک مسیر مدیریتی محدود مثل <code>C:\ops\forgeflow-bootstrap\</code> کپی کنید.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 4. CONFIG ══ -->
+  <div class="section" id="config">
+    <div class="section-header">
+      <div class="section-num">۴</div>
+      <h2>پیکربندی، Data Protection و امنیت</h2>
+    </div>
+
+    <div class="card">
+      <h3>تنظیم رشته اتصال و محیط اجرا</h3>
+      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:10px;">
+        برنامه کلید <code>ConnectionStrings:ForgeFlow</code> (یا متغیر محیطی <code>ConnectionStrings__ForgeFlow</code>) را می‌خواند. در محیط Production، این مقدار را از طریق <code>appsettings.Production.json</code> (در پوشه <code>C:\inetpub\forgeflow\</code> با دسترسی NTFS محدود) یا متغیر محیطی IIS تنظیم کنید:
+      </p>
+      <div class="code-label">appsettings.Production.json</div>
+      <div class="code-block">{
+  <span class="val">"ConnectionStrings"</span>: {
+    <span class="val">"ForgeFlow"</span>: <span class="val">"Server=SQLHOST;Database=ForgeFlow;User Id=forgeflow_runtime;Password=STRONG_PASSWORD;Encrypt=True;TrustServerCertificate=False;"</span>
+  },
+  <span class="val">"Logging"</span>: {
+    <span class="val">"LogLevel"</span>: { <span class="val">"Default"</span>: <span class="val">"Warning"</span> }
+  },
+  <span class="val">"AllowedHosts"</span>: <span class="val">"forgeflow.company.local"</span>
+}</div>
+      <div class="alert warning">
+        <div>⚠️</div>
+        <div>برنامه هنگام استارتاپ <strong>هرگز Migration یا Seed خودکار انجام نمی‌دهد</strong>. بنابراین حساب <code>forgeflow_runtime</code> نباید <code>db_owner</code> باشد؛ نقش <code>ForgeFlowOrganizationRuntime</code> و دسترسی‌های حداقلی برای آن کافی است.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>تنظیمات محیطی و Data Protection در Production</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>متغیر / تنظیم</th><th>مقدار</th><th>نکته کلیدی</th></tr>
+          <tr><td><code>ASPNETCORE_ENVIRONMENT</code></td><td><code>Production</code></td><td>در محیط Production تنظیم شود</td></tr>
+          <tr><td><code>ConnectionStrings__ForgeFlow</code></td><td>رشته اتصال SQL</td><td>نام دقیق کلید در برنامه <code>ForgeFlow</code> است</td></tr>
+          <tr><td>Data Protection (IIS)</td><td>Load User Profile = True</td><td>در محیط Production تنظیم شود تا کوکی‌های احراز هویت پس از ریستارت App Pool باطل نشوند</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 5. DB ══ -->
+  <div class="section" id="db">
+    <div class="section-header">
+      <div class="section-num">۵</div>
+      <h2>ایجاد پایگاه داده و اجرای Migration‌ها</h2>
+    </div>
+
+    <div class="card">
+      <h3>مرحله ۵.۱ — ایجاد پایگاه‌داده و تفکیک حساب Provisioning و Runtime</h3>
+      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:10px;">
+        در معماری ForgeFlow، حسابی که Migration‌ها و Bootstrap را اجرا می‌کند (دارای <code>db_owner</code>) باید از حساب اجرای عادی وب (<code>forgeflow_runtime</code>) جدا باشد:
+      </p>
+      <div class="code-label">SQL Server (با دسترسی sysadmin / dbcreator)</div>
+      <div class="code-block"><span class="kw">CREATE DATABASE</span> ForgeFlow;
+<span class="kw">GO</span>
+<span class="cmt">-- حساب موقت/عملیاتی برای اعمال Migration و اجرای Bootstrap</span>
+<span class="kw">CREATE LOGIN</span> forgeflow_provision <span class="kw">WITH PASSWORD</span> = <span class="val">'PROVISION_STRONG_PASS'</span>;
+<span class="cmt">-- حساب محدود برای اجرای عادی وب‌اپلیکیشن</span>
+<span class="kw">CREATE LOGIN</span> forgeflow_runtime   <span class="kw">WITH PASSWORD</span> = <span class="val">'RUNTIME_STRONG_PASS'</span>;
+
+<span class="kw">USE</span> ForgeFlow;
+<span class="kw">CREATE USER</span> forgeflow_provision <span class="kw">FOR LOGIN</span> forgeflow_provision;
+<span class="kw">ALTER ROLE</span> db_owner <span class="kw">ADD MEMBER</span> forgeflow_provision;
+
+<span class="kw">CREATE USER</span> forgeflow_runtime <span class="kw">FOR LOGIN</span> forgeflow_runtime;
+<span class="cmt">-- پس از اعمال مایگریشن‌ها، عضویت زیر توسط اسکریپت‌های مایگریشن یا DBA تکمیل می‌شود</span></div>
+    </div>
+
+    <div class="card">
+      <h3>مرحله ۵.۲ — اعمال Migration برای هر ۳ DbContext</h3>
+      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:10px;">
+        ساختار دیتابیس از ۳ کانتکست مستقل تشکیل شده است که باید با رشته اتصال Provisioning به ترتیب زیر اعمال شوند:
+      </p>
+      <div class="code-label">PowerShell — از پوشه ریشه مخزن (با نصب بودن dotnet-ef)</div>
+      <div class="code-block"><span class="kw">$env:ConnectionStrings__ForgeFlow</span> = <span class="val">"Server=SQLHOST;Database=ForgeFlow;User Id=forgeflow_provision;Password=PROVISION_STRONG_PASS;Encrypt=True;"</span>
+
+<span class="cmt"># ۱) کانتکست احراز هویت (۶ مایگریشن)</span>
+<span class="cmd">dotnet</span> ef database update --context AuthDbContext --project .\src\ForgeFlow.Infrastructure --startup-project .\src\ForgeFlow.Web
+
+<span class="cmt"># ۲) کانتکست سازمان، تولید، انبار، خرید و آزمایشگاه (۱۲ مایگریشن)</span>
+<span class="cmd">dotnet</span> ef database update --context OrganizationDbContext --project .\src\ForgeFlow.Infrastructure --startup-project .\src\ForgeFlow.Web
+
+<span class="cmt"># ۳) کانتکست خطاها و لاگ عملیاتی (۱ مایگریشن)</span>
+<span class="cmd">dotnet</span> ef database update --context DiagnosticsDbContext --project .\src\ForgeFlow.Infrastructure --startup-project .\src\ForgeFlow.Web</div>
+      <div class="alert info">
+        <div>ℹ️</div>
+        <div>می‌توانید به جای اجرای مستقیم <code>dotnet ef database update</code> روی سرور نهایی، اسکریپت‌های Idempotent را با <code>dotnet ef migrations script --idempotent</code> تولید کرده و توسط DBA در SQL Server اجرا کنید.</div>
+      </div>
+
+      <h3 style="margin-top:18px;">فهرست Migration‌های فعلی (تا اسلایس ۱۳)</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>DbContext</th><th>تعداد</th><th>از اولین مایگریشن تا آخرین مایگریشن</th></tr>
+          <tr><td><code>AuthDbContext</code></td><td>۶</td><td><code>IdentityBootstrapBaseline</code> ← ... ← <code>SessionDeviceTokenHash</code></td></tr>
+          <tr><td><code>OrganizationDbContext</code></td><td>۱۲</td><td><code>OrganizationSitesBaseline</code> ← ... ← <code>LabParametersSpecsAndCoa</code></td></tr>
+          <tr><td><code>DiagnosticsDbContext</code></td><td>۱</td><td><code>DiagnosticsErrorAndOperationLogs</code></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 6. BOOTSTRAP ══ -->
+  <div class="section" id="bootstrap">
+    <div class="section-header">
+      <div class="section-num">۶</div>
+      <h2>راه‌اندازی اولیه با ForgeFlow.Bootstrap</h2>
+    </div>
+
+    <div class="card">
+      <h3>مرحله ۶.۱ — ایجاد اولین ادمین، سازمان و سایت</h3>
+      <p style="font-size:0.9rem;color:var(--muted);margin-bottom:10px;">
+        ابزار <code>ForgeFlow.Bootstrap</code> هیچ رمز عبوری را در آرگومان خط فرمان قبول نمی‌کند و فقط در یک ترمینال تعاملی (Interactive) اجرا می‌شود.
+      </p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>تنظیم متغیر اتصال Provisioning در نشست جاری</h4>
+            <div class="code-block"><span class="kw">$env:FORGEFLOW_BOOTSTRAP_SQLSERVER</span> = <span class="val">"Server=SQLHOST;Database=ForgeFlow;User Id=forgeflow_provision;Password=PROVISION_STRONG_PASS;Encrypt=True;"</span>
+<span class="cmd">.\ForgeFlow.Bootstrap.exe</span> initialize-deployment</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>ورود تعاملی مقادیر در ترمینال</h4>
+            <p>برنامه سرور و دیتابیس هدف را نمایش می‌دهد و به ترتیب این موارد را می‌پرسد:</p>
+            <ul style="padding-right:20px;color:var(--muted);font-size:0.88rem;">
+              <li>تایپ عبارت دقیق <code>INITIALIZE</code> برای تأیید مسئولیت اپراتور</li>
+              <li><code>Operation ID</code> (با Enter یک GUID جدید ساخته می‌شود؛ آن را یادداشت کنید)</li>
+              <li>نام کاربری ادمین اولیه (<code>Initial account username</code>)</li>
+              <li>کد سازمان (<code>Organization code</code>) و نام سازمان (<code>Organization name</code>)</li>
+              <li>کد سایت اول (<code>Site code</code>) و نام سایت اول (<code>Site name</code>)</li>
+              <li>رمز عبور و تکرار رمز عبور (به‌صورت مخفی و بدون نمایش کاراکتر)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>پاک کردن متغیر محیطی پس از اتمام</h4>
+            <div class="code-block"><span class="cmd">Remove-Item</span> Env:FORGEFLOW_BOOTSTRAP_SQLSERVER</div>
+            <div class="alert success">
+              <div>✅</div>
+              <div>خروجی موفق: <code>Result: Auth.Initialized; operation: ...</code> — این دستور پس از تکمیل، راه‌اندازی مجدد روی همان دیتابیس را مسدود می‌کند.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3 style="margin-top:16px;">مرحله ۶.۲ — بازیابی رمز عبور ادمین در مواقع اضطراری</h3>
+      <p style="font-size:0.88rem;color:var(--muted);margin-bottom:8px;">
+        در صورت فراموشی رمز ادمین، صفحه ورود قابلیت Forgot Password عمومی ندارد؛ اپراتور سرور باید با حضور مالک حساب از دستور <code>reset-password</code> استفاده کند:
+      </p>
+      <div class="code-block"><span class="kw">$env:FORGEFLOW_RECOVERY_SQLSERVER</span> = <span class="val">"Server=SQLHOST;Database=ForgeFlow;User Id=forgeflow_provision;Password=PROVISION_STRONG_PASS;Encrypt=True;"</span>
+<span class="cmd">.\ForgeFlow.Bootstrap.exe</span> reset-password
+<span class="cmt"># تایپ RECOVER → شناسه عددی کاربر (Verified account ID) → رمز جدید</span>
+<span class="cmd">Remove-Item</span> Env:FORGEFLOW_RECOVERY_SQLSERVER</div>
+    </div>
+  </div>
+
+  <!-- ══ 7. IIS ══ -->
+  <div class="section" id="iis">
+    <div class="section-header">
+      <div class="section-num">۷</div>
+      <h2>پیکربندی IIS و HTTPS</h2>
+    </div>
+
+    <div class="card">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>تنظیم Application Pool</h4>
+            <p>یک Application Pool با نام <code>ForgeFlow</code> بسازید:</p>
+            <ul style="padding-right:20px;color:var(--muted);font-size:0.88rem;">
+              <li>.NET CLR Version: <strong>No Managed Code</strong></li>
+              <li>Managed Pipeline Mode: <strong>Integrated</strong></li>
+              <li>در <em>Advanced Settings → Process Model</em>: مقدار <strong>Load User Profile = True</strong> (برای نگهداری امن کلیدهای Data Protection)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>فایل <code>web.config</code></h4>
+            <div class="code-block">&lt;?xml version=<span class="val">"1.0"</span> encoding=<span class="val">"utf-8"</span>?&gt;
+&lt;<span class="kw">configuration</span>&gt;
+  &lt;<span class="kw">location</span> path=<span class="val">"."</span> inheritInChildApplications=<span class="val">"false"</span>&gt;
+    &lt;<span class="kw">system.webServer</span>&gt;
+      &lt;<span class="kw">handlers</span>&gt;
+        &lt;<span class="kw">add</span> name=<span class="val">"aspNetCore"</span> path=<span class="val">"*"</span> verb=<span class="val">"*"</span> modules=<span class="val">"AspNetCoreModuleV2"</span> resourceType=<span class="val">"Unspecified"</span> /&gt;
+      &lt;/<span class="kw">handlers</span>&gt;
+      &lt;<span class="kw">aspNetCore</span> processPath=<span class="val">"dotnet"</span> arguments=<span class="val">".\ForgeFlow.Web.dll"</span> stdoutLogEnabled=<span class="val">"false"</span> hostingModel=<span class="val">"InProcess"</span>&gt;
+        &lt;<span class="kw">environmentVariables</span>&gt;
+          &lt;<span class="kw">environmentVariable</span> name=<span class="val">"ASPNETCORE_ENVIRONMENT"</span> value=<span class="val">"Production"</span> /&gt;
+        &lt;/<span class="kw">environmentVariables</span>&gt;
+      &lt;/<span class="kw">aspNetCore</span>&gt;
+    &lt;/<span class="kw">system.webServer</span>&gt;
+  &lt;/<span class="kw">location</span>&gt;
+&lt;/<span class="kw">configuration</span>&gt;</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>ساخت Website و اتصال HTTPS</h4>
+            <p>سایت را به <code>C:\inetpub\forgeflow</code> متصل کنید، Binding از نوع <strong>https</strong> روی پورت <code>443</code> با گواهی SSL معتبر اضافه کنید و دسترسی خواندن/اجرا را به حساب App Pool بدهید:</p>
+            <div class="code-block"><span class="cmd">icacls</span> <span class="val">"C:\inetpub\forgeflow"</span> /grant <span class="val">"IIS AppPool\ForgeFlow:(OI)(CI)RX"</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 8. VERIFY ══ -->
+  <div class="section" id="verify">
+    <div class="section-header">
+      <div class="section-num">۸</div>
+      <h2>تست اولین اجرا و کنترل سلامت</h2>
+    </div>
+
+    <div class="card">
+      <div class="steps">
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>بررسی پاسخ GET صفحه ورود</h4>
+            <p>توجه: متد <code>GET</code> استفاده کنید (درخواست <code>HEAD</code> ممکن است 404 بدهد).</p>
+            <div class="code-block"><span class="cmd">curl.exe</span> -s -o NUL -w <span class="val">"%{http_code}\n"</span> https://forgeflow.company.local/account/login
+<span class="cmt"># خروجی مورد انتظار: 200</span></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num"></div>
+          <div class="step-body">
+            <h4>ورود با حساب Bootstrap و بررسی صفحات مدیریتی</h4>
+            <p>در مرورگر با حساب ایجادشده در مرحله ۶ وارد شوید. سپس از منوی کناری <strong>مدیریت ← سازمان‌ها</strong>، <strong>سایت‌ها</strong> و <strong>لاگ خطاها</strong> (<code>/errors</code>) را باز کنید تا اتصال هر ۳ اسکیما تأیید شود.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 9. CHECKLIST ══ -->
+  <div class="section" id="checklist">
+    <div class="section-header">
+      <div class="section-num">۹</div>
+      <h2>چک‌لیست تعاملی Go-Live</h2>
+    </div>
+
+    <div class="card">
+      <div class="checklist-header">
+        <span class="progress-pill" id="progress-pill">۰ از ۱۲ مورد تکمیل شده</span>
+        <button type="button" class="reset-check-btn" onclick="resetChecklist()">پاک‌کردن تیک‌ها</button>
+      </div>
+      <ul class="checklist" id="deploy-checklist">
+        <li><input type="checkbox" id="c1"><span>ASP.NET Core 10.0 Hosting Bundle (نسخه 10.0.14+) و ماژول WebSocket روی IIS نصب شده است.</span></li>
+        <li><input type="checkbox" id="c2"><span>فایل‌های <code>ForgeFlow.Web</code> در پوشه سایت و <code>ForgeFlow.Bootstrap</code> در مسیر مدیریتی مجزا کپی شده‌اند.</span></li>
+        <li><input type="checkbox" id="c3"><span>حساب SQL موقت/عملیاتی Provisioning از حساب محدود <code>forgeflow_runtime</code> جدا تعریف شده است.</span></li>
+        <li><input type="checkbox" id="c4"><span>Migration‌های هر ۳ کانتکست (<code>AuthDbContext</code>، <code>OrganizationDbContext</code>، <code>DiagnosticsDbContext</code>) اعمال شده‌اند.</span></li>
+        <li><input type="checkbox" id="c5"><span>ابزار <code>ForgeFlow.Bootstrap initialize-deployment</code> با موفقیت اجرا شده و حساب ادمین، سازمان و سایت اول ساخته شده‌اند.</span></li>
+        <li><input type="checkbox" id="c6"><span>متغیر محیطی <code>FORGEFLOW_BOOTSTRAP_SQLSERVER</code> پس از پایان راه‌اندازی پاک شده است.</span></li>
+        <li><input type="checkbox" id="c7"><span>تنظیمات <code>ConnectionStrings__ForgeFlow</code> و <code>ASPNETCORE_ENVIRONMENT=Production</code> با دسترسی محدود روی سرور ثبت شده‌اند.</span></li>
+        <li><input type="checkbox" id="c8"><span>در IIS App Pool گزینه <code>No Managed Code</code> و <code>Load User Profile = True</code> فعال است.</span></li>
+        <li><input type="checkbox" id="c9"><span>گواهی TLS/HTTPS معتبر روی پورت 443 تنظیم شده و کوکی امن فعال است.</span></li>
+        <li><input type="checkbox" id="c10"><span>درخواست <code>GET /account/login</code> کد وضعیت <code>200</code> برمی‌گرداند.</span></li>
+        <li><input type="checkbox" id="c11"><span>ورود با حساب ادمین و جابه‌جایی زبان فارسی/English و تم روشن/تیره بدون خطای کنسول کار می‌کند.</span></li>
+        <li><input type="checkbox" id="c12"><span>صفحه <code>مدیریت ← لاگ خطاها</code> خطای اتصال یا پیکربندی نشان نمی‌دهد.</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ══ 10. UPDATE & ROLLBACK ══ -->
+  <div class="section" id="update-rollback">
+    <div class="section-header">
+      <div class="section-num">۱۰</div>
+      <h2>به‌روزرسانی نسخه جدید و روش بازگشت (Rollback)</h2>
+    </div>
+
+    <div class="card">
+      <h3>روش استاندارد به‌روزرسانی</h3>
+      <div class="code-block"><span class="cmt"># ۱) پشتیبان‌گیری از پایگاه‌داده و فایل‌های وب فعلی</span>
+<span class="cmd">Backup-SqlDatabase</span> -ServerInstance SQLHOST -Database ForgeFlow -BackupFile <span class="val">"C:\backup\ForgeFlow_$(Get-Date -f yyyyMMdd_HHmm).bak"</span>
+<span class="cmd">Stop-WebSite</span> -Name <span class="val">"ForgeFlow"</span>
+<span class="cmd">Copy-Item</span> -Recurse <span class="val">"C:\inetpub\forgeflow"</span> <span class="val">"C:\backup\forgeflow-prev"</span> -Force
+
+<span class="cmt"># ۲) انتقال فایل‌های جدید و اعمال Migration‌های جدید ۳ کانتکست</span>
+<span class="cmd">Copy-Item</span> -Recurse <span class="val">".\publish\web\*"</span> <span class="val">"C:\inetpub\forgeflow\"</span> -Force
+<span class="cmt"># اجرای dotnet ef database update برای AuthDbContext / OrganizationDbContext / DiagnosticsDbContext</span>
+
+<span class="cmt"># ۳) راه‌اندازی مجدد</span>
+<span class="cmd">Start-WebSite</span> -Name <span class="val">"ForgeFlow"</span></div>
+    </div>
+
+    <div class="rollback-steps">
+      <h4>بازگشت فوری در صورت خطا پس از به‌روزرسانی</h4>
+      <div class="code-block"><span class="cmd">Stop-WebSite</span> -Name <span class="val">"ForgeFlow"</span>
+<span class="cmd">Copy-Item</span> -Recurse <span class="val">"C:\backup\forgeflow-prev\*"</span> <span class="val">"C:\inetpub\forgeflow\"</span> -Force
+<span class="cmt"># در صورت تغییر اسکیما، بازیابی بکاپ SQL یا بازگردانی Migration قبلی با تایید DBA</span>
+<span class="cmd">Start-WebSite</span> -Name <span class="val">"ForgeFlow"</span></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>سند زنده استقرار ForgeFlow | هماهنگ با اسلایس ۱۳ (<code>main@154ca00</code>)</p>
+    <p style="margin-top:4px;">مسیر نگهداری در مخزن: <code>docs/deployment-guide-fa.html</code> — همراه با هر اسلایس جدید، فهرست Migration‌ها و تنظیمات را به‌روزرسانی کنید.</p>
+  </div>
+
+</div>
+
+<script>
+  const key = 'forgeflow.deploy.checklist.v1';
+  const items = document.querySelectorAll('#deploy-checklist input[type="checkbox"]');
+  const pill = document.getElementById('progress-pill');
+
+  function updateUI() {
+    let done = 0;
+    const state = {};
+    items.forEach(cb => {
+      state[cb.id] = cb.checked;
+      cb.closest('li').classList.toggle('checked', cb.checked);
+      if (cb.checked) done++;
+    });
+    pill.textContent = `${done.toLocaleString('fa-IR')} از ${items.length.toLocaleString('fa-IR')} مورد تکمیل شده`;
+    try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
+  }
+
+  function resetChecklist() {
+    items.forEach(cb => cb.checked = false);
+    updateUI();
+  }
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) || '{}');
+    items.forEach(cb => { if (saved[cb.id]) cb.checked = true; });
+  } catch {}
+
+  document.querySelectorAll('#deploy-checklist li').forEach(li => {
+    li.addEventListener('click', e => {
+      if (e.target.tagName !== 'INPUT') {
+        const cb = li.querySelector('input');
+        cb.checked = !cb.checked;
+      }
+      updateUI();
+    });
+  });
+
+  updateUI();
+</script>
+</body>
+</html>

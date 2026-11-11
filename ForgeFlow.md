@@ -3877,3 +3877,60 @@ ode .\scripts\drafts.test.mjs: **19 pass, 0 fail**.
   - Live HTTP verification (`HTTP 200` on `/account/login`), `node .\verification\slice01-ui\browser-check.cjs` (`4/4 pass` across `fa-IR` / `en-US`, `1440px` / `320px`), and Google Chrome launch via `browser` subagent (`17/17 HTTP 200`, `0` console errors).
 - **Slice 13 (`13-lab-specs-coa`) Status: ACCEPTED (`13.6`)** (2026-11-11): User reviewed and approved Slice 13 and authorized git commit & push.
 - **Remaining Acceptance Gaps**: None.
+
+## Living Persian Documentation Increment (Slice 13)
+
+- **Scope**: Created offline-ready illustrated Persian HTML guides under `docs/` synchronized with `main@154ca00` (Slice 13) and established the living maintenance workflow in [`docs/README.md`](file:///d:/Projects/ForgeFlow/docs/README.md).
+- **Files Created**:
+  - [`docs/deployment-guide-fa.html`](file:///d:/Projects/ForgeFlow/docs/deployment-guide-fa.html): Deployment Manager guide covering .NET 10.0 (10.0.14+ Hosting Bundle, SDK 10.0.403), IIS + WebSocket + Data Protection, ConnectionStrings__ForgeFlow, all 3 EF Core DbContexts (AuthDbContext 6 migrations, OrganizationDbContext 12 migrations, DiagnosticsDbContext 1 migration), interactive ForgeFlow.Bootstrap (initialize-deployment / eset-password), inline SVG architecture diagram, and an interactive localStorage-persisted Go-Live checklist.
+  - [`docs/admin-guide-fa.html`](file:///d:/Projects/ForgeFlow/docs/admin-guide-fa.html): System Administrator illustrated end-to-end guide covering /account/login (with real captured light/dark a-IR screenshots), exact 5-group menu map, system/custom roles & permissions, Master Data, Procurement, Lab Parameters + Inspection Specs + Lot COA (/quality), Production Orders + Reservations, Inventory, Lot Traceability, Reports, Audit, and Error Logs, with inline SVG workflow diagrams.
+  - Bundled offline assets: `docs/assets/Vazirmatn.woff2`, `docs/screenshots/login-light-fa.png`, `docs/screenshots/login-dark-fa.png`.
+- **Verification Evidence (2026-11-11)**:
+  - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Headless Chrome Playwright verification across both HTML guides at 1440px and 320px (RTL, offline Vazirmatn.woff2, embedded screenshots, zero overflow, zero console/request errors, interactive checklist persistence): **4/4 PASS**.
+  - Live Development instance launched at https://localhost:5001 (	estforgflow): GET /account/login returns **HTTP 200**; `node .\verification\slice01-ui\browser-check.cjs` **4/4 PASS** (a-IR/en-US, 1440px/320px).
+- **Remaining Acceptance Gaps**: Authenticated page screenshots inside `docs/admin-guide-fa.html` await temporary test account credentials (to preserve startup/credential safety rules) if the user wants real post-login captures replacing the remaining screenshot placeholders.
+- **Next Small Step**: Review the two HTML guides locally or supply test login credentials for authenticated screenshot captures; authorize git commit/push when ready.
+## GPPS End-to-End Case Study & Bug-Fix Increment
+
+- **Scope**: Executed a full real-world GPPS (General Purpose Polystyrene) manufacturing case study inside Chrome against `https://localhost:5001` (`testforgflow`) covering Units, Warehouses (WH-RM-01, WH-FG-01), Suppliers (SUP-PARS, SUP-ARIA), 4 Items (RM-SM-001, RM-WMO-001, RM-ZNST-001, FG-GPPS-001), 11 Lab Parameters & 4 Inspection Specs (SPEC-SM-IN, SPEC-WMO-IN, SPEC-ZN-IN, SPEC-GPPS-FG), BOM (BOM-GPPS-001 v1), 4 Work Centers + Routing (RT-GPPS-001), Procurement POs + Receiving + Incoming Lab QC & COA, Production Orders (PO-GPPS-1405-01, PO-GPPS-1405-02), Reservations, Shop-floor Operations, ProductionIssue + ProductionReceipt, Final GPPS COA, Backward Lot Traceability (LOT-GPPS-1405-02 -> raw material lots), and Material Consumption Variance Reports. Embedded 16 verified real screenshots into `docs/admin-guide-fa.html`.
+- **Issues Found & Fixed**:
+  1. **Razor @ email-trap literals (@... and L@...)** rendered raw code instead of version/level numbers in Boms.razor, Items.razor, ProductionOrders.razor, Quality.razor, Routings.razor, Traceability.razor, and LotCertificateDialog.razor; fixed to parenthesized @(...) / L@(...).
+  2. **Persian numeric input disappearance** in Quality.razor (<input type="number" value="@line.MeasuredNumericValue">): a-IR decimal formatting (/) caused Chrome <input type="number"> to blank saved values on reload; fixed using InvariantCulture formatting + dir="ltr".
+  3. **ProductionIssue warehouse & lot prefill UX** in Inventory.razor: PrefillFromProductionOrderAsync previously overwrote a user's selected warehouse (WH-RM-01) with the first warehouse on site (WH-FG-01); updated to preserve manual same-site warehouse choice and prefill the warehouse and lot codes from open StockReservations.
+  4. **RTL layout polish** in Home.razor (WorkCenterLoad m flip in RTL), Routings.razor / pp.css (.rt-ops-row grid width, .ff-check-card checkbox alignment), and .read-badge (white-space: nowrap).
+- **Verification Evidence (2026-11-11, after final edit)**:
+  - dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (0 Warning(s), 0 Error(s))**.
+  - Full non-SQL + HTTP test suite (FORGEFLOW_AUTH_HTTP_TESTS=1, FORGEFLOW_TEST_SQLSERVER=''): **Passed: 382, Failed: 0, Skipped: 0, Total: 382**.
+  - Live https://localhost:5001 verification: GET /account/login returns **HTTP 200**; 
+ode .\verification\slice01-ui\browser-check.cjs **4/4 PASS**; Batch #2 GPPS Chrome E2E (PO-GPPS-1405-02 + PROD-ISS-GPPS-02 reservation consume + a-IR decimal lab persistence + LOT-GPPS-1405-02 backward traceability L1 + Reports): **PASS (0 console/page errors)**; offline Playwright verification of docs/deployment-guide-fa.html & docs/admin-guide-fa.html (1440px / 320px, 16 screenshots, local Vazirmatn.woff2): **4/4 PASS**.
+
+## UI/UX Polish Increment: Icon Actions, Resizable DataGrids & Tabular Modals
+
+- **Scope**:
+  1. Converted text-based Activate/Deactivate row buttons into icon-only buttons (`IconOnly="true"`, `.read-action-deactivate` / `.read-action-activate`, localized `<BitTooltip>`) in **Work Centers** (`WorkCenters.razor`), **Suppliers** (`Suppliers.razor`), and **Quality Control** (`Quality.razor` — both Lab Parameters and Inspection Specs tabs).
+  2. Enabled column drag-resizing (`Resizable="true"`) on all **29** `<BitDataGrid>` components across the application (`Audit`, `Boms`, `Errors`, `Inventory`, `Items`, `MyActivity`, `OrganizationReader`, `ProductionOrders`, `PurchaseOrders`, `Quality`, `Reports`, `Roles`, `Routings`, `Suppliers`, `Units`, `Users`, `WorkCenters`) and styled `.bit-dtg-resizer` handles in `app.css`.
+  3. Fixed column clipping in **Purchase Orders** (`PurchaseOrders.razor`) by tuning initial column `Width`/`MinWidth` proportions (`150/106/144/94/104/96/138/146/72 px`), adding `WrapCellText="true"` and `white-space: nowrap` for `<bdi>` values inside grid cells so order numbers, dates, progress fractions, and totals render unclipped on desktop in both `fa-IR` and `en-US`.
+  4. Redesigned the **Purchase Order Detail Modal** (`PurchaseOrders.razor`) and **Shortage / Consumption & Yield Variance Detail Modals** (`Reports.razor`) using structured `.ff-detail-hero` cards, responsive 2-column `.ff-kv-table` key-value tables, `.ff-kpi-strip` KPI tiles, `.audit-fields-box` / `.audit-fields-table` tables with variance status badges, and `@media (max-width: 680px)` mobile overflow protection across Light & Dark themes.
+- **Verification Evidence (2026-11-11, after final edit)**:
+  - `dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (`0` Warning(s), `0` Error(s))**.
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 382, Failed: 0, Skipped: 0, Total: 382**.
+  - Live Development instance at `https://localhost:5001` (`testforgflow`): `GET /account/login` returns **HTTP 200**; `node d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs` **4/4 PASS** (`fa-IR` / `en-US`, `1440px` / `320px`).
+  - Authenticated Playwright verification across both `fa-IR` (RTL) and `en-US` (LTR), light & dark modes, and `1440px` / `320px` viewports on `/purchase-orders` (grid + detail modal), `/reports` (Variance detail modal), `/work-centers`, `/suppliers`, and `/quality` (Lab Parameters & Inspection Specs tabs): **PASS (`0` console/page errors, `cellOverflowX: false`, zero document horizontal overflow)**.
+- **Remaining Acceptance Gaps**: None.
+- **Next Small Step**: Continue manual browser review at `https://localhost:5001` or authorize git commit/push when ready.
+
+## UI/UX Polish Increment 2: BOM Workbench, BOM Version Icons & Lot Traceability
+
+- **Scope**:
+  1. Converted the BOM grid row `Versions` button (`Boms.razor`) into an icon-only `<BitButton>` (`VersionsIcon` / `.ff-icon--versions`) with localized `<BitTooltip>` next to the `Edit` icon button.
+  2. Converted the **BOM Details & Versions** modal row `Open` button (`Boms.razor`) into an icon-only `<BitButton>` (`IconName="View"`) with localized `<BitTooltip>`.
+  3. Redesigned the **BOM Version Workbench** modal (`Boms.razor` + `app.css`): widened to `1100px` (`MaxWidth="calc(100vw - 24px)"`), added `.ff-detail-hero` summary header + immutable notice banner (`.bom-wb-banner`) + `.bom-wb-actions-bar`; rendered structured `.ff-kv-table` header and read-only `.audit-fields-table` Inputs/Outputs/Applicability tables for locked versions (`Approved`/`Active`/`Superseded`/`Obsolete`) instead of clipped disabled form inputs, and structured `.bom-wb-table` + icon-only Trash row-removal buttons for `Draft` editing.
+  4. Reorganized **Lot/Batch Traceability** (`Traceability.razor` + `app.css`): wrapped page content in `.trace-stack`, widened item selector (`trace-filter-item`), aligned `.trace-run-btn`, redesigned the root lot summary in `.trace-summary-card` (`.ff-detail-hero` + `.ff-kpi-strip` + COA button with `AuditIcon`), separated backward/forward genealogy and lot movement sections in `.trace-section-card` with `.trace-section-head` counts and `.bom-tree-level` chips, and added `[data-theme="dark"]` styling for `.audit-fields-box` and `.audit-fields-table`.
+- **Verification Evidence (2026-11-11, after final edit)**:
+  - `dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (`0` Warning(s), `0` Error(s))**.
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 382, Failed: 0, Skipped: 0, Total: 382**.
+  - Live Development instance at `https://localhost:5001` (`testforgflow`): `GET /account/login` returns **HTTP 200**; `node d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs` **4/4 PASS**.
+  - Authenticated Chrome Playwright verification (`fa-IR` RTL & `en-US` LTR, Light & Dark modes, `1440px` desktop & `320px` mobile) across `/boms` (grid icon buttons, Versions modal Open icon button, active `BOM-GPPS-001 · v1` workbench modal) and `/traceability?itemId=1&lotCode=LOT-SM-1405-01`: **PASS (`0` console/page errors, zero horizontal overflow)**.
+- **Remaining Acceptance Gaps**: None.
+- **Next Small Step**: Continue manual browser review at `https://localhost:5001` or authorize git commit/push when ready.

@@ -130,7 +130,7 @@
                 <div class="read-grid">
                     <BitDataGrid @ref="bomsGrid" TItem="BomSummary" OnRead="ReadBomsGridAsync" Pageable="true" PageSize="25"
                                  PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="boms-title" WrapCellText="true">
+                                 AriaLabelledBy="boms-title" WrapCellText="true" Resizable="true">
                         <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
                         <Columns>
                             <BitDataGridColumn TItem="BomSummary" Title="@Text["ReadCode"]">
@@ -153,14 +153,18 @@
                             <BitDataGridColumn TItem="BomSummary" Title="@Text["ReadActions"]">
                                 <Template Context="row">
                                     <div class="read-row-actions">
-                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OpenBomDetailsAsync(row.Id)">
-                                            @Text["BomVersionsAction"]
-                                        </BitButton>
+                                        <BitTooltip Text="@Text["BomVersionsAction"]" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                       Icon="@VersionsIcon" IconOnly="true" aria-label="@Text["BomVersionsAction"]"
+                                                       OnClick="() => OpenBomDetailsAsync(row.Id)" />
+                                        </BitTooltip>
                                         @if (scopeCanManage)
                                         {
-                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                       Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]" title="@Text["ReadEdit"]"
-                                                       OnClick="() => OpenBomEditModalAsync(row.Id)" />
+                                            <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                           Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                                           OnClick="() => OpenBomEditModalAsync(row.Id)" />
+                                            </BitTooltip>
                                         }
                                     </div>
                                 </Template>
@@ -176,7 +180,7 @@
                 <div class="read-grid">
                     <BitDataGrid @ref="dimsGrid" TItem="ContextDimensionSummary" OnRead="ReadDimsGridAsync" Pageable="true" PageSize="25"
                                  PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="boms-title" WrapCellText="true">
+                                 AriaLabelledBy="boms-title" WrapCellText="true" Resizable="true">
                         <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
                         <Columns>
                             <BitDataGridColumn TItem="ContextDimensionSummary" Title="@Text["ReadCode"]">
@@ -311,7 +315,7 @@
                     <div class="converter-result-card" role="status">
                         <div class="audit-modal-title-row">
                             <span class="audit-modal-code"><bdi dir="ltr">@simResolution.BomCode</bdi> — @simResolution.BomName</span>
-                            <span class="read-badge active">v@simResolution.VersionNumber</span>
+                            <span class="read-badge active">v@(simResolution.VersionNumber)</span>
                         </div>
                         <div class="converter-meta">
                             @Text["BomBaseOutputSummary", simResolution.BaseOutputQuantity.ToString("G29", CultureInfo.InvariantCulture), simResolution.BaseOutputUnitSymbol, Formatter.Date(simResolution.EffectiveFromDate), simResolution.EffectiveToDate is DateOnly toDate ? Formatter.Date(toDate) : "∞"]
@@ -347,7 +351,7 @@
                                         @foreach (var line in simExplosion.ConsumedInputs)
                                         {
                                             <tr>
-                                                <td><span class="bom-tree-level">L@line.Level</span></td>
+                                                <td><span class="bom-tree-level">L@(line.Level)</span></td>
                                                 <td><bdi dir="ltr">@line.ParentItemCode</bdi></td>
                                                 <td><bdi dir="ltr">@line.ItemCode</bdi> — @line.ItemName</td>
                                                 <td><bdi dir="ltr">@line.NetQuantity.ToString("G29", CultureInfo.InvariantCulture)</bdi></td>
@@ -395,7 +399,7 @@
                                         @foreach (var line in simExplosion.ProducedOutputs)
                                         {
                                             <tr>
-                                                <td><span class="bom-tree-level">L@line.Level</span></td>
+                                                <td><span class="bom-tree-level">L@(line.Level)</span></td>
                                                 <td><bdi dir="ltr">@line.ItemCode</bdi> — @line.ItemName</td>
                                                 <td><span class="read-badge @OutputTypeCss(line.OutputType)">@Text[OutputTypeKey(line.OutputType)]</span></td>
                                                 <td><strong><bdi dir="ltr">@line.ProducedQuantity.ToString("G29", CultureInfo.InvariantCulture)</bdi></strong></td>
@@ -546,7 +550,7 @@
                                     @foreach (var ver in selectedBom.Versions)
                                     {
                                         <tr>
-                                            <td><strong dir="ltr">v@ver.VersionNumber</strong></td>
+                                            <td><strong dir="ltr">v@(ver.VersionNumber)</strong></td>
                                             <td><span class="read-badge @VersionStatusCss(ver.Status)">@Text[VersionStatusKey(ver.Status)]</span></td>
                                             <td><bdi dir="ltr">@ver.BaseOutputQuantity.ToString("G29", CultureInfo.InvariantCulture) @ver.BaseOutputUnitSymbol</bdi></td>
                                             <td><bdi dir="ltr">@Formatter.Date(ver.EffectiveFromDate) — @(ver.EffectiveToDate is DateOnly verTo ? Formatter.Date(verTo) : "∞")</bdi></td>
@@ -561,9 +565,11 @@
                                                 }
                                             </td>
                                             <td>
-                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OpenVersionWorkbenchAsync(ver.Id)">
-                                                    @Text["BomOpenVersionBtn"]
-                                                </BitButton>
+                                                <BitTooltip Text="@Text["BomOpenVersionBtn"]" ShowOnFocus="true">
+                                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                               IconName="View" IconOnly="true" aria-label="@Text["BomOpenVersionBtn"]"
+                                                               OnClick="() => OpenVersionWorkbenchAsync(ver.Id)" />
+                                                </BitTooltip>
                                             </td>
                                         </tr>
                                     }
@@ -654,30 +660,45 @@
     </BitDialog>
 
     @* BOM Version Workbench Modal *@
-    <BitDialog @bind-IsOpen="versionModalOpen" Title="@Text["BomVersionWorkbenchTitle"]" Width="800px" MaxWidth="calc(100vw - 24px)"
+    <BitDialog @bind-IsOpen="versionModalOpen" Title="@Text["BomVersionWorkbenchTitle"]" Width="1100px" MaxWidth="calc(100vw - 24px)"
                Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]">
         <Body>
             @if (selectedVersion is not null)
             {
-                var isDraftEditable = scopeCanManage && selectedVersion.Summary.Status == BomVersionStatus.Draft;
+                var verSummary = selectedVersion.Summary;
+                var isDraftEditable = scopeCanManage && verSummary.Status == BomVersionStatus.Draft;
                 <div class="audit-modal-body">
-                    <div class="audit-modal-title-row">
-                        <span class="audit-modal-code">v@selectedVersion.Summary.VersionNumber</span>
-                        <div class="cap-badge-row">
-                            <span class="read-badge @VersionStatusCss(selectedVersion.Summary.Status)">@Text[VersionStatusKey(selectedVersion.Summary.Status)]</span>
+                    <div class="ff-detail-hero">
+                        <div class="ff-detail-hero-main">
+                            <span class="ff-detail-hero-code" dir="ltr">
+                                @(selectedBom is not null ? $"{selectedBom.Summary.Code} · v{verSummary.VersionNumber}" : $"v{verSummary.VersionNumber}")
+                            </span>
+                            @if (selectedBom is not null)
+                            {
+                                <span class="ff-detail-hero-sub">
+                                    @selectedBom.Summary.Name · <bdi dir="ltr">@selectedBom.Summary.PrimaryOutputItemCode</bdi> — @selectedBom.Summary.PrimaryOutputItemName
+                                </span>
+                            }
+                        </div>
+                        <div class="ff-detail-hero-badges">
+                            <span class="read-badge @VersionStatusCss(verSummary.Status)">@Text[VersionStatusKey(verSummary.Status)]</span>
+                            <span class="cap-badge" dir="ltr">@Formatter.Number(verSummary.BaseOutputQuantity) @verSummary.BaseOutputUnitSymbol</span>
                         </div>
                     </div>
 
-                    @if (selectedVersion.Summary.Status != BomVersionStatus.Draft)
+                    @if (!isDraftEditable)
                     {
-                        <p class="write-hint" role="status">@Text["BomVersionImmutableNotice"]</p>
+                        <div class="bom-wb-banner" role="status">
+                            <i class="ff-icon ff-icon--info" aria-hidden="true"></i>
+                            <span>@Text["BomVersionImmutableNotice"]</span>
+                        </div>
                     }
 
                     @if (scopeCanManage)
                     {
-                        <div class="write-actions">
-                            @if (selectedVersion.Summary.Status == BomVersionStatus.Draft)
+                        <div class="bom-wb-actions-bar">
+                            @if (verSummary.Status == BomVersionStatus.Draft)
                             {
                                 <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!verSaving)"
                                            OnClick="() => TransitionVersionAsync(BomVersionStatus.Approved)">@Text["BomActionApprove"]</BitButton>
@@ -686,14 +707,14 @@
                                 <BitButton Variant="BitVariant.Text" Size="BitSize.Small" IsEnabled="@(!verSaving)"
                                            OnClick="() => TransitionVersionAsync(BomVersionStatus.Obsolete)">@Text["BomActionObsolete"]</BitButton>
                             }
-                            else if (selectedVersion.Summary.Status == BomVersionStatus.Approved)
+                            else if (verSummary.Status == BomVersionStatus.Approved)
                             {
                                 <BitButton Size="BitSize.Small" IsEnabled="@(!verSaving)"
                                            OnClick="() => TransitionVersionAsync(BomVersionStatus.Active)">@Text["BomActionActivate"]</BitButton>
                                 <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!verSaving)"
                                            OnClick="() => TransitionVersionAsync(BomVersionStatus.Obsolete)">@Text["BomActionObsolete"]</BitButton>
                             }
-                            else if (selectedVersion.Summary.Status == BomVersionStatus.Active)
+                            else if (verSummary.Status == BomVersionStatus.Active)
                             {
                                 <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!verSaving)"
                                            OnClick="() => TransitionVersionAsync(BomVersionStatus.Superseded)">@Text["BomActionSupersede"]</BitButton>
@@ -713,82 +734,109 @@
                     }
 
                     @* Header Section *@
-                    <div class="item-sub-card">
-                        <h3 class="audit-section-heading">@Text["BomVersionHeaderSection"]</h3>
-                        <div class="write-grid">
-                            <div class="write-field">
-                                <label for="ed-ver-qty">@Text["BomBaseOutputQtyLabel"]</label>
-                                <input id="ed-ver-qty" type="text" inputmode="decimal" dir="ltr" @bind="editVerQtyText" disabled="@(!isDraftEditable || verSaving)" />
-                            </div>
-                            <div class="write-field">
-                                <label for="ed-ver-unit">@Text["BomBaseOutputUnitLabel"]</label>
-                                <select id="ed-ver-unit" @bind="editVerUnitId" disabled="@(!isDraftEditable || verSaving)">
-                                    @foreach (var u in activeUnits)
-                                    {
-                                        <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="write-field">
-                                <label>@Text["BomEffectiveFromLabel"]</label>
-                                <BitDatePicker @bind-Value="EditVerFromOffset"
-                                               Culture="@Culture.PickerCulture"
-                                               DateFormat="@PickerDateFormat"
-                                               ShowTimePicker="false"
-                                               AllowTextInput="false"
-                                               AutoClose="true"
-                                               ShowGoToToday="true"
-                                               GoToTodayTitle="@Text["BomDateToday"]"
-                                               GoToTodayIcon="@TodayIcon"
-                                               Icon="@CalendarIcon"
-                                               NextMonthNavIcon="@NextNavIcon"
-                                               PrevMonthNavIcon="@PrevNavIcon"
-                                               NextYearNavIcon="@NextYearIcon"
-                                               PrevYearNavIcon="@PrevYearIcon"
-                                               ClearButtonIcon="@CloseIcon"
-                                               IsEnabled="@(isDraftEditable && !verSaving)"
-                                               Class="bom-dtp" />
-                            </div>
-                            <div class="write-field">
-                                <label>@Text["BomEffectiveToLabel"]</label>
-                                <BitDatePicker @bind-Value="EditVerToOffset"
-                                               Culture="@Culture.PickerCulture"
-                                               DateFormat="@PickerDateFormat"
-                                               ShowTimePicker="false"
-                                               AllowTextInput="false"
-                                               AutoClose="true"
-                                               ShowClearButton="true"
-                                               ClearButtonTitle="@Text["BomDateClear"]"
-                                               ShowGoToToday="true"
-                                               GoToTodayTitle="@Text["BomDateToday"]"
-                                               GoToTodayIcon="@TodayIcon"
-                                               Icon="@CalendarIcon"
-                                               NextMonthNavIcon="@NextNavIcon"
-                                               PrevMonthNavIcon="@PrevNavIcon"
-                                               NextYearNavIcon="@NextYearIcon"
-                                               PrevYearNavIcon="@PrevYearIcon"
-                                               ClearButtonIcon="@CloseIcon"
-                                               IsEnabled="@(isDraftEditable && !verSaving)"
-                                               Class="bom-dtp" />
-                            </div>
-                            <div class="write-field">
-                                <label for="ed-ver-notes">@Text["BomNotesLabel"]</label>
-                                <input id="ed-ver-notes" type="text" maxlength="500" @bind="editVerNotes" disabled="@(!isDraftEditable || verSaving)" />
-                            </div>
+                    <div class="bom-wb-section">
+                        <div class="bom-wb-section-head">
+                            <h3 class="audit-section-heading">@Text["BomVersionHeaderSection"]</h3>
                         </div>
                         @if (isDraftEditable)
                         {
+                            <div class="write-grid">
+                                <div class="write-field">
+                                    <label for="ed-ver-qty">@Text["BomBaseOutputQtyLabel"]</label>
+                                    <input id="ed-ver-qty" type="text" inputmode="decimal" dir="ltr" @bind="editVerQtyText" disabled="@verSaving" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="ed-ver-unit">@Text["BomBaseOutputUnitLabel"]</label>
+                                    <select id="ed-ver-unit" @bind="editVerUnitId" disabled="@verSaving">
+                                        @foreach (var u in activeUnits)
+                                        {
+                                            <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="write-field">
+                                    <label>@Text["BomEffectiveFromLabel"]</label>
+                                    <BitDatePicker @bind-Value="EditVerFromOffset"
+                                                   Culture="@Culture.PickerCulture"
+                                                   DateFormat="@PickerDateFormat"
+                                                   ShowTimePicker="false"
+                                                   AllowTextInput="false"
+                                                   AutoClose="true"
+                                                   ShowGoToToday="true"
+                                                   GoToTodayTitle="@Text["BomDateToday"]"
+                                                   GoToTodayIcon="@TodayIcon"
+                                                   Icon="@CalendarIcon"
+                                                   NextMonthNavIcon="@NextNavIcon"
+                                                   PrevMonthNavIcon="@PrevNavIcon"
+                                                   NextYearNavIcon="@NextYearIcon"
+                                                   PrevYearNavIcon="@PrevYearIcon"
+                                                   ClearButtonIcon="@CloseIcon"
+                                                   IsEnabled="@(!verSaving)"
+                                                   Class="bom-dtp" />
+                                </div>
+                                <div class="write-field">
+                                    <label>@Text["BomEffectiveToLabel"]</label>
+                                    <BitDatePicker @bind-Value="EditVerToOffset"
+                                                   Culture="@Culture.PickerCulture"
+                                                   DateFormat="@PickerDateFormat"
+                                                   ShowTimePicker="false"
+                                                   AllowTextInput="false"
+                                                   AutoClose="true"
+                                                   ShowClearButton="true"
+                                                   ClearButtonTitle="@Text["BomDateClear"]"
+                                                   ShowGoToToday="true"
+                                                   GoToTodayTitle="@Text["BomDateToday"]"
+                                                   GoToTodayIcon="@TodayIcon"
+                                                   Icon="@CalendarIcon"
+                                                   NextMonthNavIcon="@NextNavIcon"
+                                                   PrevMonthNavIcon="@PrevNavIcon"
+                                                   NextYearNavIcon="@NextYearIcon"
+                                                   PrevYearNavIcon="@PrevYearIcon"
+                                                   ClearButtonIcon="@CloseIcon"
+                                                   IsEnabled="@(!verSaving)"
+                                                   Class="bom-dtp" />
+                                </div>
+                                <div class="write-field">
+                                    <label for="ed-ver-notes">@Text["BomNotesLabel"]</label>
+                                    <input id="ed-ver-notes" type="text" maxlength="500" @bind="editVerNotes" disabled="@verSaving" />
+                                </div>
+                            </div>
                             <div class="write-actions">
                                 <BitButton Size="BitSize.Small" IsEnabled="@(!verSaving)" OnClick="SaveDraftHeaderAsync">
                                     @(verSaving ? Text["WriteSaving"] : Text["BomSaveHeaderBtn"])
                                 </BitButton>
                             </div>
                         }
+                        else
+                        {
+                            <div class="ff-kv-table-wrap">
+                                <table class="ff-kv-table">
+                                    <tbody>
+                                        <tr>
+                                            <th scope="row">@Text["BomBaseOutputQtyLabel"]</th>
+                                            <td><bdi dir="ltr">@Formatter.Number(verSummary.BaseOutputQuantity)</bdi></td>
+                                            <th scope="row">@Text["BomBaseOutputUnitLabel"]</th>
+                                            <td><bdi dir="ltr">@verSummary.BaseOutputUnitCode (@verSummary.BaseOutputUnitSymbol)</bdi></td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">@Text["BomEffectiveFromLabel"]</th>
+                                            <td><bdi dir="ltr">@Formatter.Date(verSummary.EffectiveFromDate)</bdi></td>
+                                            <th scope="row">@Text["BomEffectiveToLabel"]</th>
+                                            <td><bdi dir="ltr">@(verSummary.EffectiveToDate is DateOnly dtTo ? Formatter.Date(dtTo) : "∞")</bdi></td>
+                                        </tr>
+                                        <tr>
+                                            <th scope="row">@Text["BomNotesLabel"]</th>
+                                            <td colspan="3">@(string.IsNullOrWhiteSpace(verSummary.Notes) ? "—" : verSummary.Notes)</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
                     </div>
 
-                    @* Inputs & Outputs Lines Section *@
-                    <div class="item-sub-card">
-                        <div class="audit-modal-title-row">
+                    @* Inputs Section *@
+                    <div class="bom-wb-section">
+                        <div class="bom-wb-section-head">
                             <h3 class="audit-section-heading">@Text["BomInputsSection"]</h3>
                             @if (isDraftEditable)
                             {
@@ -796,8 +844,71 @@
                                     @Text["BomAddInputBtn"]
                                 </BitButton>
                             }
+                            else
+                            {
+                                <span class="cap-badge"><bdi dir="ltr">@selectedVersion.Inputs.Count</bdi></span>
+                            }
                         </div>
-                        @if (draftInputs.Count == 0)
+                        @if (isDraftEditable)
+                        {
+                            @if (draftInputs.Count == 0)
+                            {
+                                <p class="read-empty">@Text["ReadEmpty"]</p>
+                            }
+                            else
+                            {
+                                <div class="audit-fields-box" style="overflow-x:auto;">
+                                    <table class="audit-fields-table bom-wb-table">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col" class="bom-wb-seq-cell">#</th>
+                                                <th scope="col" class="bom-wb-item-cell">@Text["BomLineItemColumn"]</th>
+                                                <th scope="col" class="bom-wb-num-cell">@Text["BomQuantityColumn"]</th>
+                                                <th scope="col" class="bom-wb-unit-cell">@Text["BomLineUnitColumn"]</th>
+                                                <th scope="col" class="bom-wb-num-cell">@Text["BomScrapColumn"]</th>
+                                                <th scope="col">@Text["BomOptionalBadge"]</th>
+                                                <th scope="col"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var inp in draftInputs)
+                                            {
+                                                <tr>
+                                                    <td class="bom-wb-seq-cell"><input type="number" min="1" dir="ltr" @bind="inp.Sequence" disabled="@verSaving" /></td>
+                                                    <td class="bom-wb-item-cell">
+                                                        <select @bind="inp.ItemId" disabled="@verSaving">
+                                                            @foreach (var it in consumableItems)
+                                                            {
+                                                                <option value="@it.Id">@it.Code — @it.Name</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                    <td class="bom-wb-num-cell"><input type="text" inputmode="decimal" dir="ltr" @bind="inp.QuantityText" disabled="@verSaving" /></td>
+                                                    <td class="bom-wb-unit-cell">
+                                                        <select @bind="inp.UnitId" disabled="@verSaving">
+                                                            @foreach (var u in activeUnits)
+                                                            {
+                                                                <option value="@u.Id">@u.Code (@u.Symbol)</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                    <td class="bom-wb-num-cell"><input type="text" inputmode="decimal" dir="ltr" @bind="inp.ScrapText" disabled="@verSaving" /></td>
+                                                    <td><input type="checkbox" @bind="inp.IsOptional" disabled="@verSaving" /></td>
+                                                    <td>
+                                                        <BitTooltip Text="@Text["BomRemoveRowBtn"]" ShowOnFocus="true">
+                                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action read-action-deactivate"
+                                                                       Icon="@TrashIcon" IconOnly="true" aria-label="@Text["BomRemoveRowBtn"]"
+                                                                       OnClick="() => draftInputs.Remove(inp)" />
+                                                        </BitTooltip>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        }
+                        else if (selectedVersion.Inputs.Count == 0)
                         {
                             <p class="read-empty">@Text["ReadEmpty"]</p>
                         }
@@ -813,49 +924,41 @@
                                             <th scope="col">@Text["BomLineUnitColumn"]</th>
                                             <th scope="col">@Text["BomScrapColumn"]</th>
                                             <th scope="col">@Text["BomOptionalBadge"]</th>
-                                            @if (isDraftEditable) { <th scope="col"></th> }
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach (var inp in draftInputs)
+                                        @foreach (var inp in selectedVersion.Inputs)
                                         {
                                             <tr>
-                                                <td><input type="number" min="1" dir="ltr" style="width:60px;" @bind="inp.Sequence" disabled="@(!isDraftEditable || verSaving)" /></td>
+                                                <td dir="ltr">@inp.Sequence</td>
                                                 <td>
-                                                    <select @bind="inp.ItemId" disabled="@(!isDraftEditable || verSaving)">
-                                                        @foreach (var it in consumableItems)
-                                                        {
-                                                            <option value="@it.Id">@it.Code — @it.Name</option>
-                                                        }
-                                                    </select>
+                                                    <div class="bom-wb-item-title">@inp.ItemName</div>
+                                                    <div class="bom-wb-item-code" dir="ltr">@inp.ItemCode</div>
                                                 </td>
-                                                <td><input type="text" inputmode="decimal" dir="ltr" style="width:90px;" @bind="inp.QuantityText" disabled="@(!isDraftEditable || verSaving)" /></td>
+                                                <td dir="ltr"><strong>@Formatter.Number(inp.Quantity)</strong></td>
+                                                <td dir="ltr">@inp.UnitCode (@inp.UnitSymbol)</td>
+                                                <td dir="ltr">@Formatter.Number(inp.ScrapPercentage)%</td>
                                                 <td>
-                                                    <select @bind="inp.UnitId" disabled="@(!isDraftEditable || verSaving)">
-                                                        @foreach (var u in activeUnits)
-                                                        {
-                                                            <option value="@u.Id">@u.Code (@u.Symbol)</option>
-                                                        }
-                                                    </select>
+                                                    @if (inp.IsOptional)
+                                                    {
+                                                        <span class="cap-badge">@Text["BomOptionalBadge"]</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>—</span>
+                                                    }
                                                 </td>
-                                                <td><input type="text" inputmode="decimal" dir="ltr" style="width:70px;" @bind="inp.ScrapText" disabled="@(!isDraftEditable || verSaving)" /></td>
-                                                <td><input type="checkbox" @bind="inp.IsOptional" disabled="@(!isDraftEditable || verSaving)" /></td>
-                                                @if (isDraftEditable)
-                                                {
-                                                    <td>
-                                                        <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => draftInputs.Remove(inp)">
-                                                            @Text["BomRemoveRowBtn"]
-                                                        </BitButton>
-                                                    </td>
-                                                }
                                             </tr>
                                         }
                                     </tbody>
                                 </table>
                             </div>
                         }
+                    </div>
 
-                        <div class="audit-modal-title-row">
+                    @* Outputs Section *@
+                    <div class="bom-wb-section">
+                        <div class="bom-wb-section-head">
                             <h3 class="audit-section-heading">@Text["BomOutputsSection"]</h3>
                             @if (isDraftEditable)
                             {
@@ -863,8 +966,81 @@
                                     @Text["BomAddOutputBtn"]
                                 </BitButton>
                             }
+                            else
+                            {
+                                <span class="cap-badge"><bdi dir="ltr">@selectedVersion.Outputs.Count</bdi></span>
+                            }
                         </div>
-                        @if (draftOutputs.Count == 0)
+                        @if (isDraftEditable)
+                        {
+                            @if (draftOutputs.Count == 0)
+                            {
+                                <p class="read-empty">@Text["ReadEmpty"]</p>
+                            }
+                            else
+                            {
+                                <div class="audit-fields-box" style="overflow-x:auto;">
+                                    <table class="audit-fields-table bom-wb-table">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col" class="bom-wb-seq-cell">#</th>
+                                                <th scope="col" class="bom-wb-item-cell">@Text["BomLineItemColumn"]</th>
+                                                <th scope="col" class="bom-wb-type-cell">@Text["BomOutputTypeColumn"]</th>
+                                                <th scope="col" class="bom-wb-num-cell">@Text["BomQuantityColumn"]</th>
+                                                <th scope="col" class="bom-wb-unit-cell">@Text["BomLineUnitColumn"]</th>
+                                                <th scope="col"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var outLine in draftOutputs)
+                                            {
+                                                <tr>
+                                                    <td class="bom-wb-seq-cell"><input type="number" min="1" dir="ltr" @bind="outLine.Sequence" disabled="@verSaving" /></td>
+                                                    <td class="bom-wb-item-cell">
+                                                        <select @bind="outLine.ItemId" disabled="@verSaving">
+                                                            @foreach (var it in allActiveItems)
+                                                            {
+                                                                <option value="@it.Id">@it.Code — @it.Name</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                    <td class="bom-wb-type-cell">
+                                                        <select @bind="outLine.OutputType" disabled="@verSaving">
+                                                            @foreach (var ot in AllOutputTypes)
+                                                            {
+                                                                <option value="@ot">@Text[OutputTypeKey(ot)]</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                    <td class="bom-wb-num-cell"><input type="text" inputmode="decimal" dir="ltr" @bind="outLine.QuantityText" disabled="@verSaving" /></td>
+                                                    <td class="bom-wb-unit-cell">
+                                                        <select @bind="outLine.UnitId" disabled="@verSaving">
+                                                            @foreach (var u in activeUnits)
+                                                            {
+                                                                <option value="@u.Id">@u.Code (@u.Symbol)</option>
+                                                            }
+                                                        </select>
+                                                    </td>
+                                                    <td>
+                                                        <BitTooltip Text="@Text["BomRemoveRowBtn"]" ShowOnFocus="true">
+                                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action read-action-deactivate"
+                                                                       Icon="@TrashIcon" IconOnly="true" aria-label="@Text["BomRemoveRowBtn"]"
+                                                                       OnClick="() => draftOutputs.Remove(outLine)" />
+                                                        </BitTooltip>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                            <div class="write-actions">
+                                <BitButton Size="BitSize.Small" IsEnabled="@(!verSaving)" OnClick="SaveDraftLinesAsync">
+                                    @(verSaving ? Text["WriteSaving"] : Text["BomSaveLinesBtn"])
+                                </BitButton>
+                            </div>
+                        }
+                        else if (selectedVersion.Outputs.Count == 0)
                         {
                             <p class="read-empty">@Text["ReadEmpty"]</p>
                         }
@@ -879,67 +1055,31 @@
                                             <th scope="col">@Text["BomOutputTypeColumn"]</th>
                                             <th scope="col">@Text["BomQuantityColumn"]</th>
                                             <th scope="col">@Text["BomLineUnitColumn"]</th>
-                                            @if (isDraftEditable) { <th scope="col"></th> }
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach (var outLine in draftOutputs)
+                                        @foreach (var outLine in selectedVersion.Outputs)
                                         {
                                             <tr>
-                                                <td><input type="number" min="1" dir="ltr" style="width:60px;" @bind="outLine.Sequence" disabled="@(!isDraftEditable || verSaving)" /></td>
+                                                <td dir="ltr">@outLine.Sequence</td>
                                                 <td>
-                                                    <select @bind="outLine.ItemId" disabled="@(!isDraftEditable || verSaving)">
-                                                        @foreach (var it in allActiveItems)
-                                                        {
-                                                            <option value="@it.Id">@it.Code — @it.Name</option>
-                                                        }
-                                                    </select>
+                                                    <div class="bom-wb-item-title">@outLine.ItemName</div>
+                                                    <div class="bom-wb-item-code" dir="ltr">@outLine.ItemCode</div>
                                                 </td>
-                                                <td>
-                                                    <select @bind="outLine.OutputType" disabled="@(!isDraftEditable || verSaving)">
-                                                        @foreach (var ot in AllOutputTypes)
-                                                        {
-                                                            <option value="@ot">@Text[OutputTypeKey(ot)]</option>
-                                                        }
-                                                    </select>
-                                                </td>
-                                                <td><input type="text" inputmode="decimal" dir="ltr" style="width:90px;" @bind="outLine.QuantityText" disabled="@(!isDraftEditable || verSaving)" /></td>
-                                                <td>
-                                                    <select @bind="outLine.UnitId" disabled="@(!isDraftEditable || verSaving)">
-                                                        @foreach (var u in activeUnits)
-                                                        {
-                                                            <option value="@u.Id">@u.Code (@u.Symbol)</option>
-                                                        }
-                                                    </select>
-                                                </td>
-                                                @if (isDraftEditable)
-                                                {
-                                                    <td>
-                                                        <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => draftOutputs.Remove(outLine)">
-                                                            @Text["BomRemoveRowBtn"]
-                                                        </BitButton>
-                                                    </td>
-                                                }
+                                                <td><span class="read-badge @OutputTypeCss(outLine.OutputType)">@Text[OutputTypeKey(outLine.OutputType)]</span></td>
+                                                <td dir="ltr"><strong>@Formatter.Number(outLine.Quantity)</strong></td>
+                                                <td dir="ltr">@outLine.UnitCode (@outLine.UnitSymbol)</td>
                                             </tr>
                                         }
                                     </tbody>
                                 </table>
                             </div>
                         }
-
-                        @if (isDraftEditable)
-                        {
-                            <div class="write-actions">
-                                <BitButton Size="BitSize.Small" IsEnabled="@(!verSaving)" OnClick="SaveDraftLinesAsync">
-                                    @(verSaving ? Text["WriteSaving"] : Text["BomSaveLinesBtn"])
-                                </BitButton>
-                            </div>
-                        }
                     </div>
 
                     @* Applicability Section *@
-                    <div class="item-sub-card">
-                        <div class="audit-modal-title-row">
+                    <div class="bom-wb-section">
+                        <div class="bom-wb-section-head">
                             <h3 class="audit-section-heading">@Text["BomApplicabilityColumn"]</h3>
                             @if (isDraftEditable && appEnabled)
                             {
@@ -948,60 +1088,99 @@
                                     @Text["BomAddConditionBtn"]
                                 </BitButton>
                             }
-                        </div>
-
-                        <label class="write-check">
-                            <input type="checkbox" @bind="appEnabled" disabled="@(!isDraftEditable || verSaving)" />
-                            <span>@Text["BomEnableApplicabilityLabel"]</span>
-                        </label>
-
-                        @if (appEnabled)
-                        {
-                            <div class="write-grid">
-                                <div class="write-field">
-                                    <label for="app-name">@Text["ReadName"]</label>
-                                    <input id="app-name" type="text" maxlength="200" @bind="appName" disabled="@(!isDraftEditable || verSaving)" />
-                                </div>
-                                <label class="write-check">
-                                    <input type="checkbox" @bind="appIsActive" disabled="@(!isDraftEditable || verSaving)" />
-                                    <span>@Text["ReadActive"]</span>
-                                </label>
-                            </div>
-
-                            @foreach (var cond in draftConditions)
+                            else if (!isDraftEditable && selectedVersion.Applicability is null)
                             {
-                                <div class="bom-cond-row">
-                                    <select @bind="cond.DimensionId" disabled="@(!isDraftEditable || verSaving)">
-                                        @foreach (var dim in activeDimensions)
-                                        {
-                                            <option value="@dim.Id">@RolePermissionLocalization.ContextDimensionDisplayName(dim.Code, dim.Name, Text) (@dim.Code)</option>
-                                        }
-                                    </select>
-                                    <select @bind="cond.Operator" disabled="@(!isDraftEditable || verSaving)">
-                                        @foreach (var op in AllOperators)
-                                        {
-                                            <option value="@op">@Text[OperatorKey(op)]</option>
-                                        }
-                                    </select>
-                                    <input type="text" dir="ltr" maxlength="400" @bind="cond.Value"
-                                           placeholder="@Text["BomConditionValuePlaceholder"]" disabled="@(!isDraftEditable || verSaving)" />
-                                    @if (isDraftEditable)
-                                    {
-                                        <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => draftConditions.Remove(cond)">
-                                            @Text["BomRemoveRowBtn"]
-                                        </BitButton>
-                                    }
-                                </div>
+                                <span class="cap-badge">@Text["BomUnconditionalLabel"]</span>
                             }
-                        }
+                        </div>
 
                         @if (isDraftEditable)
                         {
+                            <label class="write-check">
+                                <input type="checkbox" @bind="appEnabled" disabled="@verSaving" />
+                                <span>@Text["BomEnableApplicabilityLabel"]</span>
+                            </label>
+
+                            @if (appEnabled)
+                            {
+                                <div class="write-grid">
+                                    <div class="write-field">
+                                        <label for="app-name">@Text["ReadName"]</label>
+                                        <input id="app-name" type="text" maxlength="200" @bind="appName" disabled="@verSaving" />
+                                    </div>
+                                    <label class="write-check">
+                                        <input type="checkbox" @bind="appIsActive" disabled="@verSaving" />
+                                        <span>@Text["ReadActive"]</span>
+                                    </label>
+                                </div>
+
+                                @foreach (var cond in draftConditions)
+                                {
+                                    <div class="bom-cond-row">
+                                        <select @bind="cond.DimensionId" disabled="@verSaving">
+                                            @foreach (var dim in activeDimensions)
+                                            {
+                                                <option value="@dim.Id">@RolePermissionLocalization.ContextDimensionDisplayName(dim.Code, dim.Name, Text) (@dim.Code)</option>
+                                            }
+                                        </select>
+                                        <select @bind="cond.Operator" disabled="@verSaving">
+                                            @foreach (var op in AllOperators)
+                                            {
+                                                <option value="@op">@Text[OperatorKey(op)]</option>
+                                            }
+                                        </select>
+                                        <input type="text" dir="ltr" maxlength="400" @bind="cond.Value"
+                                               placeholder="@Text["BomConditionValuePlaceholder"]" disabled="@verSaving" />
+                                        <BitTooltip Text="@Text["BomRemoveRowBtn"]" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action read-action-deactivate"
+                                                       Icon="@TrashIcon" IconOnly="true" aria-label="@Text["BomRemoveRowBtn"]"
+                                                       OnClick="() => draftConditions.Remove(cond)" />
+                                        </BitTooltip>
+                                    </div>
+                                }
+                            }
+
                             <div class="write-actions">
                                 <BitButton Size="BitSize.Small" IsEnabled="@(!verSaving)" OnClick="SaveDraftApplicabilityAsync">
                                     @(verSaving ? Text["WriteSaving"] : Text["BomSaveApplicabilityBtn"])
                                 </BitButton>
                             </div>
+                        }
+                        else if (selectedVersion.Applicability is BomApplicabilityDetails appDetails)
+                        {
+                            <div class="ff-kv-table-wrap">
+                                <table class="ff-kv-table">
+                                    <tbody>
+                                        <tr>
+                                            <th scope="row">@Text["ReadName"]</th>
+                                            <td>@appDetails.Name</td>
+                                            <th scope="row">@Text["ReadStatus"]</th>
+                                            <td><span class="read-badge @(appDetails.IsActive ? "active" : "inactive")">@(appDetails.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])</span></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            @if (appDetails.Conditions.Count > 0)
+                            {
+                                <div class="audit-fields-box" style="overflow-x:auto;">
+                                    <table class="audit-fields-table">
+                                        <tbody>
+                                            @foreach (var cond in appDetails.Conditions)
+                                            {
+                                                <tr>
+                                                    <td>@RolePermissionLocalization.ContextDimensionDisplayName(cond.DimensionCode, cond.DimensionName, Text) (<bdi dir="ltr">@cond.DimensionCode</bdi>)</td>
+                                                    <td><span class="cap-badge">@Text[OperatorKey(cond.Operator)]</span></td>
+                                                    <td><bdi dir="ltr">@cond.Value</bdi></td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <p class="write-hint" style="margin:0;">@Text["BomUnconditionalLabel"]</p>
                         }
                     </div>
                 </div>
@@ -1085,6 +1264,8 @@
     private static readonly BomOutputType[] AllOutputTypes = Enum.GetValues<BomOutputType>();
     private static readonly ApplicabilityOperator[] AllOperators = Enum.GetValues<ApplicabilityOperator>();
     private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
+    private static readonly BitIconInfo VersionsIcon = BitIconInfo.Css("ff-icon ff-icon--versions");
+    private static readonly BitIconInfo TrashIcon = BitIconInfo.Css("ff-icon ff-icon--trash");
     private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
     private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
     private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");

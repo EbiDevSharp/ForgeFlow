@@ -258,8 +258,8 @@
                                             <div class="wc-load-bar @(overloaded ? "over" : string.Empty)">
                                                 <span style="width:@(barPct)%"></span>
                                             </div>
-                                            <div class="read-sub-cell" dir="ltr">
-                                                @Text["WcActiveOpsCol"]: @wc.ActiveOperationCount · @Text["WcPlannedMinsCol"]: @Format.Number(wc.TotalPlannedMinutes)m
+                                            <div class="read-sub-cell">
+                                                @Text["WcActiveOpsCol"]: <bdi dir="ltr">@wc.ActiveOperationCount</bdi> · @Text["WcPlannedMinsCol"]: <bdi dir="ltr">@Format.Number(wc.TotalPlannedMinutes)</bdi>
                                             </div>
                                         </div>
                                     }

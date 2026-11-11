@@ -164,7 +164,7 @@
             <div class="read-grid">
                 <BitDataGrid @ref="grid" TItem="ErrorLogSummary" OnRead="ReadGridAsync" Pageable="true" PageSize="25"
                              PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                             AriaLabelledBy="errlog-title" WrapCellText="true">
+                             AriaLabelledBy="errlog-title" WrapCellText="true" Resizable="true">
                     <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
                     <Columns>
                         <BitDataGridColumn TItem="ErrorLogSummary" Title="@Text["AuditTimeColumn"]">
