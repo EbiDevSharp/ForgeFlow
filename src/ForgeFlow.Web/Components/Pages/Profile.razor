@@ -1,0 +1,270 @@
+@page "/account/profile"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ForgeFlow.Application.Users
+@using ForgeFlow.Infrastructure.Identity
+@using Microsoft.AspNetCore.Components.Forms
+@inject IStringLocalizer<SharedResources> Text
+@inject ICurrentAuthenticatedSession SessionSource
+@inject RuntimeSessions Sessions
+@inject UserDisplayPreferences DisplayPreferences
+@inject NavigationManager Navigation
+
+<PageTitle>@Text["MyProfileTitle"]</PageTitle>
+
+<section class="account-page" aria-labelledby="profile-title">
+    <div class="account-page-head">
+        <div>
+            <h1 id="profile-title">@Text["MyProfileTitle"]</h1>
+            <p class="account-page-subtitle">@Text["MyProfileSubtitle"]</p>
+        </div>
+    </div>
+
+    <AccountNav Active="profile" />
+
+    @if (!loaded)
+    {
+        <div class="prefs-card prefs-loading">
+            <BitProgress Circular="true" Indeterminate="true" Label="@Text["ReadLoading"]" />
+        </div>
+    }
+    else if (profile is not null)
+    {
+        <div class="prefs-card profile-card" role="form" aria-labelledby="profile-title">
+            <div class="profile-avatar-row">
+                <div class="profile-avatar-preview" aria-hidden="true">
+                    @if (previewDataUrl is not null)
+                    {
+                        <img src="@previewDataUrl" alt="" />
+                    }
+                    else if (hasAvatar && !removeAvatar)
+                    {
+                        <img src="/account/avatar?v=@avatarRenderVersion" alt="" />
+                    }
+                    else
+                    {
+                        <span>@Initial(string.IsNullOrWhiteSpace(displayName) ? profile.UserName : displayName)</span>
+                    }
+                </div>
+                <div class="profile-avatar-actions">
+                    <div class="prefs-row-title">@Text["ProfileAvatarLabel"]</div>
+                    <div class="prefs-row-hint">@Text["ProfileAvatarHint"]</div>
+                    <div class="profile-avatar-buttons">
+                        <label class="profile-upload-btn">
+                            <span>@Text["ProfileAvatarChoose"]</span>
+                            <InputFile OnChange="OnAvatarSelectedAsync"
+                                       accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                                       disabled="@saving" />
+                        </label>
+                        @if (hasAvatar || previewDataUrl is not null)
+                        {
+                            <BitButton Variant="BitVariant.Outline"
+                                       Size="BitSize.Small"
+                                       ButtonType="BitButtonType.Button"
+                                       IsEnabled="@(!saving)"
+                                       OnClick="MarkRemoveAvatar">
+                                @Text["ProfileAvatarRemove"]
+                            </BitButton>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="profile-fields">
+                <div class="read-field">
+                    <label for="profile-username">@Text["ProfileUsernameLabel"]</label>
+                    <input id="profile-username" type="text" value="@profile.UserName" readonly dir="ltr" />
+                    <span class="write-hint">@Text["ProfileUsernameLockedHint"]</span>
+                </div>
+
+                <div class="read-field">
+                    <label for="profile-display-name">@Text["ProfileDisplayNameLabel"]</label>
+                    <input id="profile-display-name"
+                           type="text"
+                           maxlength="128"
+                           disabled="@saving"
+                           @bind="displayName" />
+                </div>
+
+                <div class="read-field">
+                    <label for="profile-email">@Text["ProfileEmailLabel"]</label>
+                    <input id="profile-email"
+                           type="email"
+                           dir="ltr"
+                           maxlength="256"
+                           disabled="@saving"
+                           @bind="email" />
+                </div>
+
+                <div class="read-field">
+                    <label for="profile-phone">@Text["ProfilePhoneLabel"]</label>
+                    <input id="profile-phone"
+                           type="tel"
+                           dir="ltr"
+                           maxlength="64"
+                           disabled="@saving"
+                           @bind="phoneNumber" />
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="prefs-feedback prefs-feedback--error" role="alert">@errorMessage</div>
+            }
+            @if (!string.IsNullOrEmpty(statusMessage))
+            {
+                <div class="prefs-feedback prefs-feedback--saved" role="status">@statusMessage</div>
+            }
+
+            <div class="prefs-footer">
+                <BitButton Variant="BitVariant.Fill"
+                           Color="BitColor.Primary"
+                           ButtonType="BitButtonType.Button"
+                           IsEnabled="@(!saving)"
+                           OnClick="SaveAsync">
+                    @Text["ProfileSaveSubmit"]
+                </BitButton>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    private bool loaded;
+    private bool saving;
+    private UserProfileSnapshot? profile;
+    private string? displayName;
+    private string? email;
+    private string? phoneNumber;
+    private bool hasAvatar;
+    private bool removeAvatar;
+    private byte[]? pendingAvatarBytes;
+    private string? pendingAvatarContentType;
+    private string? previewDataUrl;
+    private int avatarRenderVersion;
+    private string? errorMessage;
+    private string? statusMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        avatarRenderVersion = DisplayPreferences.AvatarVersion;
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        profile = reference is null ? null : await Sessions.GetProfileAsync(reference, CancellationToken.None);
+        if (profile is not null)
+        {
+            displayName = profile.DisplayName;
+            email = profile.Email;
+            phoneNumber = profile.PhoneNumber;
+            hasAvatar = profile.HasAvatar;
+        }
+        loaded = true;
+    }
+
+    private async Task OnAvatarSelectedAsync(InputFileChangeEventArgs args)
+    {
+        errorMessage = null;
+        statusMessage = null;
+        var file = args.File;
+        if (file.Size <= 0 || file.Size > UserPreferenceCatalog.MaxAvatarBytes)
+        {
+            errorMessage = Text["ProfileAvatarInvalidError"];
+            return;
+        }
+
+        var contentType = file.ContentType?.Trim().ToLowerInvariant();
+        if (contentType is not ("image/png" or "image/jpeg" or "image/webp"))
+        {
+            errorMessage = Text["ProfileAvatarInvalidError"];
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(UserPreferenceCatalog.MaxAvatarBytes);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        var bytes = ms.ToArray();
+        if (!UserPreferenceCatalog.IsValidAvatar(bytes, contentType))
+        {
+            errorMessage = Text["ProfileAvatarInvalidError"];
+            return;
+        }
+
+        pendingAvatarBytes = bytes;
+        pendingAvatarContentType = contentType;
+        removeAvatar = false;
+        previewDataUrl = $"data:{contentType};base64,{Convert.ToBase64String(bytes)}";
+    }
+
+    private void MarkRemoveAvatar()
+    {
+        pendingAvatarBytes = null;
+        pendingAvatarContentType = null;
+        previewDataUrl = null;
+        hasAvatar = false;
+        removeAvatar = true;
+        errorMessage = null;
+        statusMessage = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        errorMessage = null;
+        statusMessage = null;
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null)
+        {
+            Navigation.NavigateTo("/account/login", forceLoad: true);
+            return;
+        }
+
+        saving = true;
+        try
+        {
+            var result = await Sessions.UpdateProfileAsync(
+                reference,
+                new UpdateUserProfileRequest(displayName, email, phoneNumber, pendingAvatarBytes, pendingAvatarContentType, removeAvatar),
+                CancellationToken.None);
+
+            if (result.Code == "Auth.SessionInvalid")
+            {
+                Navigation.NavigateTo("/account/login", forceLoad: true);
+                return;
+            }
+
+            if (result.Code != "Profile.Saved" || result.Profile is null)
+            {
+                errorMessage = result.Code switch
+                {
+                    "Profile.DisplayNameInvalid" => Text["ProfileDisplayNameInvalidError"],
+                    "Profile.EmailInvalid" => Text["ProfileEmailInvalidError"],
+                    "Profile.PhoneInvalid" => Text["ProfilePhoneInvalidError"],
+                    "Profile.AvatarInvalid" => Text["ProfileAvatarInvalidError"],
+                    _ => Text["ProfileSaveFailedError"]
+                };
+                return;
+            }
+
+            profile = result.Profile;
+            displayName = profile.DisplayName;
+            email = profile.Email;
+            phoneNumber = profile.PhoneNumber;
+            hasAvatar = profile.HasAvatar;
+            pendingAvatarBytes = null;
+            pendingAvatarContentType = null;
+            previewDataUrl = null;
+            removeAvatar = false;
+
+            DisplayPreferences.NotifyProfileUpdated(profile.DisplayName, profile.HasAvatar);
+            avatarRenderVersion = DisplayPreferences.AvatarVersion;
+            statusMessage = Text["ProfileSavedNotice"];
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private static string Initial(string? value)
+    {
+        var trimmed = value?.Trim();
+        return string.IsNullOrEmpty(trimmed) ? "?" : char.ToUpperInvariant(trimmed[0]).ToString();
+    }
+}

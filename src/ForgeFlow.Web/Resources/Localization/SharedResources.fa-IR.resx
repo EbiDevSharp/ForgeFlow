@@ -724,10 +724,10 @@
     <value>موفق</value>
   </data>
   <data name="AuditOutcomeFailure" xml:space="preserve">
-    <value>ناموفق / ردشده</value>
+    <value>ناموفق / رد شده</value>
   </data>
   <data name="AuditOutcomeRecorded" xml:space="preserve">
-    <value>ثبت‌شده</value>
+    <value>ثبت شده</value>
   </data>
   <data name="AuditDetailsButton" xml:space="preserve">
     <value>جزئیات</value>
@@ -2252,4 +2252,149 @@
   <data name="AuditEv_QualityInspectionCancelled" xml:space="preserve"><value>لغو بازرسی کنترل کیفیت</value></data>
   <data name="AuditEv_ItemLotUpdated" xml:space="preserve"><value>ثبت یا ویرایش تاریخ‌های لات</value></data>
   <data name="AuditEv_QualityActionRejected" xml:space="preserve"><value>رد عملیات کنترل کیفیت</value></data>
+  <data name="AuditEv_PreferencesUpdated" xml:space="preserve"><value>به‌روزرسانی تنظیمات کاربری</value></data>
+  <data name="AuditEv_ProfileUpdated" xml:space="preserve"><value>به‌روزرسانی پروفایل کاربری</value></data>
+  <data name="AuditEv_SessionRevokedByUser" xml:space="preserve"><value>خروج نشست توسط کاربر</value></data>
+  <data name="AuditEv_OtherSessionsRevoked" xml:space="preserve"><value>خروج از همهٔ دستگاه‌های دیگر</value></data>
+  <data name="AuditEv_ActiveSiteSwitched" xml:space="preserve"><value>تغییر سایت فعال کاربر</value></data>
+  <data name="ProfileNavLabel" xml:space="preserve"><value>ناوبری حساب کاربری</value></data>
+  <data name="MyProfileTitle" xml:space="preserve"><value>پروفایل من</value></data>
+  <data name="MyProfileSubtitle" xml:space="preserve"><value>اطلاعات شخصی، راه‌های ارتباطی و تصویر پروفایل حساب شما.</value></data>
+  <data name="ProfileUsernameLabel" xml:space="preserve"><value>نام کاربری</value></data>
+  <data name="ProfileUsernameLockedHint" xml:space="preserve"><value>نام کاربری ثابت است و امکان تغییر آن وجود ندارد.</value></data>
+  <data name="ProfileDisplayNameLabel" xml:space="preserve"><value>نام نمایشی</value></data>
+  <data name="ProfileEmailLabel" xml:space="preserve"><value>ایمیل</value></data>
+  <data name="ProfilePhoneLabel" xml:space="preserve"><value>شماره تماس</value></data>
+  <data name="ProfileAvatarLabel" xml:space="preserve"><value>عکس پروفایل</value></data>
+  <data name="ProfileAvatarHint" xml:space="preserve"><value>فرمت‌های PNG، JPEG یا WebP تا حداکثر ۲۵۶ کیلوبایت.</value></data>
+  <data name="ProfileAvatarChoose" xml:space="preserve"><value>انتخاب تصویر</value></data>
+  <data name="ProfileAvatarRemove" xml:space="preserve"><value>حذف تصویر</value></data>
+  <data name="ProfileSaveSubmit" xml:space="preserve"><value>ذخیرهٔ تغییرات</value></data>
+  <data name="ProfileSavedNotice" xml:space="preserve"><value>اطلاعات پروفایل با موفقیت ذخیره شد.</value></data>
+  <data name="ProfileDisplayNameInvalidError" xml:space="preserve"><value>نام نمایشی نامعتبر است یا بیش از ۱۲۸ نویسه دارد.</value></data>
+  <data name="ProfileEmailInvalidError" xml:space="preserve"><value>نشانی ایمیل معتبر نیست.</value></data>
+  <data name="ProfilePhoneInvalidError" xml:space="preserve"><value>شماره تماس معتبر نیست.</value></data>
+  <data name="ProfileAvatarInvalidError" xml:space="preserve"><value>تصویر انتخاب‌شده باید PNG، JPEG یا WebP و حداکثر ۲۵۶ کیلوبایت باشد.</value></data>
+  <data name="ProfileSaveFailedError" xml:space="preserve"><value>ذخیرهٔ اطلاعات پروفایل انجام نشد.</value></data>
+  <data name="MyPreferencesTitle" xml:space="preserve"><value>تنظیمات من</value></data>
+  <data name="MyPreferencesMenuSubtitle" xml:space="preserve"><value>تنظیمات من (زبان، تم، تقویم)</value></data>
+  <data name="MyPreferencesSubtitle" xml:space="preserve"><value>این تنظیمات به حساب شما وصل است و در همهٔ دستگاه‌ها اعمال می‌شود.</value></data>
+  <data name="PreferencesLanguageTitle" xml:space="preserve"><value>زبان</value></data>
+  <data name="PreferencesLanguageHint" xml:space="preserve"><value>زبان رابط کاربری</value></data>
+  <data name="PreferencesCalendarTitle" xml:space="preserve"><value>تقویم</value></data>
+  <data name="PreferencesCalendarSamplePrefix" xml:space="preserve"><value>نمونه: {0}</value></data>
+  <data name="PreferencesCalendarPersian" xml:space="preserve"><value>شمسی</value></data>
+  <data name="PreferencesCalendarGregorian" xml:space="preserve"><value>میلادی</value></data>
+  <data name="PreferencesThemeTitle" xml:space="preserve"><value>تم</value></data>
+  <data name="PreferencesThemeHint" xml:space="preserve"><value>ظاهر برنامه</value></data>
+  <data name="PreferencesThemeLight" xml:space="preserve"><value>روشن</value></data>
+  <data name="PreferencesThemeDark" xml:space="preserve"><value>تیره</value></data>
+  <data name="PreferencesThemeSystem" xml:space="preserve"><value>سیستم</value></data>
+  <data name="PreferencesTimeZoneTitle" xml:space="preserve"><value>منطقهٔ زمانی</value></data>
+  <data name="PreferencesTimeZoneHint" xml:space="preserve"><value>زمان‌ها در سراسر برنامه به این منطقه نمایش داده می‌شوند</value></data>
+  <data name="PreferencesResetButton" xml:space="preserve"><value>بازنشانی</value></data>
+  <data name="PreferencesSaveButton" xml:space="preserve"><value>ذخیرهٔ تغییرات</value></data>
+  <data name="PreferencesSavedNotice" xml:space="preserve"><value>تنظیمات با موفقیت ذخیره شد.</value></data>
+  <data name="PreferencesSaveFailedError" xml:space="preserve"><value>ذخیرهٔ تنظیمات انجام نشد.</value></data>
+  <data name="UserMenuActiveSiteLabel" xml:space="preserve"><value>سایت فعال</value></data>
+  <data name="UserMenuViewSessionsLink" xml:space="preserve"><value>مشاهده نشست‌ها</value></data>
+  <data name="UserMenuFailedAttemptsWarning" xml:space="preserve"><value>{0} تلاش ناموفق پس از این ورود</value></data>
+  <data name="MyActivityTitle" xml:space="preserve"><value>فعالیت‌های من</value></data>
+  <data name="ActiveSessionsTitle" xml:space="preserve"><value>نشست‌های فعال</value></data>
+  <data name="ActiveSessionsSubtitle" xml:space="preserve"><value>دستگاه‌هایی که الان با حساب شما وارد شده‌اند.</value></data>
+  <data name="RevokeAllOtherSessionsButton" xml:space="preserve"><value>خروج از همهٔ دستگاه‌ها</value></data>
+  <data name="SessionIpPrefix" xml:space="preserve"><value>IP: {0}</value></data>
+  <data name="SessionCurrentDeviceBadge" xml:space="preserve"><value>این دستگاه</value></data>
+  <data name="SessionSignOutOneButton" xml:space="preserve"><value>خروج</value></data>
+  <data name="SessionsSecurityFootnote" xml:space="preserve"><value>با «خروج از همهٔ دستگاه‌ها» همهٔ نشست‌ها به جز همین دستگاه بسته می‌شوند. اگر دستگاه ناشناسی می‌بینید، پس از خروج رمز عبور را هم تغییر دهید.</value></data>
+  <data name="SessionLastActivityNow" xml:space="preserve"><value>آخرین فعالیت: اکنون</value></data>
+  <data name="SessionLastActivityMinutes" xml:space="preserve"><value>آخرین فعالیت: {0} دقیقه پیش</value></data>
+  <data name="SessionLastActivityHours" xml:space="preserve"><value>آخرین فعالیت: {0} ساعت پیش</value></data>
+  <data name="SessionLastActivityTimestamp" xml:space="preserve"><value>آخرین فعالیت: {0}</value></data>
+  <data name="SessionRevokedNotice" xml:space="preserve"><value>نشست انتخاب‌شده بسته شد.</value></data>
+  <data name="SessionOthersRevokedNotice" xml:space="preserve"><value>{0} نشست دیگر بسته شد.</value></data>
+  <data name="SessionRevokeFailedError" xml:space="preserve"><value>بستن نشست انجام نشد.</value></data>
+  <data name="ChangePasswordSessionsLink" xml:space="preserve"><value>مشاهدهٔ نشست‌های فعال و خروج از همهٔ دستگاه‌ها</value></data>
+  <data name="MyActivitySubtitle" xml:space="preserve"><value>سوابق رویدادهای مربوط به حساب خودتان.</value></data>
+  <data name="MyActivityLockedBadge" xml:space="preserve"><value>فقط فعالیت‌های شما نمایش داده می‌شود</value></data>
+  <data name="MyActivityRangeLabel" xml:space="preserve"><value>بازهٔ زمانی</value></data>
+  <data name="MyActivityRange7Days" xml:space="preserve"><value>۷ روز گذشته</value></data>
+  <data name="MyActivityRange30Days" xml:space="preserve"><value>۳۰ روز گذشته</value></data>
+  <data name="MyActivityRange90Days" xml:space="preserve"><value>۹۰ روز گذشته</value></data>
+  <data name="MyActivityRangeAll" xml:space="preserve"><value>همه</value></data>
+  <data name="MyActivitySearchPlaceholder" xml:space="preserve"><value>جستجو در فعالیت‌ها</value></data>
+  <data name="MyActivityIpColumn" xml:space="preserve"><value>آدرس IP</value></data>
+  <data name="MyActivityDeviceColumn" xml:space="preserve"><value>دستگاه</value></data>
+  <data name="MyActivityOutcomeRecorded" xml:space="preserve"><value>ثبت شده</value></data>
+  <data name="NotificationsTitle" xml:space="preserve"><value>اعلان‌ها</value></data>
+  <data name="NotificationsSubtitle" xml:space="preserve"><value>رویدادهای مهم مربوط به حساب و کارهای شما.</value></data>
+  <data name="NotifUnreadAriaCount" xml:space="preserve"><value>{0} اعلان خوانده نشده</value></data>
+  <data name="NotificationsMarkAllRead" xml:space="preserve"><value>علامت‌گذاری همه به عنوان خوانده شده</value></data>
+  <data name="NotificationsEmpty" xml:space="preserve"><value>اعلانی برای نمایش وجود ندارد.</value></data>
+  <data name="NotificationsViewAll" xml:space="preserve"><value>مشاهدهٔ همهٔ اعلان‌ها</value></data>
+  <data name="NotifTabAll" xml:space="preserve"><value>همه</value></data>
+  <data name="NotifTabUnread" xml:space="preserve"><value>خوانده نشده</value></data>
+  <data name="NotifTabSecurity" xml:space="preserve"><value>امنیتی</value></data>
+  <data name="NotifTabOrders" xml:space="preserve"><value>سفارش‌ها</value></data>
+  <data name="NotifGroupToday" xml:space="preserve"><value>امروز</value></data>
+  <data name="NotifGroupOlder" xml:space="preserve"><value>قدیمی‌تر</value></data>
+  <data name="NotifPagerSummary" xml:space="preserve"><value>{0} تا {1} از {2}</value></data>
+  <data name="NotifPagerPage" xml:space="preserve"><value>صفحهٔ {0} از {1}</value></data>
+  <data name="NotifTitle_NewDeviceSignIn" xml:space="preserve"><value>ورود از دستگاه جدید</value></data>
+  <data name="NotifBody_NewDeviceSignIn" xml:space="preserve"><value>{0} — {1}</value></data>
+  <data name="NotifTitle_FailedSignInAttempts" xml:space="preserve"><value>{0} تلاش ناموفق برای ورود</value></data>
+  <data name="NotifBody_FailedSignInAttempts" xml:space="preserve"><value>از آدرس {0}</value></data>
+  <data name="NotifTitle_RoleOrAccessChanged" xml:space="preserve"><value>نقش یا دسترسی شما تغییر کرد</value></data>
+  <data name="NotifBody_RoleOrAccessChanged" xml:space="preserve"><value>{0} برای {1}</value></data>
+  <data name="NotifTitle_MyOrderChanged" xml:space="preserve"><value>سفارش {0} به‌روزرسانی شد</value></data>
+  <data name="NotifBody_MyOrderChanged" xml:space="preserve"><value>وضعیت از «{0}» به «{1}» رسید</value></data>
+  <data name="NotifTitle_PasswordChanged" xml:space="preserve"><value>رمز عبور شما تغییر کرد</value></data>
+  <data name="NotifBody_PasswordChanged" xml:space="preserve"><value>از دستگاه {0}</value></data>
+  <data name="NotifAction_ViewSessions" xml:space="preserve"><value>مشاهده نشست‌ها</value></data>
+  <data name="NotifAction_ViewActivity" xml:space="preserve"><value>مشاهده فعالیت‌ها</value></data>
+  <data name="NotifAction_ViewOrder" xml:space="preserve"><value>مشاهده سفارش</value></data>
+  <data name="NotifTimeNow" xml:space="preserve"><value>همین الان</value></data>
+  <data name="NotifTimeMinutes" xml:space="preserve"><value>{0} دقیقه پیش</value></data>
+  <data name="NotifTimeHours" xml:space="preserve"><value>{0} ساعت پیش</value></data>
+  <data name="NotifTimeYesterday" xml:space="preserve"><value>دیروز {0}</value></data>
+  <data name="NotifTimeDays" xml:space="preserve"><value>{0} روز پیش</value></data>
+  <data name="NotificationSettingsTitle" xml:space="preserve"><value>اعلان‌ها و راهنما</value></data>
+  <data name="NotificationSettingsSubtitle" xml:space="preserve"><value>تعیین کنید چه رویدادهایی و از چه راهی به شما خبر داده شود.</value></data>
+  <data name="NotifMatrixEventColumn" xml:space="preserve"><value>رویداد</value></data>
+  <data name="NotifMatrixInAppColumn" xml:space="preserve"><value>درون برنامه</value></data>
+  <data name="NotifMatrixEmailColumn" xml:space="preserve"><value>ایمیل</value></data>
+  <data name="NotifEmailUnavailableTag" xml:space="preserve"><value>بدون SMTP</value></data>
+  <data name="NotifSmtpUnavailableHint" xml:space="preserve"><value>تا زمان پیکربندی سرور ایمیل (SMTP)، اعلان ایمیلی غیرفعال است.</value></data>
+  <data name="NotifPref_NewDeviceSignInTitle" xml:space="preserve"><value>ورود از دستگاه جدید</value></data>
+  <data name="NotifPref_NewDeviceSignInDesc" xml:space="preserve"><value>وقتی با دستگاه یا مرورگر جدید وارد حساب شما شوند</value></data>
+  <data name="NotifPref_FailedSignInTitle" xml:space="preserve"><value>تلاش ناموفق برای ورود</value></data>
+  <data name="NotifPref_FailedSignInDesc" xml:space="preserve"><value>وقتی رمز اشتباه وارد شود</value></data>
+  <data name="NotifPref_RoleChangedTitle" xml:space="preserve"><value>تغییر نقش یا دسترسی</value></data>
+  <data name="NotifPref_RoleChangedDesc" xml:space="preserve"><value>وقتی نقش یا سایت‌های شما تغییر کند</value></data>
+  <data name="NotifPref_MyOrdersTitle" xml:space="preserve"><value>سفارش‌های تولید من</value></data>
+  <data name="NotifPref_MyOrdersDesc" xml:space="preserve"><value>تغییر وضعیت سفارش‌هایی که شما ثبت کرده‌اید</value></data>
+  <data name="NotifPrefsSavedNotice" xml:space="preserve"><value>تنظیم اعلان ذخیره شد.</value></data>
+  <data name="NotifPrefsSaveFailed" xml:space="preserve"><value>ذخیرهٔ تنظیم اعلان انجام نشد.</value></data>
+  <data name="HelpShortcutsTitle" xml:space="preserve"><value>میانبرها</value></data>
+  <data name="HelpShortcutSearch" xml:space="preserve"><value>جستجوی سراسری</value></data>
+  <data name="HelpShortcutCommands" xml:space="preserve"><value>باز کردن منوی دستورها</value></data>
+  <data name="HelpShortcutAll" xml:space="preserve"><value>نمایش همهٔ میانبرها</value></data>
+  <data name="HelpSupportTitle" xml:space="preserve"><value>راهنما</value></data>
+  <data name="HelpUserGuideLink" xml:space="preserve"><value>راهنمای کاربر</value></data>
+  <data name="HelpReportIssueLink" xml:space="preserve"><value>گزارش مشکل</value></data>
+  <data name="HelpContactSupportLink" xml:space="preserve"><value>تماس با پشتیبانی</value></data>
+  <data name="HelpUserGuideOverview" xml:space="preserve"><value>از منوی ناوبری یا منوی دستورها (Ctrl + K) برای دسترسی به بخش‌های مجاز سازمان و سایت خود استفاده کنید.</value></data>
+  <data name="HelpUserGuideShortcuts" xml:space="preserve"><value>کلید / برای تمرکز روی جستجو، Ctrl + K برای دستورها و ? برای مشاهدهٔ کلیدهای میانبر فعال است.</value></data>
+  <data name="HelpUserGuideSessions" xml:space="preserve"><value>در صفحهٔ نشست‌های فعال می‌توانید دستگاه‌های متصل را بررسی یا خارج کنید.</value></data>
+  <data name="HelpUserGuidePreferences" xml:space="preserve"><value>زبان، تم روشن/تیره، تقویم و منطقهٔ زمانی در «تنظیمات من» برای همهٔ دستگاه‌ها ذخیره می‌شود.</value></data>
+  <data name="HelpIssueSummaryLabel" xml:space="preserve"><value>شرح مشکل</value></data>
+  <data name="HelpIssueSummaryPlaceholder" xml:space="preserve"><value>مشکل مشاهده‌شده را توضیح دهید...</value></data>
+  <data name="HelpIssueSubmitBtn" xml:space="preserve"><value>ارسال گزارش</value></data>
+  <data name="HelpIssueSubmittedNotice" xml:space="preserve"><value>گزارش مشکل با شناسهٔ پیگیری {0} ثبت شد.</value></data>
+  <data name="HelpSupportDescription" xml:space="preserve"><value>برای پشتیبانی، شناسهٔ پیگیری گزارش مشکل یا لاگ خطاها را برای مدیر سیستم یا تیم پشتیبانی ارسال کنید.</value></data>
+  <data name="CommandPaletteTitle" xml:space="preserve"><value>منوی دستورها</value></data>
+  <data name="CommandPalettePlaceholder" xml:space="preserve"><value>جستجوی صفحه یا بخش...</value></data>
+  <data name="NotifRoleOrgMembership" xml:space="preserve"><value>عضویت سازمانی</value></data>
+  <data name="NotifRoleSiteMembership" xml:space="preserve"><value>عضویت سایت</value></data>
+  <data name="NotifRoleDirectPermissions" xml:space="preserve"><value>مجوزهای مستقیم</value></data>
 </root>

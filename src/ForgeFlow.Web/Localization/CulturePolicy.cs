@@ -1,12 +1,14 @@
 using System.Globalization;
+using ForgeFlow.Application.Users;
 using Microsoft.AspNetCore.Localization;
 
 namespace ForgeFlow.Web.Localization;
 
-public sealed class CulturePolicy
+public sealed class CulturePolicy(UserDisplayPreferences? displayPreferences = null)
 {
     public const string Persian = "fa-IR";
     public const string English = "en-US";
+    private const string PickerShortDateFormat = "yyyy/MM/dd";
     public static IReadOnlyList<string> Supported { get; } = [Persian, English];
     public static string? Normalize(string? value) => Supported.FirstOrDefault(culture => string.Equals(culture, value, StringComparison.OrdinalIgnoreCase));
 
@@ -14,24 +16,39 @@ public sealed class CulturePolicy
     public string Language => CultureInfo.CurrentUICulture.Name;
     public string Direction => CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft ? "rtl" : "ltr";
 
-    public Calendar Calendar => Current.Name == Persian ? new PersianCalendar() : new GregorianCalendar();
+    public string CalendarSystem => displayPreferences?.EffectiveCalendar(Language)
+        ?? (Current.Name == Persian ? UserPreferenceCatalog.PersianCalendar : UserPreferenceCatalog.GregorianCalendar);
+
+    public Calendar Calendar => CalendarSystem == UserPreferenceCatalog.PersianCalendar ? new PersianCalendar() : new GregorianCalendar();
 
     public CultureInfo PickerCulture
     {
         get
         {
-            if (Language != Persian)
-                return CultureInfo.GetCultureInfo(English);
-
-            var culture = (CultureInfo)CultureInfo.GetCultureInfo(Persian).Clone();
-            if (culture.DateTimeFormat.Calendar is not PersianCalendar)
+            if (CalendarSystem == UserPreferenceCatalog.PersianCalendar)
             {
-                var persianCal = culture.OptionalCalendars.OfType<PersianCalendar>().FirstOrDefault() ?? new PersianCalendar();
-                culture.DateTimeFormat.Calendar = persianCal;
+                var culture = (CultureInfo)CultureInfo.GetCultureInfo(Persian).Clone();
+                if (culture.DateTimeFormat.Calendar is not PersianCalendar)
+                    culture.DateTimeFormat.Calendar = culture.OptionalCalendars.OfType<PersianCalendar>().FirstOrDefault() ?? new PersianCalendar();
+                culture.DateTimeFormat.FirstDayOfWeek = DayOfWeek.Saturday;
+                culture.DateTimeFormat.ShortDatePattern = PickerShortDateFormat;
+                return culture;
             }
-            culture.DateTimeFormat.FirstDayOfWeek = DayOfWeek.Saturday;
-            culture.DateTimeFormat.ShortDatePattern = "yyyy/MM/dd";
-            return culture;
+
+            if (Language == Persian)
+            {
+                var faGregorian = (CultureInfo)CultureInfo.GetCultureInfo(Persian).Clone();
+                var greg = faGregorian.OptionalCalendars.OfType<GregorianCalendar>().FirstOrDefault();
+                if (greg is not null)
+                {
+                    faGregorian.DateTimeFormat.Calendar = greg;
+                    faGregorian.DateTimeFormat.FirstDayOfWeek = DayOfWeek.Saturday;
+                    faGregorian.DateTimeFormat.ShortDatePattern = PickerShortDateFormat;
+                    return faGregorian;
+                }
+            }
+
+            return CultureInfo.GetCultureInfo(English);
         }
     }
 

@@ -6,8 +6,47 @@ public sealed class ApplicationAccount : IdentityUser<long>
 {
     public bool IsActive { get; internal set; } = true;
     public string? PreferredCulture { get; internal set; }
+    public string? DisplayName { get; internal set; }
+    public string? AvatarContentType { get; internal set; }
+    public byte[]? AvatarData { get; internal set; }
     public DateTime CreatedAtUtc { get; internal set; }
     public DateTime? UpdatedAtUtc { get; internal set; }
+}
+
+public sealed class UserPreference
+{
+    public long UserId { get; internal set; }
+    public string Language { get; internal set; } = null!;
+    public string Theme { get; internal set; } = null!;
+    public string CalendarSystem { get; internal set; } = null!;
+    public string TimeZoneId { get; internal set; } = null!;
+    public long? ActiveOrganizationId { get; internal set; }
+    public long? ActiveSiteId { get; internal set; }
+    public DateTime CreatedAtUtc { get; internal set; }
+    public DateTime? UpdatedAtUtc { get; internal set; }
+}
+
+public sealed class UserNotificationPreference
+{
+    public long UserId { get; internal set; }
+    public string EventCode { get; internal set; } = null!;
+    public bool InAppEnabled { get; internal set; }
+    public bool EmailEnabled { get; internal set; }
+    public DateTime CreatedAtUtc { get; internal set; }
+    public DateTime? UpdatedAtUtc { get; internal set; }
+}
+
+public sealed class UserNotification
+{
+    public long Id { get; internal set; }
+    public long UserId { get; internal set; }
+    public byte Category { get; internal set; }
+    public byte Severity { get; internal set; }
+    public string TemplateCode { get; internal set; } = null!;
+    public string ParamsJson { get; internal set; } = null!;
+    public string? LinkUrl { get; internal set; }
+    public DateTime CreatedAtUtc { get; internal set; }
+    public DateTime? ReadAtUtc { get; internal set; }
 }
 
 public static class FixedAccessRoles
@@ -74,7 +113,12 @@ public sealed class AccountSession
     public Guid Id { get; internal set; }
     public long UserId { get; internal set; }
     public string SecurityStampSnapshot { get; internal set; } = null!;
+    public string? IpAddress { get; internal set; }
+    public string? DeviceSummary { get; internal set; }
+    public string? DeviceTokenHash { get; internal set; }
+    public bool IsMobileDevice { get; internal set; }
     public DateTime IssuedAtUtc { get; internal set; }
+    public DateTime LastActivityAtUtc { get; internal set; }
     public DateTime ExpiresAtUtc { get; internal set; }
     public DateTime? RevokedAtUtc { get; internal set; }
     public string? RevokeReason { get; internal set; }

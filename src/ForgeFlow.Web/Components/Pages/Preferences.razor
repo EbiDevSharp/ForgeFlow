@@ -1,0 +1,366 @@
+@page "/account/preferences"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@implements IAsyncDisposable
+@using System.Globalization
+@using ForgeFlow.Application.Users
+@using ForgeFlow.Infrastructure.Identity
+@inject IStringLocalizer<SharedResources> Text
+@inject CulturePolicy Culture
+@inject DisplayFormatter Format
+@inject UserDisplayPreferences DisplayPreferences
+@inject ICurrentAuthenticatedSession SessionSource
+@inject RuntimeSessions Sessions
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>@Text["MyPreferencesTitle"]</PageTitle>
+
+<section class="account-page" aria-labelledby="preferences-title">
+    <div class="account-page-head">
+        <div>
+            <h1 id="preferences-title">@Text["MyPreferencesTitle"]</h1>
+            <p class="account-page-subtitle">@Text["MyPreferencesSubtitle"]</p>
+        </div>
+    </div>
+
+    <AccountNav Active="preferences" />
+
+    @if (!loaded)
+    {
+        <div class="prefs-card prefs-loading">
+            <BitProgress Circular="true" Indeterminate="true" Label="@Text["ReadLoading"]" />
+        </div>
+    }
+    else
+    {
+        <div class="prefs-card" role="form" aria-labelledby="preferences-title">
+            <div class="prefs-row">
+                <div class="prefs-row-info">
+                    <div class="prefs-row-title">@Text["PreferencesLanguageTitle"]</div>
+                    <div class="prefs-row-hint">@Text["PreferencesLanguageHint"]</div>
+                </div>
+                <div class="prefs-row-control">
+                    <div class="prefs-seg" role="group" aria-label="@Text["PreferencesLanguageTitle"]">
+                        <button type="button"
+                                class="prefs-seg-btn @(selectedLanguage == UserPreferenceCatalog.PersianLanguage ? "is-selected" : string.Empty)"
+                                aria-pressed="@(selectedLanguage == UserPreferenceCatalog.PersianLanguage ? "true" : "false")"
+                                disabled="@saving"
+                                @onclick="() => SelectLanguage(UserPreferenceCatalog.PersianLanguage)">
+                            @Text["LanguagePersian"]
+                        </button>
+                        <button type="button"
+                                class="prefs-seg-btn @(selectedLanguage == UserPreferenceCatalog.EnglishLanguage ? "is-selected" : string.Empty)"
+                                aria-pressed="@(selectedLanguage == UserPreferenceCatalog.EnglishLanguage ? "true" : "false")"
+                                disabled="@saving"
+                                @onclick="() => SelectLanguage(UserPreferenceCatalog.EnglishLanguage)">
+                            @Text["LanguageEnglish"]
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prefs-row">
+                <div class="prefs-row-info">
+                    <div class="prefs-row-title">@Text["PreferencesCalendarTitle"]</div>
+                    <div class="prefs-row-hint">
+                        @Text["PreferencesCalendarSamplePrefix", SampleDatePreview]
+                    </div>
+                </div>
+                <div class="prefs-row-control">
+                    <div class="prefs-seg" role="group" aria-label="@Text["PreferencesCalendarTitle"]">
+                        <button type="button"
+                                class="prefs-seg-btn @(selectedCalendar == UserPreferenceCatalog.PersianCalendar ? "is-selected" : string.Empty)"
+                                aria-pressed="@(selectedCalendar == UserPreferenceCatalog.PersianCalendar ? "true" : "false")"
+                                disabled="@saving"
+                                @onclick="() => SelectCalendar(UserPreferenceCatalog.PersianCalendar)">
+                            @Text["PreferencesCalendarPersian"]
+                        </button>
+                        <button type="button"
+                                class="prefs-seg-btn @(selectedCalendar == UserPreferenceCatalog.GregorianCalendar ? "is-selected" : string.Empty)"
+                                aria-pressed="@(selectedCalendar == UserPreferenceCatalog.GregorianCalendar ? "true" : "false")"
+                                disabled="@saving"
+                                @onclick="() => SelectCalendar(UserPreferenceCatalog.GregorianCalendar)">
+                            @Text["PreferencesCalendarGregorian"]
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prefs-row prefs-row--themes">
+                <div class="prefs-row-info">
+                    <div class="prefs-row-title">@Text["PreferencesThemeTitle"]</div>
+                    <div class="prefs-row-hint">@Text["PreferencesThemeHint"]</div>
+                </div>
+                <div class="prefs-row-control">
+                    <div class="prefs-theme-grid" role="radiogroup" aria-label="@Text["PreferencesThemeTitle"]">
+                        <button type="button"
+                                role="radio"
+                                aria-checked="@(selectedTheme == UserPreferenceCatalog.LightTheme ? "true" : "false")"
+                                class="prefs-theme-option @(selectedTheme == UserPreferenceCatalog.LightTheme ? "is-selected" : string.Empty)"
+                                disabled="@saving"
+                                @onclick="() => PreviewThemeAsync(UserPreferenceCatalog.LightTheme)">
+                            <span class="prefs-theme-thumb prefs-theme-thumb--light" aria-hidden="true">
+                                <span class="prefs-theme-bar"></span>
+                                <span class="prefs-theme-line is-short"></span>
+                                <span class="prefs-theme-line"></span>
+                            </span>
+                            <span class="prefs-theme-label">@Text["PreferencesThemeLight"]</span>
+                        </button>
+
+                        <button type="button"
+                                role="radio"
+                                aria-checked="@(selectedTheme == UserPreferenceCatalog.DarkTheme ? "true" : "false")"
+                                class="prefs-theme-option @(selectedTheme == UserPreferenceCatalog.DarkTheme ? "is-selected" : string.Empty)"
+                                disabled="@saving"
+                                @onclick="() => PreviewThemeAsync(UserPreferenceCatalog.DarkTheme)">
+                            <span class="prefs-theme-thumb prefs-theme-thumb--dark" aria-hidden="true">
+                                <span class="prefs-theme-bar"></span>
+                                <span class="prefs-theme-line is-short"></span>
+                                <span class="prefs-theme-line"></span>
+                            </span>
+                            <span class="prefs-theme-label">@Text["PreferencesThemeDark"]</span>
+                        </button>
+
+                        <button type="button"
+                                role="radio"
+                                aria-checked="@(selectedTheme == UserPreferenceCatalog.SystemTheme ? "true" : "false")"
+                                class="prefs-theme-option @(selectedTheme == UserPreferenceCatalog.SystemTheme ? "is-selected" : string.Empty)"
+                                disabled="@saving"
+                                @onclick="() => PreviewThemeAsync(UserPreferenceCatalog.SystemTheme)">
+                            <span class="prefs-theme-thumb prefs-theme-thumb--system" aria-hidden="true">
+                                <span class="prefs-theme-bar"></span>
+                                <span class="prefs-theme-line is-short"></span>
+                                <span class="prefs-theme-line"></span>
+                            </span>
+                            <span class="prefs-theme-label">@Text["PreferencesThemeSystem"]</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prefs-row">
+                <div class="prefs-row-info">
+                    <label class="prefs-row-title" for="prefs-timezone-select">@Text["PreferencesTimeZoneTitle"]</label>
+                    <div class="prefs-row-hint">@Text["PreferencesTimeZoneHint"]</div>
+                </div>
+                <div class="prefs-row-control">
+                    <select id="prefs-timezone-select"
+                            class="prefs-tz-select"
+                            dir="ltr"
+                            disabled="@saving"
+                            @bind="selectedTimeZoneId">
+                        @foreach (var tz in TimeZoneOptions)
+                        {
+                            <option value="@tz.Id">@tz.Label</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="prefs-feedback prefs-feedback--error" role="alert">@errorMessage</div>
+            }
+            @if (!string.IsNullOrEmpty(statusMessage))
+            {
+                <div class="prefs-feedback prefs-feedback--saved" role="status">@statusMessage</div>
+            }
+
+            <div class="prefs-footer">
+                <BitButton Variant="BitVariant.Outline"
+                           ButtonType="BitButtonType.Button"
+                           IsEnabled="@(!saving)"
+                           OnClick="ResetAsync">
+                    @Text["PreferencesResetButton"]
+                </BitButton>
+                <BitButton Variant="BitVariant.Fill"
+                           Color="BitColor.Primary"
+                           ButtonType="BitButtonType.Button"
+                           IsEnabled="@(!saving)"
+                           OnClick="SaveAsync">
+                    @Text["PreferencesSaveButton"]
+                </BitButton>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    private bool loaded;
+    private bool saving;
+    private bool themeDirtyPreview;
+    private IJSObjectReference? authUi;
+
+    private string savedLanguage = UserPreferenceCatalog.PersianLanguage;
+    private string selectedLanguage = UserPreferenceCatalog.PersianLanguage;
+    private string selectedTheme = UserPreferenceCatalog.LightTheme;
+    private string selectedCalendar = UserPreferenceCatalog.PersianCalendar;
+    private string selectedTimeZoneId = UserPreferenceCatalog.DefaultTimeZoneId;
+    private string? errorMessage;
+    private string? statusMessage;
+
+    private IReadOnlyList<TimeZoneOption> TimeZoneOptions
+    {
+        get
+        {
+            if (UserPreferenceCatalog.CuratedTimeZones.Any(t => string.Equals(t.Id, selectedTimeZoneId, StringComparison.OrdinalIgnoreCase)))
+                return UserPreferenceCatalog.CuratedTimeZones;
+            return [new TimeZoneOption(selectedTimeZoneId, selectedTimeZoneId), .. UserPreferenceCatalog.CuratedTimeZones];
+        }
+    }
+
+    private string SampleDatePreview
+    {
+        get
+        {
+            var tz = UserPreferenceCatalog.ResolveTimeZoneOrDefault(selectedTimeZoneId);
+            var localNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+            Calendar cal = selectedCalendar == UserPreferenceCatalog.GregorianCalendar
+                ? new GregorianCalendar()
+                : new PersianCalendar();
+            return Format.Date(DateOnly.FromDateTime(localNow), cal);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        var snapshot = reference is null ? null : await Sessions.GetPreferencesAsync(reference, CancellationToken.None);
+        if (snapshot is not null)
+        {
+            DisplayPreferences.Apply(snapshot, fromDatabase: true);
+            savedLanguage = snapshot.Language;
+            selectedLanguage = snapshot.Language;
+            selectedTheme = snapshot.Theme;
+            selectedCalendar = snapshot.CalendarSystem;
+            selectedTimeZoneId = snapshot.TimeZoneId;
+        }
+        else
+        {
+            savedLanguage = CulturePolicy.Normalize(Culture.Language) ?? UserPreferenceCatalog.PersianLanguage;
+            selectedLanguage = savedLanguage;
+            selectedTheme = DisplayPreferences.Theme;
+            selectedCalendar = DisplayPreferences.EffectiveCalendar(savedLanguage);
+            selectedTimeZoneId = DisplayPreferences.TimeZoneId;
+        }
+        loaded = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { authUi = await JS.InvokeAsync<IJSObjectReference>("import", "./auth-ui.mjs"); }
+        catch (JSException) { }
+    }
+
+    private void SelectLanguage(string language)
+    {
+        selectedLanguage = language;
+        errorMessage = null;
+        statusMessage = null;
+    }
+
+    private void SelectCalendar(string calendar)
+    {
+        selectedCalendar = calendar;
+        errorMessage = null;
+        statusMessage = null;
+    }
+
+    private async Task PreviewThemeAsync(string theme)
+    {
+        selectedTheme = theme;
+        themeDirtyPreview = true;
+        errorMessage = null;
+        statusMessage = null;
+        if (authUi is not null)
+        {
+            try { await authUi.InvokeVoidAsync("previewThemePreference", theme); }
+            catch (JSException) { }
+        }
+    }
+
+    private async Task ResetAsync()
+    {
+        selectedLanguage = UserPreferenceCatalog.PersianLanguage;
+        selectedCalendar = UserPreferenceCatalog.PersianCalendar;
+        selectedTheme = UserPreferenceCatalog.LightTheme;
+        selectedTimeZoneId = UserPreferenceCatalog.DefaultTimeZoneId;
+        errorMessage = null;
+        statusMessage = null;
+        await PreviewThemeAsync(selectedTheme);
+    }
+
+    private async Task SaveAsync()
+    {
+        errorMessage = null;
+        statusMessage = null;
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null)
+        {
+            Navigation.NavigateTo("/account/login", forceLoad: true);
+            return;
+        }
+
+        saving = true;
+        try
+        {
+            var result = await Sessions.SavePreferencesAsync(
+                reference,
+                new UpdateUserPreferencesRequest(selectedLanguage, selectedTheme, selectedCalendar, selectedTimeZoneId),
+                CancellationToken.None);
+
+            if (result.Code == "Auth.SessionInvalid")
+            {
+                Navigation.NavigateTo("/account/login", forceLoad: true);
+                return;
+            }
+
+            if (result.Code != "Preferences.Saved" || result.Preferences is null)
+            {
+                errorMessage = Text["PreferencesSaveFailedError"];
+                return;
+            }
+
+            DisplayPreferences.Apply(result.Preferences, fromDatabase: true);
+            themeDirtyPreview = false;
+
+            if (authUi is not null)
+            {
+                await authUi.InvokeVoidAsync("applyThemePreference", result.Preferences.Theme);
+                if (!string.Equals(savedLanguage, result.Preferences.Language, StringComparison.Ordinal))
+                {
+                    savedLanguage = result.Preferences.Language;
+                    var applied = await authUi.InvokeAsync<bool>("applyCultureCookie", result.Preferences.Language);
+                    if (applied)
+                    {
+                        Navigation.NavigateTo("/account/preferences", forceLoad: true);
+                        return;
+                    }
+                }
+            }
+
+            savedLanguage = result.Preferences.Language;
+            statusMessage = Text["PreferencesSavedNotice"];
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (authUi is not null)
+        {
+            if (themeDirtyPreview)
+            {
+                try { await authUi.InvokeVoidAsync("restoreThemePreference"); }
+                catch (JSDisconnectedException) { }
+                catch (JSException) { }
+            }
+            try { await authUi.DisposeAsync(); }
+            catch (JSDisconnectedException) { }
+        }
+    }
+}

@@ -50,7 +50,7 @@ public sealed class AuthBootstrapTests
     public void Model_contains_only_approved_auth_tables_and_excludes_existing_business_tables()
     {
         using var db = Offline(); var model = db.GetService<IDesignTimeModel>().Model;
-        Assert.Equal(13, model.GetEntityTypes().Count(e => e.GetSchema() == "auth"));
+        Assert.Equal(16, model.GetEntityTypes().Count(e => e.GetSchema() == "auth"));
         Assert.True(model.FindEntityType(typeof(Organization))!.IsTableExcludedFromMigrations());
         Assert.True(model.FindEntityType(typeof(Site))!.IsTableExcludedFromMigrations());
         Assert.All(model.GetEntityTypes().SelectMany(e => e.GetForeignKeys()), fk => Assert.Equal(DeleteBehavior.NoAction, fk.DeleteBehavior));
@@ -78,7 +78,7 @@ public sealed class AuthBootstrapTests
         using var db = Offline();
         Assert.False(db.Database.HasPendingModelChanges());
         var migrations = db.GetService<IMigrationsAssembly>();
-        Assert.Equal(2, migrations.Migrations.Count);
+        Assert.Equal(6, migrations.Migrations.Count);
         var baseline = migrations.CreateMigration(migrations.Migrations.ElementAt(0).Value, db.Database.ProviderName!);
         Assert.Equal(10, baseline.UpOperations.OfType<CreateTableOperation>().Count());
         Assert.All(baseline.UpOperations.OfType<CreateTableOperation>(), table => Assert.Equal("auth", table.Schema));
@@ -87,6 +87,18 @@ public sealed class AuthBootstrapTests
         Assert.Equal(3, slice03.UpOperations.OfType<CreateTableOperation>().Count());
         Assert.All(slice03.UpOperations.OfType<CreateTableOperation>(), table => Assert.Equal("auth", table.Schema));
         Assert.DoesNotContain(slice03.UpOperations, o => o is DropTableOperation or DropColumnOperation);
+        var profileMig = migrations.CreateMigration(migrations.Migrations.ElementAt(2).Value, db.Database.ProviderName!);
+        Assert.Single(profileMig.UpOperations.OfType<CreateTableOperation>());
+        Assert.All(profileMig.UpOperations.OfType<CreateTableOperation>(), table => Assert.Equal("auth", table.Schema));
+        Assert.DoesNotContain(profileMig.UpOperations, o => o is DropTableOperation or DropColumnOperation);
+        var sessionMig = migrations.CreateMigration(migrations.Migrations.ElementAt(3).Value, db.Database.ProviderName!);
+        Assert.DoesNotContain(sessionMig.UpOperations, o => o is DropTableOperation or DropColumnOperation);
+        var notifMig = migrations.CreateMigration(migrations.Migrations.ElementAt(4).Value, db.Database.ProviderName!);
+        Assert.Equal(2, notifMig.UpOperations.OfType<CreateTableOperation>().Count());
+        Assert.All(notifMig.UpOperations.OfType<CreateTableOperation>(), table => Assert.Equal("auth", table.Schema));
+        Assert.DoesNotContain(notifMig.UpOperations, o => o is DropTableOperation or DropColumnOperation);
+        var devMig = migrations.CreateMigration(migrations.Migrations.ElementAt(5).Value, db.Database.ProviderName!);
+        Assert.DoesNotContain(devMig.UpOperations, o => o is DropTableOperation or DropColumnOperation);
         var script = db.GetService<IMigrator>().GenerateScript();
         Assert.DoesNotContain("CREATE TABLE [organization]", script);
         Assert.DoesNotContain("ALTER TABLE [organization]", script);
@@ -94,6 +106,10 @@ public sealed class AuthBootstrapTests
         Assert.Contains("DENY INSERT, UPDATE, DELETE ON OBJECT::[auth].[BootstrapState]", script);
         Assert.Contains("DENY UPDATE, DELETE ON OBJECT::[auth].[SecurityEvent]", script);
         Assert.Contains("DENY INSERT, UPDATE, DELETE ON OBJECT::[auth].[RoleDefinition]", script);
+        Assert.Contains("GRANT SELECT, INSERT, UPDATE ON OBJECT::[auth].[UserPreference]", script);
+        Assert.Contains("DENY DELETE ON OBJECT::[auth].[UserPreference]", script);
+        Assert.Contains("GRANT SELECT, INSERT, UPDATE ON OBJECT::[auth].[UserNotification]", script);
+        Assert.Contains("DENY DELETE ON OBJECT::[auth].[UserNotification]", script);
         Assert.Contains("Auth.NonEmptyRollbackDenied", db.GetService<IMigrator>().GenerateScript("IdentityBootstrapBaseline", "0"));
     }
 

@@ -2252,4 +2252,149 @@
   <data name="AuditEv_QualityInspectionCancelled" xml:space="preserve"><value>Quality Inspection Cancelled</value></data>
   <data name="AuditEv_ItemLotUpdated" xml:space="preserve"><value>Lot Metadata Updated</value></data>
   <data name="AuditEv_QualityActionRejected" xml:space="preserve"><value>Quality Action Rejected</value></data>
+  <data name="AuditEv_PreferencesUpdated" xml:space="preserve"><value>User Preferences Updated</value></data>
+  <data name="AuditEv_ProfileUpdated" xml:space="preserve"><value>User Profile Updated</value></data>
+  <data name="AuditEv_SessionRevokedByUser" xml:space="preserve"><value>Session Signed Out by User</value></data>
+  <data name="AuditEv_OtherSessionsRevoked" xml:space="preserve"><value>Other Sessions Signed Out</value></data>
+  <data name="AuditEv_ActiveSiteSwitched" xml:space="preserve"><value>Active Site Switched</value></data>
+  <data name="ProfileNavLabel" xml:space="preserve"><value>Account navigation</value></data>
+  <data name="MyProfileTitle" xml:space="preserve"><value>My profile</value></data>
+  <data name="MyProfileSubtitle" xml:space="preserve"><value>Your personal details, contact info, and profile photo.</value></data>
+  <data name="ProfileUsernameLabel" xml:space="preserve"><value>Username</value></data>
+  <data name="ProfileUsernameLockedHint" xml:space="preserve"><value>Username is permanent and cannot be changed.</value></data>
+  <data name="ProfileDisplayNameLabel" xml:space="preserve"><value>Display name</value></data>
+  <data name="ProfileEmailLabel" xml:space="preserve"><value>Email</value></data>
+  <data name="ProfilePhoneLabel" xml:space="preserve"><value>Phone number</value></data>
+  <data name="ProfileAvatarLabel" xml:space="preserve"><value>Profile photo</value></data>
+  <data name="ProfileAvatarHint" xml:space="preserve"><value>PNG, JPEG, or WebP up to 256 KB.</value></data>
+  <data name="ProfileAvatarChoose" xml:space="preserve"><value>Choose photo</value></data>
+  <data name="ProfileAvatarRemove" xml:space="preserve"><value>Remove photo</value></data>
+  <data name="ProfileSaveSubmit" xml:space="preserve"><value>Save changes</value></data>
+  <data name="ProfileSavedNotice" xml:space="preserve"><value>Profile details saved.</value></data>
+  <data name="ProfileDisplayNameInvalidError" xml:space="preserve"><value>Display name is invalid or exceeds 128 characters.</value></data>
+  <data name="ProfileEmailInvalidError" xml:space="preserve"><value>Email address is invalid.</value></data>
+  <data name="ProfilePhoneInvalidError" xml:space="preserve"><value>Phone number is invalid.</value></data>
+  <data name="ProfileAvatarInvalidError" xml:space="preserve"><value>Photo must be PNG, JPEG, or WebP and 256 KB or less.</value></data>
+  <data name="ProfileSaveFailedError" xml:space="preserve"><value>Could not save profile changes.</value></data>
+  <data name="MyPreferencesTitle" xml:space="preserve"><value>My preferences</value></data>
+  <data name="MyPreferencesMenuSubtitle" xml:space="preserve"><value>My preferences (language, theme, calendar)</value></data>
+  <data name="MyPreferencesSubtitle" xml:space="preserve"><value>These settings are linked to your account and apply across all devices.</value></data>
+  <data name="PreferencesLanguageTitle" xml:space="preserve"><value>Language</value></data>
+  <data name="PreferencesLanguageHint" xml:space="preserve"><value>Interface language</value></data>
+  <data name="PreferencesCalendarTitle" xml:space="preserve"><value>Calendar</value></data>
+  <data name="PreferencesCalendarSamplePrefix" xml:space="preserve"><value>Sample: {0}</value></data>
+  <data name="PreferencesCalendarPersian" xml:space="preserve"><value>Persian (Solar)</value></data>
+  <data name="PreferencesCalendarGregorian" xml:space="preserve"><value>Gregorian</value></data>
+  <data name="PreferencesThemeTitle" xml:space="preserve"><value>Theme</value></data>
+  <data name="PreferencesThemeHint" xml:space="preserve"><value>Application appearance</value></data>
+  <data name="PreferencesThemeLight" xml:space="preserve"><value>Light</value></data>
+  <data name="PreferencesThemeDark" xml:space="preserve"><value>Dark</value></data>
+  <data name="PreferencesThemeSystem" xml:space="preserve"><value>System</value></data>
+  <data name="PreferencesTimeZoneTitle" xml:space="preserve"><value>Time zone</value></data>
+  <data name="PreferencesTimeZoneHint" xml:space="preserve"><value>Timestamps across the app are shown in this time zone</value></data>
+  <data name="PreferencesResetButton" xml:space="preserve"><value>Reset</value></data>
+  <data name="PreferencesSaveButton" xml:space="preserve"><value>Save changes</value></data>
+  <data name="PreferencesSavedNotice" xml:space="preserve"><value>Preferences saved.</value></data>
+  <data name="PreferencesSaveFailedError" xml:space="preserve"><value>Could not save preferences.</value></data>
+  <data name="UserMenuActiveSiteLabel" xml:space="preserve"><value>Active site</value></data>
+  <data name="UserMenuViewSessionsLink" xml:space="preserve"><value>View sessions</value></data>
+  <data name="UserMenuFailedAttemptsWarning" xml:space="preserve"><value>{0} failed sign-in attempt(s) since this login</value></data>
+  <data name="MyActivityTitle" xml:space="preserve"><value>My activity</value></data>
+  <data name="ActiveSessionsTitle" xml:space="preserve"><value>Active sessions</value></data>
+  <data name="ActiveSessionsSubtitle" xml:space="preserve"><value>Devices currently signed in to your account.</value></data>
+  <data name="RevokeAllOtherSessionsButton" xml:space="preserve"><value>Sign out of all devices</value></data>
+  <data name="SessionIpPrefix" xml:space="preserve"><value>IP: {0}</value></data>
+  <data name="SessionCurrentDeviceBadge" xml:space="preserve"><value>This device</value></data>
+  <data name="SessionSignOutOneButton" xml:space="preserve"><value>Sign out</value></data>
+  <data name="SessionsSecurityFootnote" xml:space="preserve"><value>Signing out of all devices ends every active session except this device. If you see an unfamiliar device, change your password afterward.</value></data>
+  <data name="SessionLastActivityNow" xml:space="preserve"><value>Last active: just now</value></data>
+  <data name="SessionLastActivityMinutes" xml:space="preserve"><value>Last active: {0}m ago</value></data>
+  <data name="SessionLastActivityHours" xml:space="preserve"><value>Last active: {0}h ago</value></data>
+  <data name="SessionLastActivityTimestamp" xml:space="preserve"><value>Last active: {0}</value></data>
+  <data name="SessionRevokedNotice" xml:space="preserve"><value>Session signed out.</value></data>
+  <data name="SessionOthersRevokedNotice" xml:space="preserve"><value>Signed out {0} other session(s).</value></data>
+  <data name="SessionRevokeFailedError" xml:space="preserve"><value>Could not sign out the session.</value></data>
+  <data name="ChangePasswordSessionsLink" xml:space="preserve"><value>Manage active sessions and sign out of other devices</value></data>
+  <data name="MyActivitySubtitle" xml:space="preserve"><value>Events recorded for your own account.</value></data>
+  <data name="MyActivityLockedBadge" xml:space="preserve"><value>Only your own activities are shown</value></data>
+  <data name="MyActivityRangeLabel" xml:space="preserve"><value>Time range</value></data>
+  <data name="MyActivityRange7Days" xml:space="preserve"><value>Last 7 days</value></data>
+  <data name="MyActivityRange30Days" xml:space="preserve"><value>Last 30 days</value></data>
+  <data name="MyActivityRange90Days" xml:space="preserve"><value>Last 90 days</value></data>
+  <data name="MyActivityRangeAll" xml:space="preserve"><value>All time</value></data>
+  <data name="MyActivitySearchPlaceholder" xml:space="preserve"><value>Search my activity</value></data>
+  <data name="MyActivityIpColumn" xml:space="preserve"><value>IP address</value></data>
+  <data name="MyActivityDeviceColumn" xml:space="preserve"><value>Device</value></data>
+  <data name="MyActivityOutcomeRecorded" xml:space="preserve"><value>Recorded</value></data>
+  <data name="NotificationsTitle" xml:space="preserve"><value>Notifications</value></data>
+  <data name="NotificationsSubtitle" xml:space="preserve"><value>Important events related to your account and work.</value></data>
+  <data name="NotifUnreadAriaCount" xml:space="preserve"><value>{0} unread notifications</value></data>
+  <data name="NotificationsMarkAllRead" xml:space="preserve"><value>Mark all as read</value></data>
+  <data name="NotificationsEmpty" xml:space="preserve"><value>No notifications to display.</value></data>
+  <data name="NotificationsViewAll" xml:space="preserve"><value>View all notifications</value></data>
+  <data name="NotifTabAll" xml:space="preserve"><value>All</value></data>
+  <data name="NotifTabUnread" xml:space="preserve"><value>Unread</value></data>
+  <data name="NotifTabSecurity" xml:space="preserve"><value>Security</value></data>
+  <data name="NotifTabOrders" xml:space="preserve"><value>Orders</value></data>
+  <data name="NotifGroupToday" xml:space="preserve"><value>Today</value></data>
+  <data name="NotifGroupOlder" xml:space="preserve"><value>Older</value></data>
+  <data name="NotifPagerSummary" xml:space="preserve"><value>{0} to {1} of {2}</value></data>
+  <data name="NotifPagerPage" xml:space="preserve"><value>Page {0} of {1}</value></data>
+  <data name="NotifTitle_NewDeviceSignIn" xml:space="preserve"><value>Sign-in from a new device</value></data>
+  <data name="NotifBody_NewDeviceSignIn" xml:space="preserve"><value>{0} — {1}</value></data>
+  <data name="NotifTitle_FailedSignInAttempts" xml:space="preserve"><value>{0} failed sign-in attempt(s)</value></data>
+  <data name="NotifBody_FailedSignInAttempts" xml:space="preserve"><value>From IP {0}</value></data>
+  <data name="NotifTitle_RoleOrAccessChanged" xml:space="preserve"><value>Your access changed</value></data>
+  <data name="NotifBody_RoleOrAccessChanged" xml:space="preserve"><value>{0} for {1}</value></data>
+  <data name="NotifTitle_MyOrderChanged" xml:space="preserve"><value>Order {0} updated</value></data>
+  <data name="NotifBody_MyOrderChanged" xml:space="preserve"><value>Status changed from {0} to {1}</value></data>
+  <data name="NotifTitle_PasswordChanged" xml:space="preserve"><value>Your password changed</value></data>
+  <data name="NotifBody_PasswordChanged" xml:space="preserve"><value>From device {0}</value></data>
+  <data name="NotifAction_ViewSessions" xml:space="preserve"><value>View sessions</value></data>
+  <data name="NotifAction_ViewActivity" xml:space="preserve"><value>View activity</value></data>
+  <data name="NotifAction_ViewOrder" xml:space="preserve"><value>View orders</value></data>
+  <data name="NotifTimeNow" xml:space="preserve"><value>Just now</value></data>
+  <data name="NotifTimeMinutes" xml:space="preserve"><value>{0}m ago</value></data>
+  <data name="NotifTimeHours" xml:space="preserve"><value>{0}h ago</value></data>
+  <data name="NotifTimeYesterday" xml:space="preserve"><value>Yesterday {0}</value></data>
+  <data name="NotifTimeDays" xml:space="preserve"><value>{0}d ago</value></data>
+  <data name="NotificationSettingsTitle" xml:space="preserve"><value>Notifications &amp; help</value></data>
+  <data name="NotificationSettingsSubtitle" xml:space="preserve"><value>Choose which events notify you and how.</value></data>
+  <data name="NotifMatrixEventColumn" xml:space="preserve"><value>Event</value></data>
+  <data name="NotifMatrixInAppColumn" xml:space="preserve"><value>In-app</value></data>
+  <data name="NotifMatrixEmailColumn" xml:space="preserve"><value>Email</value></data>
+  <data name="NotifEmailUnavailableTag" xml:space="preserve"><value>SMTP off</value></data>
+  <data name="NotifSmtpUnavailableHint" xml:space="preserve"><value>Email notifications are disabled until SMTP is configured.</value></data>
+  <data name="NotifPref_NewDeviceSignInTitle" xml:space="preserve"><value>New device sign-in</value></data>
+  <data name="NotifPref_NewDeviceSignInDesc" xml:space="preserve"><value>When your account is signed into from a new device or browser</value></data>
+  <data name="NotifPref_FailedSignInTitle" xml:space="preserve"><value>Failed sign-in attempt</value></data>
+  <data name="NotifPref_FailedSignInDesc" xml:space="preserve"><value>When wrong passwords are entered for your account</value></data>
+  <data name="NotifPref_RoleChangedTitle" xml:space="preserve"><value>Role or access change</value></data>
+  <data name="NotifPref_RoleChangedDesc" xml:space="preserve"><value>When your roles or accessible sites change</value></data>
+  <data name="NotifPref_MyOrdersTitle" xml:space="preserve"><value>My production orders</value></data>
+  <data name="NotifPref_MyOrdersDesc" xml:space="preserve"><value>Status changes on production orders you created</value></data>
+  <data name="NotifPrefsSavedNotice" xml:space="preserve"><value>Notification preference saved.</value></data>
+  <data name="NotifPrefsSaveFailed" xml:space="preserve"><value>Could not save notification preference.</value></data>
+  <data name="HelpShortcutsTitle" xml:space="preserve"><value>Shortcuts</value></data>
+  <data name="HelpShortcutSearch" xml:space="preserve"><value>Global search</value></data>
+  <data name="HelpShortcutCommands" xml:space="preserve"><value>Open command palette</value></data>
+  <data name="HelpShortcutAll" xml:space="preserve"><value>Show all shortcuts</value></data>
+  <data name="HelpSupportTitle" xml:space="preserve"><value>Help</value></data>
+  <data name="HelpUserGuideLink" xml:space="preserve"><value>User guide</value></data>
+  <data name="HelpReportIssueLink" xml:space="preserve"><value>Report an issue</value></data>
+  <data name="HelpContactSupportLink" xml:space="preserve"><value>Contact support</value></data>
+  <data name="HelpUserGuideOverview" xml:space="preserve"><value>Use the navigation drawer or command palette (Ctrl + K) to open modules permitted for your organization and site.</value></data>
+  <data name="HelpUserGuideShortcuts" xml:space="preserve"><value>Press / to jump to page search, Ctrl + K for quick navigation, and ? for keyboard shortcuts.</value></data>
+  <data name="HelpUserGuideSessions" xml:space="preserve"><value>Review active sessions anytime to sign out unfamiliar devices.</value></data>
+  <data name="HelpUserGuidePreferences" xml:space="preserve"><value>Customize language, theme, calendar system, and time zone under My preferences.</value></data>
+  <data name="HelpIssueSummaryLabel" xml:space="preserve"><value>Issue description</value></data>
+  <data name="HelpIssueSummaryPlaceholder" xml:space="preserve"><value>Describe what happened...</value></data>
+  <data name="HelpIssueSubmitBtn" xml:space="preserve"><value>Submit report</value></data>
+  <data name="HelpIssueSubmittedNotice" xml:space="preserve"><value>Issue recorded with reference {0}.</value></data>
+  <data name="HelpSupportDescription" xml:space="preserve"><value>Contact your organization administrator or system operator and provide any error reference from Diagnostics or Report an issue.</value></data>
+  <data name="CommandPaletteTitle" xml:space="preserve"><value>Command palette</value></data>
+  <data name="CommandPalettePlaceholder" xml:space="preserve"><value>Jump to a page...</value></data>
+  <data name="NotifRoleOrgMembership" xml:space="preserve"><value>Organization membership</value></data>
+  <data name="NotifRoleSiteMembership" xml:space="preserve"><value>Site membership</value></data>
+  <data name="NotifRoleDirectPermissions" xml:space="preserve"><value>Direct permissions</value></data>
 </root>

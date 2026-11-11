@@ -110,6 +110,11 @@ public static class AuditEventCatalog
         Sec("RoleDefinitionChanged"),
         Sec("DirectPermissionChanged"),
         Sec("CulturePreferenceChanged"),
+        Sec("PreferencesUpdated"),
+        Sec("ProfileUpdated"),
+        Sec("SessionRevokedByUser"),
+        Sec("OtherSessionsRevoked"),
+        Sec("ActiveSiteSwitched"),
 
         // Non-mutating operations & rejections (ops.UserOperationLog)
         Op(UserOperationCatalog.ReportsShortageExported),

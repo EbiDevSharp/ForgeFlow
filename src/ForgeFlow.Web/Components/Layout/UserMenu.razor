@@ -1,5 +1,7 @@
+@using ForgeFlow.Application.Users
 @using ForgeFlow.Infrastructure.Identity
 @using Microsoft.Extensions.DependencyInjection
+@implements IDisposable
 @inject IStringLocalizer<SharedResources> Text
 @inject IServiceProvider Services
 
@@ -7,7 +9,9 @@
     <Authorized Context="auth">
         @{
             var userName = auth.User.Identity?.Name ?? string.Empty;
-            var initials = Initial(userName);
+            var primaryName = !string.IsNullOrWhiteSpace(menuContext?.DisplayName) ? menuContext!.DisplayName! : userName;
+            var initials = Initial(primaryName);
+            var avatarUrl = menuContext?.HasAvatar == true ? $"/account/avatar?v={avatarVersion}" : null;
         }
         <div class="user-menu" data-authenticated-content @onkeydown="OnKeyDown">
             <button type="button"
@@ -17,11 +21,12 @@
                     aria-expanded="@open.ToString().ToLowerInvariant()"
                     aria-controls="user-menu-panel"
                     aria-label="@Text["UserMenu"]"
-                    title="@userName"
+                    title="@primaryName"
                     @onclick="Toggle">
                 <BitPersona HidePersonaDetails="true"
                             Size="BitPersonaSize.Size32"
                             CoinSize="36"
+                            ImageUrl="@avatarUrl"
                             ImageInitials="@initials"
                             Presence="BitPersonaPresence.None"
                             Class="user-menu-persona-sm" />
@@ -35,29 +40,82 @@
 
             <div id="user-menu-panel" class="user-menu-panel" role="group" aria-label="@Text["UserMenu"]" hidden="@(!open)">
                 <div class="user-menu-header">
-                    <BitPersona Size="BitPersonaSize.Size48"
-                                CoinSize="44"
-                                ImageInitials="@initials"
-                                PrimaryText="@userName"
-                                SecondaryText="@Text["UserAccountSubtitle"]"
-                                Presence="BitPersonaPresence.None"
-                                Class="user-menu-persona-hdr" />
+                    <div class="user-menu-identity">
+                        <BitPersona HidePersonaDetails="true"
+                                    Size="BitPersonaSize.Size48"
+                                    CoinSize="44"
+                                    ImageUrl="@avatarUrl"
+                                    ImageInitials="@initials"
+                                    Presence="BitPersonaPresence.None"
+                                    Class="user-menu-persona-hdr" />
+                        <div class="user-menu-identity-text">
+                            <div class="user-menu-name" title="@primaryName" dir="ltr">@primaryName</div>
+                            @if (!string.IsNullOrWhiteSpace(menuContext?.ActiveRoleName) || !string.IsNullOrWhiteSpace(menuContext?.ActiveSiteName))
+                            {
+                                <div class="user-menu-scope-row">
+                                    @if (!string.IsNullOrWhiteSpace(menuContext?.ActiveRoleName))
+                                    {
+                                        <span class="user-menu-role-badge">@menuContext!.ActiveRoleName</span>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(menuContext?.ActiveSiteName))
+                                    {
+                                        <span class="user-menu-site-name">@menuContext!.ActiveSiteName</span>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="user-menu-subtitle">@Text["UserAccountSubtitle"]</div>
+                            }
+                        </div>
+                    </div>
                 </div>
 
-                @if (signInLoaded)
+                @if (menuContext is not null && menuContext.AccessibleSites.Count > 1)
                 {
-                    if (previousSignIn is not null)
+                    <div class="user-menu-site-switcher">
+                        <label class="user-menu-site-label" for="user-menu-site-select">@Text["UserMenuActiveSiteLabel"]</label>
+                        <select id="user-menu-site-select"
+                                class="user-menu-site-select"
+                                disabled="@switchingSite"
+                                value="@SelectedSiteKey"
+                                @onchange="OnSiteSelectedAsync">
+                            @foreach (var site in menuContext.AccessibleSites)
+                            {
+                                <option value="@($"{site.OrganizationId}:{site.SiteId}")">
+                                    @($"{site.SiteCode} — {site.SiteName}")
+                                </option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                @if (contextLoaded && menuContext is not null)
+                {
+                    if (menuContext.PreviousSignInUtc.HasValue)
                     {
                         <div class="user-menu-last-login" role="region" aria-label="@Text["UserMenuLastLoginTitle"]">
-                            <div class="user-menu-last-login-title">@Text["UserMenuLastLoginTitle"]</div>
+                            <div class="user-menu-last-login-head">
+                                <span class="user-menu-last-login-title">@Text["UserMenuLastLoginTitle"]</span>
+                                <a class="user-menu-last-login-link" href="/account/sessions" @onclick="Close">
+                                    @Text["UserMenuViewSessionsLink"]
+                                </a>
+                            </div>
                             <div class="user-menu-last-login-row">
                                 <span class="ff-icon ff-icon--clock" aria-hidden="true"></span>
-                                <bdi dir="ltr">@FormatLoginTime(previousSignIn.OccurredAtUtc)</bdi>
+                                <bdi dir="ltr">@FormatLoginTime(menuContext.PreviousSignInUtc.Value)</bdi>
                             </div>
                             <div class="user-menu-last-login-row">
                                 <span class="ff-icon ff-icon--globe" aria-hidden="true"></span>
-                                <span class="user-menu-last-login-ip" dir="ltr">@(previousSignIn.IpAddress ?? "—")</span>
+                                <span class="user-menu-last-login-ip" dir="ltr">@(menuContext.PreviousSignInIp ?? "—")</span>
                             </div>
+                            @if (menuContext.FailedSignInsSincePrevious > 0)
+                            {
+                                <div class="user-menu-failed-alert" role="alert">
+                                    <span class="ff-icon ff-icon--warning" aria-hidden="true"></span>
+                                    <span>@Text["UserMenuFailedAttemptsWarning", menuContext.FailedSignInsSincePrevious]</span>
+                                </div>
+                            }
                         </div>
                     }
                     else
@@ -69,13 +127,40 @@
                 }
 
                 <div class="user-menu-actions">
-                    <BitButton Variant="BitVariant.Text"
-                               Href="/account/change-password"
-                               Icon="@KeyIcon"
-                               Class="user-menu-item"
-                               OnClick="Close">
-                        @Text["ChangePasswordLink"]
-                    </BitButton>
+                    <a class="user-menu-item-link" href="/account/activity" @onclick="Close">
+                        <span class="ff-icon ff-icon--audit" aria-hidden="true"></span>
+                        <span class="user-menu-item-text">@Text["MyActivityTitle"]</span>
+                    </a>
+
+                    <a class="user-menu-item-link" href="/account/sessions" @onclick="Close">
+                        <span class="ff-icon ff-icon--desktop" aria-hidden="true"></span>
+                        <span class="user-menu-item-text">@Text["ActiveSessionsTitle"]</span>
+                        @if (menuContext is not null && menuContext.ActiveSessionCount > 0)
+                        {
+                            <span class="user-menu-count-pill">@menuContext.ActiveSessionCount</span>
+                        }
+                    </a>
+
+                    <a class="user-menu-item-link" href="/account/preferences" @onclick="Close">
+                        <span class="ff-icon ff-icon--settings" aria-hidden="true"></span>
+                        <span class="user-menu-item-text">@Text["MyPreferencesMenuSubtitle"]</span>
+                        <span class="ff-icon ff-icon--chevron-end user-menu-item-arrow" aria-hidden="true"></span>
+                    </a>
+
+                    <a class="user-menu-item-link" href="/account/notifications-settings" @onclick="Close">
+                        <span class="ff-icon ff-icon--help" aria-hidden="true"></span>
+                        <span class="user-menu-item-text">@Text["NotificationSettingsTitle"]</span>
+                    </a>
+
+                    <a class="user-menu-item-link" href="/account/profile" @onclick="Close">
+                        <span class="ff-icon ff-icon--user" aria-hidden="true"></span>
+                        <span class="user-menu-item-text">@Text["MyProfileTitle"]</span>
+                    </a>
+
+                    <a class="user-menu-item-link" href="/account/change-password" @onclick="Close">
+                        <span class="ff-icon ff-icon--key" aria-hidden="true"></span>
+                        <span class="user-menu-item-text">@Text["ChangePasswordLink"]</span>
+                    </a>
 
                     <div class="user-menu-divider" role="separator"></div>
 
@@ -97,16 +182,37 @@
 </AuthorizeView>
 
 @code {
-    private static readonly BitIconInfo KeyIcon = BitIconInfo.Css("ff-icon ff-icon--key");
     private static readonly BitIconInfo LogoutIcon = BitIconInfo.Css("ff-icon ff-icon--logout");
 
     private bool open;
-    private bool signInLoaded;
-    private PreviousSignInInfo? previousSignIn;
+    private bool contextLoaded;
+    private bool switchingSite;
+    private UserMenuContextSnapshot? menuContext;
+    private int avatarVersion;
+    private UserDisplayPreferences? subscribedPrefs;
+
+    private string SelectedSiteKey => menuContext?.ActiveOrganizationId is { } orgId && menuContext?.ActiveSiteId is { } siteId
+        ? $"{orgId}:{siteId}"
+        : string.Empty;
+
+    protected override void OnInitialized()
+    {
+        subscribedPrefs = Services.GetService<UserDisplayPreferences>();
+        if (subscribedPrefs is not null)
+        {
+            subscribedPrefs.Changed += OnPreferencesChanged;
+            avatarVersion = subscribedPrefs.AvatarVersion;
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || signInLoaded) return;
+        if (!firstRender || contextLoaded) return;
+        await RefreshContextAsync();
+    }
+
+    private async Task RefreshContextAsync()
+    {
         try
         {
             var sessionSource = Services.GetService<ICurrentAuthenticatedSession>();
@@ -116,18 +222,57 @@
 
             var reference = await sessionSource.GetAsync(CancellationToken.None);
             if (reference is not null)
-                previousSignIn = await sessions.GetPreviousSignInAsync(reference, CancellationToken.None);
+                menuContext = await sessions.GetUserMenuContextAsync(reference, CancellationToken.None);
         }
         catch
         {
-            previousSignIn = null;
+            menuContext = null;
         }
         finally
         {
-            signInLoaded = Services.GetService<RuntimeSessions>() is not null;
-            if (signInLoaded)
+            contextLoaded = Services.GetService<RuntimeSessions>() is not null;
+            if (contextLoaded)
                 StateHasChanged();
         }
+    }
+
+    private async Task OnSiteSelectedAsync(ChangeEventArgs args)
+    {
+        var raw = args.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(raw)) return;
+        var parts = raw.Split(':');
+        if (parts.Length != 2
+            || !long.TryParse(parts[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var orgId)
+            || !long.TryParse(parts[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var siteId))
+            return;
+
+        var sessionSource = Services.GetService<ICurrentAuthenticatedSession>();
+        var sessions = Services.GetService<RuntimeSessions>();
+        if (sessionSource is null || sessions is null) return;
+
+        var reference = await sessionSource.GetAsync(CancellationToken.None);
+        if (reference is null) return;
+
+        switchingSite = true;
+        try
+        {
+            var outcome = await sessions.SwitchActiveSiteAsync(reference, orgId, siteId, CancellationToken.None);
+            if (outcome == "Site.Switched")
+            {
+                menuContext = await sessions.GetUserMenuContextAsync(reference, CancellationToken.None);
+            }
+        }
+        finally
+        {
+            switchingSite = false;
+        }
+    }
+
+    private void OnPreferencesChanged()
+    {
+        if (subscribedPrefs is not null)
+            avatarVersion = subscribedPrefs.AvatarVersion;
+        _ = InvokeAsync(RefreshContextAsync);
     }
 
     private string FormatLoginTime(DateTime utcTime)
@@ -147,5 +292,11 @@
     {
         var trimmed = name?.Trim();
         return string.IsNullOrEmpty(trimmed) ? "?" : char.ToUpperInvariant(trimmed[0]).ToString();
+    }
+
+    public void Dispose()
+    {
+        if (subscribedPrefs is not null)
+            subscribedPrefs.Changed -= OnPreferencesChanged;
     }
 }

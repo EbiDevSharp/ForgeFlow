@@ -16,7 +16,7 @@ namespace ForgeFlow.Infrastructure.Identity;
 internal sealed class UserCommitOutcomeUnknownException(Exception inner) : Exception(UserManagementErrors.OutcomeUnknown, inner);
 
 /// <summary>SQL Server implementation of <see cref="IUserOperationsStore"/> using operation-scoped AuthDbContext and serialized locks.</summary>
-public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProvider clock) : IUserOperationsStore
+public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProvider clock, IUserNotificationPublisher? notifications = null) : IUserOperationsStore
 {
     private DateTime UtcNow => clock.GetUtcNow().UtcDateTime;
 
@@ -477,14 +477,17 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
             return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
         }, ct);
 
-    public Task<OrganizationResult<UserDetails>> SetOrganizationMembershipActive(
+    public async Task<OrganizationResult<UserDetails>> SetOrganizationMembershipActive(
         long organizationId,
         long userId,
         bool isActive,
         byte[] expectedMembershipVersion,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => WriteAsync(access, async (db, _) =>
+    {
+        var changed = false;
+        var scopeLabel = string.Empty;
+        var res = await WriteAsync(access, async (db, _) =>
         {
             var org = await LockOrganizationAsync(db, organizationId, ct);
             var account = await LockUserByIdAsync(db, userId, ct);
@@ -530,11 +533,20 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
                 new { action = isActive ? "OrganizationMembershipActivated" : "OrganizationMembershipDeactivated", isActive });
 
             await db.SaveChangesAsync(ct);
+            changed = true;
+            scopeLabel = org.Name;
             return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
         }, ct);
 
-    public Task<OrganizationResult<UserDetails>> AssignSiteMembership(AssignSiteMembership request, OrganizationWriteAccess access, CancellationToken ct)
-        => WriteAsync(access, async (db, _) =>
+        if (res.Succeeded && changed && notifications is not null)
+            await PublishAccessChangedAsync(userId, "OrganizationMembership", scopeLabel, ct);
+        return res;
+    }
+
+    public async Task<OrganizationResult<UserDetails>> AssignSiteMembership(AssignSiteMembership request, OrganizationWriteAccess access, CancellationToken ct)
+    {
+        var scopeLabel = string.Empty;
+        var res = await WriteAsync(access, async (db, _) =>
         {
             var org = await LockOrganizationAsync(db, request.OrganizationId, ct);
             var account = await LockUserByIdAsync(db, request.UserId, ct);
@@ -591,10 +603,22 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
             }
 
             await db.SaveChangesAsync(ct);
+            scopeLabel = site.Name;
             return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, request.OrganizationId, request.UserId, now, ct))!);
         }, ct);
 
-    public Task<OrganizationResult<UserDetails>> SetSiteMembershipActive(
+        if (res.Succeeded && notifications is not null)
+        {
+            await PublishAccessChangedAsync(
+                request.UserId,
+                request.AssignSiteOperator ? nameof(TenantRoleKind.SiteOperator) : "SiteMembership",
+                scopeLabel,
+                ct);
+        }
+        return res;
+    }
+
+    public async Task<OrganizationResult<UserDetails>> SetSiteMembershipActive(
         long organizationId,
         long userId,
         long siteId,
@@ -602,7 +626,10 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
         byte[] expectedMembershipVersion,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => WriteAsync(access, async (db, _) =>
+    {
+        var changed = false;
+        var scopeLabel = string.Empty;
+        var res = await WriteAsync(access, async (db, _) =>
         {
             var org = await LockOrganizationAsync(db, organizationId, ct);
             var account = await LockUserByIdAsync(db, userId, ct);
@@ -640,11 +667,20 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
                 new { action = isActive ? "SiteMembershipActivated" : "SiteMembershipDeactivated", siteId, isActive });
 
             await db.SaveChangesAsync(ct);
+            changed = true;
+            scopeLabel = site.Name;
             return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
         }, ct);
 
-    public Task<OrganizationResult<UserDetails>> AssignTenantRole(AssignTenantRole request, OrganizationWriteAccess access, CancellationToken ct)
-        => WriteAsync(access, async (db, _) =>
+        if (res.Succeeded && changed && notifications is not null)
+            await PublishAccessChangedAsync(userId, "SiteMembership", scopeLabel, ct);
+        return res;
+    }
+
+    public async Task<OrganizationResult<UserDetails>> AssignTenantRole(AssignTenantRole request, OrganizationWriteAccess access, CancellationToken ct)
+    {
+        var scopeLabel = string.Empty;
+        var res = await WriteAsync(access, async (db, _) =>
         {
             TenantAccessPolicy.ValidateTenantRoleScope(request.Role, request.OrganizationId, request.SiteId);
 
@@ -658,6 +694,7 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
             if (orgMembership is null)
                 return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
 
+            scopeLabel = org.Name;
             var siteIsActive = false;
             var siteMembershipIsActive = false;
             if (request.Role == TenantRoleKind.SiteOperator)
@@ -670,6 +707,7 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
                     .SingleOrDefaultAsync(m => m.UserId == request.UserId && m.OrganizationId == request.OrganizationId && m.SiteId == request.SiteId!.Value, ct);
                 siteIsActive = site.IsActive;
                 siteMembershipIsActive = siteMembership?.IsActive == true;
+                scopeLabel = site.Name;
             }
 
             TenantAccessPolicy.EnsureTenantRolePrerequisites(request.Role, org.IsActive, orgMembership.IsActive, siteIsActive, siteMembershipIsActive);
@@ -705,7 +743,22 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
             return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, request.OrganizationId, request.UserId, now, ct))!);
         }, ct);
 
-    public Task<OrganizationResult<UserDetails>> SetTenantRoleActive(
+        if (res.Succeeded && notifications is not null)
+        {
+            await notifications.PublishAsync(
+                request.UserId,
+                NotificationEventCatalog.RoleOrAccessChanged,
+                NotificationCategory.Security,
+                NotificationSeverity.Info,
+                NotificationTemplateCatalog.RoleOrAccessChanged,
+                new { role = request.Role.ToString(), scope = scopeLabel },
+                "/account/activity",
+                ct);
+        }
+        return res;
+    }
+
+    public async Task<OrganizationResult<UserDetails>> SetTenantRoleActive(
         long organizationId,
         long userId,
         TenantRoleKind role,
@@ -714,7 +767,10 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
         byte[] expectedRoleVersion,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => WriteAsync(access, async (db, _) =>
+    {
+        var changed = false;
+        var scopeLabel = string.Empty;
+        var res = await WriteAsync(access, async (db, _) =>
         {
             TenantAccessPolicy.ValidateTenantRoleScope(role, organizationId, siteId);
 
@@ -746,22 +802,25 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
             if (assignment.IsActive == isActive)
                 return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
 
-            if (isActive)
+            scopeLabel = org.Name;
+            if (role == TenantRoleKind.SiteOperator && siteId.HasValue)
             {
-                var siteIsActive = false;
-                var siteMembershipIsActive = false;
-                if (role == TenantRoleKind.SiteOperator)
+                var site = await db.Set<Site>().SingleOrDefaultAsync(s => s.OrganizationId == organizationId && s.Id == siteId.Value, ct);
+                if (site is not null)
+                    scopeLabel = site.Name;
+
+                if (isActive)
                 {
-                    var site = await db.Set<Site>().SingleOrDefaultAsync(s => s.OrganizationId == organizationId && s.Id == siteId!.Value, ct);
                     if (site is null)
                         return OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
                     var siteMembership = await db.SiteMemberships
-                        .SingleOrDefaultAsync(m => m.UserId == userId && m.OrganizationId == organizationId && m.SiteId == siteId!.Value, ct);
-                    siteIsActive = site.IsActive;
-                    siteMembershipIsActive = siteMembership?.IsActive == true;
+                        .SingleOrDefaultAsync(m => m.UserId == userId && m.OrganizationId == organizationId && m.SiteId == siteId.Value, ct);
+                    TenantAccessPolicy.EnsureTenantRolePrerequisites(role, org.IsActive, orgMembership.IsActive, site.IsActive, siteMembership?.IsActive == true);
                 }
-
-                TenantAccessPolicy.EnsureTenantRolePrerequisites(role, org.IsActive, orgMembership.IsActive, siteIsActive, siteMembershipIsActive);
+            }
+            else if (isActive)
+            {
+                TenantAccessPolicy.EnsureTenantRolePrerequisites(role, org.IsActive, orgMembership.IsActive, false, false);
             }
             else if (role == TenantRoleKind.OrganizationAdministrator)
             {
@@ -777,8 +836,25 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
                 new { action = isActive ? "Activated" : "Deactivated", role = role.ToString(), siteId, isActive });
 
             await db.SaveChangesAsync(ct);
+            changed = true;
             return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
         }, ct);
+
+        if (res.Succeeded && changed && notifications is not null)
+            await PublishAccessChangedAsync(userId, role.ToString(), scopeLabel, ct);
+        return res;
+    }
+
+    private Task PublishAccessChangedAsync(long userId, string role, string scope, CancellationToken ct)
+        => notifications!.PublishAsync(
+            userId,
+            NotificationEventCatalog.RoleOrAccessChanged,
+            NotificationCategory.Security,
+            NotificationSeverity.Info,
+            NotificationTemplateCatalog.RoleOrAccessChanged,
+            new { role, scope },
+            "/account/activity",
+            ct);
 
     private async Task<T> ReadAsync<T>(Func<AuthDbContext, Task<T>> query, CancellationToken ct)
     {

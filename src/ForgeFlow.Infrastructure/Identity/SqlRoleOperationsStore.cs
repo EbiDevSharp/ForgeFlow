@@ -4,6 +4,7 @@ using System.Text.Json;
 using ForgeFlow.Application.Audit;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.Roles;
+using ForgeFlow.Application.Users;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.Roles;
 using Microsoft.Data.SqlClient;
@@ -19,7 +20,8 @@ internal sealed class RoleCommitOutcomeUnknownException(Exception inner) : Excep
 public sealed class SqlRoleOperationsStore(
     IServiceScopeFactory scopes,
     TimeProvider clock,
-    IOrganizationPermissionEvaluator? callerPermissions = null) : IRoleOperationsStore
+    IOrganizationPermissionEvaluator? callerPermissions = null,
+    IUserNotificationPublisher? notifications = null) : IRoleOperationsStore
 {
     private DateTime UtcNow => clock.GetUtcNow().UtcDateTime;
 
@@ -241,8 +243,11 @@ public sealed class SqlRoleOperationsStore(
     public Task<UserPermissionMatrix?> GetUserPermissions(long organizationId, long userId, CancellationToken ct)
         => ReadAsync(db => BuildUserMatrixAsync(db, organizationId, userId, ct), ct);
 
-    public Task<OrganizationResult<UserPermissionMatrix>> AssignUserRole(AssignUserRole request, OrganizationWriteAccess access, CancellationToken ct)
-        => WriteAsync(access, async db =>
+    public async Task<OrganizationResult<UserPermissionMatrix>> AssignUserRole(AssignUserRole request, OrganizationWriteAccess access, CancellationToken ct)
+    {
+        var roleLabel = string.Empty;
+        var scopeLabel = string.Empty;
+        var res = await WriteAsync(access, async db =>
         {
             var org = await LockOrganizationAsync(db, request.OrganizationId, ct);
             var account = await LockUserAsync(db, request.UserId, ct);
@@ -268,6 +273,7 @@ public sealed class SqlRoleOperationsStore(
             if (!role.IsActive)
                 return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.NotFound);
 
+            scopeLabel = org.Name;
             if (request.TargetScope == RoleScopeTarget.Site)
             {
                 var site = await db.Set<Site>().SingleOrDefaultAsync(s => s.OrganizationId == request.OrganizationId && s.Id == request.SiteId!.Value, ct);
@@ -280,7 +286,9 @@ public sealed class SqlRoleOperationsStore(
                     .SingleOrDefaultAsync(m => m.UserId == request.UserId && m.OrganizationId == request.OrganizationId && m.SiteId == request.SiteId!.Value && m.IsActive, ct);
                 if (siteMembership is null)
                     return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.MembershipRequired);
+                scopeLabel = site.Name;
             }
+            roleLabel = role.Name;
 
             if (callerPermissions is not null)
             {
@@ -329,7 +337,22 @@ public sealed class SqlRoleOperationsStore(
             return OrganizationResult<UserPermissionMatrix>.Success((await BuildUserMatrixAsync(db, request.OrganizationId, request.UserId, ct))!);
         }, ct);
 
-    public Task<OrganizationResult<UserPermissionMatrix>> SetUserRoleAssignmentActive(
+        if (res.Succeeded && notifications is not null)
+        {
+            await notifications.PublishAsync(
+                request.UserId,
+                NotificationEventCatalog.RoleOrAccessChanged,
+                NotificationCategory.Security,
+                NotificationSeverity.Info,
+                NotificationTemplateCatalog.RoleOrAccessChanged,
+                new { role = roleLabel, scope = scopeLabel },
+                "/account/activity",
+                ct);
+        }
+        return res;
+    }
+
+    public async Task<OrganizationResult<UserPermissionMatrix>> SetUserRoleAssignmentActive(
         long organizationId,
         long userId,
         long assignmentId,
@@ -337,7 +360,11 @@ public sealed class SqlRoleOperationsStore(
         byte[] expectedVersion,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => WriteAsync(access, async db =>
+    {
+        var changed = false;
+        var roleLabel = string.Empty;
+        var scopeLabel = string.Empty;
+        var res = await WriteAsync(access, async db =>
         {
             var org = await LockOrganizationAsync(db, organizationId, ct);
             var account = await LockUserAsync(db, userId, ct);
@@ -361,6 +388,10 @@ public sealed class SqlRoleOperationsStore(
             if (assignment.IsActive == isActive)
                 return OrganizationResult<UserPermissionMatrix>.Success((await BuildUserMatrixAsync(db, organizationId, userId, ct))!);
 
+            var role = await db.RoleDefinitions.AsNoTracking().SingleOrDefaultAsync(r => r.Id == assignment.RoleId, ct);
+            roleLabel = role?.Name ?? assignment.RoleId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            scopeLabel = org.Name;
+
             if (isActive)
             {
                 if (!org.IsActive)
@@ -368,7 +399,6 @@ public sealed class SqlRoleOperationsStore(
                 if (!orgMembership.IsActive)
                     return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.MembershipRequired);
 
-                var role = await db.RoleDefinitions.AsNoTracking().SingleOrDefaultAsync(r => r.Id == assignment.RoleId, ct);
                 if (role is null || !role.IsActive)
                     return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.NotFound);
 
@@ -381,28 +411,42 @@ public sealed class SqlRoleOperationsStore(
                         return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.ParentSiteInactive);
                     if (!await db.SiteMemberships.AnyAsync(m => m.UserId == userId && m.OrganizationId == organizationId && m.SiteId == assignment.SiteId!.Value && m.IsActive, ct))
                         return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.MembershipRequired);
+                    scopeLabel = site.Name;
                 }
             }
-            else if (assignment.RoleId == PermissionCatalog.OrganizationAdministratorRoleId)
+            else
             {
-                PermissionCatalog.EnsureNotSelfAdminRevocation(access.Actor.ActorId, userId, assignment.RoleId);
+                if (assignment.ScopeKind == 2 && assignment.SiteId.HasValue)
+                {
+                    var siteName = await db.Set<Site>().AsNoTracking()
+                        .Where(s => s.OrganizationId == organizationId && s.Id == assignment.SiteId.Value)
+                        .Select(s => s.Name)
+                        .SingleOrDefaultAsync(ct);
+                    if (!string.IsNullOrWhiteSpace(siteName))
+                        scopeLabel = siteName;
+                }
 
-                var remainingAdmins = await (from r in db.ScopedRoleAssignments
-                                             join m in db.OrganizationMemberships on new { r.UserId, OrganizationId = r.OrganizationId!.Value } equals new { m.UserId, m.OrganizationId }
-                                             join u in db.Users on r.UserId equals u.Id
-                                             where r.RoleId == PermissionCatalog.OrganizationAdministratorRoleId
-                                                   && r.ScopeKind == 1
-                                                   && r.OrganizationId == organizationId
-                                                   && r.IsActive
-                                                   && m.IsActive
-                                                   && u.IsActive
-                                                   && r.UserId != userId
-                                             select r.UserId)
-                    .Distinct()
-                    .CountAsync(ct);
+                if (assignment.RoleId == PermissionCatalog.OrganizationAdministratorRoleId)
+                {
+                    PermissionCatalog.EnsureNotSelfAdminRevocation(access.Actor.ActorId, userId, assignment.RoleId);
 
-                if (org.IsActive && remainingAdmins < 1)
-                    return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.LastOrganizationAdminRequired);
+                    var remainingAdmins = await (from r in db.ScopedRoleAssignments
+                                                 join m in db.OrganizationMemberships on new { r.UserId, OrganizationId = r.OrganizationId!.Value } equals new { m.UserId, m.OrganizationId }
+                                                 join u in db.Users on r.UserId equals u.Id
+                                                 where r.RoleId == PermissionCatalog.OrganizationAdministratorRoleId
+                                                       && r.ScopeKind == 1
+                                                       && r.OrganizationId == organizationId
+                                                       && r.IsActive
+                                                       && m.IsActive
+                                                       && u.IsActive
+                                                       && r.UserId != userId
+                                                 select r.UserId)
+                        .Distinct()
+                        .CountAsync(ct);
+
+                    if (org.IsActive && remainingAdmins < 1)
+                        return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.LastOrganizationAdminRequired);
+                }
             }
 
             assignment.IsActive = isActive;
@@ -412,10 +456,26 @@ public sealed class SqlRoleOperationsStore(
                 new { action = isActive ? "Activated" : "Deactivated", roleId = assignment.RoleId, assignmentId, isActive });
 
             await db.SaveChangesAsync(ct);
+            changed = true;
             return OrganizationResult<UserPermissionMatrix>.Success((await BuildUserMatrixAsync(db, organizationId, userId, ct))!);
         }, ct);
 
-    public Task<OrganizationResult<UserPermissionMatrix>> SaveUserOperationGrants(
+        if (res.Succeeded && changed && notifications is not null)
+        {
+            await notifications.PublishAsync(
+                userId,
+                NotificationEventCatalog.RoleOrAccessChanged,
+                NotificationCategory.Security,
+                NotificationSeverity.Info,
+                NotificationTemplateCatalog.RoleOrAccessChanged,
+                new { role = roleLabel, scope = scopeLabel },
+                "/account/activity",
+                ct);
+        }
+        return res;
+    }
+
+    public async Task<OrganizationResult<UserPermissionMatrix>> SaveUserOperationGrants(
         long organizationId,
         long userId,
         RoleScopeTarget targetScope,
@@ -423,7 +483,10 @@ public sealed class SqlRoleOperationsStore(
         IReadOnlyList<(string PermissionCode, bool IsActive, byte[]? ExpectedVersion)> normalizedChanges,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => WriteAsync(access, async db =>
+    {
+        var changedCount = 0;
+        var scopeLabel = string.Empty;
+        var res = await WriteAsync(access, async db =>
         {
             var org = await LockOrganizationAsync(db, organizationId, ct);
             var account = await LockUserAsync(db, userId, ct);
@@ -440,6 +503,7 @@ public sealed class SqlRoleOperationsStore(
             if (!orgMembership.IsActive)
                 return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.MembershipRequired);
 
+            scopeLabel = org.Name;
             if (targetScope == RoleScopeTarget.Site)
             {
                 var site = await db.Set<Site>().SingleOrDefaultAsync(s => s.OrganizationId == organizationId && s.Id == siteId!.Value, ct);
@@ -449,6 +513,7 @@ public sealed class SqlRoleOperationsStore(
                     return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.ParentSiteInactive);
                 if (!await db.SiteMemberships.AnyAsync(m => m.UserId == userId && m.OrganizationId == organizationId && m.SiteId == siteId!.Value && m.IsActive, ct))
                     return OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.MembershipRequired);
+                scopeLabel = site.Name;
             }
 
             var existingGrants = await db.UserPermissionGrants
@@ -505,8 +570,24 @@ public sealed class SqlRoleOperationsStore(
                 new { targetScope = targetScope.ToString(), siteId, changes = changedCodes });
 
             await db.SaveChangesAsync(ct);
+            changedCount = changedCodes.Count;
             return OrganizationResult<UserPermissionMatrix>.Success((await BuildUserMatrixAsync(db, organizationId, userId, ct))!);
         }, ct);
+
+        if (res.Succeeded && changedCount > 0 && notifications is not null)
+        {
+            await notifications.PublishAsync(
+                userId,
+                NotificationEventCatalog.RoleOrAccessChanged,
+                NotificationCategory.Security,
+                NotificationSeverity.Info,
+                NotificationTemplateCatalog.RoleOrAccessChanged,
+                new { role = "DirectPermissions", scope = scopeLabel },
+                "/account/activity",
+                ct);
+        }
+        return res;
+    }
 
     private async Task<T> ReadAsync<T>(Func<AuthDbContext, Task<T>> query, CancellationToken ct)
     {

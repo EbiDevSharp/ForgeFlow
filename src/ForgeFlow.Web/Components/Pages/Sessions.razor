@@ -1,0 +1,206 @@
+@page "/account/sessions"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ForgeFlow.Application.Users
+@using ForgeFlow.Infrastructure.Identity
+@inject IStringLocalizer<SharedResources> Text
+@inject CulturePolicy Culture
+@inject DisplayFormatter Format
+@inject ICurrentAuthenticatedSession SessionSource
+@inject RuntimeSessions SessionsService
+@inject UserDisplayPreferences DisplayPreferences
+@inject NavigationManager Navigation
+
+<PageTitle>@Text["ActiveSessionsTitle"]</PageTitle>
+
+<section class="account-page" aria-labelledby="sessions-title">
+    <div class="account-page-head account-page-head--row">
+        <div>
+            <h1 id="sessions-title">@Text["ActiveSessionsTitle"]</h1>
+            <p class="account-page-subtitle">@Text["ActiveSessionsSubtitle"]</p>
+        </div>
+        @if (loaded && sessions.Any(s => !s.IsCurrent))
+        {
+            <BitButton Variant="BitVariant.Outline"
+                       ButtonType="BitButtonType.Button"
+                       Class="sessions-revoke-all-btn"
+                       IsEnabled="@(!busy)"
+                       OnClick="RevokeAllOthersAsync">
+                @Text["RevokeAllOtherSessionsButton"]
+            </BitButton>
+        }
+    </div>
+
+    <AccountNav Active="sessions" />
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="prefs-feedback prefs-feedback--error" role="alert">@errorMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="prefs-feedback prefs-feedback--saved" role="status">@statusMessage</div>
+    }
+
+    @if (!loaded)
+    {
+        <div class="prefs-card prefs-loading">
+            <BitProgress Circular="true" Indeterminate="true" Label="@Text["ReadLoading"]" />
+        </div>
+    }
+    else if (sessions.Count == 0)
+    {
+        <div class="prefs-card">
+            <p class="read-empty">@Text["ReadEmpty"]</p>
+        </div>
+    }
+    else
+    {
+        <div class="sessions-list-card" role="list" aria-label="@Text["ActiveSessionsTitle"]">
+            @foreach (var session in sessions)
+            {
+                <div class="sessions-row @(session.IsCurrent ? "is-current" : string.Empty)" role="listitem">
+                    <div class="sessions-row-main">
+                        <div class="sessions-device-icon" aria-hidden="true">
+                            <span class="ff-icon @(session.IsMobileDevice ? "ff-icon--mobile" : "ff-icon--desktop")"></span>
+                        </div>
+                        <div class="sessions-device-info">
+                            <div class="sessions-device-name" dir="ltr">@session.DeviceSummary</div>
+                            <div class="sessions-device-meta">
+                                <span dir="ltr">@Text["SessionIpPrefix", session.IpAddress ?? "—"]</span>
+                                <span aria-hidden="true">·</span>
+                                <span>@FormatLastActivity(session.LastActivityAtUtc)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sessions-row-end">
+                        @if (session.IsCurrent)
+                        {
+                            <span class="sessions-current-badge">@Text["SessionCurrentDeviceBadge"]</span>
+                        }
+                        else
+                        {
+                            <BitButton Variant="BitVariant.Outline"
+                                       Size="BitSize.Small"
+                                       ButtonType="BitButtonType.Button"
+                                       IsEnabled="@(!busy)"
+                                       OnClick="() => RevokeOneAsync(session.SessionId)">
+                                @Text["SessionSignOutOneButton"]
+                            </BitButton>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <p class="sessions-security-note">
+            <span class="ff-icon ff-icon--info" aria-hidden="true"></span>
+            <span>@Text["SessionsSecurityFootnote"]</span>
+        </p>
+    }
+</section>
+
+@code {
+    private bool loaded;
+    private bool busy;
+    private IReadOnlyList<ActiveSessionSnapshot> sessions = [];
+    private string? errorMessage;
+    private string? statusMessage;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null)
+        {
+            Navigation.NavigateTo("/account/login", forceLoad: true);
+            return;
+        }
+        sessions = await SessionsService.ListActiveSessionsAsync(reference, CancellationToken.None);
+        loaded = true;
+    }
+
+    private async Task RevokeOneAsync(Guid sessionId)
+    {
+        errorMessage = null;
+        statusMessage = null;
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null)
+        {
+            Navigation.NavigateTo("/account/login", forceLoad: true);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var result = await SessionsService.RevokeSessionAsync(reference, sessionId, CancellationToken.None);
+            if (result.Code == "Auth.SessionInvalid")
+            {
+                Navigation.NavigateTo("/account/login", forceLoad: true);
+                return;
+            }
+            if (result.Code != "Session.Revoked")
+            {
+                errorMessage = Text["SessionRevokeFailedError"];
+                return;
+            }
+
+            statusMessage = Text["SessionRevokedNotice"];
+            await LoadAsync();
+            DisplayPreferences.NotifyMenuContextChanged();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task RevokeAllOthersAsync()
+    {
+        errorMessage = null;
+        statusMessage = null;
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null)
+        {
+            Navigation.NavigateTo("/account/login", forceLoad: true);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var result = await SessionsService.RevokeOtherSessionsAsync(reference, CancellationToken.None);
+            if (result.Code == "Auth.SessionInvalid")
+            {
+                Navigation.NavigateTo("/account/login", forceLoad: true);
+                return;
+            }
+            if (result.Code != "Session.OthersRevoked")
+            {
+                errorMessage = Text["SessionRevokeFailedError"];
+                return;
+            }
+
+            statusMessage = Text["SessionOthersRevokedNotice", result.AffectedCount];
+            await LoadAsync();
+            DisplayPreferences.NotifyMenuContextChanged();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private string FormatLastActivity(DateTime utcTime)
+    {
+        var elapsed = DateTime.UtcNow - utcTime;
+        if (elapsed < TimeSpan.FromMinutes(2))
+            return Text["SessionLastActivityNow"];
+        if (elapsed < TimeSpan.FromHours(1))
+            return Text["SessionLastActivityMinutes", Math.Max(1, (int)elapsed.TotalMinutes)];
+        if (elapsed < TimeSpan.FromHours(24))
+            return Text["SessionLastActivityHours", Math.Max(1, (int)elapsed.TotalHours)];
+        return Text["SessionLastActivityTimestamp", Format.Timestamp(utcTime, " - ")];
+    }
+}

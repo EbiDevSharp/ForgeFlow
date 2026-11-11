@@ -1,0 +1,281 @@
+@page "/account/notifications-settings"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ForgeFlow.Application.Diagnostics
+@using ForgeFlow.Application.Users
+@using ForgeFlow.Domain.Diagnostics
+@using ForgeFlow.Infrastructure.Identity
+@inject IStringLocalizer<SharedResources> Text
+@inject ICurrentAuthenticatedSession SessionSource
+@inject RuntimeSessions Sessions
+@inject ForgeFlow.Web.Diagnostics.UiErrorReporter ErrorReporter
+@inject NavigationManager Navigation
+
+<PageTitle>@Text["NotificationSettingsTitle"]</PageTitle>
+
+<section class="account-page" aria-labelledby="notif-settings-title">
+    <div class="account-page-head">
+        <div>
+            <h1 id="notif-settings-title">@Text["NotificationSettingsTitle"]</h1>
+            <p class="account-page-subtitle">@Text["NotificationSettingsSubtitle"]</p>
+        </div>
+    </div>
+
+    <AccountNav Active="notifications-settings" />
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="prefs-feedback prefs-feedback--error" role="alert">@errorMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="prefs-feedback prefs-feedback--saved" role="status">@statusMessage</div>
+    }
+
+    @if (!loaded)
+    {
+        <div class="prefs-card prefs-loading">
+            <BitProgress Circular="true" Indeterminate="true" Label="@Text["ReadLoading"]" />
+        </div>
+    }
+    else
+    {
+        <div class="notif-matrix-card">
+            <div class="notif-matrix-head">
+                <span class="notif-matrix-col-event">@Text["NotifMatrixEventColumn"]</span>
+                <span class="notif-matrix-col-chan">@Text["NotifMatrixInAppColumn"]</span>
+                <span class="notif-matrix-col-chan">
+                    <span>@Text["NotifMatrixEmailColumn"]</span>
+                    <span class="notif-smtp-hint" title="@Text["NotifSmtpUnavailableHint"]">(@Text["NotifEmailUnavailableTag"])</span>
+                </span>
+            </div>
+
+            @foreach (var pref in preferences)
+            {
+                <div class="notif-matrix-row">
+                    <div class="notif-matrix-info">
+                        <div class="prefs-row-title">@EventTitle(pref.EventCode)</div>
+                        <div class="prefs-row-hint">@EventDescription(pref.EventCode)</div>
+                    </div>
+                    <div class="notif-matrix-col-chan">
+                        <BitToggle Value="@pref.InAppEnabled"
+                                   ValueChanged="@((bool val) => ToggleInAppAsync(pref.EventCode, val))"
+                                   IsEnabled="@(!busy)"
+                                   AriaLabel="@EventTitle(pref.EventCode)" />
+                    </div>
+                    <div class="notif-matrix-col-chan" title="@Text["NotifSmtpUnavailableHint"]">
+                        <BitToggle Value="false"
+                                   IsEnabled="false"
+                                   AriaLabel="@Text["NotifSmtpUnavailableHint"]" />
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="help-grid-card">
+        <div class="help-col help-col--shortcuts">
+            <h2 class="help-col-title">@Text["HelpShortcutsTitle"]</h2>
+            <div class="help-shortcut-row">
+                <span>@Text["HelpShortcutSearch"]</span>
+                <kbd class="help-kbd" dir="ltr">/</kbd>
+            </div>
+            <div class="help-shortcut-row">
+                <span>@Text["HelpShortcutCommands"]</span>
+                <kbd class="help-kbd" dir="ltr">Ctrl + K</kbd>
+            </div>
+            <div class="help-shortcut-row">
+                <span>@Text["HelpShortcutAll"]</span>
+                <kbd class="help-kbd" dir="ltr">?</kbd>
+            </div>
+        </div>
+
+        <div class="help-col">
+            <h2 class="help-col-title">@Text["HelpSupportTitle"]</h2>
+            <button type="button" class="help-link-row" @onclick="() => guideOpen = true">
+                <span class="help-link-start">
+                    <span class="ff-icon ff-icon--audit" aria-hidden="true"></span>
+                    <span>@Text["HelpUserGuideLink"]</span>
+                </span>
+                <span class="ff-icon ff-icon--chevron-end" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="help-link-row" @onclick="OpenIssueDialog">
+                <span class="help-link-start">
+                    <span class="ff-icon ff-icon--warning" aria-hidden="true"></span>
+                    <span>@Text["HelpReportIssueLink"]</span>
+                </span>
+                <span class="ff-icon ff-icon--chevron-end" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="help-link-row" @onclick="() => supportOpen = true">
+                <span class="help-link-start">
+                    <span class="ff-icon ff-icon--help" aria-hidden="true"></span>
+                    <span>@Text["HelpContactSupportLink"]</span>
+                </span>
+                <span class="ff-icon ff-icon--chevron-end" aria-hidden="true"></span>
+            </button>
+        </div>
+    </div>
+
+    <BitDialog Width="540px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="guideOpen"
+               Title="@Text["HelpUserGuideLink"]" AriaLabel="@Text["HelpUserGuideLink"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="help-dialog-content">
+                <p>@Text["HelpUserGuideOverview"]</p>
+                <ul>
+                    <li>@Text["HelpUserGuideShortcuts"]</li>
+                    <li>@Text["HelpUserGuideSessions"]</li>
+                    <li>@Text["HelpUserGuidePreferences"]</li>
+                </ul>
+            </div>
+        </Body>
+    </BitDialog>
+
+    <BitDialog Width="540px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="issueOpen"
+               Title="@Text["HelpReportIssueLink"]" AriaLabel="@Text["HelpReportIssueLink"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="write-panel">
+                <div class="read-field">
+                    <label for="issue-note">@Text["HelpIssueSummaryLabel"]</label>
+                    <textarea id="issue-note" rows="4" maxlength="500" @bind="issueSummary" placeholder="@Text["HelpIssueSummaryPlaceholder"]"></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(issueFeedback))
+                {
+                    <div class="prefs-feedback prefs-feedback--saved" role="status">@issueFeedback</div>
+                }
+                <div class="write-actions">
+                    <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" IsEnabled="@(!submittingIssue && !string.IsNullOrWhiteSpace(issueSummary))" OnClick="SubmitIssueAsync">
+                        @Text["HelpIssueSubmitBtn"]
+                    </BitButton>
+                </div>
+            </div>
+        </Body>
+    </BitDialog>
+
+    <BitDialog Width="480px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="supportOpen"
+               Title="@Text["HelpContactSupportLink"]" AriaLabel="@Text["HelpContactSupportLink"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <p>@Text["HelpSupportDescription"]</p>
+        </Body>
+    </BitDialog>
+</section>
+
+@code {
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Root = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+
+    private bool loaded;
+    private bool busy;
+    private IReadOnlyList<NotificationPreferenceSnapshot> preferences = [];
+    private string? errorMessage;
+    private string? statusMessage;
+
+    private bool guideOpen;
+    private bool issueOpen;
+    private bool supportOpen;
+    private bool submittingIssue;
+    private string issueSummary = string.Empty;
+    private string? issueFeedback;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null)
+        {
+            Navigation.NavigateTo("/account/login", forceLoad: true);
+            return;
+        }
+        preferences = await Sessions.GetNotificationPreferencesAsync(reference, CancellationToken.None);
+        loaded = true;
+    }
+
+    private async Task ToggleInAppAsync(string eventCode, bool enabled)
+    {
+        errorMessage = null;
+        statusMessage = null;
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null)
+        {
+            Navigation.NavigateTo("/account/login", forceLoad: true);
+            return;
+        }
+
+        busy = true;
+        try
+        {
+            var outcome = await Sessions.SaveNotificationPreferenceAsync(reference, eventCode, enabled, false, CancellationToken.None);
+            if (outcome == "Auth.SessionInvalid")
+            {
+                Navigation.NavigateTo("/account/login", forceLoad: true);
+                return;
+            }
+            if (outcome != "NotificationPrefs.Saved")
+            {
+                errorMessage = Text["NotifPrefsSaveFailed"];
+                return;
+            }
+            preferences = await Sessions.GetNotificationPreferencesAsync(reference, CancellationToken.None);
+            statusMessage = Text["NotifPrefsSavedNotice"];
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void OpenIssueDialog()
+    {
+        issueSummary = string.Empty;
+        issueFeedback = null;
+        issueOpen = true;
+    }
+
+    private async Task SubmitIssueAsync()
+    {
+        if (string.IsNullOrWhiteSpace(issueSummary)) return;
+        submittingIssue = true;
+        try
+        {
+            var errorRef = await ErrorReporter.ReportAsync(
+                new InvalidOperationException(issueSummary.Trim()),
+                nameof(NotificationSettings),
+                severity: ErrorSeverity.Warning);
+            issueSummary = string.Empty;
+            issueFeedback = Text["HelpIssueSubmittedNotice", errorRef];
+        }
+        finally
+        {
+            submittingIssue = false;
+        }
+    }
+
+    private string EventTitle(string code) => code switch
+    {
+        NotificationEventCatalog.NewDeviceSignIn => Text["NotifPref_NewDeviceSignInTitle"],
+        NotificationEventCatalog.FailedSignInAttempt => Text["NotifPref_FailedSignInTitle"],
+        NotificationEventCatalog.RoleOrAccessChanged => Text["NotifPref_RoleChangedTitle"],
+        NotificationEventCatalog.MyProductionOrders => Text["NotifPref_MyOrdersTitle"],
+        _ => code
+    };
+
+    private string EventDescription(string code) => code switch
+    {
+        NotificationEventCatalog.NewDeviceSignIn => Text["NotifPref_NewDeviceSignInDesc"],
+        NotificationEventCatalog.FailedSignInAttempt => Text["NotifPref_FailedSignInDesc"],
+        NotificationEventCatalog.RoleOrAccessChanged => Text["NotifPref_RoleChangedDesc"],
+        NotificationEventCatalog.MyProductionOrders => Text["NotifPref_MyOrdersDesc"],
+        _ => string.Empty
+    };
+}

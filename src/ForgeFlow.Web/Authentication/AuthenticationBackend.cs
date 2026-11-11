@@ -65,6 +65,7 @@ public static class AuthenticationBackend
 {
     public const string UnavailableItem = "ForgeFlow.AuthUnavailable";
     public const string RejectedPrincipalItem = "ForgeFlow.RejectedCookiePrincipal";
+    public const string DeviceCookieName = "__Host-ForgeFlow.Device";
     public static IServiceCollection AddAuthenticationBackend(this IServiceCollection services,IConfiguration configuration)
     {
         // Identity contexts live only in RuntimeSessions' fresh operation scopes, not circuit services.
@@ -75,6 +76,7 @@ public static class AuthenticationBackend
         });
         services.AddSingleton<TimeProvider>(TimeProvider.System);
         services.AddSingleton<RuntimeSessions>();
+        services.AddSingleton<ForgeFlow.Application.Users.IUserNotificationPublisher>(sp => sp.GetRequiredService<RuntimeSessions>());
         services.AddScoped<AuthenticationStateProvider,SessionAuthenticationStateProvider>();
         services.AddCascadingAuthenticationState();
         services.AddScoped<ICurrentAuthenticatedSession,CircuitSessionSource>();
@@ -108,9 +110,23 @@ public static class AuthenticationBackend
     public static void MapAuthenticationBackend(this WebApplication app)
     {
         app.MapGet("/account/antiforgery",AntiforgeryToken);
+        app.MapGet("/account/avatar", Avatar);
         app.MapPost("/account/sign-in",Login).WithName("Auth.Login").RequireRateLimiting("auth-login");
         app.MapPost("/account/logout",Logout).WithName("Auth.Logout");
         app.MapPost("/account/change-password-submit",ChangePasswordSubmit).WithName("Auth.ChangePassword");
+    }
+
+    public static async Task<IResult> Avatar(HttpContext context, RuntimeSessions sessions)
+    {
+        context.Response.Headers.CacheControl = "private, no-store";
+        var reference = SessionClaims.Read(context.User);
+        if (reference is null)
+            return Results.Unauthorized();
+
+        var avatar = await sessions.GetAvatarAsync(reference, context.RequestAborted);
+        return avatar is null
+            ? Results.NotFound()
+            : Results.File(avatar.Value.Data, avatar.Value.ContentType);
     }
     public static IResult AntiforgeryToken(HttpContext context,IAntiforgery antiforgery)
     {
@@ -203,9 +219,27 @@ public static class AuthenticationBackend
         var target=LocalReturnUrl(form["returnUrl"].ToString()); if (target is null) return Error(context,"Auth.RequestRejected",400);
         // An identity change must cross an explicit logout boundary before another sign-in.
         if (context.User.Identity?.IsAuthenticated==true) return Error(context,"Auth.RequestRejected",400);
-        var result=await sessions.LoginAsync(form["username"].ToString(),form["password"].ToString(),context.RequestAborted,ResolveClientIp(context));
+        var initialCulture = ForgeFlow.Web.Localization.CulturePolicy.Normalize(CultureInfo.CurrentUICulture.Name);
+        var userAgent = context.Request.Headers.UserAgent.ToString();
+        var existingDeviceToken = context.Request.Cookies.TryGetValue(DeviceCookieName, out var rawDevice) && IsValidDeviceToken(rawDevice)
+            ? rawDevice
+            : null;
+        var deviceToken = existingDeviceToken ?? Guid.NewGuid().ToString("N");
+        var result=await sessions.LoginAsync(form["username"].ToString(),form["password"].ToString(),context.RequestAborted,ResolveClientIp(context),initialCulture,string.IsNullOrWhiteSpace(userAgent) ? null : userAgent,deviceToken);
         if (result.Session is null) return Error(context,result.Code,result.Code=="Auth.ServiceUnavailable" ? 503 : 401);
         try {
+            if (existingDeviceToken is null && context.Request.IsHttps)
+            {
+                context.Response.Cookies.Append(DeviceCookieName, deviceToken, new CookieOptions
+                {
+                    Path = "/",
+                    HttpOnly = true,
+                    Secure = true,
+                    SameSite = SameSiteMode.Lax,
+                    IsEssential = true,
+                    MaxAge = TimeSpan.FromDays(365)
+                });
+            }
             await context.SignInAsync(IdentityConstants.ApplicationScheme,SessionClaims.Create(result.Session),
                 new AuthenticationProperties { IsPersistent=false,AllowRefresh=false,IssuedUtc=DateTimeOffset.UtcNow,ExpiresUtc=result.Expires });
             context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("ForgeFlow.AuthBoundary")
@@ -228,6 +262,9 @@ public static class AuthenticationBackend
             return Error(context,"Auth.ServiceUnavailable",503);
         }
     }
+    private static bool IsValidDeviceToken(string? raw)
+        => !string.IsNullOrWhiteSpace(raw) && raw.Length == 32 && raw.All(Uri.IsHexDigit);
+
     public static async Task<IResult> Logout(HttpContext context,IAntiforgery antiforgery,RuntimeSessions sessions)
     {
         context.Response.Headers.CacheControl="no-store";
@@ -258,7 +295,8 @@ public static class AuthenticationBackend
         if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
             return Error(context, "Auth.PasswordMismatch", 400);
 
-        var result = await sessions.ChangeOwnPasswordAsync(reference, currentPassword, newPassword, context.RequestAborted);
+        var userAgent = context.Request.Headers.UserAgent.ToString();
+        var result = await sessions.ChangeOwnPasswordAsync(reference, currentPassword, newPassword, context.RequestAborted, ResolveClientIp(context), string.IsNullOrWhiteSpace(userAgent) ? null : userAgent);
         if (result.Session is null)
         {
             if (result.Code == "Auth.SessionInvalid")

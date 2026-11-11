@@ -1,6 +1,7 @@
 using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.ProductionOrders;
+using ForgeFlow.Application.Users;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Infrastructure.Diagnostics;
@@ -13,7 +14,8 @@ namespace ForgeFlow.Infrastructure.Organizations;
 public sealed class SqlProductionOrderOperationsStore(
     Func<IDbContextFactory<OrganizationDbContext>> getFactory,
     IErrorLogRecorder? errorRecorder = null,
-    IOperationContextAccessor? opContext = null)
+    IOperationContextAccessor? opContext = null,
+    IUserNotificationPublisher? notifications = null)
     : IProductionOrderOperationsStore
 {
     private IDbContextFactory<OrganizationDbContext> Factory => getFactory();
@@ -185,26 +187,17 @@ public sealed class SqlProductionOrderOperationsStore(
         ResolvedBomSnapshotWrite snapshot,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
-    {
-        var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
-        if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
-
-        var order = await db.ProductionOrders.SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.Id == id, ct);
-        if (order is null) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
-        if (!Matches(db, order, version)) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict);
-
-        var site = await db.Sites.AsNoTracking().SingleOrDefaultAsync(s => s.OrganizationId == organizationId && s.Id == order.SiteId, ct);
-        if (site is null || !site.IsActive) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.SiteInactive);
-
-        order.ApplyResolvedBomSnapshot(snapshot.BomId, snapshot.BomCode, snapshot.BomVersionId, snapshot.VersionNumber, snapshot.BaseOutputQuantity, snapshot.BaseOutputUnitId);
-        await ClearSnapshotChildrenAsync(db, organizationId, order.Id, ct);
-        ReplaceSnapshotChildren(db, organizationId, order.Id, snapshot);
-
-        order.Release(utcNow);
-        await db.SaveInOperation(access.Actor, ct);
-        return OrganizationResult<ProductionOrderDetails>.Success((await BuildOrderDetailsAsync(db, organizationId, order.Id, ct))!);
-    }, ct);
+        CancellationToken ct)
+        => TransitionAndNotifyAsync(organizationId, id, version, NotificationSeverity.Info, access, async (db, order) =>
+        {
+            var site = await db.Sites.AsNoTracking().SingleOrDefaultAsync(s => s.OrganizationId == organizationId && s.Id == order.SiteId, ct);
+            if (site is null || !site.IsActive) return OrganizationResult<bool>.Failure(ProductionOrderErrors.SiteInactive);
+            order.ApplyResolvedBomSnapshot(snapshot.BomId, snapshot.BomCode, snapshot.BomVersionId, snapshot.VersionNumber, snapshot.BaseOutputQuantity, snapshot.BaseOutputUnitId);
+            await ClearSnapshotChildrenAsync(db, organizationId, order.Id, ct);
+            ReplaceSnapshotChildren(db, organizationId, order.Id, snapshot);
+            order.Release(utcNow);
+            return OrganizationResult<bool>.Success(true);
+        }, ct);
 
     public Task<OrganizationResult<ProductionOrderDetails>> StartOrder(
         long organizationId,
@@ -212,19 +205,8 @@ public sealed class SqlProductionOrderOperationsStore(
         byte[] version,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
-    {
-        var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
-        if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
-
-        var order = await db.ProductionOrders.SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.Id == id, ct);
-        if (order is null) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
-        if (!Matches(db, order, version)) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict);
-
-        order.Start(utcNow);
-        await db.SaveInOperation(access.Actor, ct);
-        return OrganizationResult<ProductionOrderDetails>.Success((await BuildOrderDetailsAsync(db, organizationId, order.Id, ct))!);
-    }, ct);
+        CancellationToken ct)
+        => TransitionAndNotifyAsync(organizationId, id, version, NotificationSeverity.Info, access, order => order.Start(utcNow), ct);
 
     public Task<OrganizationResult<ProductionOrderDetails>> RecordActuals(
         long organizationId,
@@ -257,19 +239,8 @@ public sealed class SqlProductionOrderOperationsStore(
         string? notes,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
-    {
-        var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
-        if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
-
-        var order = await db.ProductionOrders.SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.Id == id, ct);
-        if (order is null) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
-        if (!Matches(db, order, version)) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict);
-
-        order.Complete(producedQuantity, scrapQuantity, notes, utcNow);
-        await db.SaveInOperation(access.Actor, ct);
-        return OrganizationResult<ProductionOrderDetails>.Success((await BuildOrderDetailsAsync(db, organizationId, order.Id, ct))!);
-    }, ct);
+        CancellationToken ct)
+        => TransitionAndNotifyAsync(organizationId, id, version, NotificationSeverity.Success, access, order => order.Complete(producedQuantity, scrapQuantity, notes, utcNow), ct);
 
     public Task<OrganizationResult<ProductionOrderDetails>> CancelOrder(
         long organizationId,
@@ -278,19 +249,77 @@ public sealed class SqlProductionOrderOperationsStore(
         string? reason,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct)
+        => TransitionAndNotifyAsync(organizationId, id, version, NotificationSeverity.Warning, access, order => order.Cancel(reason, utcNow), ct);
+
+    private Task<OrganizationResult<ProductionOrderDetails>> TransitionAndNotifyAsync(
+        long organizationId,
+        long id,
+        byte[] version,
+        NotificationSeverity severity,
+        OrganizationWriteAccess access,
+        Action<ProductionOrder> apply,
+        CancellationToken ct)
+        => TransitionAndNotifyAsync(organizationId, id, version, severity, access, (_, order) =>
+        {
+            apply(order);
+            return Task.FromResult(OrganizationResult<bool>.Success(true));
+        }, ct);
+
+    private async Task<OrganizationResult<ProductionOrderDetails>> TransitionAndNotifyAsync(
+        long organizationId,
+        long id,
+        byte[] version,
+        NotificationSeverity severity,
+        OrganizationWriteAccess access,
+        Func<OrganizationDbContext, ProductionOrder, Task<OrganizationResult<bool>>> applyAsync,
+        CancellationToken ct)
     {
-        var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
-        if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
+        long creatorId = 0;
+        string orderNumber = string.Empty;
+        ProductionOrderStatus previousStatus = default;
+        ProductionOrderStatus nextStatus = default;
+        var result = await Write(access, async db =>
+        {
+            var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
+            if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
 
-        var order = await db.ProductionOrders.SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.Id == id, ct);
-        if (order is null) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
-        if (!Matches(db, order, version)) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict);
+            var order = await db.ProductionOrders.SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.Id == id, ct);
+            if (order is null) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.NotFound);
+            if (!Matches(db, order, version)) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.ConcurrencyConflict);
 
-        order.Cancel(reason, utcNow);
-        await db.SaveInOperation(access.Actor, ct);
-        return OrganizationResult<ProductionOrderDetails>.Success((await BuildOrderDetailsAsync(db, organizationId, order.Id, ct))!);
-    }, ct);
+            creatorId = db.Entry(order).Property<long>("CreatedByActorId").CurrentValue;
+            orderNumber = order.OrderNumber;
+            previousStatus = order.Status;
+
+            var check = await applyAsync(db, order);
+            if (!check.Succeeded) return OrganizationResult<ProductionOrderDetails>.Failure(check.Error!.Code);
+
+            nextStatus = order.Status;
+            await db.SaveInOperation(access.Actor, ct);
+            return OrganizationResult<ProductionOrderDetails>.Success((await BuildOrderDetailsAsync(db, organizationId, order.Id, ct))!);
+        }, ct);
+
+        if (result.Succeeded && notifications is not null && creatorId > 0)
+        {
+            await notifications.PublishAsync(
+                creatorId,
+                NotificationEventCatalog.MyProductionOrders,
+                NotificationCategory.Orders,
+                severity,
+                NotificationTemplateCatalog.MyProductionOrderStatusChanged,
+                new
+                {
+                    orderNumber,
+                    fromStatus = previousStatus.ToString(),
+                    toStatus = nextStatus.ToString()
+                },
+                "/production-orders",
+                ct);
+        }
+
+        return result;
+    }
 
     private static async Task ClearSnapshotChildrenAsync(OrganizationDbContext db, long organizationId, long productionOrderId, CancellationToken ct)
     {

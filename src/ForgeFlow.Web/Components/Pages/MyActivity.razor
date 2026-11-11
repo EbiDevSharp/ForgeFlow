@@ -1,0 +1,264 @@
+@page "/account/activity"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ForgeFlow.Application.Audit
+@using ForgeFlow.Application.Users
+@using ForgeFlow.Infrastructure.Identity
+@inject IStringLocalizer<SharedResources> Text
+@inject DisplayFormatter Format
+@inject ICurrentAuthenticatedSession SessionSource
+@inject IMyActivityStore ActivityStore
+@inject NavigationManager Navigation
+
+<PageTitle>@Text["MyActivityTitle"]</PageTitle>
+
+<section class="organization-reader account-page" aria-labelledby="my-activity-title">
+    <div class="account-page-head account-page-head--row">
+        <div>
+            <h1 id="my-activity-title">@Text["MyActivityTitle"]</h1>
+            <p class="account-page-subtitle">@Text["MyActivitySubtitle"]</p>
+        </div>
+        <span class="activity-locked-badge" role="status">
+            <span class="ff-icon ff-icon--lock" aria-hidden="true"></span>
+            <span>@Text["MyActivityLockedBadge"]</span>
+        </span>
+    </div>
+
+    <AccountNav Active="activity" />
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="prefs-feedback prefs-feedback--error" role="alert">@errorMessage</div>
+    }
+
+    <div class="read-toolbar-card activity-filters">
+        <div class="read-field">
+            <label for="myact-range">@Text["MyActivityRangeLabel"]</label>
+            <select id="myact-range" value="@RangeDays" @onchange="OnRangeChangedAsync">
+                <option value="7">@Text["MyActivityRange7Days"]</option>
+                <option value="30">@Text["MyActivityRange30Days"]</option>
+                <option value="90">@Text["MyActivityRange90Days"]</option>
+                <option value="0">@Text["MyActivityRangeAll"]</option>
+            </select>
+        </div>
+        <div class="read-field">
+            <label for="myact-event">@Text["AuditEventCodeLabel"]</label>
+            <select id="myact-event" value="@SelectedEventCode" @onchange="OnEventChangedAsync">
+                <option value="">@Text["AuditEventCodeAll"]</option>
+                @foreach (var eventCode in EventCodes)
+                {
+                    <option value="@eventCode">@NotificationTextHelper.ResolveEventLabel(eventCode, Text)</option>
+                }
+            </select>
+        </div>
+        <div class="read-field">
+            <label for="myact-search">@Text["ReadSearch"]</label>
+            <input id="myact-search"
+                   type="search"
+                   maxlength="100"
+                   placeholder="@Text["MyActivitySearchPlaceholder"]"
+                   @bind="SearchInput"
+                   @bind:after="ReloadFromFirstPageAsync" />
+        </div>
+    </div>
+
+    <div class="read-grid-card my-activity-grid">
+        <div class="read-grid">
+            <BitDataGrid @ref="grid"
+                         TItem="MyActivityEntrySummary"
+                         OnRead="ReadGridAsync"
+                         Pageable="true"
+                         PageSize="6"
+                         PageSizeOptions="@PageSizeOptions"
+                         Strings="@GridStrings"
+                         SelectionMode="BitSelectionMode.Single"
+                         AriaLabelledBy="my-activity-title"
+                         WrapCellText="true">
+                <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                <Columns>
+                    <BitDataGridColumn TItem="MyActivityEntrySummary" Title="@Text["AuditTimeColumn"]">
+                        <Template Context="entry">
+                            <bdi dir="ltr">@Format.Timestamp(entry.OccurredAtUtc, " - ")</bdi>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="MyActivityEntrySummary" Title="@Text["AuditEventColumn"]">
+                        <Template Context="entry">
+                            <span>@NotificationTextHelper.ResolveEventLabel(entry.EventCode, Text)</span>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="MyActivityEntrySummary" Title="@Text["MyActivityIpColumn"]">
+                        <Template Context="entry">
+                            <span class="activity-ip" dir="ltr">@(entry.IpAddress ?? "—")</span>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="MyActivityEntrySummary" Title="@Text["MyActivityDeviceColumn"]">
+                        <Template Context="entry">
+                            <span dir="ltr">@(entry.DeviceSummary ?? "—")</span>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="MyActivityEntrySummary" Title="@Text["AuditOutcomeColumn"]">
+                        <Template Context="entry">
+                            <span class="read-badge @OutcomeBadgeClass(entry)">@FormatOutcome(entry)</span>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="MyActivityEntrySummary" Title="@Text["ReadActions"]">
+                        <Template Context="entry">
+                            <BitButton Variant="BitVariant.Text"
+                                       Size="BitSize.Small"
+                                       OnClick="() => OpenDetailsAsync(entry)">
+                                @Text["AuditDetailsButton"]
+                            </BitButton>
+                        </Template>
+                    </BitDataGridColumn>
+                </Columns>
+            </BitDataGrid>
+        </div>
+    </div>
+
+    <BitDialog Width="620px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailsOpen"
+               Title="@Text["AuditDetailsTitle"]" AriaLabel="@Text["AuditDetailsTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            @if (selectedDetails is not null)
+            {
+                <dl class="read-detail">
+                    <dt>@Text["AuditTimeColumn"]</dt>
+                    <dd dir="ltr">@Format.Timestamp(selectedDetails.Summary.OccurredAtUtc, " - ")</dd>
+                    <dt>@Text["AuditEventColumn"]</dt>
+                    <dd>@NotificationTextHelper.ResolveEventLabel(selectedDetails.Summary.EventCode, Text) <span dir="ltr">(@selectedDetails.Summary.EventCode)</span></dd>
+                    <dt>@Text["MyActivityIpColumn"]</dt>
+                    <dd dir="ltr">@(selectedDetails.Summary.IpAddress ?? "—")</dd>
+                    <dt>@Text["MyActivityDeviceColumn"]</dt>
+                    <dd dir="ltr">@(selectedDetails.Summary.DeviceSummary ?? "—")</dd>
+                    <dt>@Text["AuditOutcomeColumn"]</dt>
+                    <dd>@FormatOutcome(selectedDetails.Summary)</dd>
+                    <dt>@Text["AuditCorrelationLabel"]</dt>
+                    <dd dir="ltr">@selectedDetails.Summary.CorrelationId.ToString("N")</dd>
+                    @foreach (var field in selectedDetails.ParsedFields)
+                    {
+                        <dt dir="ltr">@field.Key</dt>
+                        <dd dir="ltr">@field.Value</dd>
+                    }
+                </dl>
+            }
+        </Body>
+    </BitDialog>
+</section>
+
+@code {
+    private static readonly int[] PageSizeOptions = [6, 12, 25];
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Root = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+
+    private BitDataGrid<MyActivityEntrySummary>? grid;
+    private long currentUserId;
+    private int RangeDays = 30;
+    private string SelectedEventCode = string.Empty;
+    private string SearchInput = string.Empty;
+    private IReadOnlyList<string> EventCodes = [];
+    private string? errorMessage;
+    private bool detailsOpen;
+    private MyActivityEntryDetails? selectedDetails;
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["MyActivityTitle"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null)
+        {
+            Navigation.NavigateTo("/account/login", forceLoad: true);
+            return;
+        }
+        currentUserId = reference.UserId;
+        EventCodes = await ActivityStore.ListMyActivityEventCodesAsync(currentUserId, CancellationToken.None);
+    }
+
+    private async Task<BitDataGridReadResult<MyActivityEntrySummary>> ReadGridAsync(BitDataGridReadRequest request)
+    {
+        errorMessage = null;
+        if (currentUserId <= 0)
+            return new BitDataGridReadResult<MyActivityEntrySummary>([], 0);
+
+        try
+        {
+            var size = Math.Clamp(request.Take ?? 6, 1, 50);
+            var pageNumber = (request.Skip / size) + 1;
+            var page = await ActivityStore.ListMyActivityAsync(
+                currentUserId,
+                new MyActivityQuery(
+                    RangeDays,
+                    string.IsNullOrWhiteSpace(SelectedEventCode) ? null : SelectedEventCode,
+                    string.IsNullOrWhiteSpace(SearchInput) ? null : SearchInput,
+                    pageNumber,
+                    size),
+                request.CancellationToken);
+
+            return new BitDataGridReadResult<MyActivityEntrySummary>(page.Items.ToArray(), page.Total);
+        }
+        catch (AuditStoreUnavailableException)
+        {
+            errorMessage = Text["WriteUnavailable"];
+            return new BitDataGridReadResult<MyActivityEntrySummary>([], 0);
+        }
+    }
+
+    private async Task OnRangeChangedAsync(ChangeEventArgs args)
+    {
+        RangeDays = int.TryParse(args.Value?.ToString(), out var d) ? d : 30;
+        await ReloadFromFirstPageAsync();
+    }
+
+    private async Task OnEventChangedAsync(ChangeEventArgs args)
+    {
+        SelectedEventCode = args.Value?.ToString() ?? string.Empty;
+        await ReloadFromFirstPageAsync();
+    }
+
+    private async Task ReloadFromFirstPageAsync()
+    {
+        if (grid is null) return;
+        if (grid.CurrentPage <= 1) await grid.RefreshAsync();
+        else await grid.GoToPageAsync(1);
+    }
+
+    private async Task OpenDetailsAsync(MyActivityEntrySummary entry)
+    {
+        if (currentUserId <= 0) return;
+        selectedDetails = await ActivityStore.GetMyActivityEntryAsync(currentUserId, entry.Source, entry.Id, CancellationToken.None);
+        detailsOpen = selectedDetails is not null;
+    }
+
+    private string FormatOutcome(MyActivityEntrySummary entry) => entry.Outcome switch
+    {
+        null or 0 => Text["MyActivityOutcomeRecorded"],
+        _ => Text["AuditOutcomeFailure"]
+    };
+
+    private static string OutcomeBadgeClass(MyActivityEntrySummary entry) => entry.Outcome switch
+    {
+        null or 0 => "active",
+        _ => "rpt-shortage-badge"
+    };
+}

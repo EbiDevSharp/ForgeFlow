@@ -11,6 +11,7 @@ using ForgeFlow.Application.ProductionOrders;
 using ForgeFlow.Application.Quality;
 using ForgeFlow.Application.Reporting;
 using ForgeFlow.Application.Units;
+using ForgeFlow.Application.Users;
 
 namespace ForgeFlow.Infrastructure.Organizations;
 
@@ -50,7 +51,8 @@ public static class OrganizationPersistenceRegistration
             new SqlProductionOrderOperationsStore(
                 () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
                 provider.GetService<IErrorLogRecorder>(),
-                provider.GetService<IOperationContextAccessor>()),
+                provider.GetService<IOperationContextAccessor>(),
+                provider.GetService<IUserNotificationPublisher>()),
             new BomOperationsStore(() => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>()),
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
             provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));

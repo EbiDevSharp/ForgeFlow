@@ -1214,6 +1214,185 @@ BEGIN
     VALUES (N'20261111041945_QualityControlAndLotTraceability', N'10.0.14');
 END;
 
+IF COL_LENGTH(N'auth.User', N'DisplayName') IS NULL
+BEGIN
+    ALTER TABLE [auth].[User] ADD [DisplayName] nvarchar(128) NULL;
+END;
+
+IF COL_LENGTH(N'auth.User', N'AvatarContentType') IS NULL
+BEGIN
+    ALTER TABLE [auth].[User] ADD [AvatarContentType] varchar(32) NULL;
+END;
+
+IF COL_LENGTH(N'auth.User', N'AvatarData') IS NULL
+BEGIN
+    ALTER TABLE [auth].[User] ADD [AvatarData] varbinary(max) NULL;
+END;
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_User_Avatar' AND parent_object_id = OBJECT_ID(N'auth.User'))
+BEGIN
+    EXEC(N'ALTER TABLE [auth].[User] ADD CONSTRAINT [CK_User_Avatar] CHECK (([AvatarContentType] IS NULL AND [AvatarData] IS NULL) OR ([AvatarContentType] IN (''image/png'',''image/jpeg'',''image/webp'') AND [AvatarData] IS NOT NULL AND DATALENGTH([AvatarData]) BETWEEN 1 AND 262144));');
+END;
+
+IF OBJECT_ID(N'auth.UserPreference', N'U') IS NULL
+BEGIN
+    CREATE TABLE [auth].[UserPreference] (
+        [UserId] bigint NOT NULL,
+        [Language] varchar(5) NOT NULL,
+        [Theme] varchar(16) NOT NULL,
+        [CalendarSystem] varchar(16) NOT NULL,
+        [TimeZoneId] varchar(64) NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_UserPreference] PRIMARY KEY ([UserId]),
+        CONSTRAINT [CK_UserPreference_Calendar] CHECK ([CalendarSystem] COLLATE Latin1_General_100_BIN2 IN ('persian','gregorian')),
+        CONSTRAINT [CK_UserPreference_Language] CHECK (DATALENGTH([Language]) = 5 AND [Language] COLLATE Latin1_General_100_BIN2 IN ('fa-IR','en-US')),
+        CONSTRAINT [CK_UserPreference_Metadata] CHECK ([UpdatedAtUtc] IS NULL OR [UpdatedAtUtc] >= [CreatedAtUtc]),
+        CONSTRAINT [CK_UserPreference_Theme] CHECK ([Theme] COLLATE Latin1_General_100_BIN2 IN ('light','dark','system')),
+        CONSTRAINT [CK_UserPreference_TimeZone] CHECK (LEN([TimeZoneId]) BETWEEN 1 AND 64),
+        CONSTRAINT [FK_UserPreference_User_UserId] FOREIGN KEY ([UserId]) REFERENCES [auth].[User] ([Id])
+    );
+END;
+
+IF OBJECT_ID(N'auth.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [auth].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261111045515_UserProfileAndPreferences')
+BEGIN
+    INSERT INTO [auth].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261111045515_UserProfileAndPreferences', N'10.0.14');
+END;
+
+IF COL_LENGTH(N'auth.UserPreference', N'ActiveOrganizationId') IS NULL
+BEGIN
+    ALTER TABLE [auth].[UserPreference] ADD [ActiveOrganizationId] bigint NULL;
+END;
+
+IF COL_LENGTH(N'auth.UserPreference', N'ActiveSiteId') IS NULL
+BEGIN
+    ALTER TABLE [auth].[UserPreference] ADD [ActiveSiteId] bigint NULL;
+END;
+
+IF COL_LENGTH(N'auth.Session', N'DeviceSummary') IS NULL
+BEGIN
+    ALTER TABLE [auth].[Session] ADD [DeviceSummary] nvarchar(128) NULL;
+END;
+
+IF COL_LENGTH(N'auth.Session', N'IpAddress') IS NULL
+BEGIN
+    ALTER TABLE [auth].[Session] ADD [IpAddress] varchar(64) NULL;
+END;
+
+IF COL_LENGTH(N'auth.Session', N'IsMobileDevice') IS NULL
+BEGIN
+    ALTER TABLE [auth].[Session] ADD [IsMobileDevice] bit NOT NULL CONSTRAINT [DF_Session_IsMobileDevice_Tmp] DEFAULT 0;
+END;
+
+IF COL_LENGTH(N'auth.Session', N'LastActivityAtUtc') IS NULL
+BEGIN
+    ALTER TABLE [auth].[Session] ADD [LastActivityAtUtc] datetime2(7) NOT NULL CONSTRAINT [DF_Session_LastActivityAtUtc_Tmp] DEFAULT '0001-01-01T00:00:00.0000000';
+    EXEC(N'UPDATE [auth].[Session] SET [LastActivityAtUtc] = [IssuedAtUtc];');
+END;
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_UserPreference_ActiveOrganizationId_ActiveSiteId' AND object_id = OBJECT_ID(N'auth.UserPreference'))
+    EXEC(N'CREATE INDEX [IX_UserPreference_ActiveOrganizationId_ActiveSiteId] ON [auth].[UserPreference] ([ActiveOrganizationId], [ActiveSiteId]);');
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_UserPreference_ActiveScope' AND parent_object_id = OBJECT_ID(N'auth.UserPreference'))
+    EXEC(N'ALTER TABLE [auth].[UserPreference] ADD CONSTRAINT [CK_UserPreference_ActiveScope] CHECK (([ActiveSiteId] IS NULL OR [ActiveOrganizationId] IS NOT NULL));');
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_UserPreference_Organization_ActiveOrganizationId')
+    EXEC(N'ALTER TABLE [auth].[UserPreference] ADD CONSTRAINT [FK_UserPreference_Organization_ActiveOrganizationId] FOREIGN KEY ([ActiveOrganizationId]) REFERENCES [organization].[Organization] ([Id]);');
+
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_UserPreference_Site_ActiveOrganizationId_ActiveSiteId')
+    EXEC(N'ALTER TABLE [auth].[UserPreference] ADD CONSTRAINT [FK_UserPreference_Site_ActiveOrganizationId_ActiveSiteId] FOREIGN KEY ([ActiveOrganizationId], [ActiveSiteId]) REFERENCES [organization].[Site] ([OrganizationId], [Id]);');
+
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Session_Lifecycle' AND parent_object_id = OBJECT_ID(N'auth.Session'))
+    ALTER TABLE [auth].[Session] DROP CONSTRAINT [CK_Session_Lifecycle];
+EXEC(N'ALTER TABLE [auth].[Session] ADD CONSTRAINT [CK_Session_Lifecycle] CHECK ([ExpiresAtUtc] > [IssuedAtUtc] AND [LastActivityAtUtc] >= [IssuedAtUtc] AND (([RevokedAtUtc] IS NULL AND [RevokeReason] IS NULL) OR ([RevokedAtUtc] IS NOT NULL AND [RevokedAtUtc] >= [IssuedAtUtc] AND [RevokeReason] IS NOT NULL AND DATALENGTH([RevokeReason]) = LEN([RevokeReason]) AND [RevokeReason] COLLATE Latin1_General_100_BIN2 IN (''Logout'',''PasswordReset'',''AccountDisabled'',''AccountLocked'',''StampChanged'',''SessionRevokedByUser''))));');
+
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_SecurityEvent_Code' AND parent_object_id = OBJECT_ID(N'auth.SecurityEvent'))
+    ALTER TABLE [auth].[SecurityEvent] DROP CONSTRAINT [CK_SecurityEvent_Code];
+ALTER TABLE [auth].[SecurityEvent] ADD CONSTRAINT [CK_SecurityEvent_Code] CHECK (DATALENGTH([EventCode])=LEN([EventCode]) AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('BootstrapCompleted','AccountCreated','SignInFailed','AccountLocked','SessionIssued','SessionRevoked','AccessDenied','PasswordResetCompleted','AccountEligibilityChanged','MembershipChanged','ScopedRoleChanged','RoleDefinitionChanged','DirectPermissionChanged','CulturePreferenceChanged','PreferencesUpdated','ProfileUpdated','SessionRevokedByUser','OtherSessionsRevoked','ActiveSiteSwitched'));
+
+IF OBJECT_ID(N'auth.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [auth].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261111052007_SessionsAndActiveSiteContext')
+BEGIN
+    INSERT INTO [auth].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261111052007_SessionsAndActiveSiteContext', N'10.0.14');
+END;
+
+IF OBJECT_ID(N'auth.UserNotification', N'U') IS NULL
+BEGIN
+    CREATE TABLE [auth].[UserNotification] (
+        [Id] bigint NOT NULL IDENTITY(1, 1),
+        [UserId] bigint NOT NULL,
+        [Category] tinyint NOT NULL,
+        [Severity] tinyint NOT NULL,
+        [TemplateCode] varchar(64) NOT NULL,
+        [ParamsJson] nvarchar(1000) NOT NULL,
+        [LinkUrl] nvarchar(256) NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [ReadAtUtc] datetime2(7) NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_UserNotification] PRIMARY KEY ([Id]),
+        CONSTRAINT [CK_UserNotification_Category] CHECK ([Category] IN (1, 2)),
+        CONSTRAINT [CK_UserNotification_Params] CHECK (ISJSON([ParamsJson]) = 1),
+        CONSTRAINT [CK_UserNotification_ReadAt] CHECK ([ReadAtUtc] IS NULL OR [ReadAtUtc] >= [CreatedAtUtc]),
+        CONSTRAINT [CK_UserNotification_Severity] CHECK ([Severity] IN (1, 2, 3, 4)),
+        CONSTRAINT [CK_UserNotification_Template] CHECK (DATALENGTH([TemplateCode])=LEN([TemplateCode]) AND [TemplateCode] COLLATE Latin1_General_100_BIN2 IN ('NewDeviceSignIn','FailedSignInAttempts','RoleOrAccessChanged','MyProductionOrderStatusChanged','PasswordChangedAlert')),
+        CONSTRAINT [FK_UserNotification_User_UserId] FOREIGN KEY ([UserId]) REFERENCES [auth].[User] ([Id])
+    );
+
+    CREATE INDEX [IX_UserNotification_UserId_ReadAtUtc_CreatedAtUtc_Id]
+        ON [auth].[UserNotification] ([UserId], [ReadAtUtc], [CreatedAtUtc], [Id]);
+END;
+
+IF OBJECT_ID(N'auth.UserNotificationPreference', N'U') IS NULL
+BEGIN
+    CREATE TABLE [auth].[UserNotificationPreference] (
+        [UserId] bigint NOT NULL,
+        [EventCode] varchar(64) NOT NULL,
+        [InAppEnabled] bit NOT NULL,
+        [EmailEnabled] bit NOT NULL,
+        [CreatedAtUtc] datetime2(7) NOT NULL,
+        [UpdatedAtUtc] datetime2(7) NULL,
+        [RowVersion] rowversion NOT NULL,
+        CONSTRAINT [PK_UserNotificationPreference] PRIMARY KEY ([UserId], [EventCode]),
+        CONSTRAINT [CK_UserNotificationPreference_EventCode] CHECK (DATALENGTH([EventCode])=LEN([EventCode]) AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('NewDeviceSignIn','FailedSignInAttempt','RoleOrAccessChanged','MyProductionOrders')),
+        CONSTRAINT [CK_UserNotificationPreference_Metadata] CHECK ([UpdatedAtUtc] IS NULL OR [UpdatedAtUtc] >= [CreatedAtUtc]),
+        CONSTRAINT [FK_UserNotificationPreference_User_UserId] FOREIGN KEY ([UserId]) REFERENCES [auth].[User] ([Id])
+    );
+END;
+
+IF DATABASE_PRINCIPAL_ID(N'ForgeFlowAuthRuntime') IS NOT NULL
+BEGIN
+    GRANT SELECT, INSERT, UPDATE ON OBJECT::[auth].[UserPreference] TO [ForgeFlowAuthRuntime];
+    GRANT SELECT, INSERT, UPDATE ON OBJECT::[auth].[UserNotificationPreference] TO [ForgeFlowAuthRuntime];
+    GRANT SELECT, INSERT, UPDATE ON OBJECT::[auth].[UserNotification] TO [ForgeFlowAuthRuntime];
+    DENY DELETE ON OBJECT::[auth].[UserPreference] TO [ForgeFlowAuthRuntime];
+    DENY DELETE ON OBJECT::[auth].[UserNotificationPreference] TO [ForgeFlowAuthRuntime];
+    DENY DELETE ON OBJECT::[auth].[UserNotification] TO [ForgeFlowAuthRuntime];
+END;
+
+IF OBJECT_ID(N'auth.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [auth].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261111054035_UserNotificationsAndAlerts')
+BEGIN
+    INSERT INTO [auth].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261111054035_UserNotificationsAndAlerts', N'10.0.14');
+END;
+
+IF COL_LENGTH(N'auth.Session', N'DeviceTokenHash') IS NULL
+    ALTER TABLE [auth].[Session] ADD [DeviceTokenHash] varchar(64) NULL;
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Session_UserId_DeviceTokenHash' AND object_id = OBJECT_ID(N'auth.Session'))
+    CREATE INDEX [IX_Session_UserId_DeviceTokenHash] ON [auth].[Session] ([UserId], [DeviceTokenHash]);
+
+IF OBJECT_ID(N'auth.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [auth].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261111061951_SessionDeviceTokenHash')
+BEGIN
+    INSERT INTO [auth].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261111061951_SessionDeviceTokenHash', N'10.0.14');
+END;
+
 COMMIT;
 "@
 
@@ -1223,7 +1402,7 @@ try {
     $cmd = $cn.CreateCommand()
     $cmd.CommandText = $sql
     [void]$cmd.ExecuteNonQuery()
-    Write-Host "testforgflow database upgraded to 20261111041945_QualityControlAndLotTraceability." -ForegroundColor Green
+    Write-Host "testforgflow database upgraded to 20261111061951_SessionDeviceTokenHash." -ForegroundColor Green
 }
 finally {
     $cn.Dispose()

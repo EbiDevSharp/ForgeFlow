@@ -5,6 +5,9 @@
 @inject Microsoft.JSInterop.IJSRuntime JS
 @inject ForgeFlow.Web.Organizations.ReadScopes ReadScopes
 @inject CulturePolicy Culture
+@inject UserDisplayPreferences DisplayPreferences
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
 
 <AuthorizeView Context="shellAuth">
 <Authorized>
@@ -18,7 +21,8 @@
                  NavMode="BitNavMode.Automatic"
                  NavMatch="BitNavMatch.Exact"
                  NoSearchBox="true"
-                 NoCollapse="true"
+                 AllExpanded="false"
+                 ChevronDownIcon="@ChevronDownIcon"
                  ShowCloseButton="true"
                  IsOpen="@drawerOpen"
                  IsOpenChanged="@((bool isOpen) => drawerOpen = isOpen)"
@@ -45,11 +49,60 @@
                     <span>@targetLabel</span>
                 </button>
             </div>
-            <UserMenu />
+            <div class="app-header-end">
+                <NotificationBell />
+                <UserMenu />
+            </div>
         </header>
         @Body
     </main>
 </div>
+
+<BitDialog Width="480px" MaxWidth="calc(100vw - 24px)" Classes="@ShortcutDialogClasses" @bind-IsOpen="commandPaletteOpen"
+           Title="@Text["CommandPaletteTitle"]" AriaLabel="@Text["CommandPaletteTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="cmd-palette">
+            <input type="search"
+                   class="cmd-palette-input"
+                   placeholder="@Text["CommandPalettePlaceholder"]"
+                   @bind="commandQuery"
+                   @bind:event="oninput" />
+            <div class="cmd-palette-list" role="list">
+                @foreach (var cmd in FilteredCommands)
+                {
+                    <button type="button" role="listitem" class="cmd-palette-item" @onclick="() => ExecuteCommand(cmd.Url)">
+                        <span>@cmd.Label</span>
+                        <span class="cmd-palette-url" dir="ltr">@cmd.Url</span>
+                    </button>
+                }
+            </div>
+        </div>
+    </Body>
+</BitDialog>
+
+<BitDialog Width="440px" MaxWidth="calc(100vw - 24px)" Classes="@ShortcutDialogClasses" @bind-IsOpen="shortcutsHelpOpen"
+           Title="@Text["HelpShortcutsTitle"]" AriaLabel="@Text["HelpShortcutsTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="help-shortcut-modal">
+            <div class="help-shortcut-row">
+                <span>@Text["HelpShortcutSearch"]</span>
+                <kbd class="help-kbd" dir="ltr">/</kbd>
+            </div>
+            <div class="help-shortcut-row">
+                <span>@Text["HelpShortcutCommands"]</span>
+                <kbd class="help-kbd" dir="ltr">Ctrl + K</kbd>
+            </div>
+            <div class="help-shortcut-row">
+                <span>@Text["HelpShortcutAll"]</span>
+                <kbd class="help-kbd" dir="ltr">?</kbd>
+            </div>
+        </div>
+    </Body>
+</BitDialog>
 
 </Authorized>
 <NotAuthorized>
@@ -60,14 +113,71 @@
 @code {
     private bool drawerOpen;
     private bool wasAuthenticated;
+    private bool commandPaletteOpen;
+    private bool shortcutsHelpOpen;
+    private string commandQuery = string.Empty;
     private Microsoft.JSInterop.IJSObjectReference? authUi;
+    private DotNetObjectReference<MainLayout>? shortcutRef;
 
-    protected override void OnInitialized() => AuthProvider.AuthenticationStateChanged += AuthenticationStateChanged;
+    private static readonly BitDialogClassStyles ShortcutDialogClasses = new()
+    {
+        Root = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthProvider.AuthenticationStateChanged += AuthenticationStateChanged;
+        DisplayPreferences.Changed += OnDisplayPreferencesChanged;
+
+        try
+        {
+            if (!DisplayPreferences.IsLoadedFromDatabase)
+            {
+                var sessionSource = Services.GetService<ForgeFlow.Infrastructure.Identity.ICurrentAuthenticatedSession>();
+                var sessions = Services.GetService<ForgeFlow.Infrastructure.Identity.RuntimeSessions>();
+                if (sessionSource is not null && sessions is not null)
+                {
+                    var reference = await sessionSource.GetAsync(CancellationToken.None);
+                    if (reference is not null)
+                    {
+                        var snapshot = await sessions.GetPreferencesAsync(reference, CancellationToken.None);
+                        if (snapshot is not null)
+                            DisplayPreferences.Apply(snapshot, fromDatabase: true);
+                    }
+                }
+            }
+        }
+        catch { }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
         authUi = await JS.InvokeAsync<Microsoft.JSInterop.IJSObjectReference>("import", "./auth-ui.mjs");
+        shortcutRef = DotNetObjectReference.Create(this);
+        try { await authUi.InvokeVoidAsync("registerGlobalShortcuts", shortcutRef); }
+        catch (Microsoft.JSInterop.JSException) { }
+        if (DisplayPreferences.IsLoadedFromDatabase)
+        {
+            try { await authUi.InvokeVoidAsync("applyThemePreference", DisplayPreferences.Theme); }
+            catch (Microsoft.JSInterop.JSException) { }
+        }
+        try
+        {
+            var sessionSource = Services.GetService<ForgeFlow.Infrastructure.Identity.ICurrentAuthenticatedSession>();
+            var sessions = Services.GetService<ForgeFlow.Infrastructure.Identity.RuntimeSessions>();
+            if (sessionSource is not null && sessions is not null)
+            {
+                var reference = await sessionSource.GetAsync(CancellationToken.None);
+                if (reference is not null)
+                    await sessions.TouchSessionActivityAsync(reference, CancellationToken.None);
+            }
+        }
+        catch { }
         var state = await AuthProvider.GetAuthenticationStateAsync();
         wasAuthenticated = state.User.Identity?.IsAuthenticated == true;
         try
@@ -119,14 +229,77 @@
         catch (Microsoft.JSInterop.JSException) { }
     }
 
+    [JSInvokable]
+    public Task OpenCommandPaletteFromJs()
+    {
+        commandQuery = string.Empty;
+        commandPaletteOpen = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task OpenShortcutsHelpFromJs()
+    {
+        shortcutsHelpOpen = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private IEnumerable<(string Label, string Url)> FilteredCommands
+    {
+        get
+        {
+            var all = new List<(string Label, string Url)>
+            {
+                (Text["Home"], "/"),
+                (Text["MyProfileTitle"], "/account/profile"),
+                (Text["MyActivityTitle"], "/account/activity"),
+                (Text["ActiveSessionsTitle"], "/account/sessions"),
+                (Text["NotificationsTitle"], "/account/notifications"),
+                (Text["NotificationSettingsTitle"], "/account/notifications-settings"),
+                (Text["MyPreferencesTitle"], "/account/preferences"),
+                (Text["ChangePasswordTitle"], "/account/change-password")
+            };
+            foreach (var item in ProductionItems.Concat(InventoryItems).Concat(QualityItems).Concat(MasterDataItems).Concat(ReportItems).Concat(SettingsItems))
+            {
+                if (!string.IsNullOrWhiteSpace(item.Text) && !string.IsNullOrWhiteSpace(item.Url))
+                    all.Add((item.Text, item.Url));
+            }
+            if (string.IsNullOrWhiteSpace(commandQuery))
+                return all;
+            var q = commandQuery.Trim();
+            return all.Where(x => x.Label.Contains(q, StringComparison.OrdinalIgnoreCase) || x.Url.Contains(q, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private void ExecuteCommand(string url)
+    {
+        commandPaletteOpen = false;
+        Navigation.NavigateTo(url);
+    }
+
+    private void OnDisplayPreferencesChanged()
+    {
+        navSignature = null;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
     public async ValueTask DisposeAsync()
     {
         AuthProvider.AuthenticationStateChanged -= AuthenticationStateChanged;
+        DisplayPreferences.Changed -= OnDisplayPreferencesChanged;
         if (authUi is not null)
         {
-            try { await authUi.DisposeAsync(); }
+            try
+            {
+                await authUi.InvokeVoidAsync("unregisterGlobalShortcuts");
+                await authUi.DisposeAsync();
+            }
             catch (Microsoft.JSInterop.JSDisconnectedException) { }
+            catch (Microsoft.JSInterop.JSException) { }
         }
+        shortcutRef?.Dispose();
     }
 
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> orgScopes = [];
@@ -146,11 +319,25 @@
     // The framework stylesheet ships only a few glyphs, so the shell uses its own CSS-mask icons (app.css, .ff-icon--*).
     private static BitIconInfo Icon(string name) => BitIconInfo.Css("ff-icon ff-icon--" + name);
     private static readonly BitIconInfo MenuIcon = Icon("menu");
+    private static readonly BitIconInfo ChevronDownIcon = Icon("chevron-down");
+
+    private List<BitNavItem> cachedNavItems = [];
+    private string? navSignature;
 
     private IList<BitNavItem> NavigationItems
     {
         get
         {
+            var sig = string.Concat(
+                System.Globalization.CultureInfo.CurrentUICulture.Name, "|",
+                orgScopes.Count, ",", readScopes.Count, ",", userScopes.Count, ",",
+                roleScopes.Count, ",", auditScopes.Count, ",", unitScopes.Count, ",",
+                itemScopes.Count, ",", bomScopes.Count, ",", productionOrderScopes.Count, ",",
+                inventoryScopes.Count, ",", reportScopes.Count, ",", qualityScopes.Count, ",",
+                diagnosticScopes.Count);
+            if (string.Equals(navSignature, sig, StringComparison.Ordinal))
+                return cachedNavItems;
+
             var items = new List<BitNavItem>
             {
                 new() { Text = Text["Home"], AriaLabel = Text["Home"], Icon = Icon("home"), Url = "/", Match = BitNavMatch.Exact }
@@ -158,34 +345,36 @@
             var production = ProductionItems;
             if (production.Count > 0)
             {
-                items.Add(new() { Text = Text["ProductionNavGroup"], Icon = Icon("production"), IsExpanded = true, ChildItems = production });
+                items.Add(new() { Text = Text["ProductionNavGroup"], Icon = Icon("production"), IsExpanded = false, ChildItems = production });
             }
             var inventory = InventoryItems;
             if (inventory.Count > 0)
             {
-                items.Add(new() { Text = Text["InventoryNavGroup"], Icon = Icon("inventory"), IsExpanded = true, ChildItems = inventory });
+                items.Add(new() { Text = Text["InventoryNavGroup"], Icon = Icon("inventory"), IsExpanded = false, ChildItems = inventory });
             }
             var quality = QualityItems;
             if (quality.Count > 0)
             {
-                items.Add(new() { Text = Text["QualityNavGroup"], Icon = Icon("quality"), IsExpanded = true, ChildItems = quality });
+                items.Add(new() { Text = Text["QualityNavGroup"], Icon = Icon("quality"), IsExpanded = false, ChildItems = quality });
             }
             var masterData = MasterDataItems;
             if (masterData.Count > 0)
             {
-                items.Add(new() { Text = Text["MasterDataNavGroup"], Icon = Icon("catalog"), IsExpanded = true, ChildItems = masterData });
+                items.Add(new() { Text = Text["MasterDataNavGroup"], Icon = Icon("catalog"), IsExpanded = false, ChildItems = masterData });
             }
             var reports = ReportItems;
             if (reports.Count > 0)
             {
-                items.Add(new() { Text = Text["ReportsNavGroup"], Icon = Icon("reports"), IsExpanded = true, ChildItems = reports });
+                items.Add(new() { Text = Text["ReportsNavGroup"], Icon = Icon("reports"), IsExpanded = false, ChildItems = reports });
             }
             var settings = SettingsItems;
             if (settings.Count > 0)
             {
-                items.Add(new() { Text = Text["Settings"], Icon = Icon("settings"), IsExpanded = true, ChildItems = settings });
+                items.Add(new() { Text = Text["Settings"], Icon = Icon("settings"), IsExpanded = false, ChildItems = settings });
             }
-            return items;
+            cachedNavItems = items;
+            navSignature = sig;
+            return cachedNavItems;
         }
     }
 

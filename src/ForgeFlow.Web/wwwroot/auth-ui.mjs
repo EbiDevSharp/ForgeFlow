@@ -11,6 +11,69 @@ export function clearDrafts() {
     } catch { /* Storage may be disabled; server authorization remains authoritative. */ }
 }
 
+export function applyThemePreference(mode) {
+    return window.__forgeflowTheme?.apply?.(mode) || 'light';
+}
+
+export function previewThemePreference(mode) {
+    return window.__forgeflowTheme?.preview?.(mode) || 'light';
+}
+
+export function restoreThemePreference() {
+    return window.__forgeflowTheme?.restore?.() || 'light';
+}
+
+export function unregisterGlobalShortcuts() {
+    window.__forgeflowShortcutTarget = null;
+}
+
+export function registerGlobalShortcuts(dotNetRef) {
+    window.__forgeflowShortcutTarget = dotNetRef;
+    if (document.documentElement.dataset.shortcutsBound) return;
+    document.documentElement.dataset.shortcutsBound = 'true';
+    document.addEventListener('keydown', event => {
+        const target = window.__forgeflowShortcutTarget;
+        if (!target) return;
+
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+            event.preventDefault();
+            target.invokeMethodAsync('OpenCommandPaletteFromJs').catch(() => {});
+            return;
+        }
+
+        const active = document.activeElement;
+        const editing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT' || active.isContentEditable);
+        if (editing || event.ctrlKey || event.metaKey || event.altKey) return;
+
+        if (event.key === '?') {
+            event.preventDefault();
+            target.invokeMethodAsync('OpenShortcutsHelpFromJs').catch(() => {});
+        } else if (event.key === '/') {
+            const searchInput = document.querySelector('main input[type="search"]:not([disabled])');
+            event.preventDefault();
+            if (searchInput instanceof HTMLElement) {
+                searchInput.focus();
+            } else {
+                target.invokeMethodAsync('OpenCommandPaletteFromJs').catch(() => {});
+            }
+        }
+    });
+}
+
+export async function applyCultureCookie(culture) {
+    try {
+        await getRequestToken();
+        const requestToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+        const body = new URLSearchParams({ culture, returnUrl: '/', __RequestVerificationToken: requestToken || '' });
+        const response = await fetch('/culture', {
+            method: 'POST', body, credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, cache: 'no-store'
+        });
+        return response.status === 204 || response.ok;
+    } catch {
+        return false;
+    }
+}
+
 export function notifyIdentityCleared() {
     clearDrafts();
     try {
@@ -147,8 +210,10 @@ function bind() {
                 const error = document.querySelector('#change-pwd-error');
                 const errorText = error?.querySelector('[data-auth-error-message]');
                 const success = document.querySelector('#change-pwd-success');
+                const sessionsLink = document.querySelector('#change-pwd-sessions-link');
                 const fail = message => {
                     if (success) success.hidden = true;
+                    if (sessionsLink) sessionsLink.hidden = true;
                     if (errorText) errorText.textContent = message;
                     if (error) error.hidden = false;
                     setBusy(form, false);
@@ -163,6 +228,7 @@ function bind() {
                 }
                 if (error) error.hidden = true;
                 if (success) success.hidden = true;
+                if (sessionsLink) sessionsLink.hidden = true;
                 setBusy(form, true);
                 try {
                     await getRequestToken();
@@ -182,6 +248,7 @@ function bind() {
                             success.textContent = data.message;
                             success.hidden = false;
                         }
+                        if (sessionsLink) sessionsLink.hidden = false;
                         await getRequestToken();
                         setBusy(form, false);
                         return;

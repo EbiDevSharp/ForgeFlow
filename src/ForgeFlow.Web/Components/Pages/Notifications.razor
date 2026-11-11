@@ -1,0 +1,230 @@
+@page "/account/notifications"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ForgeFlow.Application.Users
+@using ForgeFlow.Infrastructure.Identity
+@inject IStringLocalizer<SharedResources> Text
+@inject DisplayFormatter Format
+@inject ICurrentAuthenticatedSession SessionSource
+@inject RuntimeSessions Sessions
+@inject NavigationManager Navigation
+
+<PageTitle>@Text["NotificationsTitle"]</PageTitle>
+
+<section class="account-page" aria-labelledby="notifications-title">
+    <div class="account-page-head">
+        <div>
+            <h1 id="notifications-title">@Text["NotificationsTitle"]</h1>
+            <p class="account-page-subtitle">@Text["NotificationsSubtitle"]</p>
+        </div>
+    </div>
+
+    <AccountNav Active="notifications" />
+
+    <div class="notif-toolbar">
+        <div class="prefs-seg notif-tabs" role="tablist" aria-label="@Text["NotificationsTitle"]">
+            <button type="button"
+                    role="tab"
+                    aria-selected="@(activeFilter == NotificationListFilter.All ? "true" : "false")"
+                    class="prefs-seg-btn @(activeFilter == NotificationListFilter.All ? "is-selected" : string.Empty)"
+                    @onclick="() => SelectFilterAsync(NotificationListFilter.All)">
+                @Text["NotifTabAll"]
+            </button>
+            <button type="button"
+                    role="tab"
+                    aria-selected="@(activeFilter == NotificationListFilter.Unread ? "true" : "false")"
+                    class="prefs-seg-btn @(activeFilter == NotificationListFilter.Unread ? "is-selected" : string.Empty)"
+                    @onclick="() => SelectFilterAsync(NotificationListFilter.Unread)">
+                <span>@Text["NotifTabUnread"]</span>
+                @if (unreadCount > 0)
+                {
+                    <span class="notif-tab-count">@unreadCount</span>
+                }
+            </button>
+            <button type="button"
+                    role="tab"
+                    aria-selected="@(activeFilter == NotificationListFilter.Security ? "true" : "false")"
+                    class="prefs-seg-btn @(activeFilter == NotificationListFilter.Security ? "is-selected" : string.Empty)"
+                    @onclick="() => SelectFilterAsync(NotificationListFilter.Security)">
+                @Text["NotifTabSecurity"]
+            </button>
+            <button type="button"
+                    role="tab"
+                    aria-selected="@(activeFilter == NotificationListFilter.Orders ? "true" : "false")"
+                    class="prefs-seg-btn @(activeFilter == NotificationListFilter.Orders ? "is-selected" : string.Empty)"
+                    @onclick="() => SelectFilterAsync(NotificationListFilter.Orders)">
+                @Text["NotifTabOrders"]
+            </button>
+        </div>
+
+        @if (unreadCount > 0)
+        {
+            <BitButton Variant="BitVariant.Outline"
+                       Size="BitSize.Small"
+                       ButtonType="BitButtonType.Button"
+                       IsEnabled="@(!busy)"
+                       OnClick="MarkAllReadAsync">
+                @Text["NotificationsMarkAllRead"]
+            </BitButton>
+        }
+    </div>
+
+    @if (!loaded)
+    {
+        <div class="prefs-card prefs-loading">
+            <BitProgress Circular="true" Indeterminate="true" Label="@Text["ReadLoading"]" />
+        </div>
+    }
+    else if (items.Count == 0)
+    {
+        <div class="prefs-card">
+            <p class="read-empty" role="status">@Text["NotificationsEmpty"]</p>
+        </div>
+    }
+    else
+    {
+        var todayLocal = Format.ToDisplayDateTime(DateTime.UtcNow).Date;
+        var todayGroup = items.Where(i => Format.ToDisplayDateTime(i.CreatedAtUtc).Date == todayLocal).ToList();
+        var olderGroup = items.Where(i => Format.ToDisplayDateTime(i.CreatedAtUtc).Date < todayLocal).ToList();
+
+        <div class="notif-center-card">
+            @if (todayGroup.Count > 0)
+            {
+                <div class="notif-group-header">@Text["NotifGroupToday"]</div>
+                @foreach (var item in todayGroup)
+                {
+                    @RenderRow(item)
+                }
+            }
+            @if (olderGroup.Count > 0)
+            {
+                <div class="notif-group-header">@Text["NotifGroupOlder"]</div>
+                @foreach (var item in olderGroup)
+                {
+                    @RenderRow(item)
+                }
+            }
+        </div>
+
+        @if (totalCount > pageSize)
+        {
+            <div class="notif-pager">
+                <span class="notif-pager-info">@Text["NotifPagerSummary", PageStart, PageEnd, totalCount]</span>
+                <div class="notif-pager-buttons">
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(page > 1 && !busy)" OnClick="() => GoToPageAsync(1)">«</BitButton>
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(page > 1 && !busy)" OnClick="() => GoToPageAsync(page - 1)">‹</BitButton>
+                    <span class="notif-pager-page">@Text["NotifPagerPage", page, TotalPages]</span>
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(page < TotalPages && !busy)" OnClick="() => GoToPageAsync(page + 1)">›</BitButton>
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(page < TotalPages && !busy)" OnClick="() => GoToPageAsync(TotalPages)">»</BitButton>
+                </div>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private bool loaded;
+    private bool busy;
+    private NotificationListFilter activeFilter = NotificationListFilter.All;
+    private int page = 1;
+    private const int pageSize = 10;
+    private int totalCount;
+    private int unreadCount;
+    private IReadOnlyList<UserNotificationSnapshot> items = [];
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
+    private int PageStart => totalCount == 0 ? 0 : ((page - 1) * pageSize) + 1;
+    private int PageEnd => Math.Min(totalCount, page * pageSize);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null)
+        {
+            Navigation.NavigateTo("/account/login", forceLoad: true);
+            return;
+        }
+        var result = await Sessions.ListNotificationsAsync(reference, activeFilter, page, pageSize, CancellationToken.None);
+        items = result.Items;
+        totalCount = result.TotalCount;
+        unreadCount = result.UnreadCount;
+        loaded = true;
+    }
+
+    private async Task SelectFilterAsync(NotificationListFilter filter)
+    {
+        activeFilter = filter;
+        page = 1;
+        await LoadAsync();
+    }
+
+    private async Task GoToPageAsync(int targetPage)
+    {
+        page = Math.Clamp(targetPage, 1, TotalPages);
+        await LoadAsync();
+    }
+
+    private async Task MarkAllReadAsync()
+    {
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null) return;
+        busy = true;
+        try
+        {
+            await Sessions.MarkAllNotificationsReadAsync(reference, CancellationToken.None);
+            await LoadAsync();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task OpenItemAsync(UserNotificationSnapshot item)
+    {
+        if (item.ReadAtUtc is null)
+        {
+            var reference = await SessionSource.GetAsync(CancellationToken.None);
+            if (reference is not null)
+            {
+                await Sessions.MarkNotificationReadAsync(reference, item.Id, CancellationToken.None);
+                await LoadAsync();
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(item.LinkUrl))
+            Navigation.NavigateTo(item.LinkUrl);
+    }
+
+    private RenderFragment RenderRow(UserNotificationSnapshot item) => @<div class="notif-row @(item.ReadAtUtc is null ? "is-unread" : string.Empty)">
+        @{
+            var content = NotificationTextHelper.Resolve(item, Text);
+            var isUnread = item.ReadAtUtc is null;
+        }
+        <button type="button" class="notif-row-main-btn" @onclick="() => OpenItemAsync(item)">
+            <span class="notif-dot-col">
+                @if (isUnread)
+                {
+                    <span class="notif-unread-dot" aria-hidden="true"></span>
+                }
+            </span>
+            <span class="notif-ico @NotificationTextHelper.SeverityIconClass(item.Severity)" aria-hidden="true">
+                <span class="ff-icon @NotificationTextHelper.SeverityGlyphClass(item.Severity)"></span>
+            </span>
+            <span class="notif-body-col">
+                <span class="notif-item-title">@content.Title</span>
+                @if (!string.IsNullOrWhiteSpace(content.Body))
+                {
+                    <span class="notif-item-sub">@content.Body</span>
+                }
+                <span class="notif-item-time">@NotificationTextHelper.FormatRelativeOrClock(item.CreatedAtUtc, Format, Text)</span>
+            </span>
+        </button>
+        @if (!string.IsNullOrWhiteSpace(item.LinkUrl) && !string.IsNullOrWhiteSpace(content.ActionLabel))
+        {
+            <button type="button" class="notif-action-link" @onclick="() => OpenItemAsync(item)">
+                @content.ActionLabel
+            </button>
+        }
+    </div>;
+}

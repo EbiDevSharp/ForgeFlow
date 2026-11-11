@@ -4,6 +4,7 @@ using System.Text.Json;
 using ForgeFlow.Application.Audit;
 using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Application.Users;
 using ForgeFlow.Domain.Audit;
 using ForgeFlow.Domain.Diagnostics;
 using ForgeFlow.Domain.Organizations;
@@ -18,7 +19,8 @@ namespace ForgeFlow.Infrastructure.Identity;
 public sealed class SqlAuditOperationsStore(
     IServiceScopeFactory scopes,
     IErrorLogRecorder? errorRecorder = null,
-    IOperationContextAccessor? opContext = null) : IAuditOperationsStore
+    IOperationContextAccessor? opContext = null,
+    TimeProvider? clock = null) : IAuditOperationsStore, IMyActivityStore
 {
     private static readonly JsonSerializerOptions SafeJson = new()
     {
@@ -629,6 +631,347 @@ public sealed class SqlAuditOperationsStore(
 
     private static bool IsTransientUnavailable(Exception ex) =>
         ex is DbException or SqlException or InvalidOperationException or TimeoutException;
+
+    public async Task<OrganizationPage<MyActivityEntrySummary>> ListMyActivityAsync(
+        long userId,
+        MyActivityQuery query,
+        CancellationToken ct = default)
+    {
+        if (userId <= 0)
+            return new OrganizationPage<MyActivityEntrySummary>([], 0, 1, Math.Clamp(query.PageSize, 1, 50));
+
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 50);
+        var fromUtc = query.RangeDays > 0
+            ? (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime.AddDays(-query.RangeDays)
+            : (DateTime?)null;
+        var eventCode = string.IsNullOrWhiteSpace(query.EventCode) ? null : query.EventCode.Trim();
+        var search = string.IsNullOrWhiteSpace(query.Search) ? null : query.Search.Trim();
+
+        try
+        {
+            await using var serviceScope = scopes.CreateAsyncScope();
+            var authDb = serviceScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var orgDbFactory = serviceScope.ServiceProvider.GetService<IDbContextFactory<OrganizationDbContext>>();
+            await using var orgDb = orgDbFactory is not null
+                ? await orgDbFactory.CreateDbContextAsync(ct)
+                : serviceScope.ServiceProvider.GetService<OrganizationDbContext>();
+            var diagDbFactory = serviceScope.ServiceProvider.GetService<IDbContextFactory<DiagnosticsDbContext>>();
+            await using var diagDb = diagDbFactory is not null
+                ? await diagDbFactory.CreateDbContextAsync(ct)
+                : serviceScope.ServiceProvider.GetService<DiagnosticsDbContext>();
+
+            var window = checked((page - 1) * pageSize + pageSize);
+
+            var bCount = 0;
+            List<(RawAuditRow Row, Guid? SessionId)> bRows = [];
+            if (orgDb is not null)
+            {
+                var bq = orgDb.OrganizationChanges.AsNoTracking().Where(c => c.ActorId == userId);
+                if (fromUtc.HasValue) bq = bq.Where(c => c.OccurredAtUtc >= fromUtc.Value);
+                if (eventCode is not null) bq = bq.Where(c => c.EventCode == eventCode);
+                if (search is not null)
+                {
+                    if (Guid.TryParse(search, out var corr))
+                        bq = bq.Where(c => c.CorrelationId == corr || c.EventCode.Contains(search) || c.ChangesJson.Contains(search));
+                    else
+                        bq = bq.Where(c => c.EventCode.Contains(search) || c.ChangesJson.Contains(search));
+                }
+                bCount = await bq.CountAsync(ct);
+                if (bCount > 0)
+                {
+                    bRows = (await bq.OrderByDescending(c => c.OccurredAtUtc).ThenByDescending(c => c.Id)
+                        .Take(window)
+                        .Select(c => new RawAuditRow(AuditSourceKind.Business, c.Id, c.OccurredAtUtc, c.EventCode, c.OrganizationId, c.SiteId, c.ActorId, null, null, null, c.CorrelationId, c.ChangesJson))
+                        .ToListAsync(ct)).Select(r => (r, (Guid?)null)).ToList();
+                }
+            }
+
+            var sq = authDb.SecurityEvents.AsNoTracking().Where(s =>
+                s.ActorUserId == userId
+                || (s.SubjectUserId == userId && (s.EventCode == "SignInFailed" || s.EventCode == "AccountLocked")));
+            if (fromUtc.HasValue) sq = sq.Where(s => s.OccurredAtUtc >= fromUtc.Value);
+            if (eventCode is not null) sq = sq.Where(s => s.EventCode == eventCode);
+            if (search is not null)
+            {
+                if (Guid.TryParse(search, out var corr))
+                    sq = sq.Where(s => s.CorrelationId == corr || s.EventCode.Contains(search) || s.DataJson.Contains(search));
+                else
+                    sq = sq.Where(s => s.EventCode.Contains(search) || s.DataJson.Contains(search));
+            }
+            var sCount = await sq.CountAsync(ct);
+            List<(RawAuditRow Row, Guid? SessionId)> sRows = [];
+            if (sCount > 0)
+            {
+                sRows = (await sq.OrderByDescending(s => s.OccurredAtUtc).ThenByDescending(s => s.Id)
+                    .Take(window)
+                    .Select(s => new
+                    {
+                        Row = new RawAuditRow(AuditSourceKind.Security, s.Id, s.OccurredAtUtc, s.EventCode, s.OrganizationId, s.SiteId, s.ActorUserId, s.HostOperatorReference, s.SubjectUserId, s.Outcome, s.CorrelationId, s.DataJson),
+                        s.SessionId
+                    }).ToListAsync(ct)).Select(x => (x.Row, x.SessionId)).ToList();
+            }
+
+            var oCount = 0;
+            List<(RawAuditRow Row, Guid? SessionId)> oRows = [];
+            if (diagDb is not null)
+            {
+                try
+                {
+                    var oq = diagDb.UserOperationLogs.AsNoTracking().Where(o => o.ActorUserId == userId);
+                    if (fromUtc.HasValue) oq = oq.Where(o => o.OccurredAtUtc >= fromUtc.Value);
+                    if (eventCode is not null) oq = oq.Where(o => o.OperationCode == eventCode);
+                    if (search is not null)
+                    {
+                        if (Guid.TryParse(search, out var corr))
+                            oq = oq.Where(o => o.CorrelationId == corr || o.OperationCode.Contains(search) || (o.TargetEntityRef != null && o.TargetEntityRef.Contains(search)) || (o.FailureCode != null && o.FailureCode.Contains(search)) || o.MetadataJson.Contains(search));
+                        else
+                            oq = oq.Where(o => o.OperationCode.Contains(search) || (o.TargetEntityRef != null && o.TargetEntityRef.Contains(search)) || (o.FailureCode != null && o.FailureCode.Contains(search)) || o.MetadataJson.Contains(search));
+                    }
+                    oCount = await oq.CountAsync(ct);
+                    if (oCount > 0)
+                    {
+                        var ops = await oq.OrderByDescending(o => o.OccurredAtUtc).ThenByDescending(o => o.Id).Take(window).ToListAsync(ct);
+                        oRows = ops.Select(o => (ToOperationRow(o), (Guid?)null)).ToList();
+                    }
+                }
+                catch (SqlException)
+                {
+                    oCount = 0;
+                    oRows = [];
+                }
+            }
+
+            var total = bCount + sCount + oCount;
+            if (total == 0)
+                return new OrganizationPage<MyActivityEntrySummary>([], 0, page, pageSize);
+
+            var pageItems = bRows.Concat(sRows).Concat(oRows)
+                .OrderByDescending(x => x.Row.OccurredAtUtc)
+                .ThenBy(x => x.Row.Source)
+                .ThenByDescending(x => x.Row.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToArray();
+
+            var sessionIds = pageItems.Where(x => x.SessionId.HasValue).Select(x => x.SessionId!.Value).Distinct().ToArray();
+            var sessionMeta = sessionIds.Length == 0
+                ? new Dictionary<Guid, (string? IpAddress, string? DeviceSummary)>()
+                : (await authDb.Sessions.AsNoTracking()
+                    .Where(s => sessionIds.Contains(s.Id))
+                    .Select(s => new { s.Id, s.IpAddress, s.DeviceSummary })
+                    .ToListAsync(ct))
+                    .ToDictionary(s => s.Id, s => (s.IpAddress, s.DeviceSummary));
+
+            var results = pageItems.Select(item =>
+            {
+                var (ip, device) = ExtractIpAndDevice(item.Row.RawJson);
+                if (item.SessionId.HasValue && sessionMeta.TryGetValue(item.SessionId.Value, out var sMeta))
+                {
+                    ip ??= sMeta.IpAddress;
+                    device ??= sMeta.DeviceSummary;
+                }
+                return new MyActivityEntrySummary(
+                    item.Row.Source,
+                    item.Row.Id,
+                    DateTime.SpecifyKind(item.Row.OccurredAtUtc, DateTimeKind.Utc),
+                    item.Row.EventCode,
+                    ip,
+                    device,
+                    item.Row.Outcome,
+                    item.Row.CorrelationId,
+                    item.Row.RawJson);
+            }).ToArray();
+
+            return new OrganizationPage<MyActivityEntrySummary>(results, total, page, pageSize);
+        }
+        catch (Exception ex) when (IsTransientUnavailable(ex))
+        {
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore));
+            throw new AuditStoreUnavailableException(ex);
+        }
+    }
+
+    public async Task<MyActivityEntryDetails?> GetMyActivityEntryAsync(
+        long userId,
+        AuditSourceKind source,
+        long entryId,
+        CancellationToken ct = default)
+    {
+        if (userId <= 0 || entryId <= 0)
+            return null;
+
+        try
+        {
+            await using var serviceScope = scopes.CreateAsyncScope();
+            var authDb = serviceScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+
+            RawAuditRow? row = null;
+            Guid? sessionId = null;
+
+            if (source == AuditSourceKind.Business)
+            {
+                var orgDbFactory = serviceScope.ServiceProvider.GetService<IDbContextFactory<OrganizationDbContext>>();
+                await using var orgDb = orgDbFactory is not null
+                    ? await orgDbFactory.CreateDbContextAsync(ct)
+                    : serviceScope.ServiceProvider.GetService<OrganizationDbContext>();
+                if (orgDb is not null)
+                {
+                    row = await orgDb.OrganizationChanges.AsNoTracking()
+                        .Where(c => c.Id == entryId && c.ActorId == userId)
+                        .Select(c => new RawAuditRow(AuditSourceKind.Business, c.Id, c.OccurredAtUtc, c.EventCode, c.OrganizationId, c.SiteId, c.ActorId, null, null, null, c.CorrelationId, c.ChangesJson))
+                        .SingleOrDefaultAsync(ct);
+                }
+            }
+            else if (source == AuditSourceKind.Security)
+            {
+                var sec = await authDb.SecurityEvents.AsNoTracking()
+                    .Where(s => s.Id == entryId && (s.ActorUserId == userId || (s.SubjectUserId == userId && (s.EventCode == "SignInFailed" || s.EventCode == "AccountLocked"))))
+                    .Select(s => new
+                    {
+                        Row = new RawAuditRow(AuditSourceKind.Security, s.Id, s.OccurredAtUtc, s.EventCode, s.OrganizationId, s.SiteId, s.ActorUserId, s.HostOperatorReference, s.SubjectUserId, s.Outcome, s.CorrelationId, s.DataJson),
+                        s.SessionId
+                    })
+                    .SingleOrDefaultAsync(ct);
+                row = sec?.Row;
+                sessionId = sec?.SessionId;
+            }
+            else if (source == AuditSourceKind.Operations)
+            {
+                var diagDbFactory = serviceScope.ServiceProvider.GetService<IDbContextFactory<DiagnosticsDbContext>>();
+                await using var diagDb = diagDbFactory is not null
+                    ? await diagDbFactory.CreateDbContextAsync(ct)
+                    : serviceScope.ServiceProvider.GetService<DiagnosticsDbContext>();
+                if (diagDb is not null)
+                {
+                    try
+                    {
+                        var op = await diagDb.UserOperationLogs.AsNoTracking()
+                            .SingleOrDefaultAsync(o => o.Id == entryId && o.ActorUserId == userId, ct);
+                        if (op is not null) row = ToOperationRow(op);
+                    }
+                    catch (SqlException) { }
+                }
+            }
+
+            if (row is null)
+                return null;
+
+            var (ip, device) = ExtractIpAndDevice(row.RawJson);
+            if (sessionId.HasValue)
+            {
+                var sMeta = await authDb.Sessions.AsNoTracking()
+                    .Where(s => s.Id == sessionId.Value)
+                    .Select(s => new { s.IpAddress, s.DeviceSummary })
+                    .SingleOrDefaultAsync(ct);
+                if (sMeta is not null)
+                {
+                    ip ??= sMeta.IpAddress;
+                    device ??= sMeta.DeviceSummary;
+                }
+            }
+
+            var summary = new MyActivityEntrySummary(
+                row.Source,
+                row.Id,
+                DateTime.SpecifyKind(row.OccurredAtUtc, DateTimeKind.Utc),
+                row.EventCode,
+                ip,
+                device,
+                row.Outcome,
+                row.CorrelationId,
+                row.RawJson);
+            return new MyActivityEntryDetails(summary, AuditPayloadParser.ParseFields(row.RawJson));
+        }
+        catch (Exception ex) when (IsTransientUnavailable(ex))
+        {
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore));
+            throw new AuditStoreUnavailableException(ex);
+        }
+    }
+
+    public async Task<IReadOnlyList<string>> ListMyActivityEventCodesAsync(long userId, CancellationToken ct = default)
+    {
+        if (userId <= 0) return [];
+        try
+        {
+            await using var serviceScope = scopes.CreateAsyncScope();
+            var authDb = serviceScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var orgDbFactory = serviceScope.ServiceProvider.GetService<IDbContextFactory<OrganizationDbContext>>();
+            await using var orgDb = orgDbFactory is not null
+                ? await orgDbFactory.CreateDbContextAsync(ct)
+                : serviceScope.ServiceProvider.GetService<OrganizationDbContext>();
+            var diagDbFactory = serviceScope.ServiceProvider.GetService<IDbContextFactory<DiagnosticsDbContext>>();
+            await using var diagDb = diagDbFactory is not null
+                ? await diagDbFactory.CreateDbContextAsync(ct)
+                : serviceScope.ServiceProvider.GetService<DiagnosticsDbContext>();
+
+            var codes = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var code in await authDb.SecurityEvents.AsNoTracking()
+                .Where(s => s.ActorUserId == userId || (s.SubjectUserId == userId && (s.EventCode == "SignInFailed" || s.EventCode == "AccountLocked")))
+                .Select(s => s.EventCode).Distinct().ToListAsync(ct))
+            {
+                codes.Add(code);
+            }
+
+            if (orgDb is not null)
+            {
+                foreach (var code in await orgDb.OrganizationChanges.AsNoTracking()
+                    .Where(c => c.ActorId == userId).Select(c => c.EventCode).Distinct().ToListAsync(ct))
+                {
+                    codes.Add(code);
+                }
+            }
+
+            if (diagDb is not null)
+            {
+                try
+                {
+                    foreach (var code in await diagDb.UserOperationLogs.AsNoTracking()
+                        .Where(o => o.ActorUserId == userId).Select(o => o.OperationCode).Distinct().ToListAsync(ct))
+                    {
+                        codes.Add(code);
+                    }
+                }
+                catch (SqlException) { }
+            }
+
+            return codes.OrderBy(c => c, StringComparer.Ordinal).ToList();
+        }
+        catch (Exception ex) when (IsTransientUnavailable(ex))
+        {
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore));
+            throw new AuditStoreUnavailableException(ex);
+        }
+    }
+
+    private static (string? IpAddress, string? DeviceSummary) ExtractIpAndDevice(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return (null, null);
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                return (null, null);
+
+            string? ReadStr(string name) =>
+                doc.RootElement.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String
+                    ? (string.IsNullOrWhiteSpace(p.GetString()) ? null : p.GetString()!.Trim())
+                    : null;
+
+            var ip = ReadStr("ip") ?? ReadStr("clientIp");
+            var device = ReadStr("device");
+            if (device is null && ReadStr("userAgent") is { } ua)
+                device = UserAgentDeviceParser.Parse(ua).DeviceSummary;
+
+            return (ip, device);
+        }
+        catch (JsonException)
+        {
+            return (null, null);
+        }
+    }
 
     private sealed record RawAuditRow(
         AuditSourceKind Source,

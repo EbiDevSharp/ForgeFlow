@@ -17,6 +17,7 @@ builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddBitBlazorUIServices();
 builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 builder.Services.Configure<Microsoft.AspNetCore.Builder.RequestLocalizationOptions>(CulturePolicy.Configure);
+builder.Services.AddScoped<UserDisplayPreferences>();
 builder.Services.AddScoped<CulturePolicy>();
 builder.Services.AddScoped<ForgeFlow.Web.Organizations.ReadScopes>();
 builder.Services.AddScoped<DisplayFormatter>();
@@ -64,6 +65,18 @@ app.UseStatusCodePagesWithReExecute("/not-found");
 app.UseAuthentication();
 app.Use(async (context, next) =>
 {
+    var reference = SessionClaims.Read(context.User);
+    if (reference is not null)
+    {
+        var sessions = context.RequestServices.GetService<RuntimeSessions>();
+        var displayPrefs = context.RequestServices.GetService<UserDisplayPreferences>();
+        if (sessions is not null && displayPrefs is not null)
+        {
+            var snapshot = await sessions.GetPreferencesAsync(reference, context.RequestAborted);
+            if (snapshot is not null)
+                displayPrefs.Apply(snapshot, fromDatabase: true);
+        }
+    }
     await CulturePolicy.ApplyProfileFallbackAsync(context);
     if (EntryRouting.RedirectAnonymousRoot(context)) return;
     await next(context);

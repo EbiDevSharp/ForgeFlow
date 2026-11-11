@@ -2,15 +2,18 @@ using System.Globalization;
 
 namespace ForgeFlow.Web.Localization;
 
-public sealed class DisplayFormatter(CulturePolicy culture, TimeZoneInfo? displayTimeZone = null)
+public sealed class DisplayFormatter(CulturePolicy culture, TimeZoneInfo? displayTimeZone = null, UserDisplayPreferences? displayPreferences = null)
 {
     private static readonly string[] CurrencyCodes = ["USD", "EUR", "IRR"];
-    private readonly TimeZoneInfo timeZone = displayTimeZone ?? TimeZoneInfo.Local;
 
-    public string Date(DateOnly value)
+    private TimeZoneInfo ResolvedTimeZone => displayTimeZone ?? displayPreferences?.TimeZoneInfo ?? TimeZoneInfo.Local;
+
+    public string Date(DateOnly value) => Date(value, null);
+
+    public string Date(DateOnly value, Calendar? overrideCalendar)
     {
         var date = value.ToDateTime(TimeOnly.MinValue);
-        var calendar = culture.Calendar;
+        var calendar = overrideCalendar ?? culture.Calendar;
         return string.Create(CultureInfo.InvariantCulture,
             $"{calendar.GetYear(date):0000}/{calendar.GetMonth(date):00}/{calendar.GetDayOfMonth(date):00}");
     }
@@ -23,7 +26,7 @@ public sealed class DisplayFormatter(CulturePolicy culture, TimeZoneInfo? displa
             DateTimeKind.Local => value.ToUniversalTime(),
             _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
         };
-        return TimeZoneInfo.ConvertTimeFromUtc(utc, timeZone);
+        return TimeZoneInfo.ConvertTimeFromUtc(utc, ResolvedTimeZone);
     }
 
     public string Timestamp(DateTime value, string separator = " ")

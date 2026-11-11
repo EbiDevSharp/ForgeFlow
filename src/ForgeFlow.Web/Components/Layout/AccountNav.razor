@@ -1,0 +1,50 @@
+@inject IStringLocalizer<SharedResources> Text
+
+<nav class="account-tabs" aria-label="@Text["ProfileNavLabel"]">
+    <a class="account-tab @(Active == "profile" ? "is-active" : string.Empty)"
+       href="/account/profile"
+       aria-current="@(Active == "profile" ? "page" : null)">
+        <span class="ff-icon ff-icon--user" aria-hidden="true"></span>
+        <span>@Text["MyProfileTitle"]</span>
+    </a>
+    <a class="account-tab @(Active == "activity" ? "is-active" : string.Empty)"
+       href="/account/activity"
+       aria-current="@(Active == "activity" ? "page" : null)">
+        <span class="ff-icon ff-icon--audit" aria-hidden="true"></span>
+        <span>@Text["MyActivityTitle"]</span>
+    </a>
+    <a class="account-tab @(Active == "sessions" ? "is-active" : string.Empty)"
+       href="/account/sessions"
+       aria-current="@(Active == "sessions" ? "page" : null)">
+        <span class="ff-icon ff-icon--desktop" aria-hidden="true"></span>
+        <span>@Text["ActiveSessionsTitle"]</span>
+    </a>
+    <a class="account-tab @(Active == "notifications" ? "is-active" : string.Empty)"
+       href="/account/notifications"
+       aria-current="@(Active == "notifications" ? "page" : null)">
+        <span class="ff-icon ff-icon--bell" aria-hidden="true"></span>
+        <span>@Text["NotificationsTitle"]</span>
+    </a>
+    <a class="account-tab @(Active == "notifications-settings" ? "is-active" : string.Empty)"
+       href="/account/notifications-settings"
+       aria-current="@(Active == "notifications-settings" ? "page" : null)">
+        <span class="ff-icon ff-icon--help" aria-hidden="true"></span>
+        <span>@Text["NotificationSettingsTitle"]</span>
+    </a>
+    <a class="account-tab @(Active == "preferences" ? "is-active" : string.Empty)"
+       href="/account/preferences"
+       aria-current="@(Active == "preferences" ? "page" : null)">
+        <span class="ff-icon ff-icon--settings" aria-hidden="true"></span>
+        <span>@Text["MyPreferencesTitle"]</span>
+    </a>
+    <a class="account-tab @(Active == "change-password" ? "is-active" : string.Empty)"
+       href="/account/change-password"
+       aria-current="@(Active == "change-password" ? "page" : null)">
+        <span class="ff-icon ff-icon--key" aria-hidden="true"></span>
+        <span>@Text["ChangePasswordTitle"]</span>
+    </a>
+</nav>
+
+@code {
+    [Parameter] public string Active { get; set; } = string.Empty;
+}

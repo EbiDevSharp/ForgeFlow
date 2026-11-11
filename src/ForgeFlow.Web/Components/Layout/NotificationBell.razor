@@ -1,0 +1,234 @@
+@implements IAsyncDisposable
+@using ForgeFlow.Application.Users
+@using ForgeFlow.Infrastructure.Identity
+@using Microsoft.Extensions.DependencyInjection
+@inject IStringLocalizer<SharedResources> Text
+@inject DisplayFormatter Format
+@inject IServiceProvider Services
+@inject NavigationManager Navigation
+
+<AuthorizeView>
+    <Authorized>
+        <div class="notif-bell-wrap" data-authenticated-content @onkeydown="OnKeyDown">
+            <BitBadge Content="@unreadCount"
+                      Max="9"
+                      ShowZero="false"
+                      Color="BitColor.Error"
+                      Overlap="true"
+                      Hidden="@(unreadCount <= 0)"
+                      AriaLabel="@(unreadCount > 0 ? Text["NotifUnreadAriaCount", unreadCount].Value : string.Empty)"
+                      Class="notif-bell-badge">
+                <BitButton Variant="BitVariant.Text"
+                           ButtonType="BitButtonType.Button"
+                           IconOnly="true"
+                           Icon="@BellIcon"
+                           Class="notif-bell-trigger"
+                           aria-haspopup="true"
+                           aria-expanded="@open.ToString().ToLowerInvariant()"
+                           aria-controls="notif-bell-panel"
+                           aria-label="@Text["NotificationsTitle"]"
+                           title="@Text["NotificationsTitle"]"
+                           OnClick="ToggleAsync" />
+            </BitBadge>
+
+            @if (open)
+            {
+                <div class="user-menu-backdrop" @onclick="Close"></div>
+            }
+
+            <div id="notif-bell-panel" class="notif-callout-panel" role="region" aria-label="@Text["NotificationsTitle"]" hidden="@(!open)">
+                <div class="notif-callout-head">
+                    <span class="notif-callout-title">@Text["NotificationsTitle"]</span>
+                    @if (unreadCount > 0)
+                    {
+                        <button type="button"
+                                class="notif-mark-all-btn"
+                                disabled="@busy"
+                                @onclick="MarkAllReadAsync">
+                            @Text["NotificationsMarkAllRead"]
+                        </button>
+                    }
+                </div>
+
+                @if (recentItems.Count == 0)
+                {
+                    <p class="notif-empty-state" role="status">@Text["NotificationsEmpty"]</p>
+                }
+                else
+                {
+                    <div class="notif-callout-list" role="list">
+                        @foreach (var item in recentItems)
+                        {
+                            var content = NotificationTextHelper.Resolve(item, Text);
+                            var isUnread = item.ReadAtUtc is null;
+                            <button type="button"
+                                    role="listitem"
+                                    class="notif-row notif-row--button @(isUnread ? "is-unread" : string.Empty)"
+                                    @onclick="() => OpenItemAsync(item)">
+                                <span class="notif-dot-col">
+                                    @if (isUnread)
+                                    {
+                                        <span class="notif-unread-dot" aria-hidden="true"></span>
+                                    }
+                                </span>
+                                <span class="notif-ico @NotificationTextHelper.SeverityIconClass(item.Severity)" aria-hidden="true">
+                                    <span class="ff-icon @NotificationTextHelper.SeverityGlyphClass(item.Severity)"></span>
+                                </span>
+                                <span class="notif-body-col">
+                                    <span class="notif-item-title">@content.Title</span>
+                                    @if (!string.IsNullOrWhiteSpace(content.Body))
+                                    {
+                                        <span class="notif-item-sub">@content.Body</span>
+                                    }
+                                    <span class="notif-item-time">@NotificationTextHelper.FormatRelativeOrClock(item.CreatedAtUtc, Format, Text)</span>
+                                </span>
+                            </button>
+                        }
+                    </div>
+                }
+
+                <a class="notif-callout-footer" href="/account/notifications" @onclick="Close">
+                    @Text["NotificationsViewAll"]
+                </a>
+            </div>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private static readonly BitIconInfo BellIcon = BitIconInfo.Css("ff-icon ff-icon--bell");
+
+    private bool open;
+    private bool busy;
+    private bool initialized;
+    private int unreadCount;
+    private IReadOnlyList<UserNotificationSnapshot> recentItems = [];
+    private long currentUserId;
+    private IUserNotificationLiveChannel? liveChannel;
+    private Timer? fallbackTimer;
+
+    protected override async Task OnInitializedAsync()
+        => await RefreshAsync(render: false);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || initialized) return;
+        initialized = true;
+
+        liveChannel = Services.GetService<IUserNotificationLiveChannel>();
+        if (liveChannel is not null)
+            liveChannel.UserNotificationsChanged += OnUserNotificationsChanged;
+
+        await RefreshAsync();
+
+        if (Services.GetService<RuntimeSessions>() is not null)
+        {
+            fallbackTimer = new Timer(_ => _ = InvokeAsync(() => RefreshAsync()), null, TimeSpan.FromSeconds(45), TimeSpan.FromSeconds(45));
+        }
+    }
+
+    private async Task RefreshAsync(bool render = true)
+    {
+        try
+        {
+            var sessionSource = Services.GetService<ICurrentAuthenticatedSession>();
+            var sessions = Services.GetService<RuntimeSessions>();
+            if (sessionSource is null || sessions is null) return;
+
+            var reference = await sessionSource.GetAsync(CancellationToken.None);
+            if (reference is null) return;
+            currentUserId = reference.UserId;
+
+            if (open)
+            {
+                var page = await sessions.ListNotificationsAsync(reference, NotificationListFilter.All, 1, 6, CancellationToken.None);
+                unreadCount = page.UnreadCount;
+                recentItems = page.Items;
+            }
+            else
+            {
+                unreadCount = await sessions.GetUnreadNotificationCountAsync(reference, CancellationToken.None);
+            }
+            if (render)
+                StateHasChanged();
+        }
+        catch { }
+    }
+
+    private void OnUserNotificationsChanged(long userId)
+    {
+        if (currentUserId > 0 && userId == currentUserId)
+            _ = InvokeAsync(() => RefreshAsync());
+    }
+
+    private async Task ToggleAsync()
+    {
+        open = !open;
+        if (open)
+        {
+            var sessionSource = Services.GetService<ICurrentAuthenticatedSession>();
+            var sessions = Services.GetService<RuntimeSessions>();
+            if (sessionSource is not null && sessions is not null)
+            {
+                var reference = await sessionSource.GetAsync(CancellationToken.None);
+                if (reference is not null)
+                {
+                    var page = await sessions.ListNotificationsAsync(reference, NotificationListFilter.All, 1, 6, CancellationToken.None);
+                    unreadCount = page.UnreadCount;
+                    recentItems = page.Items;
+                }
+            }
+        }
+    }
+
+    private async Task OpenItemAsync(UserNotificationSnapshot item)
+    {
+        open = false;
+        var sessionSource = Services.GetService<ICurrentAuthenticatedSession>();
+        var sessions = Services.GetService<RuntimeSessions>();
+        if (sessionSource is not null && sessions is not null && item.ReadAtUtc is null)
+        {
+            var reference = await sessionSource.GetAsync(CancellationToken.None);
+            if (reference is not null)
+            {
+                await sessions.MarkNotificationReadAsync(reference, item.Id, CancellationToken.None);
+                await RefreshAsync();
+            }
+        }
+        Navigation.NavigateTo(string.IsNullOrWhiteSpace(item.LinkUrl) ? "/account/notifications" : item.LinkUrl);
+    }
+
+    private async Task MarkAllReadAsync()
+    {
+        var sessionSource = Services.GetService<ICurrentAuthenticatedSession>();
+        var sessions = Services.GetService<RuntimeSessions>();
+        if (sessionSource is null || sessions is null) return;
+
+        var reference = await sessionSource.GetAsync(CancellationToken.None);
+        if (reference is null) return;
+
+        busy = true;
+        try
+        {
+            await sessions.MarkAllNotificationsReadAsync(reference, CancellationToken.None);
+            var page = await sessions.ListNotificationsAsync(reference, NotificationListFilter.All, 1, 6, CancellationToken.None);
+            unreadCount = page.UnreadCount;
+            recentItems = page.Items;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void Close() => open = false;
+    private void OnKeyDown(KeyboardEventArgs e) { if (e.Key == "Escape") open = false; }
+
+    public ValueTask DisposeAsync()
+    {
+        if (liveChannel is not null)
+            liveChannel.UserNotificationsChanged -= OnUserNotificationsChanged;
+        fallbackTimer?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}
