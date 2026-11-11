@@ -3722,3 +3722,12 @@ ode .\scripts\drafts.test.mjs: **19 pass, 0 fail**.
   - `node .\scripts\drafts.test.mjs`: **19 pass, 0 fail**.
   - Targeted live SQL + unit + HTTP + shell + scanner suite (after final edit): **Passed: 136, Failed: 0, Skipped: 0, Total: 136**.
   - Follow-up fix (`MainLayout.razor`): Replaced `NoCollapse="true"` on `BitNavPanel` with `AllExpanded="false"` and `ChevronDownIcon` (since `NoCollapse="true"` forced all nav groups expanded and hid toggle chevrons). Post-edit build `0 Warning(s), 0 Error(s)` and full non-SQL + HTTP test run **Passed: 382, Failed: 0, Skipped: 58**.
+
+## Navigation Workflow Priority Ordering — 2026-11-11
+
+- Reordered `MainLayout.razor` `NavigationItems` and `FilteredCommands` (`Ctrl+K` palette) to follow the end-to-end manufacturing workflow (`Home` -> `MasterData` -> `Inventory` -> `Production` -> `Quality` -> `Reports` -> `Settings`), keeping `Settings` last and all parent groups collapsed (`IsExpanded = false`, `AllExpanded = false`) on login and page refresh.
+- Added `MainLayout_orders_navigation_groups_by_workflow_priority_and_keeps_them_collapsed` in `tests/ForgeFlow.Web.Tests/RoleManagementPageTests.cs`.
+- Verification (2026-11-11, after final edit):
+  - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Full non-SQL + HTTP suite (`FORGEFLOW_AUTH_HTTP_TESTS=1`, `FORGEFLOW_TEST_SQLSERVER=''`): **Passed: 383, Failed: 0, Skipped: 58, Total: 441**.
+  - `node .\scripts\drafts.test.mjs`: **19 pass, 0 fail**.

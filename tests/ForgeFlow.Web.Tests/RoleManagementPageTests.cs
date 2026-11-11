@@ -293,4 +293,35 @@ public sealed class RoleManagementPageTests
         var roleChild = Assert.Single(settingsGroup.ChildItems);
         Assert.Equal("/roles", roleChild.Url);
     }
+
+    [Fact]
+    public void MainLayout_orders_navigation_groups_by_workflow_priority_and_keeps_them_collapsed()
+    {
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var layout = new MainLayout();
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddLocalization(o => o.ResourcesPath = "Resources")
+            .BuildServiceProvider();
+        var localizer = services.GetRequiredService<IStringLocalizer<SharedResources>>();
+        typeof(MainLayout).GetProperty("Text", flags)!.SetValue(layout, localizer);
+
+        var scope = new List<OrganizationScope> { new OrganizationScope.Organization(1) };
+        foreach (var field in new[] { "unitScopes", "inventoryScopes", "productionOrderScopes", "qualityScopes", "reportScopes", "orgScopes" })
+            typeof(MainLayout).GetField(field, flags)!.SetValue(layout, scope);
+
+        var navItems = (IList<BitNavItem>)typeof(MainLayout).GetProperty("NavigationItems", flags)!.GetValue(layout)!;
+        Assert.Equal(
+            [
+                localizer["Home"].Value,
+                localizer["MasterDataNavGroup"].Value,
+                localizer["InventoryNavGroup"].Value,
+                localizer["ProductionNavGroup"].Value,
+                localizer["QualityNavGroup"].Value,
+                localizer["ReportsNavGroup"].Value,
+                localizer["Settings"].Value
+            ],
+            navItems.Select(x => x.Text).ToArray());
+        Assert.All(navItems.Skip(1), group => Assert.False(group.IsExpanded));
+    }
 }

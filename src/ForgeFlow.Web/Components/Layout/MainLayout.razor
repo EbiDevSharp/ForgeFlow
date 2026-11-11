@@ -261,7 +261,7 @@
                 (Text["MyPreferencesTitle"], "/account/preferences"),
                 (Text["ChangePasswordTitle"], "/account/change-password")
             };
-            foreach (var item in ProductionItems.Concat(InventoryItems).Concat(QualityItems).Concat(MasterDataItems).Concat(ReportItems).Concat(SettingsItems))
+            foreach (var item in MasterDataItems.Concat(InventoryItems).Concat(ProductionItems).Concat(QualityItems).Concat(ReportItems).Concat(SettingsItems))
             {
                 if (!string.IsNullOrWhiteSpace(item.Text) && !string.IsNullOrWhiteSpace(item.Url))
                     all.Add((item.Text, item.Url));
@@ -342,25 +342,25 @@
             {
                 new() { Text = Text["Home"], AriaLabel = Text["Home"], Icon = Icon("home"), Url = "/", Match = BitNavMatch.Exact }
             };
-            var production = ProductionItems;
-            if (production.Count > 0)
+            var masterData = MasterDataItems;
+            if (masterData.Count > 0)
             {
-                items.Add(new() { Text = Text["ProductionNavGroup"], Icon = Icon("production"), IsExpanded = false, ChildItems = production });
+                items.Add(new() { Text = Text["MasterDataNavGroup"], Icon = Icon("catalog"), IsExpanded = false, ChildItems = masterData });
             }
             var inventory = InventoryItems;
             if (inventory.Count > 0)
             {
                 items.Add(new() { Text = Text["InventoryNavGroup"], Icon = Icon("inventory"), IsExpanded = false, ChildItems = inventory });
             }
+            var production = ProductionItems;
+            if (production.Count > 0)
+            {
+                items.Add(new() { Text = Text["ProductionNavGroup"], Icon = Icon("production"), IsExpanded = false, ChildItems = production });
+            }
             var quality = QualityItems;
             if (quality.Count > 0)
             {
                 items.Add(new() { Text = Text["QualityNavGroup"], Icon = Icon("quality"), IsExpanded = false, ChildItems = quality });
-            }
-            var masterData = MasterDataItems;
-            if (masterData.Count > 0)
-            {
-                items.Add(new() { Text = Text["MasterDataNavGroup"], Icon = Icon("catalog"), IsExpanded = false, ChildItems = masterData });
             }
             var reports = ReportItems;
             if (reports.Count > 0)
