@@ -35,6 +35,7 @@ Whenever a new slice is implemented in `ForgeFlow`:
 - Anonymous pages (`/account/login`) can be captured directly when `ForgeFlow.Web` is running at `https://localhost:5001`.
 - Authenticated pages (`/`, `/organizations`, `/items`, `/boms`, `/production-orders`, `/purchase-orders`, `/quality`, `/inventory`, `/traceability`, `/reports`) require an active session. To populate the remaining `<div class="screenshot-slot">` placeholders with real app captures, provide temporary local `testforgflow` login credentials in chat (never commit passwords to git or output).
 
-## Slices Directory
+## Slices Directory & Roadmap
 
-`slices/` holds per-slice engineering design specs (`README.md`, `decisions.md`, `physical-erd.md`, `test-plan.md`).
+- [`roadmap.md`](roadmap.md) — Completed baseline (`AUTH-01` through `Slice 13`) and proposed roadmap for `Slice 14+` (Sales & Dispatch, MRP, Costing, CMMS/OEE, Shop-Floor/Barcode, Integrations).
+- `slices/` holds per-slice engineering design specs (`README.md`, `decisions.md`, `physical-erd.md`, `test-plan.md`).

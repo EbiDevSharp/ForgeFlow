@@ -4074,3 +4074,18 @@ ode verification/slice01-ui/browser-check.cjs **4/4 PASS** (a-IR & en-US, 1440p
   - Live Development instance at `https://localhost:5001` (`testforgflow`): `GET /account/login` returns **HTTP 200**; `node verification/slice01-ui/browser-check.cjs` **4/4 PASS** (`fa-IR` & `en-US`, `1440px` & `320px`).
 - **Remaining Acceptance Gaps**: Authenticated interactive browser verification of the Users DataGrid Activate/Deactivate and Unlock icon buttons and the dedicated Confirmation `<BitDialog>` across `fa-IR`/`en-US` and desktop/mobile.
 - **Next Small Step**: Verify the grid action icons and confirmation dialog live at `https://localhost:5001/account/login`.
+
+## Roadmap Documentation & CSP Security Header Alignment (Pre-Slice 14)
+
+- **Scope**:
+  1. **Roadmap Documentation ([docs/roadmap.md](file:///d:/Projects/ForgeFlow/docs/roadmap.md), [docs/README.md](file:///d:/Projects/ForgeFlow/docs/README.md))**: Created docs/roadmap.md documenting the completed baseline (AUTH-01 through Slice 13 + UX/2FA/Passkeys increments) and the proposed roadmap for Slice 14+ (14-sales-dispatch, 15-mrp-scheduling, 16-costing-valuation, 17-cmms-oee, 18-shopfloor-barcode, 19-alerts-integrations), and linked it from docs/README.md.
+  2. **Content-Security-Policy Header ([AuthenticationBackend.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Authentication/AuthenticationBackend.cs), [SecurityAuditTests.cs](file:///d:/Projects/ForgeFlow/tests/ForgeFlow.Web.Tests/SecurityAuditTests.cs))**: Updated UseSecurityHeaders() to emit a Blazor Server-compatible Content-Security-Policy header (default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:) including on antiforgery-protected pages, and added assertions in SecurityAuditTests.cs.
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (0 Warning(s), 0 Error(s))**.
+  - Non-SQL + HTTP test suite (FORGEFLOW_TEST_SQLSERVER='', FORGEFLOW_AUTH_HTTP_TESTS='1', --filter "FullyQualifiedName!~Sql"): **Passed: 426, Failed: 0, Skipped: 0, Total: 426**.
+  - Live Development instance at https://localhost:5001 (	estforgflow): GET /account/login returns **HTTP 200** with full Content-Security-Policy header; 
+ode d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs **4/4 PASS** (a-IR & en-US, 1440px & 320px).
+- **Remaining Acceptance Gaps**:
+  - SQL Server integration tests (*Sql*) were not run in this session (FORGEFLOW_TEST_SQLSERVER unset).
+  - Authenticated interactive browser verification of the recent User Management modals and 2FA/Passkey flows (a-IR/en-US, 1440px/320px).
+- **Next Small Step**: Start Slice 14 (14-sales-dispatch or chosen roadmap slice) design (14.0) in a new chat.

@@ -278,6 +278,11 @@ public sealed class SecurityAuditTests
             Assert.Equal("DENY", Assert.Single(response.Headers.GetValues("X-Frame-Options")));
             Assert.Equal("strict-origin-when-cross-origin", Assert.Single(response.Headers.GetValues("Referrer-Policy")));
             Assert.Equal("camera=(), microphone=(), geolocation=()", Assert.Single(response.Headers.GetValues("Permissions-Policy")));
+            var csp = Assert.Single(response.Headers.GetValues("Content-Security-Policy"));
+            Assert.Contains("default-src 'self'", csp);
+            Assert.Contains("object-src 'none'", csp);
+            Assert.Contains("frame-ancestors 'self'", csp);
+            Assert.Contains("base-uri 'self'", csp);
         }
         finally
         {

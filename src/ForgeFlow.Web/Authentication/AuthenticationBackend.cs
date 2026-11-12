@@ -124,6 +124,12 @@ public static class AuthenticationBackend
                 context.Response.Headers.TryAdd("X-Frame-Options", "DENY");
                 context.Response.Headers.TryAdd("Referrer-Policy", "strict-origin-when-cross-origin");
                 context.Response.Headers.TryAdd("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+                const string cspPolicy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
+                if (!context.Response.Headers.TryGetValue("Content-Security-Policy", out var existingCsp) ||
+                    string.Equals(existingCsp.ToString(), "frame-ancestors 'self'", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.Response.Headers["Content-Security-Policy"] = cspPolicy;
+                }
                 return Task.CompletedTask;
             });
             await next(context);
