@@ -277,7 +277,8 @@ public sealed class InventoryUseCases(
 
         var res = await ExecuteStore(async () =>
         {
-            _ = InventoryText.Code(request.DocumentNumber, InventoryErrors.DocumentNumberInvalid);
+            if (!string.IsNullOrWhiteSpace(request.DocumentNumber))
+                _ = InventoryText.Code(request.DocumentNumber, InventoryErrors.DocumentNumberInvalid);
             _ = InventoryText.OptionalNote(request.ReferenceNote);
             _ = InventoryText.OptionalIdempotencyKey(request.IdempotencyKey);
 
@@ -414,7 +415,9 @@ public sealed class InventoryUseCases(
 
         var res = await ExecuteStore(async () =>
         {
-            var reversalDoc = InventoryText.Code(request.ReversalDocumentNumber, InventoryErrors.DocumentNumberInvalid);
+            var reversalDoc = string.IsNullOrWhiteSpace(request.ReversalDocumentNumber)
+                ? string.Empty
+                : InventoryText.Code(request.ReversalDocumentNumber, InventoryErrors.DocumentNumberInvalid);
             var note = InventoryText.OptionalNote(request.ReferenceNote);
             var idemp = InventoryText.OptionalIdempotencyKey(request.IdempotencyKey);
 

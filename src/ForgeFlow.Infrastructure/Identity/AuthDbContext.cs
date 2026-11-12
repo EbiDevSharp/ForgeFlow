@@ -9,6 +9,7 @@ using ForgeFlow.Domain.Procurement;
 using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Quality;
 using ForgeFlow.Domain.Routings;
+using ForgeFlow.Domain.Sales;
 using ForgeFlow.Domain.Units;
 using ForgeFlow.Infrastructure.Organizations;
 using Microsoft.AspNetCore.Identity;
@@ -86,6 +87,12 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         model.Ignore<Routing>();
         model.Ignore<RoutingOperation>();
         model.Ignore<ProductionOrderOperation>();
+        model.Ignore<Customer>();
+        model.Ignore<SalesOrder>();
+        model.Ignore<SalesOrderLine>();
+        model.Ignore<DeliveryOrder>();
+        model.Ignore<DeliveryOrderLine>();
+        model.Ignore<DocumentSequence>();
         model.Entity<Organization>().ToTable("Organization", "organization", t => t.ExcludeFromMigrations());
         model.Entity<Site>().ToTable("Site", "organization", t => t.ExcludeFromMigrations());
 

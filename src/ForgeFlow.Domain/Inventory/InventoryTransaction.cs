@@ -15,6 +15,7 @@ public sealed class InventoryTransaction
         long? reversedTransactionId,
         long? qualityInspectionId,
         long? purchaseOrderId,
+        long? deliveryOrderId,
         string? referenceNote,
         string? idempotencyKey,
         DateTime postedAtUtc)
@@ -34,6 +35,7 @@ public sealed class InventoryTransaction
         ReversedTransactionId = reversedTransactionId;
         QualityInspectionId = qualityInspectionId;
         PurchaseOrderId = purchaseOrderId;
+        DeliveryOrderId = deliveryOrderId;
         ReferenceNote = InventoryText.OptionalNote(referenceNote);
         IdempotencyKey = InventoryText.OptionalIdempotencyKey(idempotencyKey);
         PostedAtUtc = postedAtUtc;
@@ -50,6 +52,7 @@ public sealed class InventoryTransaction
     public long? ReversedTransactionId { get; private set; }
     public long? QualityInspectionId { get; private set; }
     public long? PurchaseOrderId { get; private set; }
+    public long? DeliveryOrderId { get; private set; }
     public string? ReferenceNote { get; private set; }
     public string? IdempotencyKey { get; private set; }
     public DateTime PostedAtUtc { get; private set; }
@@ -67,7 +70,8 @@ public sealed class InventoryTransaction
         string? idempotencyKey,
         DateTime postedAtUtc,
         long? qualityInspectionId = null,
-        long? purchaseOrderId = null) =>
+        long? purchaseOrderId = null,
+        long? deliveryOrderId = null) =>
         new(organizationId, siteId, warehouseId, destinationWarehouseId, documentNumber ?? string.Empty,
-            transactionType, productionOrderId, reversedTransactionId, qualityInspectionId, purchaseOrderId, referenceNote, idempotencyKey, postedAtUtc);
+            transactionType, productionOrderId, reversedTransactionId, qualityInspectionId, purchaseOrderId, deliveryOrderId, referenceNote, idempotencyKey, postedAtUtc);
 }

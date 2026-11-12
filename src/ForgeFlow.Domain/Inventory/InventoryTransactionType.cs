@@ -10,5 +10,6 @@ public enum InventoryTransactionType : byte
     ProductionIssue = 6,
     ProductionReceipt = 7,
     Reversal = 8,
-    QualityScrap = 9
+    QualityScrap = 9,
+    SalesDispatch = 10
 }

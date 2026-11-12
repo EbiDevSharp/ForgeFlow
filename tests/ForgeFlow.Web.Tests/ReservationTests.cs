@@ -34,8 +34,20 @@ public sealed class ReservationTests
         public Task<IReadOnlyList<StockReservationSummary>> ListOrderReservations(long organizationId, long productionOrderId, CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<StockReservationSummary>>(Saved.Where(x => x.ProductionOrderId == productionOrderId).ToArray());
 
+        public Task<IReadOnlyList<StockReservationSummary>> ListSalesOrderReservations(long organizationId, long salesOrderId, CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<StockReservationSummary>>(Saved.Where(x => x.SalesOrderId == salesOrderId).ToArray());
+
         public Task<StockReservationSummary?> GetReservation(long organizationId, long reservationId, CancellationToken ct) =>
             Task.FromResult(Saved.FirstOrDefault(x => x.Id == reservationId));
+
+        public Task<OrganizationResult<IReadOnlyList<StockReservationSummary>>> ReserveSalesOrderStock(
+            ReserveSalesOrderStockRequest request,
+            decimal requestedBaseQuantity,
+            long baseUnitId,
+            DateTime utcNow,
+            OrganizationWriteAccess access,
+            CancellationToken ct)
+            => Task.FromResult(OrganizationResult<IReadOnlyList<StockReservationSummary>>.Success([]));
 
         public Task<OrganizationResult<IReadOnlyList<StockReservationSummary>>> ReserveStock(
             ReserveStockRequest request,

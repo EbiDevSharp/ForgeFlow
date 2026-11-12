@@ -2854,4 +2854,94 @@
   <data name="PermTooltipViaRole" xml:space="preserve"><value>Via: {0}</value></data>
   <data name="PermUnsavedChangesCount" xml:space="preserve"><value>{0} unsaved change(s)</value></data>
   <data name="PermEmptyFilterResult" xml:space="preserve"><value>No pages match the current filter.</value></data>
+  <data name="SalesDispatch" xml:space="preserve"><value>Sales &amp; Dispatch</value></data>
+  <data name="SalesDispatchCaption" xml:space="preserve"><value>Manage customers, sales orders, stock reservations, and lot-tracked dispatches with COA verification.</value></data>
+  <data name="SalesTabOrders" xml:space="preserve"><value>Sales Orders</value></data>
+  <data name="SalesTabDispatches" xml:space="preserve"><value>Dispatches</value></data>
+  <data name="SalesTabCustomers" xml:space="preserve"><value>Customers</value></data>
+  <data name="SalesCustomerCreateButton" xml:space="preserve"><value>New customer</value></data>
+  <data name="SalesCustomerEditTitle" xml:space="preserve"><value>Edit customer</value></data>
+  <data name="SalesCustomerColumn" xml:space="preserve"><value>Customer</value></data>
+  <data name="SalesCustomerTaxCode" xml:space="preserve"><value>Tax ID</value></data>
+  <data name="SalesShippingAddress" xml:space="preserve"><value>Shipping address</value></data>
+  <data name="SalesOrderCreateButton" xml:space="preserve"><value>New sales order</value></data>
+  <data name="SalesOrderEditTitle" xml:space="preserve"><value>Edit draft sales order</value></data>
+  <data name="SalesOrderNumber" xml:space="preserve"><value>SO number</value></data>
+  <data name="SalesRequestedDate" xml:space="preserve"><value>Requested delivery</value></data>
+  <data name="SalesSourceWarehouse" xml:space="preserve"><value>Source warehouse</value></data>
+  <data name="SalesOrderStatusDraft" xml:space="preserve"><value>Draft</value></data>
+  <data name="SalesOrderStatusApproved" xml:space="preserve"><value>Approved</value></data>
+  <data name="SalesOrderStatusPartiallyDispatched" xml:space="preserve"><value>Partially dispatched</value></data>
+  <data name="SalesOrderStatusDispatched" xml:space="preserve"><value>Dispatched</value></data>
+  <data name="SalesOrderStatusCancelled" xml:space="preserve"><value>Cancelled</value></data>
+  <data name="SalesOrderStatusClosed" xml:space="preserve"><value>Closed</value></data>
+  <data name="SalesDispatchedQty" xml:space="preserve"><value>Dispatched</value></data>
+  <data name="SalesRemainingQty" xml:space="preserve"><value>Remaining</value></data>
+  <data name="SalesReserveStockButton" xml:space="preserve"><value>Reserve stock</value></data>
+  <data name="SalesReservationsTitle" xml:space="preserve"><value>Stock reservations</value></data>
+  <data name="SalesReleaseReservation" xml:space="preserve"><value>Release</value></data>
+  <data name="SalesDispatchButton" xml:space="preserve"><value>Dispatch</value></data>
+  <data name="SalesDispatchModalTitle" xml:space="preserve"><value>Post delivery order (dispatch)</value></data>
+  <data name="SalesPostDispatchButton" xml:space="preserve"><value>Post dispatch</value></data>
+  <data name="SalesDispatchNumber" xml:space="preserve"><value>Dispatch #</value></data>
+  <data name="SalesDispatchDate" xml:space="preserve"><value>Dispatch date</value></data>
+  <data name="SalesDispatchPosted" xml:space="preserve"><value>Posted</value></data>
+  <data name="SalesDispatchReversed" xml:space="preserve"><value>Reversed</value></data>
+  <data name="SalesReverseButton" xml:space="preserve"><value>Reverse</value></data>
+  <data name="SalesCarrierName" xml:space="preserve"><value>Carrier</value></data>
+  <data name="SalesTrackingNumber" xml:space="preserve"><value>Tracking #</value></data>
+  <data name="SalesDispatchPickLots" xml:space="preserve"><value>Pick approved lots &amp; COA</value></data>
+  <data name="PermPageSales" xml:space="preserve"><value>Sales &amp; Dispatch</value></data>
+  <data name="PermOpManageCustomers" xml:space="preserve"><value>Manage customers</value></data>
+  <data name="PermOpDispatchSales" xml:space="preserve"><value>Dispatch &amp; reverse deliveries</value></data>
+  <data name="AuditEv_CustomerCreated" xml:space="preserve"><value>Customer created</value></data>
+  <data name="AuditEv_CustomerUpdated" xml:space="preserve"><value>Customer updated</value></data>
+  <data name="AuditEv_CustomerActivated" xml:space="preserve"><value>Customer activated</value></data>
+  <data name="AuditEv_CustomerDeactivated" xml:space="preserve"><value>Customer deactivated</value></data>
+  <data name="AuditEv_SalesOrderCreated" xml:space="preserve"><value>Sales order created</value></data>
+  <data name="AuditEv_SalesOrderUpdated" xml:space="preserve"><value>Sales order updated</value></data>
+  <data name="AuditEv_SalesOrderApproved" xml:space="preserve"><value>Sales order approved</value></data>
+  <data name="AuditEv_SalesOrderDispatched" xml:space="preserve"><value>Sales order dispatched</value></data>
+  <data name="AuditEv_SalesOrderClosed" xml:space="preserve"><value>Sales order closed</value></data>
+  <data name="AuditEv_SalesOrderCancelled" xml:space="preserve"><value>Sales order cancelled</value></data>
+  <data name="AuditEv_DeliveryOrderPosted" xml:space="preserve"><value>Delivery order posted</value></data>
+  <data name="AuditEv_DeliveryOrderReversed" xml:space="preserve"><value>Delivery order reversed</value></data>
+  <data name="AuditEv_SalesActionRejected" xml:space="preserve"><value>Sales action rejected</value></data>
+  <data name="SalesOrderModalSubtitle" xml:space="preserve"><value>Enter customer order details, check available stock, and add sellable item lines.</value></data>
+  <data name="SalesSelectCustomerPlaceholder" xml:space="preserve"><value>Select customer...</value></data>
+  <data name="SalesStockAvailableBadge" xml:space="preserve"><value>Available: {0} {1}</value></data>
+  <data name="SalesStockZeroBadge" xml:space="preserve"><value>Available: 0 {0} (needs production/supply)</value></data>
+  <data name="SalesInventoryInfoHint" xml:space="preserve"><value>Drafting or approving a sales order does not deduct stock. Use Reserve Stock to lock inventory or Post Dispatch to deduct stock with row-level concurrency locking.</value></data>
+  <data name="DocumentNumbering" xml:space="preserve"><value>Document Numbering</value></data>
+  <data name="DocSeqCaption" xml:space="preserve"><value>Configure automatic document prefixes, year format, zero-padding, starting numbers, and manual override policy.</value></data>
+  <data name="DocSeqTypeCol" xml:space="preserve"><value>Document type</value></data>
+  <data name="DocSeqPrefixCol" xml:space="preserve"><value>Prefix</value></data>
+  <data name="DocSeqSeparatorCol" xml:space="preserve"><value>Separator</value></data>
+  <data name="DocSeqYearModeCol" xml:space="preserve"><value>Year format</value></data>
+  <data name="DocSeqPaddingCol" xml:space="preserve"><value>Digits</value></data>
+  <data name="DocSeqNextNumCol" xml:space="preserve"><value>Next #</value></data>
+  <data name="DocSeqPreviewCol" xml:space="preserve"><value>Next preview</value></data>
+  <data name="DocSeqOverrideCol" xml:space="preserve"><value>Manual edit</value></data>
+  <data name="DocSeqOverrideAllowed" xml:space="preserve"><value>Allowed</value></data>
+  <data name="DocSeqOverrideLocked" xml:space="preserve"><value>Auto (locked)</value></data>
+  <data name="DocSeqEditTitle" xml:space="preserve"><value>Configure numbering rule</value></data>
+  <data name="DocSeqSepNone" xml:space="preserve"><value>None</value></data>
+  <data name="DocSeqYearNone" xml:space="preserve"><value>No year</value></data>
+  <data name="DocSeqYearPersian" xml:space="preserve"><value>Persian (1405)</value></data>
+  <data name="DocSeqYearGregorian" xml:space="preserve"><value>Gregorian (2026)</value></data>
+  <data name="DocSeqOverrideHint" xml:space="preserve"><value>Allow operators to type or edit document numbers manually instead of strictly using the auto-generated sequence.</value></data>
+  <data name="DocSeqTypeSalesOrder" xml:space="preserve"><value>Sales Order</value></data>
+  <data name="DocSeqTypeDeliveryOrder" xml:space="preserve"><value>Delivery / Dispatch</value></data>
+  <data name="DocSeqTypePurchaseOrder" xml:space="preserve"><value>Purchase Order</value></data>
+  <data name="DocSeqTypePurchaseReceipt" xml:space="preserve"><value>Goods Receipt</value></data>
+  <data name="DocSeqTypeProductionOrder" xml:space="preserve"><value>Production Order</value></data>
+  <data name="DocSeqTypeInventoryTxn" xml:space="preserve"><value>Inventory Document</value></data>
+  <data name="DocSeqTypeInventoryRev" xml:space="preserve"><value>Inventory Reversal</value></data>
+  <data name="DocSeqTypeQualityInsp" xml:space="preserve"><value>Quality Inspection</value></data>
+  <data name="DocSeqTypeQualityScrap" xml:space="preserve"><value>Quality Scrap</value></data>
+  <data name="PermPageDocumentSequences" xml:space="preserve"><value>Document Numbering</value></data>
+  <data name="PermOpManageDocSequences" xml:space="preserve"><value>Configure numbering rules</value></data>
+  <data name="AuditEv_DocumentSequenceCreated" xml:space="preserve"><value>Numbering sequence created</value></data>
+  <data name="AuditEv_DocumentSequenceUpdated" xml:space="preserve"><value>Numbering sequence updated</value></data>
+  <data name="AuditEv_DocumentSequenceActionRejected" xml:space="preserve"><value>Numbering action rejected</value></data>
 </root>

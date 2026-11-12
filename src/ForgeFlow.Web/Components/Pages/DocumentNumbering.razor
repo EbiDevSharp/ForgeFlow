@@ -1,0 +1,344 @@
+@page "/numbering-rules"
+@page "/organizations/{OrganizationId:long}/numbering-rules"
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Domain.Organizations
+@inject DocumentSequenceUseCases SeqService
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["DocumentNumbering"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="docseq-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="docseq-title">@Text["DocumentNumbering"]</h1>
+            <p class="write-hint">@Text["DocSeqCaption"]</p>
+        </div>
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div class="read-state" role="alert">
+            <p>@Text[pageError]</p>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else if (available.Count == 0)
+    {
+        <p role="status" class="read-empty">@Text["ReadDenied"]</p>
+    }
+    else
+    {
+        @if (available.Count > 1)
+        {
+            <div class="read-toolbar-card">
+                <div class="read-field">
+                    <label for="docseq-scope">@Text["ReadScope"]</label>
+                    <select id="docseq-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                        @for (var i = 0; i < available.Count; i++)
+                        {
+                            <option value="@i">@ScopeLabel(available[i])</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        }
+
+        <div class="read-grid-card">
+            <div class="read-grid">
+                <BitDataGrid Items="@sequences" TItem="DocumentSequenceSummary" Resizable="true" WrapCellText="true"
+                             Strings="@GridStrings" AriaLabel="@Text["DocumentNumbering"]">
+                    <Columns>
+                        <BitDataGridColumn TItem="DocumentSequenceSummary" Title="@Text["DocSeqTypeCol"]" MinWidth="180">
+                            <Template Context="s">@DocTypeLabel(s.DocumentType)</Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="DocumentSequenceSummary" Title="@Text["DocSeqPrefixCol"]" Width="105px">
+                            <Template Context="s"><bdi dir="ltr">@s.Prefix</bdi></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="DocumentSequenceSummary" Title="@Text["DocSeqYearModeCol"]" Width="135px">
+                            <Template Context="s">@YearModeLabel(s.YearMode)</Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="DocumentSequenceSummary" Title="@Text["DocSeqPaddingCol"]" Width="95px">
+                            <Template Context="s" ><span dir="ltr">@s.PaddingDigits</span></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="DocumentSequenceSummary" Title="@Text["DocSeqNextNumCol"]" Width="105px">
+                            <Template Context="s"><span dir="ltr">@s.NextNumber</span></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="DocumentSequenceSummary" Title="@Text["DocSeqPreviewCol"]" Width="165px">
+                            <Template Context="s"><strong dir="ltr">@s.NextPreview</strong></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="DocumentSequenceSummary" Title="@Text["DocSeqOverrideCol"]" Width="135px">
+                            <Template Context="s">
+                                <span class="write-status-badge @(s.AllowManualOverride ? string.Empty : "is-active")">
+                                    @(s.AllowManualOverride ? Text["DocSeqOverrideAllowed"] : Text["DocSeqOverrideLocked"])
+                                </span>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="DocumentSequenceSummary" Title="@Text["ReadActions"]" Width="110px">
+                            <Template Context="s">
+                                @if (scopeCanManage)
+                                {
+                                    <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OpenEditModal(s)">@Text["ReadEdit"]</BitButton>
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </Template>
+                        </BitDataGridColumn>
+                    </Columns>
+                </BitDataGrid>
+            </div>
+        </div>
+    }
+</section>
+
+<ForgeFormDialog Width="640px" @bind-IsOpen="editModalOpen"
+                 Title="@Text["DocSeqEditTitle"]"
+                 Subtitle="@(editingItem is not null ? DocTypeLabel(editingItem.DocumentType) : null)"
+                 CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (modalError is not null)
+        {
+            <p role="alert" class="write-error">@modalError</p>
+        }
+
+        <div class="proc-po-general-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+            <div class="proc-po-field">
+                <label for="ds-prefix">@Text["DocSeqPrefixCol"]</label>
+                <input id="ds-prefix" type="text" maxlength="12" @bind="editPrefix" @bind:event="oninput" dir="ltr" />
+            </div>
+            <div class="proc-po-field">
+                <label for="ds-sep">@Text["DocSeqSeparatorCol"]</label>
+                <select id="ds-sep" @bind="editSeparator">
+                    <option value="-">-</option>
+                    <option value="_">_</option>
+                    <option value="">@Text["DocSeqSepNone"]</option>
+                </select>
+            </div>
+            <div class="proc-po-field">
+                <label for="ds-year">@Text["DocSeqYearModeCol"]</label>
+                <select id="ds-year" @bind="editYearMode">
+                    <option value="@DocumentYearMode.None">@Text["DocSeqYearNone"]</option>
+                    <option value="@DocumentYearMode.Persian">@Text["DocSeqYearPersian"]</option>
+                    <option value="@DocumentYearMode.Gregorian">@Text["DocSeqYearGregorian"]</option>
+                </select>
+            </div>
+            <div class="proc-po-field">
+                <label for="ds-pad">@Text["DocSeqPaddingCol"]</label>
+                <input id="ds-pad" type="number" min="3" max="8" @bind="editPadding" @bind:event="oninput" dir="ltr" />
+            </div>
+            <div class="proc-po-field">
+                <label for="ds-next">@Text["DocSeqNextNumCol"]</label>
+                <input id="ds-next" type="number" min="1" @bind="editNextNumber" @bind:event="oninput" dir="ltr" />
+            </div>
+            <div class="proc-po-field">
+                <label>@Text["DocSeqPreviewCol"]</label>
+                <input type="text" class="proc-input-readonly" value="@LivePreview" readonly dir="ltr" />
+            </div>
+        </div>
+
+        <label class="ff-check-card" style="margin-top:8px">
+            <input type="checkbox" @bind="editAllowOverride" />
+            <span class="ff-check-copy">
+                <strong>@Text["DocSeqOverrideCol"]</strong>
+                <span>@Text["DocSeqOverrideHint"]</span>
+            </span>
+        </label>
+    </ChildContent>
+    <FooterActions>
+        <BitButton class="proc-po-primary-btn" IsEnabled="@(!saving)" OnClick="SaveSequenceAsync">@(saving ? Text["WriteSaving"] : Text["WriteSave"])</BitButton>
+        <BitButton Variant="BitVariant.Outline" class="proc-po-cancel-btn" OnClick="() => editModalOpen = false">@Text["WriteCancel"]</BitButton>
+    </FooterActions>
+</ForgeFormDialog>
+
+@code {
+    [Parameter] public long? OrganizationId { get; set; }
+
+    private bool initialLoading = true;
+    private string? pageError;
+    private string? pageNotice;
+    private IReadOnlyList<OrganizationScope> available = [];
+    private int scopeIndex;
+    private OrganizationScope? CurrentScope => available.ElementAtOrDefault(scopeIndex);
+    private long CurrentOrgId => CurrentScope is OrganizationScope.Organization o ? o.OrganizationId : 0;
+    private bool scopeCanManage;
+
+    private ICollection<DocumentSequenceSummary> sequences = [];
+
+    private bool editModalOpen;
+    private bool saving;
+    private string? modalError;
+    private DocumentSequenceSummary? editingItem;
+    private string editPrefix = string.Empty;
+    private string editSeparator = "-";
+    private DocumentYearMode editYearMode = DocumentYearMode.None;
+    private byte editPadding = 5;
+    private long editNextNumber = 1;
+    private bool editAllowOverride;
+
+    private string LivePreview
+    {
+        get
+        {
+            try
+            {
+                var p = string.IsNullOrWhiteSpace(editPrefix) ? "DOC" : editPrefix.Trim().ToUpperInvariant();
+                var pad = (byte)Math.Clamp((int)editPadding, 3, 8);
+                var next = Math.Max(1L, editNextNumber);
+                return DocumentSequence.Create(1, DocumentSequenceType.SalesOrder, p, editSeparator, editYearMode, pad, next, editAllowOverride)
+                    .FormatPreview(DateTime.UtcNow);
+            }
+            catch
+            {
+                return "—";
+            }
+        }
+    }
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["DocumentNumbering"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    protected override async Task OnInitializedAsync() => await ReloadScopeAsync();
+
+    private async Task ReloadScopeAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        pageNotice = null;
+        try
+        {
+            available = await Scopes.LoadDocumentSequenceScopesAsync();
+            if (OrganizationId is long orgId)
+            {
+                var idx = available.ToList().FindIndex(s => s is OrganizationScope.Organization o && o.OrganizationId == orgId);
+                if (idx >= 0) scopeIndex = idx;
+            }
+            if (available.Count > 0)
+                await LoadSequencesAsync();
+        }
+        catch
+        {
+            pageError = DocumentSequenceErrors.PersistenceUnavailable;
+        }
+        finally
+        {
+            initialLoading = false;
+        }
+    }
+
+    private async Task LoadSequencesAsync()
+    {
+        if (CurrentScope is null) return;
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is null) return;
+        scopeCanManage = (await Permissions.EvaluateAsync(actor, CurrentScope, DocumentSequencePermissions.Manage, default)).IsAllowed;
+        var res = await SeqService.ListSequences(CurrentScope, CurrentOrgId);
+        if (!res.Succeeded)
+        {
+            pageError = res.Error!.Code;
+            return;
+        }
+        sequences = res.Value!.ToList();
+    }
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var idx) && idx >= 0 && idx < available.Count)
+        {
+            scopeIndex = idx;
+            await LoadSequencesAsync();
+        }
+    }
+
+    private void OpenEditModal(DocumentSequenceSummary item)
+    {
+        editingItem = item;
+        editPrefix = item.Prefix;
+        editSeparator = item.Separator;
+        editYearMode = item.YearMode;
+        editPadding = item.PaddingDigits;
+        editNextNumber = item.NextNumber;
+        editAllowOverride = item.AllowManualOverride;
+        modalError = null;
+        editModalOpen = true;
+    }
+
+    private async Task SaveSequenceAsync()
+    {
+        if (CurrentScope is null || editingItem is null) return;
+        saving = true;
+        modalError = null;
+        try
+        {
+            var res = await SeqService.UpdateSequence(
+                CurrentScope,
+                CurrentOrgId,
+                editingItem.DocumentType,
+                new UpdateDocumentSequenceRequest(editPrefix, editSeparator, editYearMode, editPadding, editNextNumber, editAllowOverride),
+                editingItem.RowVersion);
+            if (!res.Succeeded)
+            {
+                modalError = res.Error!.Code;
+                return;
+            }
+            editModalOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await LoadSequencesAsync();
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private string ScopeLabel(OrganizationScope scope) => scope is OrganizationScope.Organization o
+        ? Text["ReadOrganizationScope", o.OrganizationId]
+        : string.Empty;
+
+    private string DocTypeLabel(DocumentSequenceType t) => t switch
+    {
+        DocumentSequenceType.SalesOrder => Text["DocSeqTypeSalesOrder"],
+        DocumentSequenceType.DeliveryOrder => Text["DocSeqTypeDeliveryOrder"],
+        DocumentSequenceType.PurchaseOrder => Text["DocSeqTypePurchaseOrder"],
+        DocumentSequenceType.PurchaseReceipt => Text["DocSeqTypePurchaseReceipt"],
+        DocumentSequenceType.ProductionOrder => Text["DocSeqTypeProductionOrder"],
+        DocumentSequenceType.InventoryTransaction => Text["DocSeqTypeInventoryTxn"],
+        DocumentSequenceType.InventoryReversal => Text["DocSeqTypeInventoryRev"],
+        DocumentSequenceType.QualityInspection => Text["DocSeqTypeQualityInsp"],
+        DocumentSequenceType.QualityScrap => Text["DocSeqTypeQualityScrap"],
+        _ => t.ToString()
+    };
+
+    private string YearModeLabel(DocumentYearMode m) => m switch
+    {
+        DocumentYearMode.Persian => Text["DocSeqYearPersian"],
+        DocumentYearMode.Gregorian => Text["DocSeqYearGregorian"],
+        _ => Text["DocSeqYearNone"]
+    };
+}

@@ -1,0 +1,1649 @@
+﻿@page "/sales"
+@page "/organizations/{OrganizationId:long}/sales"
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Sales
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Inventory
+@using ForgeFlow.Domain.Sales
+@inject SalesUseCases SalesService
+@inject StockReservationUseCases ReservationService
+@inject OrganizationUseCases OrgService
+@inject InventoryUseCases InvService
+@inject ItemUseCases ItemService
+@inject UnitUseCases UnitService
+@inject DocumentSequenceUseCases SeqService
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject CulturePolicy Culture
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["SalesDispatch"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="sales-page-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="sales-page-title">@Text["SalesDispatch"]</h1>
+            <p class="write-hint">@Text["SalesDispatchCaption"]</p>
+        </div>
+        @if (!initialLoading && pageError is null && available.Count > 0)
+        {
+            <div class="read-head-actions">
+                @if (activeTab == TabCustomers && scopeCanManageCustomers)
+                {
+                    <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateCustomerModal">
+                        @Text["SalesCustomerCreateButton"]
+                    </BitButton>
+                }
+                else if (activeTab == TabOrders && scopeCanManageOrders)
+                {
+                    <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateOrderModalAsync">
+                        @Text["SalesOrderCreateButton"]
+                    </BitButton>
+                }
+            </div>
+        }
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div class="read-state" role="alert">
+            <p>@Text[pageError]</p>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else if (available.Count == 0)
+    {
+        <p role="status" class="read-empty">@Text["ReadDenied"]</p>
+    }
+    else
+    {
+        <div class="read-tab-bar" role="tablist" aria-label="@Text["SalesDispatch"]">
+            <button type="button" role="tab" aria-selected="@(activeTab == TabOrders)"
+                    class="read-tab-btn @(activeTab == TabOrders ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabOrders)">@Text["SalesTabOrders"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabDispatches)"
+                    class="read-tab-btn @(activeTab == TabDispatches ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabDispatches)">@Text["SalesTabDispatches"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabCustomers)"
+                    class="read-tab-btn @(activeTab == TabCustomers ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabCustomers)">@Text["SalesTabCustomers"]</button>
+        </div>
+
+        <div class="read-toolbar-card">
+            @if (available.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="sales-scope">@Text["ReadScope"]</label>
+                    <select id="sales-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                        @for (var i = 0; i < available.Count; i++)
+                        {
+                            <option value="@i">@ScopeLabel(available[i])</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (activeTab != TabCustomers && CurrentScope is OrganizationScope.Organization && authorizedSites.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="sales-site-filter">@Text["PoSiteColumn"]</label>
+                    <select id="sales-site-filter" value="@siteFilter" @onchange="ChangeSiteFilterAsync">
+                        <option value="0">@Text["PoAllSitesOption"]</option>
+                        @foreach (var s in authorizedSites)
+                        {
+                            <option value="@s.Id">@s.Code — @s.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (activeTab == TabCustomers)
+            {
+                <label class="read-inactive">
+                    <input type="checkbox" checked="@includeInactiveCustomers" @onchange="ToggleInactiveCustomersAsync" />
+                    <span>@Text["ReadInactive"]</span>
+                </label>
+            }
+            else if (activeTab == TabOrders)
+            {
+                <div class="read-field">
+                    <label for="sales-order-status">@Text["PoStatusColumn"]</label>
+                    <select id="sales-order-status" value="@orderStatusFilter" @onchange="ChangeOrderStatusFilterAsync">
+                        <option value="">@Text["PoAllStatusesOption"]</option>
+                        <option value="1">@Text["SalesOrderStatusDraft"]</option>
+                        <option value="2">@Text["SalesOrderStatusApproved"]</option>
+                        <option value="3">@Text["SalesOrderStatusPartiallyDispatched"]</option>
+                        <option value="4">@Text["SalesOrderStatusDispatched"]</option>
+                        <option value="6">@Text["SalesOrderStatusClosed"]</option>
+                        <option value="5">@Text["SalesOrderStatusCancelled"]</option>
+                    </select>
+                </div>
+            }
+
+            <div class="read-field">
+                <label for="sales-search">@Text["ReadSearch"]</label>
+                <input id="sales-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="64" placeholder="@Text["ReadSearch"]" />
+            </div>
+        </div>
+
+        @if (activeTab == TabCustomers)
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="customerGrid" TItem="CustomerSummary" OnRead="ReadCustomersAsync" Pageable="true" PageSize="25"
+                                 Resizable="true" WrapCellText="true"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["SalesTabCustomers"]">
+                        <Columns>
+                            <BitDataGridColumn TItem="CustomerSummary" Title="@Text["ReadCode"]" Width="120px">
+                                <Template Context="c"><bdi dir="ltr">@c.Code</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="CustomerSummary" Title="@Text["ReadName"]" MinWidth="160">
+                                <Template Context="c">@c.Name</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="CustomerSummary" Title="@Text["SupContactLabel"]" Width="140px">
+                                <Template Context="c">@(c.ContactName ?? "—")</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="CustomerSummary" Title="@Text["ProfilePhoneLabel"]" Width="130px">
+                                <Template Context="c"><bdi dir="ltr">@(c.Phone ?? "—")</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="CustomerSummary" Title="@Text["SalesCustomerTaxCode"]" Width="120px">
+                                <Template Context="c"><bdi dir="ltr">@(c.TaxCode ?? "—")</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="CustomerSummary" Title="@Text["PoStatusColumn"]" Width="100px">
+                                <Template Context="c">
+                                    <span class="write-status-badge @(c.IsActive ? "is-active" : "is-inactive")">
+                                        @(c.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
+                                    </span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="CustomerSummary" Title="@Text["ReadActions"]" Width="150px">
+                                <Template Context="c">
+                                    @if (scopeCanManageCustomers)
+                                    {
+                                        <div class="read-row-actions">
+                                            <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OpenEditCustomerModal(c)">@Text["ReadEdit"]</BitButton>
+                                            <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => ToggleCustomerActiveAsync(c)">
+                                                @(c.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
+                                            </BitButton>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else if (activeTab == TabOrders)
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="orderGrid" TItem="SalesOrderSummary" OnRead="ReadOrdersAsync" Pageable="true" PageSize="25"
+                                 Resizable="true" WrapCellText="true"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["SalesTabOrders"]">
+                        <Columns>
+                            <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["SalesOrderNumber"]" Width="120px">
+                                <Template Context="o"><bdi dir="ltr">@o.OrderNumber</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["SalesCustomerColumn"]" MinWidth="150">
+                                <Template Context="o"><bdi dir="ltr">@o.CustomerCode</bdi> — @o.CustomerName</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["PoSiteColumn"]" Width="120px">
+                                <Template Context="o"><bdi dir="ltr">@o.SiteCode</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["ProcOrderDateLabel"]" Width="104px">
+                                <Template Context="o"><bdi dir="ltr">@Format.Date(o.OrderDate)</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["SalesRequestedDate"]" Width="104px">
+                                <Template Context="o">
+                                    @if (o.RequestedDeliveryDate is DateOnly rd)
+                                    {
+                                        <bdi dir="ltr">@Format.Date(rd)</bdi>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["PoStatusColumn"]" Width="130px">
+                                <Template Context="o">
+                                    <span class="write-status-badge @OrderStatusCss(o.Status)">@OrderStatusLabel(o.Status)</span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["ReadActions"]" Width="210px">
+                                <Template Context="o">
+                                    <div class="read-row-actions">
+                                        <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OpenOrderDetailModalAsync(o.Id)">@Text["ReadDetails"]</BitButton>
+                                        @if (scopeCanDispatch && o.Status is SalesOrderStatus.Approved or SalesOrderStatus.PartiallyDispatched)
+                                        {
+                                            <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OpenPostDispatchModalAsync(o.Id)">@Text["SalesDispatchButton"]</BitButton>
+                                        }
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+        else if (activeTab == TabDispatches)
+        {
+            <div class="read-grid-card">
+                <div class="read-grid">
+                    <BitDataGrid @ref="dispatchGrid" TItem="DeliveryOrderSummary" OnRead="ReadDispatchesAsync" Pageable="true" PageSize="25"
+                                 Resizable="true" WrapCellText="true"
+                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["SalesTabDispatches"]">
+                        <Columns>
+                            <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["SalesDispatchNumber"]" Width="125px">
+                                <Template Context="d"><bdi dir="ltr">@d.DispatchNumber</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["SalesOrderNumber"]" Width="120px">
+                                <Template Context="d"><bdi dir="ltr">@d.SalesOrderNumber</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["SalesCustomerColumn"]" MinWidth="140">
+                                <Template Context="d"><bdi dir="ltr">@d.CustomerCode</bdi> — @d.CustomerName</Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["InvWarehouseLabel"]" Width="115px">
+                                <Template Context="d"><bdi dir="ltr">@d.WarehouseCode</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["SalesDispatchDate"]" Width="104px">
+                                <Template Context="d"><bdi dir="ltr">@Format.Date(d.DispatchDate)</bdi></Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["PoStatusColumn"]" Width="105px">
+                                <Template Context="d">
+                                    <span class="write-status-badge @(d.Status == DeliveryOrderStatus.Posted ? "is-active" : "is-inactive")">
+                                        @(d.Status == DeliveryOrderStatus.Posted ? Text["SalesDispatchPosted"] : Text["SalesDispatchReversed"])
+                                    </span>
+                                </Template>
+                            </BitDataGridColumn>
+                            <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["ReadActions"]" Width="160px">
+                                <Template Context="d">
+                                    <div class="read-row-actions">
+                                        <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OpenDispatchDetailModalAsync(d.Id)">@Text["ReadDetails"]</BitButton>
+                                        @if (scopeCanDispatch && d.Status == DeliveryOrderStatus.Posted)
+                                        {
+                                            <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OpenReverseDispatchModal(d)">@Text["SalesReverseButton"]</BitButton>
+                                        }
+                                    </div>
+                                </Template>
+                            </BitDataGridColumn>
+                        </Columns>
+                    </BitDataGrid>
+                </div>
+            </div>
+        }
+    }
+</section>
+
+@* Customer Modal *@
+<ForgeFormDialog Width="620px" @bind-IsOpen="customerModalOpen"
+                 Title="@(editingCustomerId.HasValue ? Text["SalesCustomerEditTitle"] : Text["SalesCustomerCreateButton"])"
+                 CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (customerModalError is not null)
+        {
+            <p role="alert" class="write-error">@customerModalError</p>
+        }
+        <div class="write-modal-grid">
+        <div class="write-field">
+            <label for="cust-code">@Text["ReadCode"]</label>
+            <input id="cust-code" type="text" @bind="custCode" maxlength="32" disabled="@editingCustomerId.HasValue" dir="ltr" />
+        </div>
+        <div class="write-field">
+            <label for="cust-name">@Text["ReadName"]</label>
+            <input id="cust-name" type="text" @bind="custName" maxlength="150" />
+        </div>
+        <div class="write-field">
+            <label for="cust-contact">@Text["SupContactLabel"]</label>
+            <input id="cust-contact" type="text" @bind="custContact" maxlength="120" />
+        </div>
+        <div class="write-field">
+            <label for="cust-phone">@Text["ProfilePhoneLabel"]</label>
+            <input id="cust-phone" type="text" @bind="custPhone" maxlength="32" dir="ltr" />
+        </div>
+        <div class="write-field">
+            <label for="cust-email">@Text["ProfileEmailLabel"]</label>
+            <input id="cust-email" type="email" @bind="custEmail" maxlength="200" dir="ltr" />
+        </div>
+        <div class="write-field">
+            <label for="cust-tax">@Text["SalesCustomerTaxCode"]</label>
+            <input id="cust-tax" type="text" @bind="custTaxCode" maxlength="40" dir="ltr" />
+        </div>
+        <div class="write-field write-field-span">
+            <label for="cust-addr">@Text["SalesShippingAddress"]</label>
+            <input id="cust-addr" type="text" @bind="custAddress" maxlength="500" />
+        </div>
+        <div class="write-field write-field-span">
+            <label for="cust-notes">@Text["PoNotesLabel"]</label>
+            <input id="cust-notes" type="text" @bind="custNotes" maxlength="1000" />
+        </div>
+        </div>
+    </ChildContent>
+    <FooterActions>
+        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => customerModalOpen = false">@Text["WriteCancel"]</BitButton>
+        <BitButton Size="BitSize.Small" IsEnabled="!customerSaving" OnClick="SaveCustomerAsync">@(customerSaving ? Text["WriteSaving"] : Text["WriteSave"])</BitButton>
+    </FooterActions>
+</ForgeFormDialog>
+
+@* Create/Edit Sales Order Modal *@
+<ForgeFormDialog Width="1020px" @bind-IsOpen="orderModalOpen"
+                 Title="@(editingOrderId.HasValue ? Text["SalesOrderEditTitle"] : Text["SalesOrderCreateButton"])"
+                 Subtitle="@Text["SalesOrderModalSubtitle"]"
+                 CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (orderModalError is not null)
+        {
+            <p role="alert" class="write-error">@orderModalError</p>
+        }
+
+        <div class="proc-po-section-head">
+            <span class="proc-po-section-bar" aria-hidden="true"></span>
+            <h3>@Text["ProcGeneralInfoSection"]</h3>
+        </div>
+
+        <div class="proc-po-general-grid">
+            <div class="proc-po-field">
+                <label for="so-num">@Text["SalesOrderNumber"]</label>
+                <input id="so-num" type="text" class="@((editingOrderId.HasValue || !editOrderAllowOverride) ? "proc-input-readonly" : string.Empty)" @bind="editOrderNumber" maxlength="32" readonly="@(editingOrderId.HasValue || !editOrderAllowOverride)" dir="ltr" />
+            </div>
+            <div class="proc-po-field">
+                <label for="so-cust">@Text["SalesCustomerColumn"] <span class="proc-req-star" aria-hidden="true">*</span></label>
+                <select id="so-cust" @bind="editOrderCustomerId">
+                    <option value="0">@Text["SalesSelectCustomerPlaceholder"]</option>
+                    @foreach (var c in activeCustomers)
+                    {
+                        <option value="@c.Id">@c.Code — @c.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="proc-po-field">
+                <label for="so-site">@Text["PoSiteColumn"]</label>
+                <select id="so-site" value="@editOrderSiteId" @onchange="ChangeEditOrderSiteAsync" disabled="@(editingOrderId.HasValue || CurrentScope is OrganizationScope.Site)">
+                    @foreach (var s in authorizedSites)
+                    {
+                        <option value="@s.Id">@s.Code — @s.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="proc-po-field">
+                <label>@Text["ProcOrderDateLabel"]</label>
+                <BitDatePicker @bind-Value="editOrderDateOffset" Class="bom-dtp proc-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                               Placeholder="@Text["ProcSelectDatePlaceholder"]"
+                               ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowGoToToday="true"
+                               GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                               NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon"
+                               NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+            </div>
+            <div class="proc-po-field">
+                <label>@Text["SalesRequestedDate"]</label>
+                <BitDatePicker @bind-Value="editRequestedDateOffset" Class="bom-dtp proc-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                               Placeholder="@Text["ProcSelectDatePlaceholder"]"
+                               ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowGoToToday="true"
+                               GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                               NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon"
+                               NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+            </div>
+            <div class="proc-po-field">
+                <label for="so-cur">@Text["ProcCurrencyLabel"]</label>
+                <select id="so-cur" @bind="editOrderCurrency">
+                    @foreach (var cur in activeCurrencies)
+                    {
+                        <option value="@cur.Code">@cur.Code — @cur.Name (@cur.Symbol)</option>
+                    }
+                    @if (!string.IsNullOrEmpty(editOrderCurrency) && activeCurrencies.All(c => c.Code != editOrderCurrency))
+                    {
+                        <option value="@editOrderCurrency">@editOrderCurrency</option>
+                    }
+                </select>
+            </div>
+
+            <div class="proc-po-field">
+                <label for="so-wh">@Text["SalesSourceWarehouse"]</label>
+                <select id="so-wh" value="@editOrderWarehouseId" @onchange="ChangeEditOrderWarehouseAsync">
+                    <option value="0">@Text["InvAllWarehousesOption"]</option>
+                    @foreach (var w in siteWarehouses)
+                    {
+                        <option value="@w.Id">@w.Code — @w.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="proc-po-field proc-po-notes-span">
+                <label for="so-addr">@Text["SalesShippingAddress"]</label>
+                <input id="so-addr" type="text" @bind="editOrderAddress" maxlength="500" />
+            </div>
+
+            <div class="proc-po-field" style="grid-column:1 / -1">
+                <label for="so-notes">@Text["PoNotesLabel"]</label>
+                <input id="so-notes" type="text" @bind="editOrderNotes" maxlength="1000" placeholder="@Text["ProcNotesOptionalPlaceholder"]" />
+            </div>
+        </div>
+
+        <div class="proc-po-section-head proc-po-section-head--split">
+            <div class="proc-po-section-title">
+                <span class="proc-po-section-bar" aria-hidden="true"></span>
+                <h3>@Text["ProcLinesSection"]</h3>
+            </div>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Icon="@PlusIcon" Class="proc-po-add-line-btn" OnClick="AddOrderLine">
+                @Text["ProcAddLineBtn"]
+            </BitButton>
+        </div>
+
+        <p class="write-hint" style="margin:0">@Text["SalesInventoryInfoHint"]</p>
+
+        <div class="proc-lines-card">
+            <div class="proc-lines-table">
+                <div class="proc-lines-grid proc-lines-head">
+                    <span>@Text["PoItemColumn"]</span>
+                    <span>@Text["ProcOrderedCol"]</span>
+                    <span>@Text["BomLineUnitColumn"]</span>
+                    <span>@Text["ProcUnitPriceLabel"]</span>
+                    <span>@Text["ProcLineAmountLabel"]</span>
+                    <span>@Text["PoNotesLabel"]</span>
+                    <span aria-hidden="true"></span>
+                </div>
+                @for (var idx = 0; idx < editLines.Count; idx++)
+                {
+                    var i = idx;
+                    var line = editLines[i];
+                    var stockInfo = line.ItemId > 0 && itemStockSummary.TryGetValue(line.ItemId, out var st) ? st : null;
+                    <div class="proc-lines-grid proc-lines-row sales-lines-row">
+                        <div style="display:flex;flex-direction:column;min-width:0">
+                            <select aria-label="@Text["PoItemColumn"]" value="@line.ItemId" @onchange="e => OnOrderLineItemChanged(i, e)">
+                                <option value="0">@Text["ProcSelectItemPlaceholder"]</option>
+                                @foreach (var it in sellableItems)
+                                {
+                                    <option value="@it.Id">@it.Code — @it.Name</option>
+                                }
+                            </select>
+                            @if (line.ItemId > 0 && stockInfo is not null)
+                            {
+                                var isLow = stockInfo.Available <= 0m || (line.UnitId == stockInfo.BaseUnitId && line.Quantity > stockInfo.Available);
+                                <span class="sales-stock-pill @(isLow ? "is-low" : "is-ok")">
+                                    @(stockInfo.Available > 0m
+                                        ? Text["SalesStockAvailableBadge", Format.Number(stockInfo.Available), stockInfo.BaseUnitSymbol]
+                                        : Text["SalesStockZeroBadge", stockInfo.BaseUnitSymbol])
+                                </span>
+                            }
+                        </div>
+                        <input type="number" step="0.000001" min="0.000001" aria-label="@Text["ProcOrderedCol"]" @bind="line.Quantity" @bind:event="oninput" dir="ltr" />
+                        <select aria-label="@Text["BomLineUnitColumn"]" @bind="line.UnitId">
+                            @foreach (var u in activeUnits)
+                            {
+                                <option value="@u.Id">@u.Code (@u.Symbol)</option>
+                            }
+                        </select>
+                        <input type="number" step="0.0001" min="0" aria-label="@Text["ProcUnitPriceLabel"]" placeholder="0" @bind="line.UnitPrice" @bind:event="oninput" dir="ltr" />
+                        <div class="proc-line-amount" dir="ltr">
+                            @(line.UnitPrice.HasValue && line.Quantity > 0m ? Format.Number(line.Quantity * line.UnitPrice.Value) : "—")
+                        </div>
+                        <input type="text" maxlength="300" aria-label="@Text["PoNotesLabel"]" placeholder="@Text["PoNotesLabel"]" @bind="line.Notes" />
+                        <button type="button" class="proc-line-del-btn" aria-label="@Text["BomRemoveRowBtn"]" title="@Text["BomRemoveRowBtn"]"
+                                disabled="@(editLines.Count <= 1)" @onclick="() => RemoveOrderLine(i)">
+                            <span class="ff-icon ff-icon--trash" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </ChildContent>
+    <FooterActions>
+        <BitButton Class="proc-po-primary-btn" IsEnabled="@(!orderSaving)" OnClick="SaveOrderAsync">@(orderSaving ? Text["WriteSaving"] : Text["WriteSave"])</BitButton>
+        <BitButton Variant="BitVariant.Outline" Class="proc-po-cancel-btn" OnClick="() => orderModalOpen = false">@Text["WriteCancel"]</BitButton>
+    </FooterActions>
+    <FooterEnd>
+        <div class="proc-po-footer-total">
+            <span class="proc-po-total-label">@Text["ProcGrandTotalLabel"]</span>
+            <strong class="proc-po-total-val" dir="ltr">@Format.CurrencyAmount(OrderEstimatedTotal, editOrderCurrency)</strong>
+        </div>
+    </FooterEnd>
+</ForgeFormDialog>
+
+@* Sales Order Detail + Reservations Modal *@
+<BitDialog Width="920px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="orderDetailOpen"
+           Title="@(detailOrder?.Summary.OrderNumber ?? Text["SalesTabOrders"])" ShowCloseButton="true">
+    @if (detailOrder is not null)
+    {
+        var s = detailOrder.Summary;
+        <div class="proc-detail-wrap">
+            @if (detailError is not null)
+            {
+                <p role="alert" class="write-modal-err">@detailError</p>
+            }
+            <table class="ff-table">
+                <tbody>
+                    <tr>
+                        <th>@Text["SalesCustomerColumn"]</th><td><bdi dir="ltr">@s.CustomerCode</bdi> — @s.CustomerName</td>
+                        <th>@Text["PoStatusColumn"]</th><td>@OrderStatusLabel(s.Status)</td>
+                    </tr>
+                    <tr>
+                        <th>@Text["ProcOrderDateLabel"]</th><td dir="ltr">@Format.Date(s.OrderDate)</td>
+                        <th>@Text["SalesRequestedDate"]</th><td dir="ltr">@(s.RequestedDeliveryDate is DateOnly rd ? Format.Date(rd) : "—")</td>
+                    </tr>
+                    <tr>
+                        <th>@Text["SalesShippingAddress"]</th><td colspan="3">@(s.ShippingAddressSnapshot ?? "—")</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>@Text["ProcLinesSection"]</h4>
+            <table class="ff-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>@Text["PoItemColumn"]</th>
+                        <th>@Text["ProcOrderedCol"]</th>
+                        <th>@Text["SalesDispatchedQty"]</th>
+                        <th>@Text["SalesRemainingQty"]</th>
+                        <th>@Text["ReadActions"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var l in detailOrder.Lines)
+                    {
+                        <tr>
+                            <td dir="ltr">@l.LineNumber</td>
+                            <td><bdi dir="ltr">@l.ItemCode</bdi> — @l.ItemName</td>
+                            <td dir="ltr">@Format.Number(l.OrderedBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
+                            <td dir="ltr">@Format.Number(l.DispatchedBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
+                            <td dir="ltr">@Format.Number(l.RemainingBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
+                            <td>
+                                @if (scopeCanManageOrders && l.RemainingBaseQuantity > 0m && s.Status is SalesOrderStatus.Approved or SalesOrderStatus.PartiallyDispatched)
+                                {
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OpenReserveModalAsync(l)">@Text["SalesReserveStockButton"]</BitButton>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (orderReservations.Count > 0)
+            {
+                <h4>@Text["SalesReservationsTitle"]</h4>
+                <table class="ff-table">
+                    <thead>
+                        <tr>
+                            <th>@Text["InvWarehouseLabel"]</th>
+                            <th>@Text["PoItemColumn"]</th>
+                            <th>@Text["InvLotCodeLabel"]</th>
+                            <th>@Text["ProcOrderedCol"]</th>
+                            <th>@Text["PoStatusColumn"]</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in orderReservations)
+                        {
+                            <tr>
+                                <td><bdi dir="ltr">@r.WarehouseCode</bdi></td>
+                                <td><bdi dir="ltr">@r.ItemCode</bdi></td>
+                                <td dir="ltr">@(string.IsNullOrEmpty(r.LotCode) ? "—" : r.LotCode)</td>
+                                <td dir="ltr">@Format.Number(r.RemainingReservedBaseQuantity) / @Format.Number(r.ReservedBaseQuantity) @r.BaseUnitSymbol</td>
+                                <td>@r.Status</td>
+                                <td>
+                                    @if (scopeCanManageOrders && (r.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed))
+                                    {
+                                        <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => ReleaseOrderReservationAsync(r)">@Text["SalesReleaseReservation"]</BitButton>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <div class="proc-detail-actions">
+                @if (scopeCanManageOrders && s.Status == SalesOrderStatus.Draft)
+                {
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OpenEditOrderFromDetailAsync(detailOrder)">@Text["ReadEdit"]</BitButton>
+                    <BitButton Size="BitSize.Small" OnClick="ApproveDetailOrderAsync">@Text["ProcApproveBtn"]</BitButton>
+                }
+                @if (scopeCanDispatch && s.Status is SalesOrderStatus.Approved or SalesOrderStatus.PartiallyDispatched)
+                {
+                    <BitButton Size="BitSize.Small" OnClick="() => OpenPostDispatchModalAsync(s.Id)">@Text["SalesDispatchButton"]</BitButton>
+                }
+                @if (scopeCanManageOrders && s.Status is SalesOrderStatus.PartiallyDispatched or SalesOrderStatus.Dispatched)
+                {
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CloseDetailOrderAsync">@Text["ProcShortCloseBtn"]</BitButton>
+                }
+                @if (scopeCanManageOrders && s.Status is SalesOrderStatus.Draft or SalesOrderStatus.Approved)
+                {
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="OpenCancelOrderModal">@Text["ProcCancelBtn"]</BitButton>
+                }
+            </div>
+        </div>
+    }
+</BitDialog>
+
+@* Reserve Stock Modal *@
+<ForgeFormDialog Width="540px" @bind-IsOpen="reserveModalOpen"
+                 Title="@Text["SalesReserveStockButton"]"
+                 CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (reserveModalError is not null)
+        {
+            <p role="alert" class="write-error">@reserveModalError</p>
+        }
+        <div class="write-modal-grid">
+            <div class="write-field">
+                <label for="res-wh">@Text["InvWarehouseLabel"]</label>
+                <select id="res-wh" @bind="reserveWarehouseId">
+                    <option value="0">@Text["InvAllWarehousesOption"]</option>
+                    @foreach (var w in siteWarehouses)
+                    {
+                        <option value="@w.Id">@w.Code — @w.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="write-field">
+                <label for="res-lot">@Text["InvLotCodeLabel"]</label>
+                <input id="res-lot" type="text" @bind="reserveLotCode" maxlength="32" dir="ltr" />
+            </div>
+            <div class="write-field">
+                <label for="res-qty">@Text["ProcOrderedCol"]</label>
+                <input id="res-qty" type="number" step="0.0001" min="0.0001" @bind="reserveQuantity" dir="ltr" />
+            </div>
+            <div class="write-field">
+                <label for="res-notes">@Text["PoNotesLabel"]</label>
+                <input id="res-notes" type="text" @bind="reserveNotes" maxlength="300" />
+            </div>
+        </div>
+    </ChildContent>
+    <FooterActions>
+        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => reserveModalOpen = false">@Text["WriteCancel"]</BitButton>
+        <BitButton Size="BitSize.Small" IsEnabled="!reserveSaving" OnClick="SaveReservationAsync">@(reserveSaving ? Text["WriteSaving"] : Text["WriteSave"])</BitButton>
+    </FooterActions>
+</ForgeFormDialog>
+
+@* Post Dispatch (Delivery Order) Modal with Lot Picker & COA *@
+<ForgeFormDialog Width="980px" @bind-IsOpen="dispatchModalOpen"
+                 Title="@Text["SalesDispatchModalTitle"]"
+                 CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (dispatchModalError is not null)
+        {
+            <p role="alert" class="write-error">@dispatchModalError</p>
+        }
+        <div class="write-modal-grid">
+        <div class="write-field">
+            <label for="do-num">@Text["SalesDispatchNumber"]</label>
+            <input id="do-num" type="text" class="@(dispAllowOverride ? string.Empty : "proc-input-readonly")" @bind="dispNumber" maxlength="32" readonly="@(!dispAllowOverride)" dir="ltr" />
+        </div>
+        <div class="write-field">
+            <label for="do-wh">@Text["InvWarehouseLabel"]</label>
+            <select id="do-wh" value="@dispWarehouseId" @onchange="ChangeDispatchWarehouseAsync">
+                @foreach (var w in siteWarehouses)
+                {
+                    <option value="@w.Id">@w.Code — @w.Name</option>
+                }
+            </select>
+        </div>
+        <div class="write-field">
+            <label>@Text["SalesDispatchDate"]</label>
+            <BitDatePicker @bind-Value="dispDateOffset" Class="bom-dtp proc-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                           Placeholder="@Text["ProcSelectDatePlaceholder"]"
+                           GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon" />
+        </div>
+        <div class="write-field">
+            <label for="do-carrier">@Text["SalesCarrierName"]</label>
+            <input id="do-carrier" type="text" @bind="dispCarrier" maxlength="120" />
+        </div>
+        <div class="write-field">
+            <label for="do-track">@Text["SalesTrackingNumber"]</label>
+            <input id="do-track" type="text" @bind="dispTracking" maxlength="64" dir="ltr" />
+        </div>
+        <div class="write-field">
+            <label for="do-notes">@Text["PoNotesLabel"]</label>
+            <input id="do-notes" type="text" @bind="dispNotes" maxlength="1000" />
+        </div>
+    </div>
+
+    <div class="proc-lines-section">
+        <h3>@Text["SalesDispatchPickLots"]</h3>
+        <div class="read-grid">
+            <table class="ff-table">
+                <thead>
+                    <tr>
+                        <th>@Text["PoItemColumn"]</th>
+                        <th>@Text["SalesRemainingQty"]</th>
+                        <th>@Text["InvLotCodeLabel"]</th>
+                        <th>@Text["ProcOrderedCol"]</th>
+                        <th>@Text["QcCoaTitle"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in dispLines)
+                    {
+                        var lots = dispatchableLots.Where(l => l.ItemId == row.ItemId).ToList();
+                        var selectedLot = lots.FirstOrDefault(l => l.LotCode == row.LotCode);
+                        <tr>
+                            <td><bdi dir="ltr">@row.ItemCode</bdi> — @row.ItemName</td>
+                            <td dir="ltr">@Format.Number(row.RemainingBaseQuantity) @row.UnitSymbol</td>
+                            <td>
+                                <select @bind="row.LotCode">
+                                    <option value="">—</option>
+                                    @foreach (var lot in lots)
+                                    {
+                                        <option value="@lot.LotCode" disabled="@(lot.IsExpired || lot.AvailableForOrderBaseQuantity <= 0m)">
+                                            @lot.LotCode (@Format.Number(lot.AvailableForOrderBaseQuantity)@(lot.IsExpired ? " - EXPIRED" : string.Empty))
+                                        </option>
+                                    }
+                                </select>
+                            </td>
+                            <td><input type="number" step="0.0001" min="0" @bind="row.Quantity" dir="ltr" /></td>
+                            <td>
+                                @if (selectedLot is not null && !string.IsNullOrEmpty(selectedLot.LotCode))
+                                {
+                                    <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OpenCoaDialog(row.ItemId, selectedLot.LotCode)">
+                                        @(selectedLot.LatestCertificateNumber ?? Text["QcCoaBtn"])
+                                    </BitButton>
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    </ChildContent>
+    <FooterActions>
+        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => dispatchModalOpen = false">@Text["WriteCancel"]</BitButton>
+        <BitButton Size="BitSize.Small" IsEnabled="!dispatchSaving" OnClick="SaveDispatchAsync">@(dispatchSaving ? Text["WriteSaving"] : Text["SalesPostDispatchButton"])</BitButton>
+    </FooterActions>
+</ForgeFormDialog>
+
+@* Dispatch Detail Modal *@
+<BitDialog Width="840px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="dispatchDetailOpen"
+           Title="@(detailDispatch?.Summary.DispatchNumber ?? Text["SalesTabDispatches"])" ShowCloseButton="true">
+    @if (detailDispatch is not null)
+    {
+        var ds = detailDispatch.Summary;
+        <div class="proc-detail-wrap">
+            <table class="ff-table">
+                <tbody>
+                    <tr>
+                        <th>@Text["SalesOrderNumber"]</th><td dir="ltr">@ds.SalesOrderNumber</td>
+                        <th>@Text["SalesDispatchDate"]</th><td dir="ltr">@Format.Date(ds.DispatchDate)</td>
+                    </tr>
+                    <tr>
+                        <th>@Text["SalesCarrierName"]</th><td>@(ds.CarrierName ?? "—")</td>
+                        <th>@Text["SalesTrackingNumber"]</th><td dir="ltr">@(ds.TrackingNumber ?? "—")</td>
+                    </tr>
+                </tbody>
+            </table>
+            <table class="ff-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>@Text["PoItemColumn"]</th>
+                        <th>@Text["InvLotCodeLabel"]</th>
+                        <th>@Text["SalesDispatchedQty"]</th>
+                        <th>@Text["QcCoaTitle"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var dl in detailDispatch.Lines)
+                    {
+                        <tr>
+                            <td dir="ltr">@dl.LineNumber</td>
+                            <td><bdi dir="ltr">@dl.ItemCode</bdi> — @dl.ItemName</td>
+                            <td dir="ltr">@dl.LotCode</td>
+                            <td dir="ltr">@Format.Number(dl.DispatchedBaseQuantity) @dl.BaseUnitSymbolSnapshot</td>
+                            <td>
+                                <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OpenCoaDialog(dl.ItemId, dl.LotCode)">
+                                    @(dl.CertificateNumberSnapshot ?? Text["QcCoaBtn"])
+                                </BitButton>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</BitDialog>
+
+@* Cancel Order / Reverse Dispatch Reason Modal *@
+<ForgeFormDialog Width="460px" @bind-IsOpen="reasonModalOpen"
+                 Title="@(reasonMode == ReasonMode.CancelOrder ? Text["ProcCancelBtn"] : Text["SalesReverseButton"])"
+                 CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (reasonModalError is not null)
+        {
+            <p role="alert" class="write-error">@reasonModalError</p>
+        }
+        <div class="write-field">
+            <label for="sales-reason-input">@Text["PoCancelReasonLabel"]</label>
+            <input id="sales-reason-input" type="text" @bind="reasonInput" maxlength="300" />
+        </div>
+    </ChildContent>
+    <FooterActions>
+        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => reasonModalOpen = false">@Text["WriteCancel"]</BitButton>
+        <BitButton Size="BitSize.Small" IsEnabled="!reasonSaving" OnClick="ConfirmReasonActionAsync">@(reasonSaving ? Text["WriteSaving"] : Text["WriteConfirm"])</BitButton>
+    </FooterActions>
+</ForgeFormDialog>
+
+<LotCertificateDialog @bind-IsOpen="coaOpen"
+                      Scope="@CurrentScope"
+                      OrganizationId="@(CurrentOrgId)"
+                      ItemId="@coaItemId"
+                      LotCode="@coaLotCode" />
+
+@code {
+    private const string TabOrders = "orders";
+    private const string TabDispatches = "dispatches";
+    private const string TabCustomers = "customers";
+
+    private enum ReasonMode { CancelOrder, ReverseDispatch }
+
+    private static readonly BitDialogClassStyles DialogClasses = new() { Root = "ff-dialog-root", Container = "ff-dialog-card" };
+    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
+    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
+    private static readonly BitIconInfo PlusIcon = BitIconInfo.Css("ff-icon ff-icon--plus");
+    private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
+    private static readonly BitIconInfo NextNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-next");
+    private static readonly BitIconInfo PrevNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-prev");
+    private static readonly BitIconInfo NextYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-next");
+    private static readonly BitIconInfo PrevYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-prev");
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+
+    [Parameter] public long? OrganizationId { get; set; }
+
+    private bool initialLoading = true;
+    private string? pageError;
+    private string? pageNotice;
+    private string activeTab = TabOrders;
+
+    private IReadOnlyList<OrganizationScope> available = [];
+    private int scopeIndex;
+    private OrganizationScope? CurrentScope => available.ElementAtOrDefault(scopeIndex);
+    private long CurrentOrgId => CurrentScope switch { OrganizationScope.Organization o => o.OrganizationId, OrganizationScope.Site s => s.OrganizationId, _ => 0 };
+
+    private bool scopeCanManageCustomers;
+    private bool scopeCanManageOrders;
+    private bool scopeCanDispatch;
+
+    private IReadOnlyList<SiteDetails> authorizedSites = [];
+    private long siteFilter;
+    private string orderStatusFilter = string.Empty;
+    private bool includeInactiveCustomers;
+    private string search = string.Empty;
+
+    private BitDataGrid<CustomerSummary>? customerGrid;
+    private BitDataGrid<SalesOrderSummary>? orderGrid;
+    private BitDataGrid<DeliveryOrderSummary>? dispatchGrid;
+
+    // Reference lists
+    private List<CustomerSummary> activeCustomers = [];
+    private List<WarehouseSummary> siteWarehouses = [];
+    private List<ItemSummary> sellableItems = [];
+    private List<UnitSummary> activeUnits = [];
+    private List<CurrencySummary> activeCurrencies = [];
+    private Dictionary<long, ItemStockSnapshot> itemStockSummary = [];
+
+    private decimal OrderEstimatedTotal => editLines
+        .Where(l => l.UnitPrice.HasValue && l.Quantity > 0m)
+        .Sum(l => l.Quantity * l.UnitPrice!.Value);
+
+    // Customer modal
+    private bool customerModalOpen;
+    private bool customerSaving;
+    private string? customerModalError;
+    private long? editingCustomerId;
+    private string? editingCustomerVersion;
+    private string custCode = string.Empty;
+    private string custName = string.Empty;
+    private string? custContact;
+    private string? custPhone;
+    private string? custEmail;
+    private string? custTaxCode;
+    private string? custAddress;
+    private string? custNotes;
+
+    // Order modal
+    private bool orderModalOpen;
+    private bool orderSaving;
+    private string? orderModalError;
+    private long? editingOrderId;
+    private string? editingOrderVersion;
+    private long editOrderSiteId;
+    private string editOrderNumber = string.Empty;
+    private bool editOrderAllowOverride;
+    private long editOrderCustomerId;
+    private long editOrderWarehouseId;
+    private DateTimeOffset? editOrderDateOffset = DateTimeOffset.Now;
+    private DateTimeOffset? editRequestedDateOffset;
+    private string editOrderCurrency = "IRR";
+    private string? editOrderAddress;
+    private string? editOrderNotes;
+    private List<OrderLineEdit> editLines = [];
+
+    // Order detail & reservations
+    private bool orderDetailOpen;
+    private string? detailError;
+    private SalesOrderDetails? detailOrder;
+    private IReadOnlyList<StockReservationSummary> orderReservations = [];
+
+    // Reserve modal
+    private bool reserveModalOpen;
+    private bool reserveSaving;
+    private string? reserveModalError;
+    private SalesOrderLineDetails? reserveLine;
+    private long reserveWarehouseId;
+    private string reserveLotCode = string.Empty;
+    private decimal reserveQuantity;
+    private string? reserveNotes;
+
+    // Dispatch modal
+    private bool dispatchModalOpen;
+    private bool dispatchSaving;
+    private string? dispatchModalError;
+    private long dispatchOrderId;
+    private string dispNumber = string.Empty;
+    private bool dispAllowOverride;
+    private long dispWarehouseId;
+    private DateTimeOffset? dispDateOffset = DateTimeOffset.Now;
+    private string? dispCarrier;
+    private string? dispTracking;
+    private string? dispNotes;
+    private List<DispatchLineEdit> dispLines = [];
+    private IReadOnlyList<DispatchableLotSummary> dispatchableLots = [];
+
+    // Dispatch detail
+    private bool dispatchDetailOpen;
+    private DeliveryOrderDetails? detailDispatch;
+
+    // Reason modal
+    private bool reasonModalOpen;
+    private bool reasonSaving;
+    private string? reasonModalError;
+    private ReasonMode reasonMode;
+    private string reasonInput = string.Empty;
+    private DeliveryOrderSummary? reversingDispatch;
+
+    // COA dialog
+    private bool coaOpen;
+    private long coaItemId;
+    private string coaLotCode = string.Empty;
+
+    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["SalesDispatch"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    protected override async Task OnInitializedAsync() => await ReloadScopeAsync();
+
+    private async Task ReloadScopeAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        pageNotice = null;
+        try
+        {
+            available = await Scopes.LoadSalesScopesAsync();
+            if (OrganizationId is long orgId)
+            {
+                var idx = available.ToList().FindIndex(s => ScopeOrgId(s) == orgId);
+                if (idx >= 0) scopeIndex = idx;
+            }
+            if (available.Count > 0)
+                await LoadScopeStateAsync();
+        }
+        catch
+        {
+            pageError = SalesErrors.PersistenceUnavailable;
+        }
+        finally
+        {
+            initialLoading = false;
+        }
+    }
+
+    private async Task LoadScopeStateAsync()
+    {
+        if (CurrentScope is null) return;
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is null) return;
+
+        scopeCanManageCustomers = CurrentScope is OrganizationScope.Organization
+            && (await Permissions.EvaluateAsync(actor, CurrentScope, SalesPermissions.ManageCustomers, default)).IsAllowed;
+        scopeCanManageOrders = (await Permissions.EvaluateAsync(actor, CurrentScope, SalesPermissions.ManageOrders, default)).IsAllowed;
+        scopeCanDispatch = (await Permissions.EvaluateAsync(actor, CurrentScope, SalesPermissions.Dispatch, default)).IsAllowed;
+
+        var sitesRes = await OrgService.ListSites(CurrentScope, CurrentOrgId, new OrganizationListQuery(Search: null, IncludeInactive: false, Page: 1, PageSize: 100));
+        authorizedSites = sitesRes.Succeeded ? sitesRes.Value!.Items : [];
+        siteFilter = CurrentScope is OrganizationScope.Site siteScope ? siteScope.SiteId : 0;
+    }
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var idx) && idx >= 0 && idx < available.Count)
+        {
+            scopeIndex = idx;
+            await LoadScopeStateAsync();
+            await RefreshCurrentGridAsync();
+        }
+    }
+
+    private async Task SwitchTabAsync(string tab)
+    {
+        activeTab = tab;
+        pageNotice = null;
+        await RefreshCurrentGridAsync();
+    }
+
+    private async Task ChangeSiteFilterAsync(ChangeEventArgs e)
+    {
+        siteFilter = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        await RefreshCurrentGridAsync();
+    }
+
+    private async Task ChangeOrderStatusFilterAsync(ChangeEventArgs e)
+    {
+        orderStatusFilter = e.Value?.ToString() ?? string.Empty;
+        await RefreshCurrentGridAsync();
+    }
+
+    private async Task ToggleInactiveCustomersAsync(ChangeEventArgs e)
+    {
+        includeInactiveCustomers = e.Value is bool b && b;
+        await RefreshCurrentGridAsync();
+    }
+
+    private Task ApplySearchAsync() => RefreshCurrentGridAsync();
+
+    private static long ScopeOrgId(OrganizationScope? scope) => scope switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site s => s.OrganizationId,
+        _ => 0
+    };
+
+    private Task RefreshCurrentGridAsync() => activeTab switch
+    {
+        TabCustomers => customerGrid?.RefreshAsync() ?? Task.CompletedTask,
+        TabDispatches => dispatchGrid?.RefreshAsync() ?? Task.CompletedTask,
+        _ => orderGrid?.RefreshAsync() ?? Task.CompletedTask
+    };
+
+    private async Task<BitDataGridReadResult<CustomerSummary>> ReadCustomersAsync(BitDataGridReadRequest req)
+    {
+        if (CurrentScope is null) return new([], 0);
+        var size = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / size) + 1;
+        var res = await SalesService.ListCustomers(CurrentScope, CurrentOrgId,
+            new CustomerListQuery(search, includeInactiveCustomers, page, size), req.CancellationToken);
+        return res.Succeeded
+            ? new(res.Value!.Items.ToList(), res.Value.Total)
+            : new([], 0);
+    }
+
+    private async Task<BitDataGridReadResult<SalesOrderSummary>> ReadOrdersAsync(BitDataGridReadRequest req)
+    {
+        if (CurrentScope is null) return new([], 0);
+        var size = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / size) + 1;
+        SalesOrderStatus? status = byte.TryParse(orderStatusFilter, out var st) ? (SalesOrderStatus)st : null;
+        var res = await SalesService.ListSalesOrders(CurrentScope, CurrentOrgId,
+            new SalesOrderListQuery(siteFilter > 0 ? siteFilter : null, null, status, search, page, size), req.CancellationToken);
+        return res.Succeeded
+            ? new(res.Value!.Items.ToList(), res.Value.Total)
+            : new([], 0);
+    }
+
+    private async Task<BitDataGridReadResult<DeliveryOrderSummary>> ReadDispatchesAsync(BitDataGridReadRequest req)
+    {
+        if (CurrentScope is null) return new([], 0);
+        var size = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / size) + 1;
+        var res = await SalesService.ListDeliveryOrders(CurrentScope, CurrentOrgId,
+            new DeliveryOrderListQuery(siteFilter > 0 ? siteFilter : null, null, null, null, search, page, size), req.CancellationToken);
+        return res.Succeeded
+            ? new(res.Value!.Items.ToList(), res.Value.Total)
+            : new([], 0);
+    }
+
+    private void OpenCreateCustomerModal()
+    {
+        editingCustomerId = null;
+        editingCustomerVersion = null;
+        custCode = string.Empty;
+        custName = string.Empty;
+        custContact = null;
+        custPhone = null;
+        custEmail = null;
+        custTaxCode = null;
+        custAddress = null;
+        custNotes = null;
+        customerModalError = null;
+        customerModalOpen = true;
+    }
+
+    private void OpenEditCustomerModal(CustomerSummary c)
+    {
+        editingCustomerId = c.Id;
+        editingCustomerVersion = c.RowVersion;
+        custCode = c.Code;
+        custName = c.Name;
+        custContact = c.ContactName;
+        custPhone = c.Phone;
+        custEmail = c.Email;
+        custTaxCode = c.TaxCode;
+        custAddress = c.ShippingAddress;
+        custNotes = c.Notes;
+        customerModalError = null;
+        customerModalOpen = true;
+    }
+
+    private async Task SaveCustomerAsync()
+    {
+        if (CurrentScope is null) return;
+        customerSaving = true;
+        customerModalError = null;
+        try
+        {
+            var res = editingCustomerId.HasValue
+                ? await SalesService.UpdateCustomer(CurrentScope, CurrentOrgId, editingCustomerId.Value,
+                    new UpdateCustomerRequest(custName, custContact, custPhone, custEmail, custAddress, custTaxCode, custNotes),
+                    editingCustomerVersion)
+                : await SalesService.CreateCustomer(CurrentScope,
+                    new CreateCustomerRequest(CurrentOrgId, custCode, custName, custContact, custPhone, custEmail, custAddress, custTaxCode, custNotes));
+
+            if (!res.Succeeded)
+            {
+                customerModalError = MapError(res.Error!.Code);
+                return;
+            }
+            customerModalOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshCurrentGridAsync();
+        }
+        finally { customerSaving = false; }
+    }
+
+    private async Task ToggleCustomerActiveAsync(CustomerSummary c)
+    {
+        if (CurrentScope is null) return;
+        var res = await SalesService.SetCustomerActive(CurrentScope, CurrentOrgId, c.Id, !c.IsActive, c.RowVersion);
+        if (res.Succeeded)
+        {
+            pageNotice = Text["WriteSaved"];
+            await RefreshCurrentGridAsync();
+        }
+    }
+
+    private async Task LoadOrderModalLookupsAsync(long siteId)
+    {
+        if (CurrentScope is null) return;
+        var custRes = await SalesService.ListCustomers(CurrentScope, CurrentOrgId, new CustomerListQuery(IncludeInactive: false, PageSize: 100));
+        activeCustomers = custRes.Succeeded ? custRes.Value!.Items.ToList() : [];
+
+        var whRes = await InvService.ListWarehouses(CurrentScope, CurrentOrgId, new WarehouseListQuery(SiteId: siteId > 0 ? siteId : null, IncludeInactive: false, PageSize: 100));
+        siteWarehouses = whRes.Succeeded ? whRes.Value!.Items.ToList() : [];
+
+        var itemRes = await ItemService.ListItems(CurrentScope, CurrentOrgId, new ItemListQuery(IncludeInactive: false, PageSize: 100));
+        sellableItems = itemRes.Succeeded ? itemRes.Value!.Items.Where(i => i.CanBeSold).ToList() : [];
+
+        var unitRes = await UnitService.ListUnits(CurrentScope, CurrentOrgId, new UnitListQuery(IncludeInactive: false, PageSize: 100));
+        activeUnits = unitRes.Succeeded ? unitRes.Value!.Items.ToList() : [];
+
+        var curRes = await UnitService.ListCurrencies(CurrentScope, CurrentOrgId, new CurrencyListQuery(IncludeInactive: false, PageSize: 100));
+        activeCurrencies = curRes.Succeeded ? curRes.Value!.Items.ToList() : [];
+
+        await LoadOrderStockSummaryAsync(siteId, editOrderWarehouseId);
+    }
+
+    private async Task LoadOrderStockSummaryAsync(long siteId, long warehouseId)
+    {
+        itemStockSummary = [];
+        if (CurrentScope is null || siteId <= 0) return;
+        try
+        {
+            var balRes = await InvService.ListBalances(CurrentScope, CurrentOrgId,
+                new InventoryBalanceListQuery(SiteId: siteId, WarehouseId: warehouseId > 0 ? warehouseId : null, IncludeZeroBalances: false, Page: 1, PageSize: 100));
+            if (!balRes.Succeeded) return;
+
+            var dict = new Dictionary<long, ItemStockSnapshot>();
+            foreach (var b in balRes.Value!.Items)
+            {
+                if (dict.TryGetValue(b.ItemId, out var cur))
+                    dict[b.ItemId] = cur with { Available = cur.Available + b.AvailableBaseQuantity };
+                else
+                    dict[b.ItemId] = new ItemStockSnapshot(b.BaseUnitId, b.BaseUnitSymbol, b.AvailableBaseQuantity);
+            }
+            foreach (var it in sellableItems)
+            {
+                if (!dict.ContainsKey(it.Id))
+                    dict[it.Id] = new ItemStockSnapshot(it.BaseUnitId, it.BaseUnitSymbol, 0m);
+            }
+            itemStockSummary = dict;
+        }
+        catch { }
+    }
+
+    private async Task OpenCreateOrderModalAsync()
+    {
+        if (CurrentScope is null) return;
+        editingOrderId = null;
+        editingOrderVersion = null;
+        editOrderSiteId = CurrentScope is OrganizationScope.Site s ? s.SiteId : (authorizedSites.FirstOrDefault()?.Id ?? 0);
+        await LoadOrderModalLookupsAsync(editOrderSiteId);
+
+        var prevRes = await SeqService.GetPreview(CurrentScope, CurrentOrgId, ForgeFlow.Domain.Organizations.DocumentSequenceType.SalesOrder);
+        editOrderAllowOverride = prevRes.Succeeded && prevRes.Value!.AllowManualOverride;
+        editOrderNumber = prevRes.Succeeded ? prevRes.Value!.NextPreview : string.Empty;
+        editOrderCustomerId = activeCustomers.FirstOrDefault()?.Id ?? 0;
+        editOrderWarehouseId = 0;
+        editOrderDateOffset = DateTimeOffset.Now;
+        editRequestedDateOffset = null;
+        editOrderCurrency = activeCurrencies.FirstOrDefault()?.Code ?? "IRR";
+        editOrderAddress = null;
+        editOrderNotes = null;
+        var firstItem = sellableItems.FirstOrDefault();
+        editLines = [new OrderLineEdit { ItemId = firstItem?.Id ?? 0, Quantity = 1m, UnitId = firstItem?.BaseUnitId ?? 0 }];
+        orderModalError = null;
+        orderModalOpen = true;
+    }
+
+    private async Task OpenEditOrderFromDetailAsync(SalesOrderDetails d)
+    {
+        orderDetailOpen = false;
+        editingOrderId = d.Summary.Id;
+        editingOrderVersion = d.Summary.RowVersion;
+        editOrderSiteId = d.Summary.SiteId;
+        await LoadOrderModalLookupsAsync(editOrderSiteId);
+
+        editOrderNumber = d.Summary.OrderNumber;
+        editOrderCustomerId = d.Summary.CustomerId;
+        editOrderWarehouseId = d.Summary.SourceWarehouseId ?? 0;
+        editOrderDateOffset = new DateTimeOffset(d.Summary.OrderDate.ToDateTime(TimeOnly.MinValue));
+        editRequestedDateOffset = d.Summary.RequestedDeliveryDate is DateOnly rd ? new DateTimeOffset(rd.ToDateTime(TimeOnly.MinValue)) : null;
+        editOrderCurrency = d.Summary.CurrencyCode;
+        editOrderAddress = d.Summary.ShippingAddressSnapshot;
+        editOrderNotes = d.Summary.Notes;
+        editLines = d.Lines.Select(l => new OrderLineEdit
+        {
+            ItemId = l.ItemId,
+            Quantity = l.OrderedQuantity,
+            UnitId = l.OrderedUnitId,
+            UnitPrice = l.UnitPrice,
+            Notes = l.Notes
+        }).ToList();
+        orderModalError = null;
+        orderModalOpen = true;
+    }
+
+    private async Task ChangeEditOrderSiteAsync(ChangeEventArgs e)
+    {
+        if (CurrentScope is null) return;
+        if (long.TryParse(e.Value?.ToString(), out var id))
+        {
+            editOrderSiteId = id;
+            editOrderWarehouseId = 0;
+            var whRes = await InvService.ListWarehouses(CurrentScope, CurrentOrgId, new WarehouseListQuery(SiteId: id, IncludeInactive: false, PageSize: 100));
+            siteWarehouses = whRes.Succeeded ? whRes.Value!.Items.ToList() : [];
+            await LoadOrderStockSummaryAsync(editOrderSiteId, editOrderWarehouseId);
+        }
+    }
+
+    private async Task ChangeEditOrderWarehouseAsync(ChangeEventArgs e)
+    {
+        editOrderWarehouseId = long.TryParse(e.Value?.ToString(), out var whId) ? whId : 0;
+        await LoadOrderStockSummaryAsync(editOrderSiteId, editOrderWarehouseId);
+    }
+
+    private void OnOrderLineItemChanged(int index, ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), out var itemId))
+        {
+            editLines[index].ItemId = itemId;
+            var item = sellableItems.FirstOrDefault(x => x.Id == itemId);
+            if (item is not null)
+                editLines[index].UnitId = item.BaseUnitId;
+        }
+    }
+
+    private void AddOrderLine()
+    {
+        var firstItem = sellableItems.FirstOrDefault();
+        editLines.Add(new OrderLineEdit { ItemId = firstItem?.Id ?? 0, Quantity = 1m, UnitId = firstItem?.BaseUnitId ?? 0 });
+    }
+
+    private void RemoveOrderLine(int index)
+    {
+        if (editLines.Count > 1) editLines.RemoveAt(index);
+    }
+
+    private async Task SaveOrderAsync()
+    {
+        if (CurrentScope is null) return;
+        orderSaving = true;
+        orderModalError = null;
+        try
+        {
+            var orderDate = DateOnly.FromDateTime((editOrderDateOffset ?? DateTimeOffset.Now).DateTime);
+            DateOnly? reqDate = editRequestedDateOffset is DateTimeOffset dto ? DateOnly.FromDateTime(dto.DateTime) : null;
+            var lineRequests = editLines.Select(l => new SalesOrderLineRequest(l.ItemId, l.Quantity, l.UnitId, l.UnitPrice, l.Notes)).ToArray();
+
+            var res = editingOrderId.HasValue
+                ? await SalesService.UpdateSalesOrder(CurrentScope, CurrentOrgId, editingOrderId.Value,
+                    new UpdateSalesOrderRequest(editOrderCustomerId, orderDate, reqDate, editOrderWarehouseId > 0 ? editOrderWarehouseId : null, editOrderCurrency, editOrderAddress, editOrderNotes, lineRequests),
+                    editingOrderVersion)
+                : await SalesService.CreateSalesOrder(CurrentScope,
+                    new CreateSalesOrderRequest(CurrentOrgId, editOrderSiteId, editOrderCustomerId, editOrderAllowOverride ? editOrderNumber : null, orderDate, reqDate, editOrderWarehouseId > 0 ? editOrderWarehouseId : null, editOrderCurrency, editOrderAddress, editOrderNotes, lineRequests));
+
+            if (!res.Succeeded)
+            {
+                orderModalError = MapError(res.Error!.Code);
+                return;
+            }
+            orderModalOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshCurrentGridAsync();
+        }
+        finally { orderSaving = false; }
+    }
+
+    private async Task OpenOrderDetailModalAsync(long salesOrderId)
+    {
+        if (CurrentScope is null) return;
+        detailError = null;
+        var res = await SalesService.GetSalesOrder(CurrentScope, CurrentOrgId, salesOrderId);
+        if (!res.Succeeded) return;
+        detailOrder = res.Value;
+        var resList = await ReservationService.ListSalesOrderReservations(CurrentScope, CurrentOrgId, salesOrderId);
+        orderReservations = resList.Succeeded ? resList.Value! : [];
+        orderDetailOpen = true;
+    }
+
+    private async Task ApproveDetailOrderAsync()
+    {
+        if (CurrentScope is null || detailOrder is null) return;
+        var res = await SalesService.ApproveSalesOrder(CurrentScope, CurrentOrgId, detailOrder.Summary.Id, detailOrder.Summary.RowVersion);
+        if (!res.Succeeded) { detailError = MapError(res.Error!.Code); return; }
+        detailOrder = res.Value;
+        pageNotice = Text["WriteSaved"];
+        await RefreshCurrentGridAsync();
+    }
+
+    private async Task CloseDetailOrderAsync()
+    {
+        if (CurrentScope is null || detailOrder is null) return;
+        var res = await SalesService.CloseSalesOrder(CurrentScope, CurrentOrgId, detailOrder.Summary.Id, detailOrder.Summary.RowVersion);
+        if (!res.Succeeded) { detailError = MapError(res.Error!.Code); return; }
+        detailOrder = res.Value;
+        pageNotice = Text["WriteSaved"];
+        await RefreshCurrentGridAsync();
+    }
+
+    private async Task OpenReserveModalAsync(SalesOrderLineDetails line)
+    {
+        if (CurrentScope is null || detailOrder is null) return;
+        reserveLine = line;
+        var whRes = await InvService.ListWarehouses(CurrentScope, CurrentOrgId, new WarehouseListQuery(SiteId: detailOrder.Summary.SiteId, IncludeInactive: false, PageSize: 100));
+        siteWarehouses = whRes.Succeeded ? whRes.Value!.Items.ToList() : [];
+        reserveWarehouseId = detailOrder.Summary.SourceWarehouseId ?? 0;
+        reserveLotCode = string.Empty;
+        reserveQuantity = line.RemainingBaseQuantity;
+        reserveNotes = null;
+        reserveModalError = null;
+        reserveModalOpen = true;
+    }
+
+    private async Task SaveReservationAsync()
+    {
+        if (CurrentScope is null || detailOrder is null || reserveLine is null) return;
+        reserveSaving = true;
+        reserveModalError = null;
+        try
+        {
+            var res = await ReservationService.ReserveSalesOrderStock(CurrentScope,
+                new ReserveSalesOrderStockRequest(
+                    CurrentOrgId,
+                    detailOrder.Summary.Id,
+                    reserveLine.Id,
+                    reserveLine.ItemId,
+                    reserveQuantity,
+                    reserveLine.BaseUnitIdSnapshot,
+                    reserveWarehouseId > 0 ? reserveWarehouseId : null,
+                    reserveLotCode,
+                    reserveNotes));
+            if (!res.Succeeded) { reserveModalError = MapError(res.Error!.Code); return; }
+            reserveModalOpen = false;
+            var resList = await ReservationService.ListSalesOrderReservations(CurrentScope, CurrentOrgId, detailOrder.Summary.Id);
+            orderReservations = resList.Succeeded ? resList.Value! : [];
+        }
+        finally { reserveSaving = false; }
+    }
+
+    private async Task ReleaseOrderReservationAsync(StockReservationSummary r)
+    {
+        if (CurrentScope is null || detailOrder is null) return;
+        var res = await ReservationService.ReleaseReservation(CurrentScope, new ReleaseReservationRequest(CurrentOrgId, r.Id, r.RowVersion));
+        if (!res.Succeeded) { detailError = MapError(res.Error!.Code); return; }
+        var resList = await ReservationService.ListSalesOrderReservations(CurrentScope, CurrentOrgId, detailOrder.Summary.Id);
+        orderReservations = resList.Succeeded ? resList.Value! : [];
+    }
+
+    private async Task OpenPostDispatchModalAsync(long salesOrderId)
+    {
+        if (CurrentScope is null) return;
+        orderDetailOpen = false;
+        var ordRes = await SalesService.GetSalesOrder(CurrentScope, CurrentOrgId, salesOrderId);
+        if (!ordRes.Succeeded) return;
+        var order = ordRes.Value!;
+        dispatchOrderId = salesOrderId;
+
+        var whRes = await InvService.ListWarehouses(CurrentScope, CurrentOrgId, new WarehouseListQuery(SiteId: order.Summary.SiteId, IncludeInactive: false, PageSize: 100));
+        siteWarehouses = whRes.Succeeded ? whRes.Value!.Items.ToList() : [];
+        dispWarehouseId = order.Summary.SourceWarehouseId ?? (siteWarehouses.FirstOrDefault()?.Id ?? 0);
+        var dispPrev = await SeqService.GetPreview(CurrentScope, CurrentOrgId, ForgeFlow.Domain.Organizations.DocumentSequenceType.DeliveryOrder);
+        dispAllowOverride = dispPrev.Succeeded && dispPrev.Value!.AllowManualOverride;
+        dispNumber = dispPrev.Succeeded ? dispPrev.Value!.NextPreview : string.Empty;
+        dispDateOffset = DateTimeOffset.Now;
+        dispCarrier = null;
+        dispTracking = null;
+        dispNotes = null;
+        dispLines = order.Lines.Where(l => l.RemainingBaseQuantity > 0m).Select(l => new DispatchLineEdit
+        {
+            SalesOrderLineId = l.Id,
+            ItemId = l.ItemId,
+            ItemCode = l.ItemCode,
+            ItemName = l.ItemName,
+            RemainingBaseQuantity = l.RemainingBaseQuantity,
+            UnitId = l.BaseUnitIdSnapshot,
+            UnitSymbol = l.BaseUnitSymbolSnapshot,
+            Quantity = l.RemainingBaseQuantity
+        }).ToList();
+
+        if (dispWarehouseId > 0)
+        {
+            var lotsRes = await SalesService.ListDispatchableLots(CurrentScope, CurrentOrgId, salesOrderId, dispWarehouseId);
+            dispatchableLots = lotsRes.Succeeded ? lotsRes.Value! : [];
+        }
+        else dispatchableLots = [];
+
+        dispatchModalError = null;
+        dispatchModalOpen = true;
+    }
+
+    private async Task ChangeDispatchWarehouseAsync(ChangeEventArgs e)
+    {
+        if (CurrentScope is null) return;
+        if (long.TryParse(e.Value?.ToString(), out var whId))
+        {
+            dispWarehouseId = whId;
+            var lotsRes = await SalesService.ListDispatchableLots(CurrentScope, CurrentOrgId, dispatchOrderId, whId);
+            dispatchableLots = lotsRes.Succeeded ? lotsRes.Value! : [];
+        }
+    }
+
+    private async Task SaveDispatchAsync()
+    {
+        if (CurrentScope is null) return;
+        dispatchSaving = true;
+        dispatchModalError = null;
+        try
+        {
+            var picked = dispLines.Where(l => l.Quantity > 0m && !string.IsNullOrWhiteSpace(l.LotCode))
+                .Select(l => new PostDeliveryOrderLineRequest(l.SalesOrderLineId, l.LotCode, l.Quantity, l.UnitId, null))
+                .ToArray();
+            var date = DateOnly.FromDateTime((dispDateOffset ?? DateTimeOffset.Now).DateTime);
+            var res = await SalesService.PostDeliveryOrder(CurrentScope, CurrentOrgId, dispatchOrderId,
+                new PostDeliveryOrderRequest(dispWarehouseId, dispAllowOverride ? dispNumber : null, date, dispCarrier, dispTracking, dispNotes, picked));
+            if (!res.Succeeded) { dispatchModalError = MapError(res.Error!.Code); return; }
+
+            dispatchModalOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshCurrentGridAsync();
+        }
+        finally { dispatchSaving = false; }
+    }
+
+    private async Task OpenDispatchDetailModalAsync(long deliveryOrderId)
+    {
+        if (CurrentScope is null) return;
+        var res = await SalesService.GetDeliveryOrder(CurrentScope, CurrentOrgId, deliveryOrderId);
+        if (!res.Succeeded) return;
+        detailDispatch = res.Value;
+        dispatchDetailOpen = true;
+    }
+
+    private void OpenCancelOrderModal()
+    {
+        reasonMode = ReasonMode.CancelOrder;
+        reasonInput = string.Empty;
+        reasonModalError = null;
+        reasonModalOpen = true;
+    }
+
+    private void OpenReverseDispatchModal(DeliveryOrderSummary d)
+    {
+        reasonMode = ReasonMode.ReverseDispatch;
+        reversingDispatch = d;
+        reasonInput = string.Empty;
+        reasonModalError = null;
+        reasonModalOpen = true;
+    }
+
+    private async Task ConfirmReasonActionAsync()
+    {
+        if (CurrentScope is null) return;
+        reasonSaving = true;
+        reasonModalError = null;
+        try
+        {
+            if (reasonMode == ReasonMode.CancelOrder && detailOrder is not null)
+            {
+                var res = await SalesService.CancelSalesOrder(CurrentScope, CurrentOrgId, detailOrder.Summary.Id,
+                    new CancelSalesOrderRequest(reasonInput), detailOrder.Summary.RowVersion);
+                if (!res.Succeeded) { reasonModalError = MapError(res.Error!.Code); return; }
+                detailOrder = res.Value;
+            }
+            else if (reasonMode == ReasonMode.ReverseDispatch && reversingDispatch is not null)
+            {
+                var res = await SalesService.ReverseDeliveryOrder(CurrentScope, CurrentOrgId, reversingDispatch.Id,
+                    new ReverseDeliveryOrderRequest(reasonInput), reversingDispatch.RowVersion);
+                if (!res.Succeeded) { reasonModalError = MapError(res.Error!.Code); return; }
+            }
+            reasonModalOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshCurrentGridAsync();
+        }
+        finally { reasonSaving = false; }
+    }
+
+    private void OpenCoaDialog(long itemId, string lotCode)
+    {
+        coaItemId = itemId;
+        coaLotCode = lotCode;
+        coaOpen = true;
+    }
+
+    private string ScopeLabel(OrganizationScope scope) => scope switch { OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId], OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId], _ => string.Empty };
+
+    private string OrderStatusLabel(SalesOrderStatus status) => status switch
+    {
+        SalesOrderStatus.Draft => Text["SalesOrderStatusDraft"],
+        SalesOrderStatus.Approved => Text["SalesOrderStatusApproved"],
+        SalesOrderStatus.PartiallyDispatched => Text["SalesOrderStatusPartiallyDispatched"],
+        SalesOrderStatus.Dispatched => Text["SalesOrderStatusDispatched"],
+        SalesOrderStatus.Cancelled => Text["SalesOrderStatusCancelled"],
+        SalesOrderStatus.Closed => Text["SalesOrderStatusClosed"],
+        _ => status.ToString()
+    };
+
+    private static string OrderStatusCss(SalesOrderStatus status) => status switch
+    {
+        SalesOrderStatus.Approved or SalesOrderStatus.Dispatched => "is-active",
+        SalesOrderStatus.Cancelled => "is-inactive",
+        _ => string.Empty
+    };
+
+    private string MapError(string code)
+    {
+        var key = "Err_" + code.Replace(".", string.Empty, StringComparison.Ordinal);
+        var val = Text[key];
+        return val.ResourceNotFound ? code : val.Value;
+    }
+
+    private sealed record ItemStockSnapshot(long BaseUnitId, string BaseUnitSymbol, decimal Available);
+
+    private sealed class OrderLineEdit
+    {
+        public long ItemId { get; set; }
+        public decimal Quantity { get; set; } = 1m;
+        public long UnitId { get; set; }
+        public decimal? UnitPrice { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    private sealed class DispatchLineEdit
+    {
+        public long SalesOrderLineId { get; set; }
+        public long ItemId { get; set; }
+        public string ItemCode { get; set; } = string.Empty;
+        public string ItemName { get; set; } = string.Empty;
+        public decimal RemainingBaseQuantity { get; set; }
+        public long UnitId { get; set; }
+        public string UnitSymbol { get; set; } = string.Empty;
+        public string LotCode { get; set; } = string.Empty;
+        public decimal Quantity { get; set; }
+    }
+}

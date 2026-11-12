@@ -421,7 +421,9 @@ public sealed class ProcurementUseCases(
         else
             result = await ExecuteStore(async () =>
             {
-                var docNum = ProcurementText.Code(request.ReceiptDocumentNumber, ProcurementErrors.ReceiptDocumentInvalid);
+                var docNum = string.IsNullOrWhiteSpace(request.ReceiptDocumentNumber)
+                    ? string.Empty
+                    : ProcurementText.Code(request.ReceiptDocumentNumber, ProcurementErrors.ReceiptDocumentInvalid);
                 var existing = await store.GetPurchaseOrder(request.OrganizationId, request.PurchaseOrderId, ct);
                 if (existing is null)
                     return OrganizationResult<PurchaseOrderReceiptResult>.Failure(ProcurementErrors.NotFound);

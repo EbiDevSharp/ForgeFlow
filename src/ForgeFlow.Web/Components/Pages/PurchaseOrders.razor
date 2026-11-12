@@ -14,6 +14,7 @@
 @inject InventoryUseCases InvService
 @inject ItemUseCases ItemService
 @inject UnitUseCases UnitService
+@inject DocumentSequenceUseCases SeqService
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
 @inject ITrustedActorAccessor Actors
 @inject IOrganizationPermissionEvaluator Permissions
@@ -216,7 +217,7 @@
                 <div class="proc-po-general-grid">
                     <div class="proc-po-field">
                         <label for="proc-po-num">@Text["ProcPoNumberLabel"]</label>
-                        <input id="proc-po-num" type="text" maxlength="32" class="proc-input-readonly" @bind="editOrderNumber" dir="ltr" readonly />
+                        <input id="proc-po-num" type="text" maxlength="32" class="@((isEditingDraft || !poAllowOverride) ? "proc-input-readonly" : string.Empty)" @bind="editOrderNumber" dir="ltr" readonly="@(isEditingDraft || !poAllowOverride)" />
                     </div>
                     <div class="proc-po-field">
                         <label for="proc-po-sup">@Text["ProcSupplierLabel"] <span class="proc-req-star" aria-hidden="true">*</span></label>
@@ -704,6 +705,7 @@
     private long editSiteId;
     private long editSupplierId;
     private string editOrderNumber = string.Empty;
+    private bool poAllowOverride;
     private long editTargetWarehouseId;
     private string editCurrencyCode = "IRR";
     private DateTimeOffset? editOrderDateOffset;
@@ -863,7 +865,7 @@
         return new(res.Value!.Items.ToList(), res.Value.Total);
     }
 
-    private Task OpenCreateModalAsync()
+    private async Task OpenCreateModalAsync()
     {
         modalError = null;
         isEditingDraft = false;
@@ -871,7 +873,11 @@
             ? siteScope.SiteId
             : authorizedSites.FirstOrDefault()?.Id ?? 0;
         editSupplierId = 0;
-        editOrderNumber = $"PO-{DateTime.UtcNow:yyyyMMddHHmm}";
+        var prevRes = CurrentScope is not null
+            ? await SeqService.GetPreview(CurrentScope, ScopeOrganizationId(CurrentScope), ForgeFlow.Domain.Organizations.DocumentSequenceType.PurchaseOrder)
+            : null;
+        poAllowOverride = prevRes is { Succeeded: true } && prevRes.Value!.AllowManualOverride;
+        editOrderNumber = prevRes is { Succeeded: true } ? prevRes.Value!.NextPreview : string.Empty;
         editTargetWarehouseId = 0;
         editCurrencyCode = activeCurrencies.Any(c => c.Code == "IRR")
             ? "IRR"
@@ -882,7 +888,6 @@
         draftLines = [];
         AddDraftLine();
         editorModalOpen = true;
-        return Task.CompletedTask;
     }
 
     private void OnEditorSiteChanged(ChangeEventArgs e)
@@ -947,7 +952,7 @@
             else
             {
                 res = await ProcService.CreateDraft(scope, new CreatePurchaseOrderRequest(
-                    orgId, editSiteId, editSupplierId, editOrderNumber, orderDate, expDate, wh, editCurrencyCode, editNotes, inputs));
+                    orgId, editSiteId, editSupplierId, poAllowOverride ? editOrderNumber : null, orderDate, expDate, wh, editCurrencyCode, editNotes, inputs));
             }
 
             if (!res.Succeeded) { modalError = Text[RolePermissionLocalization.FailureKey(res.Error!.Code)]; return; }

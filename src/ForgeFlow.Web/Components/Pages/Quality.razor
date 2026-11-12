@@ -15,6 +15,7 @@
 @inject ProductionOrderUseCases OrderService
 @inject ItemUseCases ItemService
 @inject UnitUseCases UnitService
+@inject DocumentSequenceUseCases SeqService
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
 @inject ITrustedActorAccessor Actors
 @inject IOrganizationPermissionEvaluator Permissions
@@ -699,7 +700,7 @@
                                 </div>
                                 <div class="write-field">
                                     <label for="qc-disp-scrapdoc">@Text["QcScrapDocLabel"]</label>
-                                    <input id="qc-disp-scrapdoc" type="text" maxlength="32" @bind="dispScrapDoc" placeholder="@($"QS-{q.InspectionNumber}")" />
+                                    <input id="qc-disp-scrapdoc" type="text" maxlength="32" class="@(qcScrapAllowOverride ? string.Empty : "proc-input-readonly")" @bind="dispScrapDoc" readonly="@(!qcScrapAllowOverride)" dir="ltr" />
                                 </div>
                                 <div class="write-field">
                                     <label for="qc-disp-notes">@Text["PoNotesLabel"]</label>
@@ -1094,6 +1095,8 @@
     private decimal dispAcceptQty;
     private decimal dispRejectQty;
     private string? dispScrapDoc;
+    private string? qcScrapPreview;
+    private bool qcScrapAllowOverride;
     private string? dispNotes;
 
     private bool lotModalOpen;
@@ -1439,6 +1442,9 @@
         if (scope is null) return;
         var res = await QualityService.GetInspection(scope, ScopeOrganizationId(scope), id);
         if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+        var scrapPrev = await SeqService.GetPreview(scope, ScopeOrganizationId(scope), ForgeFlow.Domain.Organizations.DocumentSequenceType.QualityScrap);
+        qcScrapAllowOverride = scrapPrev.Succeeded && scrapPrev.Value!.AllowManualOverride;
+        qcScrapPreview = scrapPrev.Succeeded ? scrapPrev.Value!.NextPreview : null;
         ApplyInspectionDetails(res.Value!);
         detailsOpen = true;
     }
@@ -1475,7 +1481,7 @@
         }
         dispAcceptQty = details.Summary.RemainingBlockedBaseQuantity;
         dispRejectQty = 0m;
-        dispScrapDoc = null;
+        dispScrapDoc = qcScrapPreview;
         dispNotes = null;
     }
 
@@ -1767,7 +1773,7 @@
             var res = await QualityService.RecordDisposition(scope, new RecordQualityDispositionRequest(
                 selectedInspection.Summary.OrganizationId, selectedInspection.Summary.Id,
                 dispAcceptQty, dispRejectQty, selectedInspection.Summary.BaseUnitId,
-                editDefectCode, dispNotes, dispScrapDoc, selectedInspection.Summary.RowVersion));
+                editDefectCode, dispNotes, qcScrapAllowOverride ? dispScrapDoc : null, selectedInspection.Summary.RowVersion));
             if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
             ApplyInspectionDetails(res.Value!);
             pageNotice = Text["QcDispositionSavedNotice"];

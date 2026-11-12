@@ -78,7 +78,7 @@ public sealed class QualitySpecUseCases(
     public async Task<OrganizationResult<OrganizationPage<QualityParameterSummary>>> ListParameters(
         OrganizationScope? scope, long organizationId, QualityParameterListQuery query, CancellationToken ct = default)
     {
-        var auth = await AuthorizeAny(scope, ct, QualityPermissions.QualityRead, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead);
+        var auth = await AuthorizeAny(scope, ct, QualityPermissions.QualityRead, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead, "Sales.Read");
         if (auth.Error is not null) return OrganizationResult<OrganizationPage<QualityParameterSummary>>.Failure(auth.Error);
         if (!TryResolveOrgScope(scope, organizationId)) return OrganizationResult<OrganizationPage<QualityParameterSummary>>.Failure(QualityErrors.AccessDenied);
         try { return OrganizationResult<OrganizationPage<QualityParameterSummary>>.Success(await store.ListParameters(organizationId, Bound(query), ct)); }
@@ -140,7 +140,7 @@ public sealed class QualitySpecUseCases(
     public async Task<OrganizationResult<OrganizationPage<QualitySpecSummary>>> ListSpecs(
         OrganizationScope? scope, long organizationId, QualitySpecListQuery query, CancellationToken ct = default)
     {
-        var auth = await AuthorizeAny(scope, ct, QualityPermissions.QualityRead, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead);
+        var auth = await AuthorizeAny(scope, ct, QualityPermissions.QualityRead, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead, "Sales.Read");
         if (auth.Error is not null) return OrganizationResult<OrganizationPage<QualitySpecSummary>>.Failure(auth.Error);
         if (!TryResolveOrgScope(scope, organizationId)) return OrganizationResult<OrganizationPage<QualitySpecSummary>>.Failure(QualityErrors.AccessDenied);
         try { return OrganizationResult<OrganizationPage<QualitySpecSummary>>.Success(await store.ListSpecs(organizationId, Bound(query), ct)); }
@@ -150,7 +150,7 @@ public sealed class QualitySpecUseCases(
     public async Task<OrganizationResult<QualitySpecDetails>> GetSpec(
         OrganizationScope? scope, long organizationId, long id, CancellationToken ct = default)
     {
-        var auth = await AuthorizeAny(scope, ct, QualityPermissions.QualityRead, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead);
+        var auth = await AuthorizeAny(scope, ct, QualityPermissions.QualityRead, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead, "Sales.Read");
         if (auth.Error is not null) return OrganizationResult<QualitySpecDetails>.Failure(auth.Error);
         if (!TryResolveOrgScope(scope, organizationId) || id <= 0) return OrganizationResult<QualitySpecDetails>.Failure(QualityErrors.SpecNotFound);
         try
@@ -164,7 +164,7 @@ public sealed class QualitySpecUseCases(
     public async Task<OrganizationResult<QualitySpecDetails?>> ResolveApplicableSpec(
         OrganizationScope? scope, long organizationId, long itemId, QualitySpecCheckpoint checkpoint, CancellationToken ct = default)
     {
-        var auth = await AuthorizeAny(scope, ct, QualityPermissions.QualityRead, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead);
+        var auth = await AuthorizeAny(scope, ct, QualityPermissions.QualityRead, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead, "Sales.Read");
         if (auth.Error is not null) return OrganizationResult<QualitySpecDetails?>.Failure(auth.Error);
         if (!TryResolveOrgScope(scope, organizationId) || itemId <= 0) return OrganizationResult<QualitySpecDetails?>.Failure(QualityErrors.ItemInvalid);
         try { return OrganizationResult<QualitySpecDetails?>.Success(await store.ResolveApplicableSpec(organizationId, itemId, checkpoint, ct)); }
@@ -254,7 +254,7 @@ public sealed class QualitySpecUseCases(
     public async Task<OrganizationResult<LotCertificateSummary>> GetLotCertificate(
         OrganizationScope? scope, long organizationId, long itemId, string? lotCode, CancellationToken ct = default)
     {
-        var auth = await AuthorizeAny(scope, ct, QualityPermissions.QualityRead, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead);
+        var auth = await AuthorizeAny(scope, ct, QualityPermissions.QualityRead, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead, "Sales.Read");
         if (auth.Error is not null) return OrganizationResult<LotCertificateSummary>.Failure(auth.Error);
         if (!TryResolveOrgScope(scope, organizationId)) return OrganizationResult<LotCertificateSummary>.Failure(QualityErrors.AccessDenied);
         try

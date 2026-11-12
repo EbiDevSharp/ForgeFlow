@@ -13,6 +13,7 @@ using ForgeFlow.Application.ProductionOrders;
 using ForgeFlow.Application.Quality;
 using ForgeFlow.Application.Reporting;
 using ForgeFlow.Application.Routings;
+using ForgeFlow.Application.Sales;
 using ForgeFlow.Application.Units;
 using ForgeFlow.Application.Users;
 
@@ -127,6 +128,22 @@ public static class OrganizationPersistenceRegistration
                 provider.GetService<IErrorLogRecorder>(),
                 provider.GetService<IOperationContextAccessor>()),
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<TimeProvider>()));
+        services.AddScoped<SalesUseCases>(provider => new SalesUseCases(
+            new SqlSalesOperationsStore(
+                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+                provider.GetService<IErrorLogRecorder>(),
+                provider.GetService<IOperationContextAccessor>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>(),
+            provider.GetService<TimeProvider>()));
+        services.AddScoped<DocumentSequenceUseCases>(provider => new DocumentSequenceUseCases(
+            new SqlDocumentSequenceStore(
+                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+                provider.GetService<IErrorLogRecorder>(),
+                provider.GetService<IOperationContextAccessor>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>(),
             provider.GetService<TimeProvider>()));
         return services;
     }

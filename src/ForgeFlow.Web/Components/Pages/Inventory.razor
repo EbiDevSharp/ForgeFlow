@@ -13,6 +13,7 @@
 @inject ProductionOrderUseCases OrderService
 @inject ItemUseCases ItemService
 @inject UnitUseCases UnitService
+@inject DocumentSequenceUseCases SeqService
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
 @inject ITrustedActorAccessor Actors
 @inject IOrganizationPermissionEvaluator Permissions
@@ -491,7 +492,7 @@
                 <div class="po-form-grid">
                     <div class="write-field">
                         <label for="inv-post-doc">@Text["InvDocNumberLabel"]</label>
-                        <input id="inv-post-doc" type="text" maxlength="32" @bind="postDocNumber" placeholder="INV-2026-001" />
+                        <input id="inv-post-doc" type="text" maxlength="32" class="@(invDocAllowOverride ? string.Empty : "proc-input-readonly")" @bind="postDocNumber" readonly="@(!invDocAllowOverride)" dir="ltr" />
                         <span class="write-hint">@Text["BomCreateHint"]</span>
                     </div>
                     <div class="write-field">
@@ -706,7 +707,7 @@
                             <div class="po-form-grid">
                                 <div class="write-field">
                                     <label for="inv-rev-doc">@Text["InvReverseDocNumLabel"]</label>
-                                    <input id="inv-rev-doc" type="text" maxlength="32" @bind="reverseDocNumber" placeholder="@($"{t.DocumentNumber}-REV")" />
+                                    <input id="inv-rev-doc" type="text" maxlength="32" class="@(invRevAllowOverride ? string.Empty : "proc-input-readonly")" @bind="reverseDocNumber" readonly="@(!invRevAllowOverride)" dir="ltr" />
                                 </div>
                                 <div class="write-field">
                                     <label for="inv-rev-note">@Text["PoNotesLabel"]</label>
@@ -714,7 +715,7 @@
                                 </div>
                             </div>
                             <div class="write-actions">
-                                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy && !string.IsNullOrWhiteSpace(reverseDocNumber))" OnClick="ReverseSelectedTxnAsync">
+                                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy && (!invRevAllowOverride || !string.IsNullOrWhiteSpace(reverseDocNumber)))" OnClick="ReverseSelectedTxnAsync">
                                     @Text["InvReverseBtn"]
                                 </BitButton>
                             </div>
@@ -814,6 +815,7 @@
     private bool postModalOpen;
     private string? postError;
     private string postDocNumber = string.Empty;
+    private bool invDocAllowOverride;
     private InventoryTransactionType postType = InventoryTransactionType.Receipt;
     private long postWarehouseId;
     private bool postWarehouseManual;
@@ -826,6 +828,7 @@
     private InventoryTransactionDetails? selectedTxn;
     private string? detailsError;
     private string reverseDocNumber = string.Empty;
+    private bool invRevAllowOverride;
     private string? reverseNote;
     private long? handledQueryPoId;
 
@@ -1188,7 +1191,11 @@
     private async Task OpenPostModal(long? prefillPoId)
     {
         postError = null;
-        postDocNumber = string.Empty;
+        var prevRes = CurrentScope is not null
+            ? await SeqService.GetPreview(CurrentScope, ScopeOrganizationId(CurrentScope), ForgeFlow.Domain.Organizations.DocumentSequenceType.InventoryTransaction)
+            : null;
+        invDocAllowOverride = prevRes is { Succeeded: true } && prevRes.Value!.AllowManualOverride;
+        postDocNumber = prevRes is { Succeeded: true } ? prevRes.Value!.NextPreview : string.Empty;
         postDestWarehouseId = 0;
         postReferenceNote = null;
         postLines.Clear();
@@ -1308,7 +1315,7 @@
                 orgId,
                 postWarehouseId,
                 postType == InventoryTransactionType.TransferOut ? postDestWarehouseId : null,
-                postDocNumber,
+                invDocAllowOverride ? postDocNumber : null,
                 postType,
                 postType is InventoryTransactionType.ProductionIssue or InventoryTransactionType.ProductionReceipt ? postProductionOrderId : null,
                 postReferenceNote,
@@ -1330,7 +1337,9 @@
         if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
         selectedTxn = res.Value!;
         detailsError = null;
-        reverseDocNumber = string.Empty;
+        var revPrev = await SeqService.GetPreview(scope, ScopeOrganizationId(scope), ForgeFlow.Domain.Organizations.DocumentSequenceType.InventoryReversal);
+        invRevAllowOverride = revPrev.Succeeded && revPrev.Value!.AllowManualOverride;
+        reverseDocNumber = revPrev.Succeeded ? revPrev.Value!.NextPreview : string.Empty;
         reverseNote = null;
         detailsOpen = true;
     }
@@ -1346,7 +1355,7 @@
             var res = await InvService.ReverseTransaction(scope, new ReverseInventoryTransactionRequest(
                 selectedTxn.Summary.OrganizationId,
                 selectedTxn.Summary.Id,
-                reverseDocNumber,
+                invRevAllowOverride ? reverseDocNumber : null,
                 reverseNote));
             if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
             detailsOpen = false;

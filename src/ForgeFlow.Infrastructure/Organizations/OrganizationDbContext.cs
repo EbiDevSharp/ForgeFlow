@@ -10,6 +10,7 @@ using ForgeFlow.Domain.Procurement;
 using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Quality;
 using ForgeFlow.Domain.Routings;
+using ForgeFlow.Domain.Sales;
 using ForgeFlow.Domain.Units;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -68,6 +69,12 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
     public DbSet<Routing> Routings => Set<Routing>();
     public DbSet<RoutingOperation> RoutingOperations => Set<RoutingOperation>();
     public DbSet<ProductionOrderOperation> ProductionOrderOperations => Set<ProductionOrderOperation>();
+    public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
+    public DbSet<SalesOrderLine> SalesOrderLines => Set<SalesOrderLine>();
+    public DbSet<DeliveryOrder> DeliveryOrders => Set<DeliveryOrder>();
+    public DbSet<DeliveryOrderLine> DeliveryOrderLines => Set<DeliveryOrderLine>();
+    public DbSet<DocumentSequence> DocumentSequences => Set<DocumentSequence>();
     public DbSet<OrganizationChange> OrganizationChanges => Set<OrganizationChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder) => OrganizationModel.Configure(modelBuilder);
@@ -112,14 +119,16 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                 or ItemLot or QualityInspection or QualityInspectionLine
                 or QualityParameter or QualitySpec or QualitySpecLine
                 or Supplier or PurchaseOrder or PurchaseOrderLine
-                or WorkCenter or Routing or RoutingOperation or ProductionOrderOperation))
+                or WorkCenter or Routing or RoutingOperation or ProductionOrderOperation
+                or Customer or SalesOrder or SalesOrderLine or DeliveryOrder or DeliveryOrderLine
+                or DocumentSequence))
             {
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             }
             if (entry.State == EntityState.Deleted && entry.Entity is not (ItemClassification or ItemAttributeValue
                 or BomInput or BomOutput or BomApplicability or BomApplicabilityCondition
                 or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext
-                or QualityInspectionLine or QualitySpecLine or PurchaseOrderLine
+                or QualityInspectionLine or QualitySpecLine or PurchaseOrderLine or SalesOrderLine
                 or RoutingOperation or ProductionOrderOperation))
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             if (entry.State == EntityState.Modified)
@@ -160,6 +169,12 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                     Routing => new[] { "Name", "BomVersionId", "Status", "IsDefault", "Notes", "ActivatedAtUtc" },
                     RoutingOperation => Array.Empty<string>(),
                     ProductionOrderOperation => new[] { "Status", "ActualSetupMinutes", "ActualRunMinutes", "CompletedQuantity", "ScrapQuantity", "OperatorNotes", "StartedAtUtc", "CompletedAtUtc" },
+                    Customer => new[] { "Name", "ContactName", "Phone", "Email", "ShippingAddress", "TaxCode", "Notes", "IsActive" },
+                    SalesOrder => new[] { "CustomerId", "OrderDate", "RequestedDeliveryDate", "SourceWarehouseId", "CurrencyCode", "ShippingAddressSnapshot", "Notes", "CancellationReason", "Status", "ApprovedAtUtc", "ClosedAtUtc", "CancelledAtUtc" },
+                    SalesOrderLine => new[] { "DispatchedBaseQuantity" },
+                    DeliveryOrder => new[] { "Status", "ReversedAtUtc", "ReversalReason" },
+                    DeliveryOrderLine => Array.Empty<string>(),
+                    DocumentSequence => new[] { "Prefix", "Separator", "YearMode", "PaddingDigits", "NextNumber", "AllowManualOverride", "IsActive" },
                     _ => new[] { "Name", "IsActive" }
                 };
                 if (entry.Properties.Any(p => p.IsModified && !allowedProps.Contains(p.Metadata.Name, StringComparer.Ordinal)))
@@ -262,6 +277,12 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         Routing r => r.OrganizationId,
         RoutingOperation ro => ro.OrganizationId,
         ProductionOrderOperation poo => poo.OrganizationId,
+        Customer cust => cust.OrganizationId,
+        SalesOrder so => so.OrganizationId,
+        SalesOrderLine sol => sol.OrganizationId,
+        DeliveryOrder dlo => dlo.OrganizationId,
+        DeliveryOrderLine dlol => dlol.OrganizationId,
+        DocumentSequence ds => ds.OrganizationId,
         _ => throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied)
     };
 
@@ -286,6 +307,12 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         Routing r => r.SiteId,
         RoutingOperation ro => ro.SiteId,
         ProductionOrderOperation poo => poo.SiteId,
+        SalesOrder so => so.SiteId,
+        SalesOrderLine sol => ChangeTracker.Entries<SalesOrder>().FirstOrDefault(s => s.Entity.Id == sol.SalesOrderId)?.Entity.SiteId
+            ?? SalesOrders.AsNoTracking().Where(s => s.OrganizationId == sol.OrganizationId && s.Id == sol.SalesOrderId).Select(s => (long?)s.SiteId).FirstOrDefault(),
+        DeliveryOrder dlo => dlo.SiteId,
+        DeliveryOrderLine dlol => ChangeTracker.Entries<DeliveryOrder>().FirstOrDefault(d => d.Entity.Id == dlol.DeliveryOrderId)?.Entity.SiteId
+            ?? DeliveryOrders.AsNoTracking().Where(d => d.OrganizationId == dlol.OrganizationId && d.Id == dlol.DeliveryOrderId).Select(d => (long?)d.SiteId).FirstOrDefault(),
         _ => null
     };
 
@@ -313,10 +340,41 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
             .Select(e => ((PurchaseOrder)e.Entity).Id)
             .ToHashSet();
         var seenPurchaseLinesOrders = new HashSet<long>();
+        var headersWithSalesEvent = entries
+            .Where(e => e.Entity is SalesOrder)
+            .Select(e => ((SalesOrder)e.Entity).Id)
+            .ToHashSet();
+        var seenSalesLinesOrders = new HashSet<long>();
+        var headersWithDeliveryEvent = entries
+            .Where(e => e.Entity is DeliveryOrder)
+            .Select(e => ((DeliveryOrder)e.Entity).Id)
+            .ToHashSet();
+        var seenDeliveryLinesOrders = new HashSet<long>();
         var seenRoutingOperationRoutings = new HashSet<long>();
 
         foreach (var entry in entries)
         {
+            if (entry.Entity is DeliveryOrderLine dLine)
+            {
+                if (!headersWithDeliveryEvent.Contains(dLine.DeliveryOrderId) && seenDeliveryLinesOrders.Add(dLine.DeliveryOrderId))
+                {
+                    yield return new PendingChange(entry, "DeliveryOrder.Posted",
+                        JsonSerializer.Serialize(new { DeliveryOrderId = dLine.DeliveryOrderId }, AuditJson));
+                }
+                continue;
+            }
+            if (entry.Entity is SalesOrderLine soLine)
+            {
+                if (!headersWithSalesEvent.Contains(soLine.SalesOrderId) && seenSalesLinesOrders.Add(soLine.SalesOrderId))
+                {
+                    var code = entry.State == EntityState.Modified && entry.Property("DispatchedBaseQuantity").IsModified
+                        ? "SalesOrder.Dispatched"
+                        : "SalesOrder.Updated";
+                    yield return new PendingChange(entry, code,
+                        JsonSerializer.Serialize(new { SalesOrderId = soLine.SalesOrderId }, AuditJson));
+                }
+                continue;
+            }
             if (entry.Entity is PurchaseOrderLine pLine)
             {
                 if (!headersWithPurchaseEvent.Contains(pLine.PurchaseOrderId) && seenPurchaseLinesOrders.Add(pLine.PurchaseOrderId))
@@ -568,6 +626,86 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
             }
             yield return new PendingChange(entry, "PurchaseOrder.Updated",
                 JsonSerializer.Serialize(new { pur.OrderNumber, pur.SupplierId, pur.OrderDate, pur.ExpectedDeliveryDate }, AuditJson));
+            yield break;
+        }
+
+        if (entry.Entity is Customer cust)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "Customer.Created",
+                    JsonSerializer.Serialize(new { cust.Code, cust.Name, cust.IsActive }, AuditJson));
+                yield break;
+            }
+            if (entry.Property("IsActive").IsModified)
+            {
+                yield return new PendingChange(entry, cust.IsActive ? "Customer.Activated" : "Customer.Deactivated",
+                    JsonSerializer.Serialize(new { cust.Code, cust.IsActive }, AuditJson));
+            }
+            if (entry.Properties.Any(p => p.IsModified && p.Metadata.Name is not ("IsActive" or "UpdatedAtUtc" or "UpdatedByActorId")))
+            {
+                yield return new PendingChange(entry, "Customer.Updated",
+                    JsonSerializer.Serialize(new { cust.Code, cust.Name, cust.ContactName, cust.Phone, cust.Email }, AuditJson));
+            }
+            yield break;
+        }
+
+        if (entry.Entity is SalesOrder so)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "SalesOrder.Created",
+                    JsonSerializer.Serialize(new { so.OrderNumber, so.SiteId, so.CustomerId, so.OrderDate, so.CurrencyCode }, AuditJson));
+                yield break;
+            }
+            if (entry.Property("Status").IsModified)
+            {
+                var evCode = so.Status switch
+                {
+                    SalesOrderStatus.Approved => "SalesOrder.Approved",
+                    SalesOrderStatus.PartiallyDispatched or SalesOrderStatus.Dispatched => "SalesOrder.Dispatched",
+                    SalesOrderStatus.Closed => "SalesOrder.Closed",
+                    SalesOrderStatus.Cancelled => "SalesOrder.Cancelled",
+                    _ => "SalesOrder.Updated"
+                };
+                yield return new PendingChange(entry, evCode,
+                    JsonSerializer.Serialize(new { so.OrderNumber, Status = so.Status.ToString(), so.CustomerId }, AuditJson));
+                yield break;
+            }
+            yield return new PendingChange(entry, "SalesOrder.Updated",
+                JsonSerializer.Serialize(new { so.OrderNumber, so.CustomerId, so.OrderDate, so.RequestedDeliveryDate }, AuditJson));
+            yield break;
+        }
+
+        if (entry.Entity is DeliveryOrder dlo)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "DeliveryOrder.Posted",
+                    JsonSerializer.Serialize(new { dlo.DispatchNumber, dlo.SiteId, dlo.SalesOrderId, dlo.WarehouseId, dlo.DispatchDate }, AuditJson));
+                yield break;
+            }
+            if (entry.Property("Status").IsModified && dlo.Status == DeliveryOrderStatus.Reversed)
+            {
+                yield return new PendingChange(entry, "DeliveryOrder.Reversed",
+                    JsonSerializer.Serialize(new { dlo.DispatchNumber, dlo.SalesOrderId, dlo.ReversalReason }, AuditJson));
+                yield break;
+            }
+        }
+
+        if (entry.Entity is DocumentSequence seq)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "DocumentSequence.Created",
+                    JsonSerializer.Serialize(new { DocumentType = seq.DocumentType.ToString(), seq.Prefix, seq.NextNumber }, AuditJson));
+                yield break;
+            }
+            if (entry.Properties.Any(p => p.IsModified && p.Metadata.Name is "Prefix" or "Separator" or "YearMode" or "PaddingDigits" or "AllowManualOverride" or "IsActive"))
+            {
+                yield return new PendingChange(entry, "DocumentSequence.Updated",
+                    JsonSerializer.Serialize(new { DocumentType = seq.DocumentType.ToString(), seq.Prefix, seq.Separator, YearMode = seq.YearMode.ToString(), seq.PaddingDigits, seq.NextNumber, seq.AllowManualOverride }, AuditJson));
+            }
             yield break;
         }
 
@@ -1153,6 +1291,15 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                     || e.Entity is PurchaseOrder or PurchaseOrderLine));
             if (procurementChanged && !effectiveActive)
                 throw new InvalidOperationException(ProcurementErrors.ParentOrganizationInactive);
+
+            var salesChanged = entries.Any(e => e.Entity is Customer or SalesOrder or SalesOrderLine or DeliveryOrder or DeliveryOrderLine
+                && ResolveEntityOrganizationId(e.Entity) == orgId
+                && (e.State == EntityState.Added
+                    || e.State == EntityState.Deleted
+                    || (e.Entity is Customer c && (c.IsActive || e.Properties.Any(p => p.IsModified && p.Metadata.Name != "IsActive")))
+                    || e.Entity is SalesOrder or SalesOrderLine or DeliveryOrder or DeliveryOrderLine));
+            if (salesChanged && !effectiveActive)
+                throw new InvalidOperationException(SalesErrors.ParentOrganizationInactive);
 
             var routingChanged = entries.Any(e => e.Entity is WorkCenter or Routing or RoutingOperation or ProductionOrderOperation
                 && ResolveEntityOrganizationId(e.Entity) == orgId

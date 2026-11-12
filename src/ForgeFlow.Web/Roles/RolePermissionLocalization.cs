@@ -33,11 +33,13 @@ public static class RolePermissionLocalization
         PermissionModule.Boms,
         PermissionModule.Routings,
         PermissionModule.Procurement,
+        PermissionModule.Sales,
         PermissionModule.ProductionOrders,
         PermissionModule.Inventory,
         PermissionModule.Reports,
         PermissionModule.Quality,
-        PermissionModule.Diagnostics
+        PermissionModule.Diagnostics,
+        PermissionModule.DocumentSequences
     ];
 
     public static readonly IReadOnlyList<PermissionDescriptor> OrganizationScopePermissions =
@@ -62,17 +64,19 @@ public static class RolePermissionLocalization
         PermissionModule.Boms => "PermPageBoms",
         PermissionModule.Routings => "PermPageRoutings",
         PermissionModule.Procurement => "PermPageProcurement",
+        PermissionModule.Sales => "PermPageSales",
         PermissionModule.ProductionOrders => "PermPageProductionOrders",
         PermissionModule.Inventory => "PermPageInventory",
         PermissionModule.Reports => "PermPageReports",
         PermissionModule.Quality => "PermPageQuality",
         PermissionModule.Diagnostics => "PermPageDiagnostics",
+        PermissionModule.DocumentSequences => "PermPageDocumentSequences",
         _ => "PermPageOrganizations"
     };
 
     public static string OperationLabelKey(string permissionCode) => permissionCode switch
     {
-        "Organizations.Read" or "Sites.Read" or "Users.Read" or "Roles.Read" or "Audit.Read" or "Units.Read" or "Items.Read" or "Boms.Read" or "Routings.Read" or "Procurement.Read" or "ProductionOrders.Read" or "Inventory.Read" or "Reports.Read" or "Quality.Read" => "PermOpRead",
+        "Organizations.Read" or "Sites.Read" or "Users.Read" or "Roles.Read" or "Audit.Read" or "Units.Read" or "Items.Read" or "Boms.Read" or "Routings.Read" or "Procurement.Read" or "Sales.Read" or "ProductionOrders.Read" or "Inventory.Read" or "Reports.Read" or "Quality.Read" or "DocumentSequences.Read" => "PermOpRead",
         "Organizations.Create" or "Sites.Create" or "Users.Create" => "PermOpCreate",
         "Organizations.Update" or "Sites.Update" => "PermOpUpdate",
         "Organizations.SetActive" or "Sites.SetActive" or "Users.SetActive" => "PermOpSetActive",
@@ -89,8 +93,10 @@ public static class RolePermissionLocalization
         "Routings.Manage" => "PermOpManageRoutings",
         "Operations.Execute" => "PermOpExecuteOperations",
         "Procurement.ManageSuppliers" => "PermOpManageSuppliers",
-        "Procurement.ManageOrders" => "PermOpManageOrders",
+        "Procurement.ManageOrders" or "Sales.ManageOrders" => "PermOpManageOrders",
         "Procurement.ReceiveOrders" => "PermOpReceiveOrders",
+        "Sales.ManageCustomers" => "PermOpManageCustomers",
+        "Sales.Dispatch" => "PermOpDispatchSales",
         "ProductionOrders.Manage" => "PermOpManageProductionOrders",
         "Inventory.Manage" => "PermOpManageInventory",
         "Reports.Export" => "PermOpExportReports",
@@ -98,6 +104,7 @@ public static class RolePermissionLocalization
         "Audit.Export" => "PermOpExportAudit",
         "Diagnostics.ErrorLogsRead" => "PermOpReadErrorLogs",
         "Diagnostics.ErrorLogsManage" => "PermOpManageErrorLogs",
+        "DocumentSequences.Manage" => "PermOpManageDocSequences",
         _ => "PermOpRead"
     };
 

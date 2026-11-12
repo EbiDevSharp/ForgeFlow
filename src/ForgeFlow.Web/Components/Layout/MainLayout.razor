@@ -285,6 +285,8 @@
             reportScopes = await ReadScopes.LoadReportScopesAsync();
             qualityScopes = await ReadScopes.LoadQualityScopesAsync();
             procurementScopes = await ReadScopes.LoadProcurementScopesAsync();
+            salesScopes = await ReadScopes.LoadSalesScopesAsync();
+            docSequenceScopes = await ReadScopes.LoadDocumentSequenceScopesAsync();
             diagnosticScopes = await ReadScopes.LoadDiagnosticScopesAsync();
         }
         catch
@@ -303,6 +305,8 @@
             reportScopes = [];
             qualityScopes = [];
             procurementScopes = [];
+            salesScopes = [];
+            docSequenceScopes = [];
             diagnosticScopes = [];
         }
         StateHasChanged();
@@ -492,6 +496,8 @@
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> reportScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> qualityScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> procurementScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> salesScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> docSequenceScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> diagnosticScopes = [];
 
     private List<NavSectionDescriptor> cachedNavSections = [];
@@ -507,7 +513,7 @@
                 roleScopes.Count, ",", auditScopes.Count, ",", unitScopes.Count, ",",
                 itemScopes.Count, ",", bomScopes.Count, ",", routingScopes.Count, ",", productionOrderScopes.Count, ",",
                 inventoryScopes.Count, ",", reportScopes.Count, ",", qualityScopes.Count, ",",
-                procurementScopes.Count, ",", diagnosticScopes.Count);
+                procurementScopes.Count, ",", salesScopes.Count, ",", docSequenceScopes.Count, ",", diagnosticScopes.Count);
             if (string.Equals(navSignature, sig, StringComparison.Ordinal))
                 return cachedNavSections;
 
@@ -572,6 +578,8 @@
                 items.Add(new(Text["PurchaseOrders"], "ff-icon--purchase-orders", "/purchase-orders"));
                 items.Add(new(Text["Suppliers"], "ff-icon--suppliers", "/suppliers"));
             }
+            if (salesScopes.Count > 0)
+                items.Add(new(Text["SalesDispatch"], "ff-icon--sales", "/sales"));
             if (itemScopes.Count > 0)
                 items.Add(new(Text["Items"], "ff-icon--items", "/items"));
             if (unitScopes.Count > 0)
@@ -604,6 +612,8 @@
                 items.Add(new(Text["Users"], "ff-icon--user", "/users"));
             if (roleScopes.Count > 0)
                 items.Add(new(Text["Roles"], "ff-icon--role", "/roles"));
+            if (docSequenceScopes.Count > 0)
+                items.Add(new(Text["DocumentNumbering"], "ff-icon--settings", "/numbering-rules"));
             if (auditScopes.Count > 0)
                 items.Add(new(Text["Audit"], "ff-icon--audit", "/audit"));
             if (diagnosticScopes.Count > 0)

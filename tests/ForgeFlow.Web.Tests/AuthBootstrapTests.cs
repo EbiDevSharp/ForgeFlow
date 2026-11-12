@@ -78,7 +78,7 @@ public sealed class AuthBootstrapTests
         using var db = Offline();
         Assert.False(db.Database.HasPendingModelChanges());
         var migrations = db.GetService<IMigrationsAssembly>();
-        Assert.Equal(9, migrations.Migrations.Count);
+        Assert.Equal(10, migrations.Migrations.Count);
         var baseline = migrations.CreateMigration(migrations.Migrations.ElementAt(0).Value, db.Database.ProviderName!);
         Assert.Equal(10, baseline.UpOperations.OfType<CreateTableOperation>().Count());
         Assert.All(baseline.UpOperations.OfType<CreateTableOperation>(), table => Assert.Equal("auth", table.Schema));

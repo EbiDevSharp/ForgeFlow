@@ -394,12 +394,15 @@ public sealed class SqlInventoryOperationsStore(
             }
         }
 
+        var docNumber = await SqlDocumentSequenceStore.AllocateAsync(
+            db, request.OrganizationId, Domain.Organizations.DocumentSequenceType.InventoryTransaction, request.DocumentNumber, utcNow, ct);
+
         var txn = InventoryTransaction.Create(
             request.OrganizationId,
             siteId,
             request.WarehouseId,
             request.DestinationWarehouseId,
-            request.DocumentNumber,
+            docNumber,
             request.TransactionType,
             request.ProductionOrderId,
             null,
@@ -470,12 +473,15 @@ public sealed class SqlInventoryOperationsStore(
             .OrderBy(l => l.LineNumber)
             .ToListAsync(ct);
 
+        var revNumber = await SqlDocumentSequenceStore.AllocateAsync(
+            db, organizationId, Domain.Organizations.DocumentSequenceType.InventoryReversal, reversalDocumentNumber, utcNow, ct);
+
         var reversalTxn = InventoryTransaction.Create(
             organizationId,
             orig.SiteId,
             orig.WarehouseId,
             orig.DestinationWarehouseId,
-            reversalDocumentNumber,
+            revNumber,
             InventoryTransactionType.Reversal,
             orig.ProductionOrderId,
             orig.Id,

@@ -24,7 +24,7 @@ public sealed class OrganizationPersistenceModelTests
     {
         using var db = OfflineContext();
         var model = db.GetService<IDesignTimeModel>().Model;
-        Assert.Equal(42, model.GetEntityTypes().Count());
+        Assert.Equal(48, model.GetEntityTypes().Count());
         var org = model.FindEntityType(typeof(Organization))!;
         var site = model.FindEntityType(typeof(Site))!;
         var unit = model.FindEntityType(typeof(Unit))!;
@@ -119,12 +119,17 @@ public sealed class OrganizationPersistenceModelTests
     public void Migration_snapshot_matches_the_model_and_generates_only_the_three_scoped_tables()
     {
         using var db = OfflineContext();
-        Assert.Equal(12, db.Database.GetMigrations().Count());
+        Assert.Equal(14, db.Database.GetMigrations().Count());
         Assert.False(db.Database.HasPendingModelChanges());
         var script = db.GetService<IMigrator>().GenerateScript();
         Assert.Contains("CREATE TABLE [organization].[QualityParameter]", script);
         Assert.Contains("CREATE TABLE [organization].[QualitySpec]", script);
         Assert.Contains("CREATE TABLE [organization].[QualitySpecLine]", script);
+        Assert.Contains("CREATE TABLE [organization].[Customer]", script);
+        Assert.Contains("CREATE TABLE [organization].[SalesOrder]", script);
+        Assert.Contains("CREATE TABLE [organization].[SalesOrderLine]", script);
+        Assert.Contains("CREATE TABLE [organization].[DeliveryOrder]", script);
+        Assert.Contains("CREATE TABLE [organization].[DeliveryOrderLine]", script);
         Assert.Contains("CREATE TABLE [organization].[StockReservation]", script);
         Assert.Contains("CREATE TABLE [organization].[Organization]", script);
         Assert.Contains("CREATE TABLE [organization].[Site]", script);

@@ -8,7 +8,13 @@ public enum ReservationStatus : byte
     Released = 4
 }
 
-/// <summary>Hard allocation of available site inventory toward a Released or InProgress Production Order.</summary>
+public enum ReservationSourceKind : byte
+{
+    ProductionOrder = 1,
+    SalesOrder = 2
+}
+
+/// <summary>Hard allocation of available site inventory toward a Production Order or Sales Order.</summary>
 public sealed class StockReservation
 {
     private StockReservation() { }
@@ -17,8 +23,11 @@ public sealed class StockReservation
         long organizationId,
         long siteId,
         long warehouseId,
-        long productionOrderId,
+        ReservationSourceKind sourceKind,
+        long? productionOrderId,
         long? productionOrderInputId,
+        long? salesOrderId,
+        long? salesOrderLineId,
         long itemId,
         string? lotCode,
         long baseUnitId,
@@ -28,15 +37,21 @@ public sealed class StockReservation
         if (organizationId <= 0) throw new InventoryRuleException(InventoryErrors.ParentOrganizationInactive);
         if (siteId <= 0) throw new InventoryRuleException(InventoryErrors.SiteInvalid);
         if (warehouseId <= 0) throw new InventoryRuleException(InventoryErrors.WarehouseNotFound);
-        if (productionOrderId <= 0) throw new InventoryRuleException(InventoryErrors.ProductionOrderInvalid);
+        if (sourceKind == ReservationSourceKind.ProductionOrder && (productionOrderId is not > 0 || salesOrderId.HasValue || salesOrderLineId.HasValue))
+            throw new InventoryRuleException(InventoryErrors.ProductionOrderInvalid);
+        if (sourceKind == ReservationSourceKind.SalesOrder && (salesOrderId is not > 0 || productionOrderId.HasValue || productionOrderInputId.HasValue))
+            throw new InventoryRuleException(InventoryErrors.ProductionOrderInvalid);
         if (itemId <= 0) throw new InventoryRuleException(InventoryErrors.ItemInvalid);
         if (baseUnitId <= 0) throw new InventoryRuleException(InventoryErrors.UnitInvalid);
 
         OrganizationId = organizationId;
         SiteId = siteId;
         WarehouseId = warehouseId;
-        ProductionOrderId = productionOrderId;
+        SourceKind = sourceKind;
+        ProductionOrderId = productionOrderId is > 0 ? productionOrderId : null;
         ProductionOrderInputId = productionOrderInputId is > 0 ? productionOrderInputId : null;
+        SalesOrderId = salesOrderId is > 0 ? salesOrderId : null;
+        SalesOrderLineId = salesOrderLineId is > 0 ? salesOrderLineId : null;
         ItemId = itemId;
         LotCode = InventoryText.LotCode(lotCode);
         BaseUnitId = baseUnitId;
@@ -50,8 +65,11 @@ public sealed class StockReservation
     public long OrganizationId { get; private set; }
     public long SiteId { get; private set; }
     public long WarehouseId { get; private set; }
-    public long ProductionOrderId { get; private set; }
+    public ReservationSourceKind SourceKind { get; private set; } = ReservationSourceKind.ProductionOrder;
+    public long? ProductionOrderId { get; private set; }
     public long? ProductionOrderInputId { get; private set; }
+    public long? SalesOrderId { get; private set; }
+    public long? SalesOrderLineId { get; private set; }
     public long ItemId { get; private set; }
     public string LotCode { get; private set; } = string.Empty;
     public long BaseUnitId { get; private set; }
@@ -79,7 +97,20 @@ public sealed class StockReservation
         long baseUnitId,
         decimal reservedBaseQuantity,
         string? notes = null) =>
-        new(organizationId, siteId, warehouseId, productionOrderId, productionOrderInputId, itemId, lotCode, baseUnitId, reservedBaseQuantity, notes);
+        new(organizationId, siteId, warehouseId, ReservationSourceKind.ProductionOrder, productionOrderId, productionOrderInputId, null, null, itemId, lotCode, baseUnitId, reservedBaseQuantity, notes);
+
+    public static StockReservation CreateForSalesOrder(
+        long organizationId,
+        long siteId,
+        long warehouseId,
+        long salesOrderId,
+        long? salesOrderLineId,
+        long itemId,
+        string? lotCode,
+        long baseUnitId,
+        decimal reservedBaseQuantity,
+        string? notes = null) =>
+        new(organizationId, siteId, warehouseId, ReservationSourceKind.SalesOrder, null, null, salesOrderId, salesOrderLineId, itemId, lotCode, baseUnitId, reservedBaseQuantity, notes);
 
     public decimal Consume(decimal positiveBaseQuantity)
     {

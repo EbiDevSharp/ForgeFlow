@@ -2854,4 +2854,94 @@
   <data name="PermTooltipViaRole" xml:space="preserve"><value>از طریق: {0}</value></data>
   <data name="PermUnsavedChangesCount" xml:space="preserve"><value>{0} تغییر ذخیره‌نشده</value></data>
   <data name="PermEmptyFilterResult" xml:space="preserve"><value>صفحه‌ای با این فیلتر یافت نشد.</value></data>
+  <data name="SalesDispatch" xml:space="preserve"><value>فروش و ارسال</value></data>
+  <data name="SalesDispatchCaption" xml:space="preserve"><value>مدیریت مشتریان، سفارش‌های فروش، رزرو موجودی و حواله‌های خروج با بررسی کیفیت و گواهی آنالیز (COA).</value></data>
+  <data name="SalesTabOrders" xml:space="preserve"><value>سفارش‌های فروش</value></data>
+  <data name="SalesTabDispatches" xml:space="preserve"><value>حواله‌های خروج</value></data>
+  <data name="SalesTabCustomers" xml:space="preserve"><value>مشتریان</value></data>
+  <data name="SalesCustomerCreateButton" xml:space="preserve"><value>مشتری جدید</value></data>
+  <data name="SalesCustomerEditTitle" xml:space="preserve"><value>ویرایش مشتری</value></data>
+  <data name="SalesCustomerColumn" xml:space="preserve"><value>مشتری</value></data>
+  <data name="SalesCustomerTaxCode" xml:space="preserve"><value>کد اقتصادی / مالیاتی</value></data>
+  <data name="SalesShippingAddress" xml:space="preserve"><value>نشانی ارسال</value></data>
+  <data name="SalesOrderCreateButton" xml:space="preserve"><value>سفارش فروش جدید</value></data>
+  <data name="SalesOrderEditTitle" xml:space="preserve"><value>ویرایش پیش‌نویس سفارش فروش</value></data>
+  <data name="SalesOrderNumber" xml:space="preserve"><value>شماره سفارش</value></data>
+  <data name="SalesRequestedDate" xml:space="preserve"><value>تاریخ تحویل درخواستی</value></data>
+  <data name="SalesSourceWarehouse" xml:space="preserve"><value>انبار مبدا</value></data>
+  <data name="SalesOrderStatusDraft" xml:space="preserve"><value>پیش‌نویس</value></data>
+  <data name="SalesOrderStatusApproved" xml:space="preserve"><value>تاییدشده</value></data>
+  <data name="SalesOrderStatusPartiallyDispatched" xml:space="preserve"><value>ارسال جزئی</value></data>
+  <data name="SalesOrderStatusDispatched" xml:space="preserve"><value>ارسال کامل</value></data>
+  <data name="SalesOrderStatusCancelled" xml:space="preserve"><value>لغوشده</value></data>
+  <data name="SalesOrderStatusClosed" xml:space="preserve"><value>بسته‌شده</value></data>
+  <data name="SalesDispatchedQty" xml:space="preserve"><value>ارسال‌شده</value></data>
+  <data name="SalesRemainingQty" xml:space="preserve"><value>باقی‌مانده</value></data>
+  <data name="SalesReserveStockButton" xml:space="preserve"><value>رزرو موجودی</value></data>
+  <data name="SalesReservationsTitle" xml:space="preserve"><value>رزروهای موجودی</value></data>
+  <data name="SalesReleaseReservation" xml:space="preserve"><value>آزادسازی</value></data>
+  <data name="SalesDispatchButton" xml:space="preserve"><value>ثبت حواله</value></data>
+  <data name="SalesDispatchModalTitle" xml:space="preserve"><value>ثبت حواله خروج (ارسال کالا)</value></data>
+  <data name="SalesPostDispatchButton" xml:space="preserve"><value>تایید و ثبت حواله</value></data>
+  <data name="SalesDispatchNumber" xml:space="preserve"><value>شماره حواله</value></data>
+  <data name="SalesDispatchDate" xml:space="preserve"><value>تاریخ ارسال</value></data>
+  <data name="SalesDispatchPosted" xml:space="preserve"><value>ثبت‌شده</value></data>
+  <data name="SalesDispatchReversed" xml:space="preserve"><value>برگشت‌خورده</value></data>
+  <data name="SalesReverseButton" xml:space="preserve"><value>برگشت حواله</value></data>
+  <data name="SalesCarrierName" xml:space="preserve"><value>حمل‌کننده</value></data>
+  <data name="SalesTrackingNumber" xml:space="preserve"><value>کد رهگیری</value></data>
+  <data name="SalesDispatchPickLots" xml:space="preserve"><value>انتخاب لات‌های مجاز و گواهی COA</value></data>
+  <data name="PermPageSales" xml:space="preserve"><value>فروش و ارسال</value></data>
+  <data name="PermOpManageCustomers" xml:space="preserve"><value>مدیریت مشتریان</value></data>
+  <data name="PermOpDispatchSales" xml:space="preserve"><value>ارسال کالا و برگشت حواله</value></data>
+  <data name="AuditEv_CustomerCreated" xml:space="preserve"><value>ایجاد مشتری</value></data>
+  <data name="AuditEv_CustomerUpdated" xml:space="preserve"><value>ویرایش مشتری</value></data>
+  <data name="AuditEv_CustomerActivated" xml:space="preserve"><value>فعال‌سازی مشتری</value></data>
+  <data name="AuditEv_CustomerDeactivated" xml:space="preserve"><value>غیرفعال‌سازی مشتری</value></data>
+  <data name="AuditEv_SalesOrderCreated" xml:space="preserve"><value>ایجاد سفارش فروش</value></data>
+  <data name="AuditEv_SalesOrderUpdated" xml:space="preserve"><value>ویرایش سفارش فروش</value></data>
+  <data name="AuditEv_SalesOrderApproved" xml:space="preserve"><value>تایید سفارش فروش</value></data>
+  <data name="AuditEv_SalesOrderDispatched" xml:space="preserve"><value>ارسال سفارش فروش</value></data>
+  <data name="AuditEv_SalesOrderClosed" xml:space="preserve"><value>بستن سفارش فروش</value></data>
+  <data name="AuditEv_SalesOrderCancelled" xml:space="preserve"><value>لغو سفارش فروش</value></data>
+  <data name="AuditEv_DeliveryOrderPosted" xml:space="preserve"><value>ثبت حواله خروج</value></data>
+  <data name="AuditEv_DeliveryOrderReversed" xml:space="preserve"><value>برگشت حواله خروج</value></data>
+  <data name="AuditEv_SalesActionRejected" xml:space="preserve"><value>رد عملیات فروش</value></data>
+  <data name="SalesOrderModalSubtitle" xml:space="preserve"><value>مشخصات سفارش مشتری را وارد کنید، موجودی آزاد کالاها را ببینید و ردیف‌ها را اضافه کنید.</value></data>
+  <data name="SalesSelectCustomerPlaceholder" xml:space="preserve"><value>انتخاب مشتری...</value></data>
+  <data name="SalesStockAvailableBadge" xml:space="preserve"><value>موجودی آزاد: {0} {1}</value></data>
+  <data name="SalesStockZeroBadge" xml:space="preserve"><value>موجودی آزاد: ۰ {0} (نیازمند تولید یا تامین)</value></data>
+  <data name="SalesInventoryInfoHint" xml:space="preserve"><value>ثبت یا تایید سفارش فروش موجودی را کسر نمی‌کند؛ برای تخصیص قطعی از «رزرو موجودی» و برای کسر واقعی از «ثبت حواله» استفاده می‌شود که هر دو با قفل تراکنشی همزمانی محافظت می‌شوند.</value></data>
+  <data name="DocumentNumbering" xml:space="preserve"><value>شماره‌گذاری اسناد</value></data>
+  <data name="DocSeqCaption" xml:space="preserve"><value>تنظیم پیشوند خودکار اسناد، قالب سال شمسی/میلادی، تعداد ارقام، شماره شروع و قفل ویرایش دستی.</value></data>
+  <data name="DocSeqTypeCol" xml:space="preserve"><value>نوع سند</value></data>
+  <data name="DocSeqPrefixCol" xml:space="preserve"><value>پیشوند</value></data>
+  <data name="DocSeqSeparatorCol" xml:space="preserve"><value>جداکننده</value></data>
+  <data name="DocSeqYearModeCol" xml:space="preserve"><value>قالب سال</value></data>
+  <data name="DocSeqPaddingCol" xml:space="preserve"><value>تعداد ارقام</value></data>
+  <data name="DocSeqNextNumCol" xml:space="preserve"><value>شماره بعدی</value></data>
+  <data name="DocSeqPreviewCol" xml:space="preserve"><value>پیش‌نمایش بعدی</value></data>
+  <data name="DocSeqOverrideCol" xml:space="preserve"><value>ویرایش دستی</value></data>
+  <data name="DocSeqOverrideAllowed" xml:space="preserve"><value>مجاز</value></data>
+  <data name="DocSeqOverrideLocked" xml:space="preserve"><value>خودکار (قفل)</value></data>
+  <data name="DocSeqEditTitle" xml:space="preserve"><value>تنظیم الگوی شماره‌گذاری</value></data>
+  <data name="DocSeqSepNone" xml:space="preserve"><value>بدون جداکننده</value></data>
+  <data name="DocSeqYearNone" xml:space="preserve"><value>بدون سال</value></data>
+  <data name="DocSeqYearPersian" xml:space="preserve"><value>شمسی (۱۴۰۵)</value></data>
+  <data name="DocSeqYearGregorian" xml:space="preserve"><value>میلادی (۲۰۲۶)</value></data>
+  <data name="DocSeqOverrideHint" xml:space="preserve"><value>به کاربران اجازه می‌دهد به جای شماره خودکار، شماره سند را به صورت دستی وارد یا ویرایش کنند.</value></data>
+  <data name="DocSeqTypeSalesOrder" xml:space="preserve"><value>سفارش فروش</value></data>
+  <data name="DocSeqTypeDeliveryOrder" xml:space="preserve"><value>حواله خروج / ارسال</value></data>
+  <data name="DocSeqTypePurchaseOrder" xml:space="preserve"><value>سفارش خرید</value></data>
+  <data name="DocSeqTypePurchaseReceipt" xml:space="preserve"><value>رسید خرید</value></data>
+  <data name="DocSeqTypeProductionOrder" xml:space="preserve"><value>سفارش تولید</value></data>
+  <data name="DocSeqTypeInventoryTxn" xml:space="preserve"><value>سند انبار</value></data>
+  <data name="DocSeqTypeInventoryRev" xml:space="preserve"><value>برگشت سند انبار</value></data>
+  <data name="DocSeqTypeQualityInsp" xml:space="preserve"><value>بازرسی کیفیت</value></data>
+  <data name="DocSeqTypeQualityScrap" xml:space="preserve"><value>ضایعات کیفیت</value></data>
+  <data name="PermPageDocumentSequences" xml:space="preserve"><value>شماره‌گذاری اسناد</value></data>
+  <data name="PermOpManageDocSequences" xml:space="preserve"><value>تنظیم الگوهای شماره‌گذاری</value></data>
+  <data name="AuditEv_DocumentSequenceCreated" xml:space="preserve"><value>ایجاد الگوی شماره‌گذاری</value></data>
+  <data name="AuditEv_DocumentSequenceUpdated" xml:space="preserve"><value>ویرایش الگوی شماره‌گذاری</value></data>
+  <data name="AuditEv_DocumentSequenceActionRejected" xml:space="preserve"><value>رد عملیات شماره‌گذاری</value></data>
 </root>

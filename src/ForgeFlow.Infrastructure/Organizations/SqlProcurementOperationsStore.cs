@@ -381,11 +381,14 @@ public sealed class SqlProcurementOperationsStore(
                 return OrganizationResult<PurchaseOrderDetails>.Failure(ProcurementErrors.WarehouseInvalid);
         }
 
+        var orderNumber = await SqlDocumentSequenceStore.AllocateAsync(
+            db, request.OrganizationId, DocumentSequenceType.PurchaseOrder, request.OrderNumber, DateTime.UtcNow, ct);
+
         var po = PurchaseOrder.CreateDraft(
             request.OrganizationId,
             request.SiteId,
             request.SupplierId,
-            request.OrderNumber,
+            orderNumber,
             request.OrderDate,
             request.ExpectedDeliveryDate,
             request.TargetWarehouseId,
@@ -617,8 +620,11 @@ public sealed class SqlProcurementOperationsStore(
         if (wh is null || !wh.IsActive || wh.SiteId != po.SiteId)
             return OrganizationResult<PurchaseOrderReceiptResult>.Failure(ProcurementErrors.WarehouseInvalid);
 
+        var allocatedDocNum = await SqlDocumentSequenceStore.AllocateAsync(
+            db, request.OrganizationId, DocumentSequenceType.PurchaseReceipt, documentNumber, utcNow, ct);
+
         var duplicateDocNum = await db.InventoryTransactions.AsNoTracking()
-            .AnyAsync(t => t.OrganizationId == request.OrganizationId && t.DocumentNumber == documentNumber, ct);
+            .AnyAsync(t => t.OrganizationId == request.OrganizationId && t.DocumentNumber == allocatedDocNum, ct);
         if (duplicateDocNum)
             return OrganizationResult<PurchaseOrderReceiptResult>.Failure(ProcurementErrors.ReceiptDocumentInvalid);
 
@@ -629,7 +635,7 @@ public sealed class SqlProcurementOperationsStore(
             po.SiteId,
             request.WarehouseId,
             destinationWarehouseId: null,
-            documentNumber: documentNumber,
+            documentNumber: allocatedDocNum,
             transactionType: InventoryTransactionType.Receipt,
             productionOrderId: null,
             reversedTransactionId: null,

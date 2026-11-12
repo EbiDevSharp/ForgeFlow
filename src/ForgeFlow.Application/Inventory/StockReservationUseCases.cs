@@ -103,7 +103,7 @@ public sealed class StockReservationUseCases(
         ReservationListQuery query,
         CancellationToken ct = default)
     {
-        var auth = await AuthorizeAny(scope, ct, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead);
+        var auth = await AuthorizeAny(scope, ct, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead, "Sales.Read");
         if (auth.Error is not null) return OrganizationResult<OrganizationPage<StockReservationSummary>>.Failure(auth.Error);
         if (!TryResolveScope(scope, organizationId, query.SiteId, out var forcedSiteId))
             return OrganizationResult<OrganizationPage<StockReservationSummary>>.Failure(InventoryErrors.AccessDenied);
@@ -119,7 +119,7 @@ public sealed class StockReservationUseCases(
         long productionOrderId,
         CancellationToken ct = default)
     {
-        var auth = await AuthorizeAny(scope, ct, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead);
+        var auth = await AuthorizeAny(scope, ct, InventoryPermissions.InventoryRead, ProductionOrderPermissions.ProductionOrdersRead, "Sales.Read");
         if (auth.Error is not null) return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(auth.Error);
         if (!TryResolveScope(scope, organizationId, null, out var forcedSiteId) || productionOrderId <= 0)
             return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.ProductionOrderInvalid);
@@ -135,12 +135,28 @@ public sealed class StockReservationUseCases(
         });
     }
 
+    public async Task<OrganizationResult<IReadOnlyList<StockReservationSummary>>> ListSalesOrderReservations(
+        OrganizationScope? scope,
+        long organizationId,
+        long salesOrderId,
+        CancellationToken ct = default)
+    {
+        var auth = await AuthorizeAny(scope, ct, InventoryPermissions.InventoryRead, "Sales.Read");
+        if (auth.Error is not null) return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(auth.Error);
+        if (!TryResolveScope(scope, organizationId, null, out _) || salesOrderId <= 0)
+            return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.AccessDenied);
+
+        return await ExecuteStore(async () =>
+            OrganizationResult<IReadOnlyList<StockReservationSummary>>.Success(
+                await store.ListSalesOrderReservations(organizationId, salesOrderId, ct)));
+    }
+
     public async Task<OrganizationResult<IReadOnlyList<StockReservationSummary>>> ReserveStock(
         OrganizationScope? scope,
         ReserveStockRequest request,
         CancellationToken ct = default)
     {
-        var auth = await AuthorizeAny(scope, ct, InventoryPermissions.InventoryManage, ProductionOrderPermissions.ProductionOrdersManage);
+        var auth = await AuthorizeAny(scope, ct, InventoryPermissions.InventoryManage, ProductionOrderPermissions.ProductionOrdersManage, "Sales.ManageOrders");
         OrganizationResult<IReadOnlyList<StockReservationSummary>> res;
         if (auth.Error is not null)
         {
@@ -198,12 +214,64 @@ public sealed class StockReservationUseCases(
         return res;
     }
 
+    public async Task<OrganizationResult<IReadOnlyList<StockReservationSummary>>> ReserveSalesOrderStock(
+        OrganizationScope? scope,
+        ReserveSalesOrderStockRequest request,
+        CancellationToken ct = default)
+    {
+        var auth = await AuthorizeAny(scope, ct, InventoryPermissions.InventoryManage, "Sales.ManageOrders");
+        OrganizationResult<IReadOnlyList<StockReservationSummary>> res;
+        if (auth.Error is not null) res = OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(auth.Error);
+        else if (!TryResolveScope(scope, request.OrganizationId, null, out _))
+            res = OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.AccessDenied);
+        else if (request.SalesOrderId <= 0)
+            res = OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.ProductionOrderInvalid);
+        else if (request.ItemId <= 0)
+            res = OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.ItemInvalid);
+        else
+        {
+            res = await ExecuteStore(async () =>
+            {
+                var qty = InventoryText.ValidatePositiveQuantity(request.Quantity);
+                var contexts = await inventoryStore.LoadItemUnitContexts(request.OrganizationId, [request.ItemId], ct);
+                if (!contexts.TryGetValue(request.ItemId, out var itemCtx) || !itemCtx.ItemIsActive)
+                    return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.ItemInvalid);
+
+                var unitId = request.UnitId ?? itemCtx.BaseUnitId;
+                if (unitId != itemCtx.BaseUnitId)
+                {
+                    var activeUnits = await inventoryStore.LoadActiveUnitIds(request.OrganizationId, [unitId], ct);
+                    if (!activeUnits.Contains(unitId))
+                        return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.UnitInvalid);
+                }
+
+                var baseQty = unitId == itemCtx.BaseUnitId
+                    ? qty
+                    : UnitConversionGraph.ConvertQuantity(qty, unitId, itemCtx.BaseUnitId, itemCtx.Edges).ConvertedQuantity;
+                baseQty = InventoryText.ValidatePositiveQuantity(baseQty);
+
+                var normalizedLot = InventoryText.LotCode(request.LotCode);
+                if (!string.IsNullOrEmpty(request.LotCode) && string.IsNullOrEmpty(normalizedLot))
+                    return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.LotCodeInvalid);
+
+                var normalizedReq = request with { LotCode = string.IsNullOrEmpty(normalizedLot) ? null : normalizedLot };
+                return await store.ReserveSalesOrderStock(normalizedReq, baseQty, itemCtx.BaseUnitId, UtcNow,
+                    Access(auth.Actor!, scope!, auth.Permission!), ct);
+            });
+        }
+
+        await OperationAuditHelper.RecordIfRejectedAsync(res, operationRecorder, opContext, UserOperationCatalog.SalesActionRejected,
+            auth.Actor, scope, request.OrganizationId, null, "StockReservation",
+            request.SalesOrderId.ToString(CultureInfo.InvariantCulture), new { Action = "ReserveSalesOrderStock", request.ItemId });
+        return res;
+    }
+
     public async Task<OrganizationResult<StockReservationSummary>> ReleaseReservation(
         OrganizationScope? scope,
         ReleaseReservationRequest request,
         CancellationToken ct = default)
     {
-        var auth = await AuthorizeAny(scope, ct, InventoryPermissions.InventoryManage, ProductionOrderPermissions.ProductionOrdersManage);
+        var auth = await AuthorizeAny(scope, ct, InventoryPermissions.InventoryManage, ProductionOrderPermissions.ProductionOrdersManage, "Sales.ManageOrders");
         OrganizationResult<StockReservationSummary> res;
         if (auth.Error is not null) res = OrganizationResult<StockReservationSummary>.Failure(auth.Error);
         else if (!TryResolveScope(scope, request.OrganizationId, null, out var forcedSiteId) || request.ReservationId <= 0)

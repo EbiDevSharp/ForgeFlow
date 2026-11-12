@@ -18,6 +18,7 @@
 @inject ItemUseCases ItemService
 @inject UnitUseCases UnitService
 @inject InventoryUseCases InvService
+@inject DocumentSequenceUseCases SeqService
 @inject StockReservationUseCases ResService
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
 @inject ITrustedActorAccessor Actors
@@ -38,7 +39,7 @@
         @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage)
         {
             <div class="read-head-actions">
-                <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateModal">
+                <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateModalAsync">
                     @Text["PoCreateButton"]
                 </BitButton>
             </div>
@@ -184,7 +185,7 @@
                 <div class="po-form-grid">
                     <div class="write-field">
                         <label for="po-create-num">@Text["PoOrderNumberColumn"]</label>
-                        <input id="po-create-num" type="text" maxlength="32" @bind="newOrderNumber" placeholder="PO-2026-001" />
+                        <input id="po-create-num" type="text" maxlength="32" class="@(moAllowOverride ? string.Empty : "proc-input-readonly")" @bind="newOrderNumber" readonly="@(!moAllowOverride)" dir="ltr" />
                         <span class="write-hint">@Text["BomCreateHint"]</span>
                     </div>
                     <div class="write-field">
@@ -1014,6 +1015,7 @@
     private string? createError;
     private long newSiteId;
     private string newOrderNumber = string.Empty;
+    private bool moAllowOverride;
     private long newItemId;
     private decimal newQuantity = 1m;
     private long newUnitId;
@@ -1261,10 +1263,14 @@
         }
     }
 
-    private void OpenCreateModal()
+    private async Task OpenCreateModalAsync()
     {
         createError = null;
-        newOrderNumber = string.Empty;
+        var prevRes = CurrentScope is not null
+            ? await SeqService.GetPreview(CurrentScope, ScopeOrganizationId(CurrentScope), ForgeFlow.Domain.Organizations.DocumentSequenceType.ProductionOrder)
+            : null;
+        moAllowOverride = prevRes is { Succeeded: true } && prevRes.Value!.AllowManualOverride;
+        newOrderNumber = prevRes is { Succeeded: true } ? prevRes.Value!.NextPreview : string.Empty;
         newSiteId = CurrentScope is OrganizationScope.Site siteScope
             ? siteScope.SiteId
             : authorizedSites.FirstOrDefault()?.Id ?? 0;
@@ -1347,7 +1353,7 @@
             var req = new CreateProductionOrderRequest(
                 orgId,
                 newSiteId,
-                newOrderNumber,
+                moAllowOverride ? newOrderNumber : null,
                 newItemId,
                 newQuantity,
                 newUnitId > 0 ? newUnitId : null,

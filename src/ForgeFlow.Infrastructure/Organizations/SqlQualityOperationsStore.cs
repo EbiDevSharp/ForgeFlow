@@ -176,13 +176,16 @@ public sealed class SqlQualityOperationsStore(
 
         bal.BlockQuantity(holdBaseQuantity, utcNow);
 
+        var inspNumber = await SqlDocumentSequenceStore.AllocateAsync(
+            db, request.OrganizationId, DocumentSequenceType.QualityInspection, inspectionNumber, utcNow, ct);
+
         var qi = QualityInspection.Create(
             request.OrganizationId,
             wh.SiteId,
             request.WarehouseId,
             request.ItemId,
             normalizedLotCode,
-            inspectionNumber,
+            inspNumber,
             QualityInspectionSourceType.ManualHold,
             null,
             null,
@@ -289,11 +292,8 @@ public sealed class SqlQualityOperationsStore(
         {
             bal.ScrapBlockedQuantity(rejectBaseQuantity, utcNow);
 
-            var docNum = string.IsNullOrWhiteSpace(scrapDocumentNumber)
-                ? $"QS-{qi.InspectionNumber}"
-                : scrapDocumentNumber;
-            if (docNum.Length > 32)
-                docNum = docNum[..32];
+            var docNum = await SqlDocumentSequenceStore.AllocateAsync(
+                db, organizationId, DocumentSequenceType.QualityScrap, scrapDocumentNumber, utcNow, ct);
 
             var scrapTxn = InventoryTransaction.Create(
                 organizationId,

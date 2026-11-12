@@ -108,10 +108,13 @@ public sealed class SqlProductionOrderOperationsStore(
         var reqUnit = await db.Units.AsNoTracking().SingleOrDefaultAsync(u => u.OrganizationId == request.OrganizationId && u.Id == snapshot.EffectiveRequestedUnitId, ct);
         if (reqUnit is null || !reqUnit.IsActive) return OrganizationResult<ProductionOrderDetails>.Failure(ProductionOrderErrors.UnitInvalid);
 
+        var orderNumber = await SqlDocumentSequenceStore.AllocateAsync(
+            db, request.OrganizationId, DocumentSequenceType.ProductionOrder, request.OrderNumber, DateTime.UtcNow, ct);
+
         var order = ProductionOrder.CreateDraft(
             request.OrganizationId,
             request.SiteId,
-            request.OrderNumber,
+            orderNumber,
             request.ItemId,
             request.RequestedQuantity,
             snapshot.EffectiveRequestedUnitId,

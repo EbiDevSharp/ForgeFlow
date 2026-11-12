@@ -29,8 +29,12 @@ public sealed class SqlStockReservationStore(
 
         if (query.SiteId is long siteId && siteId > 0)
             baseQuery = baseQuery.Where(x => x.sr.SiteId == siteId);
+        if (query.SourceKind is ReservationSourceKind sk)
+            baseQuery = baseQuery.Where(x => x.sr.SourceKind == sk);
         if (query.ProductionOrderId is long poId && poId > 0)
             baseQuery = baseQuery.Where(x => x.sr.ProductionOrderId == poId);
+        if (query.SalesOrderId is long soId && soId > 0)
+            baseQuery = baseQuery.Where(x => x.sr.SalesOrderId == soId);
         if (query.WarehouseId is long whId && whId > 0)
             baseQuery = baseQuery.Where(x => x.sr.WarehouseId == whId);
         if (query.ItemId is long itemId && itemId > 0)
@@ -42,7 +46,7 @@ public sealed class SqlStockReservationStore(
 
         if (!string.IsNullOrEmpty(query.Search))
             baseQuery = baseQuery.Where(x =>
-                x.po.OrderNumber.Contains(query.Search)
+                x.OrderNumber.Contains(query.Search)
                 || x.it.Code.Contains(query.Search)
                 || x.it.Name.Contains(query.Search)
                 || x.w.Code.Contains(query.Search)
@@ -55,7 +59,7 @@ public sealed class SqlStockReservationStore(
             .Take(query.PageSize)
             .ToListAsync(ct);
 
-        var items = rows.Select(r => ToSummary(r.sr, r.s, r.w, r.po.OrderNumber, r.it, r.u, r.CreatedAtUtc, r.RowVersion)).ToArray();
+        var items = rows.Select(r => ToSummary(r.sr, r.s, r.w, r.OrderNumber, r.it, r.u, r.CreatedAtUtc, r.RowVersion)).ToArray();
         return new OrganizationPage<StockReservationSummary>(items, total, query.Page, query.PageSize);
     }, ct);
 
@@ -70,7 +74,117 @@ public sealed class SqlStockReservationStore(
             .ThenBy(x => x.sr.Id)
             .ToListAsync(ct);
 
-        return rows.Select(r => ToSummary(r.sr, r.s, r.w, r.po.OrderNumber, r.it, r.u, r.CreatedAtUtc, r.RowVersion)).ToArray();
+        return rows.Select(r => ToSummary(r.sr, r.s, r.w, r.OrderNumber, r.it, r.u, r.CreatedAtUtc, r.RowVersion)).ToArray();
+    }, ct);
+
+    public Task<IReadOnlyList<StockReservationSummary>> ListSalesOrderReservations(
+        long organizationId,
+        long salesOrderId,
+        CancellationToken ct) => Read<IReadOnlyList<StockReservationSummary>>(async db =>
+    {
+        var rows = await BaseReservationQuery(db, organizationId)
+            .Where(x => x.sr.SourceKind == ReservationSourceKind.SalesOrder && x.sr.SalesOrderId == salesOrderId)
+            .OrderBy(x => x.sr.Status)
+            .ThenBy(x => x.sr.Id)
+            .ToListAsync(ct);
+
+        return rows.Select(r => ToSummary(r.sr, r.s, r.w, r.OrderNumber, r.it, r.u, r.CreatedAtUtc, r.RowVersion)).ToArray();
+    }, ct);
+
+    public Task<OrganizationResult<IReadOnlyList<StockReservationSummary>>> ReserveSalesOrderStock(
+        ReserveSalesOrderStockRequest request,
+        decimal requestedBaseQuantity,
+        long baseUnitId,
+        DateTime utcNow,
+        OrganizationWriteAccess access,
+        CancellationToken ct) => Write(access, async db =>
+    {
+        var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
+        if (!orgCheck.Ok) return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(orgCheck.Error!);
+
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT [Id] FROM [organization].[SalesOrder] WITH (UPDLOCK, HOLDLOCK) WHERE [OrganizationId] = {request.OrganizationId} AND [Id] = {request.SalesOrderId}", ct);
+
+        var so = await db.SalesOrders.Include(x => x.Lines)
+            .SingleOrDefaultAsync(x => x.OrganizationId == request.OrganizationId && x.Id == request.SalesOrderId, ct);
+        if (so is null) return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.ProductionOrderInvalid);
+        if (so.Status is not (Domain.Sales.SalesOrderStatus.Approved or Domain.Sales.SalesOrderStatus.PartiallyDispatched))
+            return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.ReservationNotAllowedForOrderState);
+
+        if (request.SalesOrderLineId is > 0 && !so.Lines.Any(l => l.Id == request.SalesOrderLineId.Value && l.ItemId == request.ItemId))
+            return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.ItemInvalid);
+
+        if (request.WarehouseId is long whFilter && whFilter > 0)
+        {
+            var wh = await db.Warehouses.AsNoTracking()
+                .SingleOrDefaultAsync(w => w.OrganizationId == request.OrganizationId && w.Id == whFilter && w.IsActive, ct);
+            if (wh is null || wh.SiteId != so.SiteId)
+                return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.WarehouseNotFound);
+        }
+
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT [Id] FROM [organization].[InventoryBalance] WITH (UPDLOCK, HOLDLOCK) WHERE [OrganizationId] = {request.OrganizationId} AND [SiteId] = {so.SiteId} AND [ItemId] = {request.ItemId}", ct);
+
+        var balQuery = db.InventoryBalances
+            .Where(b => b.OrganizationId == request.OrganizationId
+                        && b.SiteId == so.SiteId
+                        && b.ItemId == request.ItemId
+                        && (b.OnHandBaseQuantity - b.BlockedBaseQuantity - b.ReservedBaseQuantity) > 0m);
+
+        if (request.WarehouseId is > 0)
+            balQuery = balQuery.Where(b => b.WarehouseId == request.WarehouseId.Value);
+        if (!string.IsNullOrEmpty(request.LotCode))
+            balQuery = balQuery.Where(b => b.LotCode == request.LotCode);
+
+        var candidates = await balQuery
+            .OrderBy(b => b.WarehouseId).ThenBy(b => b.LotCode)
+            .ToListAsync(ct);
+
+        var totalAvailable = candidates.Sum(b => b.AvailableBaseQuantity);
+        if (totalAvailable < requestedBaseQuantity)
+            return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(
+                InventoryErrors.ReservationExceedsAvailable,
+                new Dictionary<string, object>
+                {
+                    ["available"] = totalAvailable,
+                    ["requested"] = requestedBaseQuantity
+                });
+
+        var remainingToReserve = requestedBaseQuantity;
+        var created = new List<StockReservation>();
+        foreach (var bal in candidates)
+        {
+            if (remainingToReserve <= 0m) break;
+            var take = Math.Min(remainingToReserve, bal.AvailableBaseQuantity);
+            if (take <= 0m) continue;
+
+            bal.ReserveQuantity(take, utcNow);
+            var sr = StockReservation.CreateForSalesOrder(
+                request.OrganizationId,
+                so.SiteId,
+                bal.WarehouseId,
+                so.Id,
+                request.SalesOrderLineId,
+                request.ItemId,
+                bal.LotCode,
+                baseUnitId,
+                take,
+                request.Notes);
+            db.StockReservations.Add(sr);
+            created.Add(sr);
+            remainingToReserve = decimal.Round(remainingToReserve - take, 6, MidpointRounding.AwayFromZero);
+        }
+
+        await db.SaveInOperation(access.Actor, ct);
+
+        var createdIds = created.Select(x => x.Id).ToArray();
+        var summaries = await BaseReservationQuery(db, request.OrganizationId)
+            .Where(x => createdIds.Contains(x.sr.Id))
+            .OrderBy(x => x.sr.Id)
+            .ToListAsync(ct);
+
+        return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Success(
+            summaries.Select(r => ToSummary(r.sr, r.s, r.w, r.OrderNumber, r.it, r.u, r.CreatedAtUtc, r.RowVersion)).ToArray());
     }, ct);
 
     public Task<StockReservationSummary?> GetReservation(long organizationId, long reservationId, CancellationToken ct) =>
@@ -175,7 +289,7 @@ public sealed class SqlStockReservationStore(
             .ToListAsync(ct);
 
         var result = orderRows
-            .Select(r => ToSummary(r.sr, r.s, r.w, r.po.OrderNumber, r.it, r.u, r.CreatedAtUtc, r.RowVersion))
+            .Select(r => ToSummary(r.sr, r.s, r.w, r.OrderNumber, r.it, r.u, r.CreatedAtUtc, r.RowVersion))
             .ToArray();
         return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Success(result);
     }, ct);
@@ -269,7 +383,7 @@ public sealed class SqlStockReservationStore(
         public StockReservation sr { get; init; } = null!;
         public Site s { get; init; } = null!;
         public Warehouse w { get; init; } = null!;
-        public ProductionOrder po { get; init; } = null!;
+        public string OrderNumber { get; init; } = string.Empty;
         public Domain.Items.Item it { get; init; } = null!;
         public Domain.Units.Unit u { get; init; } = null!;
         public DateTime CreatedAtUtc { get; init; }
@@ -280,7 +394,10 @@ public sealed class SqlStockReservationStore(
         from sr in db.StockReservations.AsNoTracking()
         join s in db.Sites.AsNoTracking() on new { sr.OrganizationId, SiteId = sr.SiteId } equals new { s.OrganizationId, SiteId = s.Id }
         join w in db.Warehouses.AsNoTracking() on new { sr.OrganizationId, WarehouseId = sr.WarehouseId } equals new { w.OrganizationId, WarehouseId = w.Id }
-        join po in db.ProductionOrders.AsNoTracking() on new { sr.OrganizationId, PoId = sr.ProductionOrderId } equals new { po.OrganizationId, PoId = po.Id }
+        join po in db.ProductionOrders.AsNoTracking() on new { sr.OrganizationId, PoId = sr.ProductionOrderId } equals new { po.OrganizationId, PoId = (long?)po.Id } into poJoin
+        from po in poJoin.DefaultIfEmpty()
+        join so in db.SalesOrders.AsNoTracking() on new { sr.OrganizationId, SoId = sr.SalesOrderId } equals new { so.OrganizationId, SoId = (long?)so.Id } into soJoin
+        from so in soJoin.DefaultIfEmpty()
         join it in db.Items.AsNoTracking() on new { sr.OrganizationId, ItemId = sr.ItemId } equals new { it.OrganizationId, ItemId = it.Id }
         join u in db.Units.AsNoTracking() on new { sr.OrganizationId, UnitId = sr.BaseUnitId } equals new { u.OrganizationId, UnitId = u.Id }
         where sr.OrganizationId == organizationId
@@ -289,7 +406,7 @@ public sealed class SqlStockReservationStore(
             sr = sr,
             s = s,
             w = w,
-            po = po,
+            OrderNumber = po != null ? po.OrderNumber : (so != null ? so.OrderNumber : string.Empty),
             it = it,
             u = u,
             CreatedAtUtc = EF.Property<DateTime>(sr, "CreatedAtUtc"),
@@ -303,7 +420,7 @@ public sealed class SqlStockReservationStore(
         CancellationToken ct)
     {
         var r = await BaseReservationQuery(db, organizationId).SingleOrDefaultAsync(x => x.sr.Id == reservationId, ct);
-        return r is null ? null : ToSummary(r.sr, r.s, r.w, r.po.OrderNumber, r.it, r.u, r.CreatedAtUtc, r.RowVersion);
+        return r is null ? null : ToSummary(r.sr, r.s, r.w, r.OrderNumber, r.it, r.u, r.CreatedAtUtc, r.RowVersion);
     }
 
     private static StockReservationSummary ToSummary(
@@ -323,7 +440,7 @@ public sealed class SqlStockReservationStore(
         sr.WarehouseId,
         w.Code,
         w.Name,
-        sr.ProductionOrderId,
+        sr.ProductionOrderId ?? 0L,
         orderNumber,
         sr.ProductionOrderInputId,
         sr.ItemId,
@@ -340,7 +457,10 @@ public sealed class SqlStockReservationStore(
         sr.Notes,
         createdAtUtc,
         sr.ReleasedAtUtc,
-        Convert.ToBase64String(rowVersion));
+        Convert.ToBase64String(rowVersion),
+        sr.SourceKind,
+        sr.SalesOrderId,
+        sr.SalesOrderLineId);
 
     private async Task<T> Read<T>(Func<OrganizationDbContext, Task<T>> query, CancellationToken ct)
     {
