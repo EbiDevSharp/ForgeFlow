@@ -153,6 +153,18 @@ public static class AuditEventCatalog
         Sec("SessionRevokedByUser"),
         Sec("OtherSessionsRevoked"),
         Sec("ActiveSiteSwitched"),
+        Sec("TwoFactorEnabled"),
+        Sec("TwoFactorDisabled"),
+        Sec("RecoveryCodesGenerated"),
+        Sec("RecoveryCodeRedeemed"),
+        Sec("IdleTimeoutUpdated"),
+        Sec("DeviceTrusted"),
+        Sec("PasskeyRegistered"),
+        Sec("PasskeyRemoved"),
+        Sec("PasskeySignIn"),
+        Sec("TwoFactorReset"),
+        Sec("SessionsRevokedByAdmin"),
+        Sec("AccountLockoutCleared"),
 
         // Non-mutating operations & rejections (ops.UserOperationLog)
         Op(UserOperationCatalog.ReportsShortageExported),

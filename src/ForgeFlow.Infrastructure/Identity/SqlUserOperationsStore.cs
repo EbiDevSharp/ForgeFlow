@@ -121,6 +121,7 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
                 UserName = canonicalUserName.Value,
                 IsActive = true,
                 LockoutEnabled = true,
+                RequirePasswordChange = request.RequirePasswordChange,
                 CreatedAtUtc = now
             };
 
@@ -356,6 +357,7 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
             return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
         }, ct);
 
+
     public Task<OrganizationResult<UserDetails>> UnlockUser(
         long? organizationId,
         long userId,
@@ -404,13 +406,15 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
             return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
         }, ct);
 
+
     public Task<OrganizationResult<UserDetails>> ResetUserPassword(
         long? organizationId,
         long userId,
         string newPassword,
         byte[] expectedAccountVersion,
         OrganizationWriteAccess access,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool requirePasswordChange = true)
         => WriteAsync(access, async (db, manager) =>
         {
             Organization? scopedOrg = null;
@@ -446,6 +450,7 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
 
             var now = UtcNow;
             account.PasswordHash = manager.PasswordHasher.HashPassword(account, newPassword);
+            account.RequirePasswordChange = requirePasswordChange;
             account.UpdatedAtUtc = SafeUpdatedAt(account.CreatedAtUtc, now);
             db.Entry(account).Property("RowVersion").OriginalValue = expectedAccountVersion;
 
@@ -472,6 +477,162 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
 
             AddEvent(db, "PasswordResetCompleted", now, access.Actor.CorrelationId, access.Actor.ActorId, userId, organizationId, null, null,
                 new { action = "AdminPasswordReset" });
+
+            await db.SaveChangesAsync(ct);
+            return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
+        }, ct);
+
+    public async Task<OrganizationResult<UserDetails>> ResetUserTwoFactor(
+        long? organizationId,
+        long userId,
+        string reason,
+        byte[] expectedAccountVersion,
+        OrganizationWriteAccess access,
+        CancellationToken ct)
+    {
+        var notifyIds = new List<long>();
+        var targetName = string.Empty;
+        var res = await WriteAsync(access, async (db, manager) =>
+        {
+            if (access.Actor.ActorId == userId)
+                return OrganizationResult<UserDetails>.Failure(UserManagementErrors.CannotResetOwnTwoFactor);
+
+            Organization? scopedOrg = null;
+            if (organizationId is long orgId)
+                scopedOrg = await LockOrganizationAsync(db, orgId, ct);
+
+            var account = await LockUserByIdAsync(db, userId, ct);
+            if (account is null)
+                return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+
+            if (organizationId is long orgScopeId)
+            {
+                if (scopedOrg is null)
+                    return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+
+                var isolationError = await EnsureOrganizationExclusiveUserAsync(db, orgScopeId, userId, ct);
+                if (isolationError is not null)
+                    return OrganizationResult<UserDetails>.Failure(isolationError);
+
+                if (!scopedOrg.IsActive)
+                    return OrganizationResult<UserDetails>.Failure(UserManagementErrors.ParentOrganizationInactive);
+            }
+
+            if (!MatchesRowVersion(db, account, expectedAccountVersion))
+                return OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
+
+            var now = UtcNow;
+            await manager.SetTwoFactorEnabledAsync(account, false);
+            await manager.ResetAuthenticatorKeyAsync(account);
+            await manager.RemoveAuthenticationTokenAsync(account, "[AspNetUserStore]", "RecoveryCodes");
+            account.TwoFactorEnabledAtUtc = null;
+            account.RequireTwoFactorSetup = true;
+            account.UpdatedAtUtc = SafeUpdatedAt(account.CreatedAtUtc, now);
+            db.Entry(account).Property("RowVersion").OriginalValue = expectedAccountVersion;
+
+            var stampResult = await manager.UpdateSecurityStampAsync(account);
+            if (!stampResult.Succeeded)
+                return OrganizationResult<UserDetails>.Failure(UserManagementErrors.PersistenceUnavailable);
+
+            var openSessions = await db.Sessions
+                .Where(s => s.UserId == userId && s.RevokedAtUtc == null)
+                .ToListAsync(ct);
+
+            foreach (var session in openSessions)
+            {
+                session.RevokedAtUtc = now >= session.IssuedAtUtc ? now : session.IssuedAtUtc;
+                session.RevokeReason = "TwoFactorReset";
+                AddEvent(db, "SessionRevoked", now, access.Actor.CorrelationId, access.Actor.ActorId, userId, organizationId, null, session.Id,
+                    new { reason = "TwoFactorReset" });
+            }
+
+            AddEvent(db, "TwoFactorReset", now, access.Actor.CorrelationId, access.Actor.ActorId, userId, organizationId, null, null,
+                new { reason, targetUserName = account.UserName });
+
+            await db.SaveChangesAsync(ct);
+
+            targetName = account.UserName ?? string.Empty;
+            notifyIds.Add(userId);
+            if (organizationId is long orgIdNotify)
+            {
+                var targetIsAdmin = await db.ScopedRoleAssignments.AsNoTracking()
+                    .AnyAsync(r => r.UserId == userId && r.OrganizationId == orgIdNotify && r.RoleId == FixedAccessRoles.OrganizationAdministrator && r.IsActive, ct);
+                if (targetIsAdmin)
+                {
+                    var peerAdmins = await db.ScopedRoleAssignments.AsNoTracking()
+                        .Where(r => r.OrganizationId == orgIdNotify && r.RoleId == FixedAccessRoles.OrganizationAdministrator && r.IsActive && r.UserId != userId && r.UserId != access.Actor.ActorId)
+                        .Select(r => r.UserId)
+                        .Distinct()
+                        .ToListAsync(ct);
+                    notifyIds.AddRange(peerAdmins);
+                }
+            }
+
+            return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
+        }, ct);
+
+        if (res.Succeeded && notifications is not null)
+        {
+            foreach (var uid in notifyIds.Distinct())
+            {
+                await notifications.PublishAsync(
+                    uid,
+                    NotificationEventCatalog.NewDeviceSignIn,
+                    NotificationCategory.Security,
+                    NotificationSeverity.Danger,
+                    NotificationTemplateCatalog.TwoFactorResetAlert,
+                    new { user = targetName },
+                    "/account/security?setup2fa=1",
+                    ct);
+            }
+        }
+        return res;
+    }
+
+    public Task<OrganizationResult<UserDetails>> RevokeUserSessions(
+        long? organizationId,
+        long userId,
+        byte[] expectedAccountVersion,
+        OrganizationWriteAccess access,
+        CancellationToken ct)
+        => WriteAsync(access, async (db, manager) =>
+        {
+            Organization? scopedOrg = null;
+            if (organizationId is long orgId)
+                scopedOrg = await LockOrganizationAsync(db, orgId, ct);
+
+            var account = await LockUserByIdAsync(db, userId, ct);
+            if (account is null)
+                return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+
+            if (organizationId is long orgScopeId)
+            {
+                if (scopedOrg is null)
+                    return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+
+                var isolationError = await EnsureOrganizationExclusiveUserAsync(db, orgScopeId, userId, ct);
+                if (isolationError is not null)
+                    return OrganizationResult<UserDetails>.Failure(isolationError);
+            }
+
+            if (!MatchesRowVersion(db, account, expectedAccountVersion))
+                return OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
+
+            var now = UtcNow;
+            var openSessions = await db.Sessions
+                .Where(s => s.UserId == userId && s.RevokedAtUtc == null)
+                .ToListAsync(ct);
+
+            foreach (var session in openSessions)
+            {
+                session.RevokedAtUtc = now >= session.IssuedAtUtc ? now : session.IssuedAtUtc;
+                session.RevokeReason = "AdminRevoked";
+                AddEvent(db, "SessionRevoked", now, access.Actor.CorrelationId, access.Actor.ActorId, userId, organizationId, null, session.Id,
+                    new { reason = "AdminRevoked" });
+            }
+
+            AddEvent(db, "SessionsRevokedByAdmin", now, access.Actor.CorrelationId, access.Actor.ActorId, userId, organizationId, null, null,
+                new { count = openSessions.Count });
 
             await db.SaveChangesAsync(ct);
             return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
@@ -1068,6 +1229,9 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
                 u.LockoutEnabled,
                 u.LockoutEnd,
                 u.PreferredCulture,
+                u.SecurityStamp,
+                u.TwoFactorEnabled,
+                u.TwoFactorEnabledAtUtc,
                 RowVersion = EF.Property<byte[]>(u, "RowVersion")
             })
             .SingleOrDefaultAsync(ct);
@@ -1082,6 +1246,17 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
 
         var accountVersion = Convert.ToBase64String(user.RowVersion);
         var locked = user.LockoutEnabled && user.LockoutEnd > new DateTimeOffset(utcNow);
+        var activeSessions = await db.Sessions.AsNoTracking()
+            .CountAsync(s => s.UserId == userId && s.RevokedAtUtc == null && s.ExpiresAtUtc > utcNow && s.SecurityStampSnapshot == user.SecurityStamp, ct);
+        var recoveryRaw = user.TwoFactorEnabled
+            ? await db.UserTokens.AsNoTracking()
+                .Where(t => t.UserId == userId && t.LoginProvider == "[AspNetUserStore]" && t.Name == "RecoveryCodes")
+                .Select(t => t.Value)
+                .SingleOrDefaultAsync(ct)
+            : null;
+        var recoveryCount = string.IsNullOrWhiteSpace(recoveryRaw)
+            ? 0
+            : recoveryRaw.Split(';', StringSplitOptions.RemoveEmptyEntries).Length;
 
         if (organizationId is not long orgId)
         {
@@ -1098,7 +1273,11 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
                 null,
                 accountVersion,
                 string.Empty,
-                []);
+                [],
+                user.TwoFactorEnabled,
+                user.TwoFactorEnabledAtUtc.HasValue ? DateTime.SpecifyKind(user.TwoFactorEnabledAtUtc.Value, DateTimeKind.Utc) : null,
+                recoveryCount,
+                activeSessions);
         }
 
         var orgMembership = await db.OrganizationMemberships.AsNoTracking()
@@ -1168,7 +1347,11 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
             orgAdminRole is null ? null : Convert.ToBase64String(orgAdminRole.RowVersion),
             accountVersion,
             Convert.ToBase64String(orgMembership.RowVersion),
-            sites);
+            sites,
+            user.TwoFactorEnabled,
+            user.TwoFactorEnabledAtUtc.HasValue ? DateTime.SpecifyKind(user.TwoFactorEnabledAtUtc.Value, DateTimeKind.Utc) : null,
+            recoveryCount,
+            activeSessions);
     }
 
     private static bool MatchesRowVersion(AuthDbContext db, object entity, byte[] expected)

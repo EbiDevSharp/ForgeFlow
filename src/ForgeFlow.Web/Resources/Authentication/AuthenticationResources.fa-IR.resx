@@ -12,4 +12,14 @@
   <data name="Auth.CurrentPasswordInvalid" xml:space="preserve"><value>رمز عبور فعلی نادرست است.</value></data>
   <data name="Auth.PasswordInvalid" xml:space="preserve"><value>رمز عبور جدید باید بین ۱۲ تا ۱۲۸ نویسه و بدون نویسهٔ کنترلی باشد.</value></data>
   <data name="Auth.PasswordMismatch" xml:space="preserve"><value>رمز عبور جدید و تکرار آن یکسان نیستند.</value></data>
+  <data name="Auth.TwoFactorInvalidCode" xml:space="preserve"><value>کد تأیید نادرست یا منقضی شده است.</value></data>
+  <data name="Auth.TwoFactorPendingExpired" xml:space="preserve"><value>مهلت تأیید دو مرحله‌ای به پایان رسید. لطفاً دوباره وارد شوید.</value></data>
+  <data name="Auth.TwoFactorNotEnabled" xml:space="preserve"><value>ورود دو مرحله‌ای برای این حساب فعال نیست.</value></data>
+  <data name="Auth.TwoFactorEnabled" xml:space="preserve"><value>ورود دو مرحله‌ای با موفقیت فعال شد.</value></data>
+  <data name="Auth.TwoFactorDisabled" xml:space="preserve"><value>ورود دو مرحله‌ای غیرفعال شد.</value></data>
+  <data name="Auth.RecoveryCodesRegenerated" xml:space="preserve"><value>کدهای بازیابی جدید ایجاد شدند. کدهای قبلی دیگر معتبر نیستند.</value></data>
+  <data name="Auth.PasskeyRegistered" xml:space="preserve"><value>کلید عبور با موفقیت ثبت شد.</value></data>
+  <data name="Auth.PasskeyRemoved" xml:space="preserve"><value>کلید عبور حذف شد.</value></data>
+  <data name="Auth.PasskeyInvalid" xml:space="preserve"><value>تأیید کلید عبور ناموفق بود. دوباره تلاش کنید.</value></data>
+  <data name="Auth.PasskeyNotFound" xml:space="preserve"><value>کلید عبور مورد نظر یافت نشد.</value></data>
 </root>

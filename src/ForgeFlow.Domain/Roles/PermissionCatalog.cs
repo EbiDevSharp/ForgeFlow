@@ -57,6 +57,7 @@ public static class PermissionCatalog
         new("Users.SetActive", PermissionModule.Users, "SetActive", PermissionScopeApplicability.OrganizationOnly),
         new("Users.Unlock", PermissionModule.Users, "Unlock", PermissionScopeApplicability.OrganizationOnly),
         new("Users.ResetPassword", PermissionModule.Users, "ResetPassword", PermissionScopeApplicability.OrganizationOnly),
+        new("Users.ResetTwoFactor", PermissionModule.Users, "ResetTwoFactor", PermissionScopeApplicability.OrganizationOnly),
         new("Users.AttachOrganization", PermissionModule.Users, "AttachOrganization", PermissionScopeApplicability.PlatformOnly),
         new("Memberships.Manage", PermissionModule.Users, "ManageMemberships", PermissionScopeApplicability.OrganizationOnly),
         new("Roles.AssignFixed", PermissionModule.Users, "AssignFixedRoles", PermissionScopeApplicability.OrganizationOnly),

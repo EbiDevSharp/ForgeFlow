@@ -36,6 +36,7 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
     public DbSet<UserPreference> UserPreferences => Set<UserPreference>();
     public DbSet<UserNotificationPreference> UserNotificationPreferences => Set<UserNotificationPreference>();
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
+    public DbSet<UserPasskey> Passkeys => Set<UserPasskey>();
     private static readonly ValueConverter<DateTime, DateTime> Utc = new(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
     // Approved password-only support shape; no passkey tables/features in this increment.
     protected override Version SchemaVersion => IdentitySchemaVersions.Version1;
@@ -112,6 +113,8 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         user.Property(u => u.PreferredCulture).HasMaxLength(5).IsUnicode(false);
         user.Property(u => u.CreatedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
         user.Property(u => u.UpdatedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
+        user.Property(u => u.PasswordChangedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
+        user.Property(u => u.TwoFactorEnabledAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
         Version(user);
         model.Entity<IdentityUserClaim<long>>(e => { e.ToTable("UserClaim", "auth"); e.Property(c => c.ClaimType).HasMaxLength(256); });
         model.Entity<IdentityUserLogin<long>>(e => { e.ToTable("UserLogin", "auth"); e.Property(c => c.LoginProvider).HasMaxLength(128); e.Property(c => c.ProviderKey).HasMaxLength(128); e.Property(c => c.ProviderDisplayName).HasMaxLength(256); });
@@ -200,7 +203,7 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         grant.HasIndex(g => new { g.UserId, g.IsActive, g.ScopeKind, g.OrganizationId, g.SiteId, g.PermissionCode });
 
         var session = model.Entity<AccountSession>();
-        session.ToTable("Session", "auth", t => t.HasCheckConstraint("CK_Session_Lifecycle", "[ExpiresAtUtc] > [IssuedAtUtc] AND [LastActivityAtUtc] >= [IssuedAtUtc] AND (([RevokedAtUtc] IS NULL AND [RevokeReason] IS NULL) OR ([RevokedAtUtc] IS NOT NULL AND [RevokedAtUtc] >= [IssuedAtUtc] AND [RevokeReason] IS NOT NULL AND DATALENGTH([RevokeReason]) = LEN([RevokeReason]) AND [RevokeReason] COLLATE Latin1_General_100_BIN2 IN ('Logout','PasswordReset','AccountDisabled','AccountLocked','StampChanged','SessionRevokedByUser')))"));
+        session.ToTable("Session", "auth", t => t.HasCheckConstraint("CK_Session_Lifecycle", "[ExpiresAtUtc] > [IssuedAtUtc] AND [LastActivityAtUtc] >= [IssuedAtUtc] AND (([RevokedAtUtc] IS NULL AND [RevokeReason] IS NULL) OR ([RevokedAtUtc] IS NOT NULL AND [RevokedAtUtc] >= [IssuedAtUtc] AND [RevokeReason] IS NOT NULL AND DATALENGTH([RevokeReason]) = LEN([RevokeReason]) AND [RevokeReason] COLLATE Latin1_General_100_BIN2 IN ('Logout','PasswordReset','AccountDisabled','AccountLocked','StampChanged','SessionRevokedByUser','IdleTimeout','TwoFactorReset','AdminRevoked')))"));
         session.HasKey(s => s.Id); session.Property(s => s.Id).ValueGeneratedNever();
         session.Property(s => s.SecurityStampSnapshot).HasMaxLength(256).IsRequired();
         session.Property(s => s.IpAddress).HasMaxLength(64).IsUnicode(false);
@@ -235,7 +238,7 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         {
             t.HasCheckConstraint("CK_SecurityEvent_Actor", "([ActorKind]=0 AND [ActorUserId] IS NULL AND [HostOperatorReference] IS NULL) OR ([ActorKind]=1 AND [ActorUserId] IS NOT NULL AND [HostOperatorReference] IS NULL) OR ([ActorKind]=2 AND [ActorUserId] IS NULL AND [HostOperatorReference] IS NOT NULL AND LEN([HostOperatorReference]) > 0)");
             t.HasCheckConstraint("CK_SecurityEvent_Data", "ISJSON([DataJson])=1 AND [Outcome] IN (0,1,2) AND ([SiteId] IS NULL OR [OrganizationId] IS NOT NULL)");
-            t.HasCheckConstraint("CK_SecurityEvent_Code", "DATALENGTH([EventCode])=LEN([EventCode]) AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('BootstrapCompleted','AccountCreated','SignInFailed','AccountLocked','SessionIssued','SessionRevoked','AccessDenied','PasswordResetCompleted','AccountEligibilityChanged','MembershipChanged','ScopedRoleChanged','RoleDefinitionChanged','DirectPermissionChanged','CulturePreferenceChanged','PreferencesUpdated','ProfileUpdated','SessionRevokedByUser','OtherSessionsRevoked','ActiveSiteSwitched')");
+            t.HasCheckConstraint("CK_SecurityEvent_Code", "DATALENGTH([EventCode])=LEN([EventCode]) AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('BootstrapCompleted','AccountCreated','SignInFailed','AccountLocked','SessionIssued','SessionRevoked','AccessDenied','PasswordResetCompleted','AccountEligibilityChanged','MembershipChanged','ScopedRoleChanged','RoleDefinitionChanged','DirectPermissionChanged','CulturePreferenceChanged','PreferencesUpdated','ProfileUpdated','SessionRevokedByUser','OtherSessionsRevoked','ActiveSiteSwitched','TwoFactorEnabled','TwoFactorDisabled','RecoveryCodesGenerated','RecoveryCodeRedeemed','IdleTimeoutUpdated','DeviceTrusted','PasskeyRegistered','PasskeyRemoved','PasskeySignIn','TwoFactorReset','SessionsRevokedByAdmin','AccountLockoutCleared')");
         });
         security.HasKey(e => e.Id); security.Property(e => e.Id).UseIdentityColumn();
         security.Property(e => e.EventCode).HasMaxLength(64).IsUnicode(false).IsRequired();
@@ -258,6 +261,7 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
             t.HasCheckConstraint("CK_UserPreference_Calendar", "[CalendarSystem] COLLATE Latin1_General_100_BIN2 IN ('persian','gregorian')");
             t.HasCheckConstraint("CK_UserPreference_TimeZone", "LEN([TimeZoneId]) BETWEEN 1 AND 64");
             t.HasCheckConstraint("CK_UserPreference_ActiveScope", "([ActiveSiteId] IS NULL OR [ActiveOrganizationId] IS NOT NULL)");
+            t.HasCheckConstraint("CK_UserPreference_IdleTimeout", "[IdleTimeoutMinutes] IS NULL OR [IdleTimeoutMinutes] IN (15,30,60)");
             t.HasCheckConstraint("CK_UserPreference_Metadata", "[UpdatedAtUtc] IS NULL OR [UpdatedAtUtc] >= [CreatedAtUtc]");
         });
         preference.HasKey(p => p.UserId);
@@ -265,6 +269,8 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         preference.Property(p => p.Theme).HasMaxLength(16).IsUnicode(false).IsRequired();
         preference.Property(p => p.CalendarSystem).HasMaxLength(16).IsUnicode(false).IsRequired();
         preference.Property(p => p.TimeZoneId).HasMaxLength(64).IsUnicode(false).IsRequired();
+        preference.Property(p => p.TwoFactorReminderSnoozedUntilUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
+        preference.Property(p => p.TwoFactorOneTimeNotifiedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
         preference.Property(p => p.CreatedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
         preference.Property(p => p.UpdatedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
         preference.HasOne<ApplicationAccount>().WithOne().HasForeignKey<UserPreference>(p => p.UserId);
@@ -290,7 +296,7 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         {
             t.HasCheckConstraint("CK_UserNotification_Category", "[Category] IN (1, 2)");
             t.HasCheckConstraint("CK_UserNotification_Severity", "[Severity] IN (1, 2, 3, 4)");
-            t.HasCheckConstraint("CK_UserNotification_Template", "DATALENGTH([TemplateCode])=LEN([TemplateCode]) AND [TemplateCode] COLLATE Latin1_General_100_BIN2 IN ('NewDeviceSignIn','FailedSignInAttempts','RoleOrAccessChanged','MyProductionOrderStatusChanged','PasswordChangedAlert')");
+            t.HasCheckConstraint("CK_UserNotification_Template", "DATALENGTH([TemplateCode])=LEN([TemplateCode]) AND [TemplateCode] COLLATE Latin1_General_100_BIN2 IN ('NewDeviceSignIn','FailedSignInAttempts','RoleOrAccessChanged','MyProductionOrderStatusChanged','PasswordChangedAlert','TwoFactorReminder','TwoFactorResetAlert')");
             t.HasCheckConstraint("CK_UserNotification_Params", "ISJSON([ParamsJson]) = 1");
             t.HasCheckConstraint("CK_UserNotification_ReadAt", "[ReadAtUtc] IS NULL OR [ReadAtUtc] >= [CreatedAtUtc]");
         });
@@ -304,6 +310,26 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         notification.HasOne<ApplicationAccount>().WithMany().HasForeignKey(n => n.UserId);
         notification.HasIndex(n => new { n.UserId, n.ReadAtUtc, n.CreatedAtUtc, n.Id });
         Version(notification);
+
+        var passkey = model.Entity<UserPasskey>();
+        passkey.ToTable("UserPasskey", "auth", t =>
+        {
+            t.HasCheckConstraint("CK_UserPasskey_Algo", "[Algorithm] IN (-7, -257)");
+            t.HasCheckConstraint("CK_UserPasskey_SignCount", "[SignCount] >= 0");
+            t.HasCheckConstraint("CK_UserPasskey_Name", "LEN([DisplayName]) BETWEEN 1 AND 100");
+        });
+        passkey.HasKey(p => p.Id);
+        passkey.Property(p => p.Id).UseIdentityColumn();
+        passkey.Property(p => p.CredentialId).HasMaxLength(512).IsRequired();
+        passkey.Property(p => p.PublicKeyCose).HasMaxLength(1024).IsRequired();
+        passkey.Property(p => p.DisplayName).HasMaxLength(100).IsRequired();
+        passkey.Property(p => p.CreatedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
+        passkey.Property(p => p.LastUsedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
+        passkey.Property(p => p.RevokedAtUtc).HasColumnType("datetime2(7)").HasConversion(Utc);
+        passkey.HasOne<ApplicationAccount>().WithMany().HasForeignKey(p => p.UserId);
+        passkey.HasIndex(p => p.CredentialId).IsUnique().HasDatabaseName("UX_UserPasskey_CredentialId");
+        passkey.HasIndex(p => new { p.UserId, p.RevokedAtUtc });
+        Version(passkey);
 
         foreach (var fk in model.Model.GetEntityTypes().SelectMany(e => e.GetForeignKeys())) fk.DeleteBehavior = DeleteBehavior.NoAction;
     }

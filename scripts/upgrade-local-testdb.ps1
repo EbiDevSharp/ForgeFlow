@@ -1986,6 +1986,40 @@ BEGIN
     VALUES (N'20261111125209_LabParametersSpecsAndCoa', N'10.0.14');
 END;
 
+IF COL_LENGTH(N'auth.User', N'PasswordChangedAtUtc') IS NULL
+    ALTER TABLE [auth].[User] ADD [PasswordChangedAtUtc] datetime2(7) NULL;
+
+IF COL_LENGTH(N'auth.UserPreference', N'IdleTimeoutMinutes') IS NULL
+    ALTER TABLE [auth].[UserPreference] ADD [IdleTimeoutMinutes] int NULL;
+
+IF COL_LENGTH(N'auth.UserPreference', N'TwoFactorOneTimeNotifiedAtUtc') IS NULL
+    ALTER TABLE [auth].[UserPreference] ADD [TwoFactorOneTimeNotifiedAtUtc] datetime2(7) NULL;
+
+IF COL_LENGTH(N'auth.UserPreference', N'TwoFactorReminderSnoozedUntilUtc') IS NULL
+    ALTER TABLE [auth].[UserPreference] ADD [TwoFactorReminderSnoozedUntilUtc] datetime2(7) NULL;
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_UserPreference_IdleTimeout' AND parent_object_id = OBJECT_ID(N'auth.UserPreference'))
+    EXEC(N'ALTER TABLE [auth].[UserPreference] ADD CONSTRAINT [CK_UserPreference_IdleTimeout] CHECK ([IdleTimeoutMinutes] IS NULL OR [IdleTimeoutMinutes] IN (15,30,60));');
+
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_UserNotification_Template' AND parent_object_id = OBJECT_ID(N'auth.UserNotification'))
+    ALTER TABLE [auth].[UserNotification] DROP CONSTRAINT [CK_UserNotification_Template];
+EXEC(N'ALTER TABLE [auth].[UserNotification] ADD CONSTRAINT [CK_UserNotification_Template] CHECK (DATALENGTH([TemplateCode])=LEN([TemplateCode]) AND [TemplateCode] COLLATE Latin1_General_100_BIN2 IN (''NewDeviceSignIn'',''FailedSignInAttempts'',''RoleOrAccessChanged'',''MyProductionOrderStatusChanged'',''PasswordChangedAlert'',''TwoFactorReminder''));');
+
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Session_Lifecycle' AND parent_object_id = OBJECT_ID(N'auth.Session'))
+    ALTER TABLE [auth].[Session] DROP CONSTRAINT [CK_Session_Lifecycle];
+EXEC(N'ALTER TABLE [auth].[Session] ADD CONSTRAINT [CK_Session_Lifecycle] CHECK ([ExpiresAtUtc] > [IssuedAtUtc] AND [LastActivityAtUtc] >= [IssuedAtUtc] AND (([RevokedAtUtc] IS NULL AND [RevokeReason] IS NULL) OR ([RevokedAtUtc] IS NOT NULL AND [RevokedAtUtc] >= [IssuedAtUtc] AND [RevokeReason] IS NOT NULL AND DATALENGTH([RevokeReason]) = LEN([RevokeReason]) AND [RevokeReason] COLLATE Latin1_General_100_BIN2 IN (''Logout'',''PasswordReset'',''AccountDisabled'',''AccountLocked'',''StampChanged'',''SessionRevokedByUser'',''IdleTimeout''))));');
+
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_SecurityEvent_Code' AND parent_object_id = OBJECT_ID(N'auth.SecurityEvent'))
+    ALTER TABLE [auth].[SecurityEvent] DROP CONSTRAINT [CK_SecurityEvent_Code];
+EXEC(N'ALTER TABLE [auth].[SecurityEvent] ADD CONSTRAINT [CK_SecurityEvent_Code] CHECK (DATALENGTH([EventCode])=LEN([EventCode]) AND [EventCode] COLLATE Latin1_General_100_BIN2 IN (''BootstrapCompleted'',''AccountCreated'',''SignInFailed'',''AccountLocked'',''SessionIssued'',''SessionRevoked'',''AccessDenied'',''PasswordResetCompleted'',''AccountEligibilityChanged'',''MembershipChanged'',''ScopedRoleChanged'',''RoleDefinitionChanged'',''DirectPermissionChanged'',''CulturePreferenceChanged'',''PreferencesUpdated'',''ProfileUpdated'',''SessionRevokedByUser'',''OtherSessionsRevoked'',''ActiveSiteSwitched'',''TwoFactorEnabled'',''TwoFactorDisabled'',''RecoveryCodesGenerated'',''RecoveryCodeRedeemed'',''IdleTimeoutUpdated'',''DeviceTrusted''));');
+
+IF OBJECT_ID(N'auth.__EFMigrationsHistory', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM [auth].[__EFMigrationsHistory] WHERE [MigrationId] = N'20261112063318_AccountSecurityAndTwoFactor')
+BEGIN
+    INSERT INTO [auth].[__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20261112063318_AccountSecurityAndTwoFactor', N'10.0.14');
+END;
+
 COMMIT;
 "@
 

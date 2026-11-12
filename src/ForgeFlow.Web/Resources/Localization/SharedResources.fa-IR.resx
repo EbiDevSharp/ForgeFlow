@@ -399,9 +399,6 @@
   <data name="UserAssignSitesLabel" xml:space="preserve">
     <value>دسترسی اولیهٔ سایت‌ها</value>
   </data>
-  <data name="UserAssignSiteOperator" xml:space="preserve">
-    <value>اعطای نقش اپراتور سایت برای سایت‌های انتخاب‌شده</value>
-  </data>
   <data name="UserUnlockButton" xml:space="preserve">
     <value>رفع قفل حساب</value>
   </data>
@@ -423,20 +420,11 @@
   <data name="UserRevokeOrgAdmin" xml:space="preserve">
     <value>لغو نقش مدیر سازمان</value>
   </data>
-  <data name="UserGrantSiteOperator" xml:space="preserve">
-    <value>اعطای اپراتور</value>
-  </data>
-  <data name="UserRevokeSiteOperator" xml:space="preserve">
-    <value>لغو اپراتور</value>
-  </data>
   <data name="UserAddSiteLabel" xml:space="preserve">
     <value>افزودن سایت</value>
   </data>
   <data name="UserAddSiteButton" xml:space="preserve">
     <value>افزودن سایت</value>
-  </data>
-  <data name="UserMultiOrgAccountHint" xml:space="preserve">
-    <value>این کاربر عضو چند سازمان است یا مجوز پلتفرم دارد. غیرفعال‌سازی سراسری حساب نیاز به دسترسی پلتفرم دارد؛ عضویت او در همین سازمان از بخش زیر قابل مدیریت است.</value>
   </data>
   <data name="UserConfirmDisableAccount" xml:space="preserve">
     <value>حساب «{0}» غیرفعال و تمام نشست‌های فعال آن بسته شوند؟</value>
@@ -631,19 +619,13 @@
     <value>دسترسی‌ها</value>
   </data>
   <data name="UserPermissionsTitle" xml:space="preserve">
-    <value>نقش‌ها و دسترسی‌های عملیات — {0}</value>
-  </data>
-  <data name="UserRolesSectionTitle" xml:space="preserve">
-    <value>نقش‌های تخصیص‌یافته</value>
+    <value>نقش‌ها و دسترسی‌ها — {0}</value>
   </data>
   <data name="UserAssignRoleLabel" xml:space="preserve">
     <value>انتخاب نقش</value>
   </data>
   <data name="UserAssignRoleButton" xml:space="preserve">
     <value>افزودن نقش</value>
-  </data>
-  <data name="UserDirectOpsSectionTitle" xml:space="preserve">
-    <value>دسترسی عملیات صفحات</value>
   </data>
   <data name="UserPermScopeLabel" xml:space="preserve">
     <value>محدوده اعمال دسترسی</value>
@@ -655,13 +637,7 @@
     <value>سایت: {0} — {1}</value>
   </data>
   <data name="UserPermSaveButton" xml:space="preserve">
-    <value>ذخیره دسترسی‌های عملیات</value>
-  </data>
-  <data name="RoleGrantedBadge" xml:space="preserve">
-    <value>از طریق نقش</value>
-  </data>
-  <data name="UserAdminFullAccessNotice" xml:space="preserve">
-    <value>کاربر مدیر سازمان به تمام صفحات و عملیات‌ها دسترسی کامل دارد.</value>
+    <value>ذخیرهٔ دسترسی‌ها</value>
   </data>
   <data name="RoleErrorInvalidName" xml:space="preserve">
     <value>نام نقش معتبر وارد کنید (۲ تا ۱۲۸ نویسه و غیر از کدهای رزروشده سیستمی).</value>
@@ -2702,4 +2678,180 @@
   <data name="QcErrorSpecRangeInvalid" xml:space="preserve"><value>حد پایین نمی‌تواند از حد بالا بیشتر باشد و پارامتر تکراری مجاز نیست.</value></data>
   <data name="QcErrorSpecLinesRequired" xml:space="preserve"><value>ثبت حداقل یک پارامتر در مشخصات کیفیت الزامی است.</value></data>
   <data name="QcErrorConcessionReasonRequired" xml:space="preserve"><value>یکی از آزمون‌های الزامی ناموفق است؛ برای پذیرش کالا کد ایراد یا یادداشت ارفاق ثبت کنید.</value></data>
+  <data name="AccountSecurityTitle" xml:space="preserve"><value>امنیت حساب</value></data>
+  <data name="AccountSecuritySubtitle" xml:space="preserve"><value>ورود و دسترسی به حساب خودتان را از اینجا مدیریت کنید.</value></data>
+  <data name="RecommendedBadge" xml:space="preserve"><value>پیشنهاد</value></data>
+  <data name="SecurityPostureWeak" xml:space="preserve"><value>امنیت حساب شما نیاز به تقویت دارد</value></data>
+  <data name="SecurityPostureMedium" xml:space="preserve"><value>امنیت حساب شما متوسط است</value></data>
+  <data name="SecurityPostureStrong" xml:space="preserve"><value>امنیت حساب شما کامل است</value></data>
+  <data name="SecurityPostureCount" xml:space="preserve"><value>{0} از {1}</value></data>
+  <data name="SecurityPostureHintEnable2FA" xml:space="preserve"><value>با فعال‌سازی ورود دو مرحله‌ای، حتی در صورت لو رفتن رمز عبور، حساب شما امن می‌ماند.</value></data>
+  <data name="SecurityPostureHintComplete" xml:space="preserve"><value>تنظیمات اصلی امنیت حساب شما فعال است. نشست‌های فعال را به‌طور دوره‌ای بررسی کنید.</value></data>
+  <data name="SecurityRowPasswordTitle" xml:space="preserve"><value>رمز عبور</value></data>
+  <data name="SecurityRowPasswordLastChanged" xml:space="preserve"><value>آخرین تغییر: {0}. رمز عبور را با هیچ سرویس دیگری مشترک نکنید.</value></data>
+  <data name="SecurityRowPasswordStatusSet" xml:space="preserve"><value>تنظیم‌شده</value></data>
+  <data name="SecurityRowPasswordAction" xml:space="preserve"><value>تغییر رمز عبور</value></data>
+  <data name="SecurityRow2FATitle" xml:space="preserve"><value>ورود دو مرحله‌ای (برنامهٔ احراز هویت)</value></data>
+  <data name="SecurityRow2FADesc" xml:space="preserve"><value>بعد از رمز عبور، یک کد ۶ رقمی از برنامهٔ Authenticator هم لازم است. حتی با لو رفتن رمز، حساب امن می‌ماند.</value></data>
+  <data name="SecurityRow2FAOn" xml:space="preserve"><value>روشن</value></data>
+  <data name="SecurityRow2FAOff" xml:space="preserve"><value>خاموش</value></data>
+  <data name="SecurityRow2FAEnableBtn" xml:space="preserve"><value>فعال‌سازی</value></data>
+  <data name="SecurityRow2FADisableBtn" xml:space="preserve"><value>غیرفعال‌سازی</value></data>
+  <data name="SecurityRowRecoveryTitle" xml:space="preserve"><value>کدهای بازیابی</value></data>
+  <data name="SecurityRowRecoveryDescDisabled" xml:space="preserve"><value>۱۰ کد یکبارمصرف برای ورود وقتی به برنامهٔ احراز هویت دسترسی ندارید. ابتدا ورود دو مرحله‌ای را فعال کنید.</value></data>
+  <data name="SecurityRowRecoveryDescEnabled" xml:space="preserve"><value>{0} از ۱۰ کد بازیابی یکبارمصرف باقی مانده است. آن‌ها را در جای امن نگهداری کنید.</value></data>
+  <data name="SecurityRowRecoveryViewBtn" xml:space="preserve"><value>مشاهدهٔ کدها</value></data>
+  <data name="SecurityRowRecoveryRegenerateBtn" xml:space="preserve"><value>تولید کدهای جدید</value></data>
+  <data name="SecurityRowPasskeyTitle" xml:space="preserve"><value>کلید عبور (Passkey)</value></data>
+  <data name="SecurityRowPasskeyDesc" xml:space="preserve"><value>ورود بدون رمز با اثر انگشت، تشخیص چهره یا کلید امنیتی سخت‌افزاری.</value></data>
+  <data name="SecurityRowPasskeySoonBadge" xml:space="preserve"><value>به‌زودی</value></data>
+  <data name="SecurityRowPasskeyAddBtn" xml:space="preserve"><value>افزودن کلید عبور</value></data>
+  <data name="SecurityRowIdleTitle" xml:space="preserve"><value>خروج خودکار</value></data>
+  <data name="SecurityRowIdleDesc" xml:space="preserve"><value>اگر این مدت از برنامه استفاده نکنید، به طور خودکار از حساب خارج می‌شوید.</value></data>
+  <data name="SecurityIdleOff" xml:space="preserve"><value>خاموش</value></data>
+  <data name="SecurityIdleMinutes" xml:space="preserve"><value>{0} دقیقه</value></data>
+  <data name="SecurityIdleSavedNotice" xml:space="preserve"><value>تنظیم خروج خودکار ذخیره شد.</value></data>
+  <data name="SecurityRowSessionsTitle" xml:space="preserve"><value>نشست‌ها و هشدارها</value></data>
+  <data name="SecurityRowSessionsDesc" xml:space="preserve"><value>{0} دستگاه وارد حساب شما هستند.</value></data>
+  <data name="SecurityRowSessionsAlertOn" xml:space="preserve"><value>هشدار ورود از دستگاه جدید روشن است.</value></data>
+  <data name="SecurityRowSessionsAlertOff" xml:space="preserve"><value>هشدار ورود از دستگاه جدید خاموش است.</value></data>
+  <data name="SecurityRowSessionsBtn" xml:space="preserve"><value>مدیریت نشست‌ها</value></data>
+  <data name="TotpSetupTitle" xml:space="preserve"><value>فعال‌سازی ورود دو مرحله‌ای</value></data>
+  <data name="TotpStep1Title" xml:space="preserve"><value>برنامهٔ احراز هویت را نصب کنید</value></data>
+  <data name="TotpStep1Desc" xml:space="preserve"><value>مثل Google Authenticator، Microsoft Authenticator یا Authy.</value></data>
+  <data name="TotpStep2Title" xml:space="preserve"><value>کد QR را اسکن کنید</value></data>
+  <data name="TotpStep2ManualHint" xml:space="preserve"><value>یا این کلید را دستی وارد کنید:</value></data>
+  <data name="TotpCopyKeyBtn" xml:space="preserve"><value>کپی کلید</value></data>
+  <data name="TotpKeyCopied" xml:space="preserve"><value>کپی شد</value></data>
+  <data name="TotpStep3Title" xml:space="preserve"><value>کد ۶ رقمی را وارد کنید</value></data>
+  <data name="TotpVerifyAndEnableBtn" xml:space="preserve"><value>تأیید و فعال‌سازی</value></data>
+  <data name="TotpCancelBtn" xml:space="preserve"><value>انصراف</value></data>
+  <data name="RecoveryDialogTitle" xml:space="preserve"><value>کدهای بازیابی</value></data>
+  <data name="RecoveryDialogWarning" xml:space="preserve"><value>این کدها فقط یک‌بار نمایش داده می‌شوند و هرکدام فقط یک‌بار قابل استفاده است. آن‌ها را جای امن نگه دارید.</value></data>
+  <data name="RecoveryCopyAllBtn" xml:space="preserve"><value>کپی همه</value></data>
+  <data name="RecoveryCopiedAll" xml:space="preserve"><value>همه کپی شدند</value></data>
+  <data name="RecoveryDownloadBtn" xml:space="preserve"><value>دانلود</value></data>
+  <data name="RecoverySavedCheckbox" xml:space="preserve"><value>کدها را در جای امن ذخیره کردم</value></data>
+  <data name="RecoveryDoneBtn" xml:space="preserve"><value>پایان</value></data>
+  <data name="RecoveryRegenerateTitle" xml:space="preserve"><value>تولید کدهای بازیابی جدید</value></data>
+  <data name="RecoveryRegenerateDesc" xml:space="preserve"><value>تولید کدهای جدید، تمام کدهای استفاده‌نشدهٔ قبلی را باطل می‌کند. برای ادامه رمز عبور فعلی خود را وارد کنید.</value></data>
+  <data name="RecoveryRegenerateConfirmBtn" xml:space="preserve"><value>تولید کدهای جدید</value></data>
+  <data name="Disable2FADialogTitle" xml:space="preserve"><value>غیرفعال‌سازی ورود دو مرحله‌ای</value></data>
+  <data name="Disable2FADialogDesc" xml:space="preserve"><value>غیرفعال‌سازی ورود دو مرحله‌ای امنیت حساب شما را کاهش می‌دهد. برای تأیید، رمز عبور فعلی را وارد کنید.</value></data>
+  <data name="Disable2FAConfirmBtn" xml:space="preserve"><value>غیرفعال‌سازی 2FA</value></data>
+  <data name="Login2FATitle" xml:space="preserve"><value>تأیید دو مرحله‌ای</value></data>
+  <data name="Login2FASubtitle" xml:space="preserve"><value>کد ۶ رقمی برنامهٔ احراز هویت خود را وارد کنید.</value></data>
+  <data name="Login2FARecoverySubtitle" xml:space="preserve"><value>یکی از کدهای بازیابی یکبارمصرف خود را وارد کنید.</value></data>
+  <data name="Login2FACodeLabel" xml:space="preserve"><value>کد ۶ رقمی احراز هویت</value></data>
+  <data name="Login2FARecoveryCodeLabel" xml:space="preserve"><value>کد بازیابی</value></data>
+  <data name="Login2FARememberDevice" xml:space="preserve"><value>این دستگاه را تا ۳۰ روز به خاطر بسپار</value></data>
+  <data name="Login2FAVerifyBtn" xml:space="preserve"><value>تأیید</value></data>
+  <data name="Login2FAUseRecoveryLink" xml:space="preserve"><value>استفاده از کد بازیابی</value></data>
+  <data name="Login2FAUseAuthenticatorLink" xml:space="preserve"><value>استفاده از برنامهٔ احراز هویت</value></data>
+  <data name="Login2FABackToLogin" xml:space="preserve"><value>بازگشت به ورود</value></data>
+  <data name="Home2FABannerTitle" xml:space="preserve"><value>ورود دو مرحله‌ای خاموش است</value></data>
+  <data name="Home2FABannerBody" xml:space="preserve"><value>با یک کد از برنامهٔ احراز هویت، حساب شما حتی با لو رفتن رمز عبور امن می‌ماند. فعال‌سازی حدود ۲ دقیقه طول می‌کشد. اگر «بعداً» را بزنید، ۷ روز دیگر یادآوری می‌شود.</value></data>
+  <data name="Home2FABannerEnableBtn" xml:space="preserve"><value>فعال‌سازی</value></data>
+  <data name="Home2FABannerLaterBtn" xml:space="preserve"><value>بعداً</value></data>
+  <data name="ChangePwd2FAPromptTitle" xml:space="preserve"><value>حساب خود را امن‌تر کنید</value></data>
+  <data name="ChangePwd2FAPromptBody" xml:space="preserve"><value>ورود دو مرحله‌ای هنوز برای حساب شما خاموش است. برای محافظت بیشتر آن را فعال کنید.</value></data>
+  <data name="ChangePwd2FAPromptBtn" xml:space="preserve"><value>فعال‌سازی 2FA</value></data>
+  <data name="NotifTitle_TwoFactorReminder" xml:space="preserve"><value>امنیت حساب خود را تقویت کنید</value></data>
+  <data name="NotifBody_TwoFactorReminder" xml:space="preserve"><value>ورود دو مرحله‌ای خاموش است. برای فعال‌سازی به صفحهٔ امنیت حساب بروید.</value></data>
+  <data name="NotifAction_ReviewSecurity" xml:space="preserve"><value>بررسی امنیت حساب</value></data>
+  <data name="SecurityErrorInvalidCode" xml:space="preserve"><value>کد تأیید نادرست یا منقضی شده است.</value></data>
+  <data name="SecurityErrorCurrentPassword" xml:space="preserve"><value>رمز عبور فعلی نادرست است.</value></data>
+  <data name="SecurityError2FANotEnabled" xml:space="preserve"><value>ورود دو مرحله‌ای برای این حساب فعال نیست.</value></data>
+  <data name="SecuritySuccess2FAEnabled" xml:space="preserve"><value>ورود دو مرحله‌ای با موفقیت فعال شد.</value></data>
+  <data name="SecuritySuccess2FADisabled" xml:space="preserve"><value>ورود دو مرحله‌ای غیرفعال شد.</value></data>
+  <data name="SecuritySuccessRecoveryRegenerated" xml:space="preserve"><value>کدهای بازیابی جدید ایجاد شدند. کدهای قبلی دیگر معتبر نیستند.</value></data>
+  <data name="AuditEv_TwoFactorEnabled" xml:space="preserve"><value>فعال‌سازی ورود دو مرحله‌ای</value></data>
+  <data name="AuditEv_TwoFactorDisabled" xml:space="preserve"><value>غیرفعال‌سازی ورود دو مرحله‌ای</value></data>
+  <data name="AuditEv_RecoveryCodesGenerated" xml:space="preserve"><value>تولید کدهای بازیابی</value></data>
+  <data name="AuditEv_RecoveryCodeRedeemed" xml:space="preserve"><value>استفاده از کد بازیابی</value></data>
+  <data name="AuditEv_IdleTimeoutUpdated" xml:space="preserve"><value>تغییر زمان خروج خودکار</value></data>
+  <data name="AuditEv_DeviceTrusted" xml:space="preserve"><value>اعتماد ۳۰ روزه به دستگاه</value></data>
+  <data name="MySettingsMenuTitle" xml:space="preserve"><value>تنظیمات من</value></data>
+  <data name="SecurityOverviewTab" xml:space="preserve"><value>نمای کلی امنیت</value></data>
+  <data name="SecurityRowPasskeyCount" xml:space="preserve"><value>{0} کلید عبور ثبت‌شده</value></data>
+  <data name="SecurityRowPasskeyNone" xml:space="preserve"><value>ندارید</value></data>
+  <data name="SecurityPasskeyModalTitle" xml:space="preserve"><value>افزودن کلید عبور</value></data>
+  <data name="SecurityPasskeyNameLabel" xml:space="preserve"><value>نام کلید عبور</value></data>
+  <data name="SecurityPasskeyNamePlaceholder" xml:space="preserve"><value>مثلاً لپ‌تاپ کاری یا Windows Hello</value></data>
+  <data name="SecurityPasskeyCreateBtn" xml:space="preserve"><value>ثبت کلید عبور</value></data>
+  <data name="SecurityPasskeyRemoveBtn" xml:space="preserve"><value>حذف</value></data>
+  <data name="SecurityPasskeyUnsupported" xml:space="preserve"><value>مرورگر یا دستگاه فعلی از کلید عبور پشتیبانی نمی‌کند.</value></data>
+  <data name="SecurityPasskeyRegisteredNotice" xml:space="preserve"><value>کلید عبور با موفقیت ثبت شد.</value></data>
+  <data name="SecurityPasskeyRemovedNotice" xml:space="preserve"><value>کلید عبور حذف شد.</value></data>
+  <data name="LoginPasskeyBtn" xml:space="preserve"><value>ورود با کلید عبور (Passkey)</value></data>
+  <data name="AuditEv_PasskeyRegistered" xml:space="preserve"><value>ثبت کلید عبور</value></data>
+  <data name="AuditEv_PasskeyRemoved" xml:space="preserve"><value>حذف کلید عبور</value></data>
+  <data name="AuditEv_PasskeySignIn" xml:space="preserve"><value>ورود با کلید عبور</value></data>
+  <data name="AuditEv_TwoFactorReset" xml:space="preserve"><value>بازنشانی ورود دو مرحله‌ای توسط ادمین</value></data>
+  <data name="AuditEv_SessionsRevokedByAdmin" xml:space="preserve"><value>ابطال همه نشست‌ها توسط ادمین</value></data>
+  <data name="AuditEv_AccountLockoutCleared" xml:space="preserve"><value>رفع قفل حساب کاربری</value></data>
+  <data name="PermOpResetTwoFactor" xml:space="preserve"><value>بازنشانی ورود دو مرحله‌ای کاربر</value></data>
+  <data name="UserErrorCannotResetOwnTwoFactor" xml:space="preserve"><value>امکان بازنشانی ورود دو مرحله‌ای حساب خودتان وجود ندارد.</value></data>
+  <data name="UserErrorTwoFactorReasonRequired" xml:space="preserve"><value>وارد کردن دلیل و تأیید هویت کاربر پیش از بازنشانی 2FA الزامی است.</value></data>
+  <data name="NotifTitle_TwoFactorResetAlert" xml:space="preserve"><value>ورود دو مرحله‌ای حساب شما بازنشانی شد</value></data>
+  <data name="NotifBody_TwoFactorResetAlert" xml:space="preserve"><value>یک مدیر، ورود دو مرحله‌ای حساب {0} را بازنشانی کرد. اگر بدون اطلاع شما بوده است، فوراً وارد شوید و آن را بررسی کنید.</value></data>
+  <data name="UserEditModalTitle" xml:space="preserve"><value>ویرایش کاربر</value></data>
+  <data name="UserTabAccess" xml:space="preserve"><value>دسترسی</value></data>
+  <data name="UserTabSecurity" xml:space="preserve"><value>امنیت</value></data>
+  <data name="UserOrgMembershipCardTitle" xml:space="preserve"><value>عضویت سازمان</value></data>
+  <data name="UserLockStatusLabel" xml:space="preserve"><value>قفل ورود:</value></data>
+  <data name="UserLockStatusOpen" xml:space="preserve"><value>باز</value></data>
+  <data name="UserLockStatusLocked" xml:space="preserve"><value>قفل‌شده</value></data>
+  <data name="User2FAStatusTitle" xml:space="preserve"><value>ورود دو مرحله‌ای</value></data>
+  <data name="User2FAEnabledMeta" xml:space="preserve"><value>فعال‌سازی: {0} · کدهای بازیابی باقی‌مانده: {1}</value></data>
+  <data name="User2FADisabledHint" xml:space="preserve"><value>ورود دو مرحله‌ای در حال حاضر برای این حساب فعال نیست.</value></data>
+  <data name="User2FAResetHint" xml:space="preserve"><value>برای کاربری که گوشی و کدهای بازیابی را از دست داده. کاربر در ورود بعدی باید دوباره آن را فعال کند.</value></data>
+  <data name="User2FAResetBtn" xml:space="preserve"><value>بازنشانی 2FA</value></data>
+  <data name="UserSessionsCardTitle" xml:space="preserve"><value>نشست‌ها</value></data>
+  <data name="UserActiveSessionsCount" xml:space="preserve"><value>{0} نشست فعال</value></data>
+  <data name="UserRevokeAllSessionsBtn" xml:space="preserve"><value>ابطال همه نشست‌ها</value></data>
+  <data name="UserRevokeSessionsSuccess" xml:space="preserve"><value>تمام نشست‌های فعال این کاربر باطل شدند.</value></data>
+  <data name="User2FAResetDialogTitle" xml:space="preserve"><value>بازنشانی ورود دو مرحله‌ای؟</value></data>
+  <data name="User2FAResetWarning" xml:space="preserve"><value>این کار شناسهٔ برنامهٔ احراز هویت، کدهای بازیابی و دستگاه‌های ذخیرهشدهٔ کاربر را حذف و همهٔ نشست‌هایش را می‌بندد.</value></data>
+  <data name="User2FAResetBody" xml:space="preserve"><value>کاربر {0} در ورود بعدی باید 2FA را دوباره فعال کند. یک اعلان امنیتی برای او ارسال و این رویداد در ممیزی ثبت می‌شود.</value></data>
+  <data name="User2FAResetReasonLabel" xml:space="preserve"><value>دلیل (اجباری)</value></data>
+  <data name="User2FAResetReasonPlaceholder" xml:space="preserve"><value>مثلاً: گم شدن گوشی، تأیید هویت تلفنی</value></data>
+  <data name="User2FAResetIdentityCheck" xml:space="preserve"><value>هویت کاربر را از راه مطمئن (حضوری یا تماس تلفنی) تأیید کرده‌ام.</value></data>
+  <data name="User2FAResetConfirmBtn" xml:space="preserve"><value>بازنشانی 2FA</value></data>
+  <data name="User2FAResetSuccess" xml:space="preserve"><value>ورود دو مرحله‌ای بازنشانی شد و تمام نشست‌های کاربر بسته شدند.</value></data>
+  <data name="UserMustChangePasswordLabel" xml:space="preserve"><value>کاربر در اولین ورود رمز عبور را تغییر دهد</value></data>
+  <data name="UserCreateInOrgSubtitle" xml:space="preserve"><value>در سازمان {0} ساخته می‌شود.</value></data>
+  <data name="UserUsernamePlaceholder" xml:space="preserve"><value>مثلاً operator1</value></data>
+  <data name="UserUsernameAllowedHint" xml:space="preserve"><value>۱ تا ۱۲۸ نویسهٔ انگلیسی: حروف، ارقام یا . _ @ + -</value></data>
+  <data name="UserUsernameInvalidError" xml:space="preserve"><value>نام کاربری فقط می‌تواند شامل حروف، ارقام و . _ @ + - باشد.</value></data>
+  <data name="UserGenerateRandomPassword" xml:space="preserve"><value>ساخت رمز تصادفی</value></data>
+  <data name="UserPasswordStrengthMin" xml:space="preserve"><value>رمز عبور باید حداقل ۱۲ نویسه باشد.</value></data>
+  <data name="UserPasswordStrengthMedium" xml:space="preserve"><value>قدرت رمز عبور قابل قبول است.</value></data>
+  <data name="UserPasswordStrengthStrong" xml:space="preserve"><value>رمز عبور قوی است.</value></data>
+  <data name="UserOrgAdminSwitchDesc" xml:space="preserve"><value>دسترسی مدیریتی به کاربران و تنظیمات این سازمان.</value></data>
+  <data name="UserSitesSelectedCount" xml:space="preserve"><value>{0} از {1} انتخاب شده</value></data>
+  <data name="PermSummaryCount" xml:space="preserve"><value>{0} از {1} دسترسی</value></data>
+  <data name="PermSummaryBreakdown" xml:space="preserve"><value>{0} از طریق نقش · {1} مستقیم</value></data>
+  <data name="PermSummaryFullAccess" xml:space="preserve"><value>دسترسی کامل</value></data>
+  <data name="PermRolesLabel" xml:space="preserve"><value>نقش‌ها:</value></data>
+  <data name="PermAddRoleChipBtn" xml:space="preserve"><value>+ افزودن نقش</value></data>
+  <data name="PermRemoveRoleAria" xml:space="preserve"><value>حذف نقش {0}</value></data>
+  <data name="PermFilterAll" xml:space="preserve"><value>همه</value></data>
+  <data name="PermFilterGranted" xml:space="preserve"><value>فقط دارد</value></data>
+  <data name="PermFilterDirect" xml:space="preserve"><value>فقط مستقیم</value></data>
+  <data name="PermFilterChanges" xml:space="preserve"><value>تغییرات</value></data>
+  <data name="PermSearchPageOrOpPlaceholder" xml:space="preserve"><value>جستجوی صفحه یا عملیات</value></data>
+  <data name="PermAccordionRowCount" xml:space="preserve"><value>{0} از {1}</value></data>
+  <data name="PermChangesBadge" xml:space="preserve"><value>{0} تغییر</value></data>
+  <data name="PermSelectAllEditable" xml:space="preserve"><value>انتخاب همهٔ موارد قابل‌تغییر</value></data>
+  <data name="PermClearDirect" xml:space="preserve"><value>پاک کردن مستقیم‌ها</value></data>
+  <data name="PermBadgeRole" xml:space="preserve"><value>نقش</value></data>
+  <data name="PermBadgeNew" xml:space="preserve"><value>جدید</value></data>
+  <data name="PermLegendRole" xml:space="preserve"><value>از طریق نقش (قفل)</value></data>
+  <data name="PermLegendDirect" xml:space="preserve"><value>مستقیم</value></data>
+  <data name="PermLegendUnsaved" xml:space="preserve"><value>تغییر ذخیره‌نشده</value></data>
+  <data name="PermLegendNone" xml:space="preserve"><value>ندارد</value></data>
+  <data name="PermTooltipViaRole" xml:space="preserve"><value>از طریق: {0}</value></data>
+  <data name="PermUnsavedChangesCount" xml:space="preserve"><value>{0} تغییر ذخیره‌نشده</value></data>
+  <data name="PermEmptyFilterResult" xml:space="preserve"><value>صفحه‌ای با این فیلتر یافت نشد.</value></data>
 </root>

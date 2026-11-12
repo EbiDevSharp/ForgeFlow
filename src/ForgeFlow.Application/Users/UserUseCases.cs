@@ -257,7 +257,7 @@ public sealed class UserUseCases(
             res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
         else
             res = await Execute(() => store.ResetUserPassword(
-                request.OrganizationId, request.UserId, request.NewPassword!, version, Access(auth.Actor!, scope!, permission), ct));
+                request.OrganizationId, request.UserId, request.NewPassword!, version, Access(auth.Actor!, scope!, permission), ct, request.RequirePasswordChange));
         return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, null, "User", request.UserId.ToString(CultureInfo.InvariantCulture), "ResetUserPassword");
     }
 
@@ -380,6 +380,54 @@ public sealed class UserUseCases(
             catch (UserRuleException ex) { res = FailFromRule<UserDetails>(ex); }
         }
         return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, request.SiteId, "TenantRole", request.UserId.ToString(CultureInfo.InvariantCulture), "SetTenantRoleActive");
+    }
+
+    public async Task<OrganizationResult<UserDetails>> ResetUserTwoFactor(
+        OrganizationScope? scope,
+        ResetUserTwoFactor request,
+        CancellationToken ct = default)
+    {
+        const string permission = UserPermissions.UsersResetTwoFactor;
+        var auth = await Authorize(scope, permission, ct);
+        OrganizationResult<UserDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<UserDetails>.Failure(auth.Error);
+        else if (!MatchesAccountScope(scope!, request.OrganizationId, out var scopeError))
+            res = OrganizationResult<UserDetails>.Failure(scopeError!);
+        else if (request.UserId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+        else if (auth.Actor!.ActorId == request.UserId)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.CannotResetOwnTwoFactor);
+        else if (!request.IdentityVerified || string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 300)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.TwoFactorReasonRequired);
+        else if (DecodeVersion(request.ExpectedAccountRowVersion) is not byte[] version)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
+        else
+            res = await Execute(() => store.ResetUserTwoFactor(
+                request.OrganizationId, request.UserId, request.Reason.Trim(), version, Access(auth.Actor!, scope!, permission), ct));
+
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, null, "User", request.UserId.ToString(CultureInfo.InvariantCulture), "ResetUserTwoFactor");
+    }
+
+    public async Task<OrganizationResult<UserDetails>> RevokeUserSessions(
+        OrganizationScope? scope,
+        RevokeUserSessions request,
+        CancellationToken ct = default)
+    {
+        const string permission = UserPermissions.UsersResetPassword;
+        var auth = await Authorize(scope, permission, ct);
+        OrganizationResult<UserDetails> res;
+        if (auth.Error is not null) res = OrganizationResult<UserDetails>.Failure(auth.Error);
+        else if (!MatchesAccountScope(scope!, request.OrganizationId, out var scopeError))
+            res = OrganizationResult<UserDetails>.Failure(scopeError!);
+        else if (request.UserId <= 0)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
+        else if (DecodeVersion(request.ExpectedAccountRowVersion) is not byte[] version)
+            res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
+        else
+            res = await Execute(() => store.RevokeUserSessions(
+                request.OrganizationId, request.UserId, version, Access(auth.Actor!, scope!, permission), ct));
+
+        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, null, "User", request.UserId.ToString(CultureInfo.InvariantCulture), "RevokeUserSessions");
     }
 
     private static bool MatchesAccountScope(OrganizationScope scope, long? organizationId, out string? error)

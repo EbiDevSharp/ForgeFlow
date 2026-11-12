@@ -216,7 +216,7 @@ namespace ForgeFlow.Infrastructure.Identity.Migrations
 
                     b.ToTable("Session", "auth", t =>
                         {
-                            t.HasCheckConstraint("CK_Session_Lifecycle", "[ExpiresAtUtc] > [IssuedAtUtc] AND [LastActivityAtUtc] >= [IssuedAtUtc] AND (([RevokedAtUtc] IS NULL AND [RevokeReason] IS NULL) OR ([RevokedAtUtc] IS NOT NULL AND [RevokedAtUtc] >= [IssuedAtUtc] AND [RevokeReason] IS NOT NULL AND DATALENGTH([RevokeReason]) = LEN([RevokeReason]) AND [RevokeReason] COLLATE Latin1_General_100_BIN2 IN ('Logout','PasswordReset','AccountDisabled','AccountLocked','StampChanged','SessionRevokedByUser')))");
+                            t.HasCheckConstraint("CK_Session_Lifecycle", "[ExpiresAtUtc] > [IssuedAtUtc] AND [LastActivityAtUtc] >= [IssuedAtUtc] AND (([RevokedAtUtc] IS NULL AND [RevokeReason] IS NULL) OR ([RevokedAtUtc] IS NOT NULL AND [RevokedAtUtc] >= [IssuedAtUtc] AND [RevokeReason] IS NOT NULL AND DATALENGTH([RevokeReason]) = LEN([RevokeReason]) AND [RevokeReason] COLLATE Latin1_General_100_BIN2 IN ('Logout','PasswordReset','AccountDisabled','AccountLocked','StampChanged','SessionRevokedByUser','IdleTimeout','TwoFactorReset','AdminRevoked')))");
                         });
                 });
 
@@ -278,6 +278,9 @@ namespace ForgeFlow.Infrastructure.Identity.Migrations
                         .HasColumnType("nvarchar(128)")
                         .UseCollation("Latin1_General_100_BIN2");
 
+                    b.Property<DateTime?>("PasswordChangedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -294,6 +297,12 @@ namespace ForgeFlow.Infrastructure.Identity.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(5)");
 
+                    b.Property<bool>("RequirePasswordChange")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireTwoFactorSetup")
+                        .HasColumnType("bit");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -307,6 +316,9 @@ namespace ForgeFlow.Infrastructure.Identity.Migrations
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
+
+                    b.Property<DateTime?>("TwoFactorEnabledAtUtc")
+                        .HasColumnType("datetime2(7)");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2(7)");
@@ -922,7 +934,7 @@ namespace ForgeFlow.Infrastructure.Identity.Migrations
                         {
                             t.HasCheckConstraint("CK_SecurityEvent_Actor", "([ActorKind]=0 AND [ActorUserId] IS NULL AND [HostOperatorReference] IS NULL) OR ([ActorKind]=1 AND [ActorUserId] IS NOT NULL AND [HostOperatorReference] IS NULL) OR ([ActorKind]=2 AND [ActorUserId] IS NULL AND [HostOperatorReference] IS NOT NULL AND LEN([HostOperatorReference]) > 0)");
 
-                            t.HasCheckConstraint("CK_SecurityEvent_Code", "DATALENGTH([EventCode])=LEN([EventCode]) AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('BootstrapCompleted','AccountCreated','SignInFailed','AccountLocked','SessionIssued','SessionRevoked','AccessDenied','PasswordResetCompleted','AccountEligibilityChanged','MembershipChanged','ScopedRoleChanged','RoleDefinitionChanged','DirectPermissionChanged','CulturePreferenceChanged','PreferencesUpdated','ProfileUpdated','SessionRevokedByUser','OtherSessionsRevoked','ActiveSiteSwitched')");
+                            t.HasCheckConstraint("CK_SecurityEvent_Code", "DATALENGTH([EventCode])=LEN([EventCode]) AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('BootstrapCompleted','AccountCreated','SignInFailed','AccountLocked','SessionIssued','SessionRevoked','AccessDenied','PasswordResetCompleted','AccountEligibilityChanged','MembershipChanged','ScopedRoleChanged','RoleDefinitionChanged','DirectPermissionChanged','CulturePreferenceChanged','PreferencesUpdated','ProfileUpdated','SessionRevokedByUser','OtherSessionsRevoked','ActiveSiteSwitched','TwoFactorEnabled','TwoFactorDisabled','RecoveryCodesGenerated','RecoveryCodeRedeemed','IdleTimeoutUpdated','DeviceTrusted','PasskeyRegistered','PasskeyRemoved','PasskeySignIn','TwoFactorReset','SessionsRevokedByAdmin','AccountLockoutCleared')");
 
                             t.HasCheckConstraint("CK_SecurityEvent_Data", "ISJSON([DataJson])=1 AND [Outcome] IN (0,1,2) AND ([SiteId] IS NULL OR [OrganizationId] IS NOT NULL)");
                         });
@@ -1028,7 +1040,7 @@ namespace ForgeFlow.Infrastructure.Identity.Migrations
 
                             t.HasCheckConstraint("CK_UserNotification_Severity", "[Severity] IN (1, 2, 3, 4)");
 
-                            t.HasCheckConstraint("CK_UserNotification_Template", "DATALENGTH([TemplateCode])=LEN([TemplateCode]) AND [TemplateCode] COLLATE Latin1_General_100_BIN2 IN ('NewDeviceSignIn','FailedSignInAttempts','RoleOrAccessChanged','MyProductionOrderStatusChanged','PasswordChangedAlert')");
+                            t.HasCheckConstraint("CK_UserNotification_Template", "DATALENGTH([TemplateCode])=LEN([TemplateCode]) AND [TemplateCode] COLLATE Latin1_General_100_BIN2 IN ('NewDeviceSignIn','FailedSignInAttempts','RoleOrAccessChanged','MyProductionOrderStatusChanged','PasswordChangedAlert','TwoFactorReminder','TwoFactorResetAlert')");
                         });
                 });
 
@@ -1067,6 +1079,71 @@ namespace ForgeFlow.Infrastructure.Identity.Migrations
                             t.HasCheckConstraint("CK_UserNotificationPreference_EventCode", "DATALENGTH([EventCode])=LEN([EventCode]) AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('NewDeviceSignIn','FailedSignInAttempt','RoleOrAccessChanged','MyProductionOrders')");
 
                             t.HasCheckConstraint("CK_UserNotificationPreference_Metadata", "[UpdatedAtUtc] IS NULL OR [UpdatedAtUtc] >= [CreatedAtUtc]");
+                        });
+                });
+
+            modelBuilder.Entity("ForgeFlow.Infrastructure.Identity.UserPasskey", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Algorithm")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<byte[]>("CredentialId")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("varbinary(512)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("LastUsedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<byte[]>("PublicKeyCose")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("varbinary(1024)");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("SignCount")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CredentialId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_UserPasskey_CredentialId");
+
+                    b.HasIndex("UserId", "RevokedAtUtc");
+
+                    b.ToTable("UserPasskey", "auth", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserPasskey_Algo", "[Algorithm] IN (-7, -257)");
+
+                            t.HasCheckConstraint("CK_UserPasskey_Name", "LEN([DisplayName]) BETWEEN 1 AND 100");
+
+                            t.HasCheckConstraint("CK_UserPasskey_SignCount", "[SignCount] >= 0");
                         });
                 });
 
@@ -1157,6 +1234,9 @@ namespace ForgeFlow.Infrastructure.Identity.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2(7)");
 
+                    b.Property<int?>("IdleTimeoutMinutes")
+                        .HasColumnType("int");
+
                     b.Property<string>("Language")
                         .IsRequired()
                         .HasMaxLength(5)
@@ -1181,6 +1261,12 @@ namespace ForgeFlow.Infrastructure.Identity.Migrations
                         .IsUnicode(false)
                         .HasColumnType("varchar(64)");
 
+                    b.Property<DateTime?>("TwoFactorOneTimeNotifiedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<DateTime?>("TwoFactorReminderSnoozedUntilUtc")
+                        .HasColumnType("datetime2(7)");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2(7)");
 
@@ -1193,6 +1279,8 @@ namespace ForgeFlow.Infrastructure.Identity.Migrations
                             t.HasCheckConstraint("CK_UserPreference_ActiveScope", "([ActiveSiteId] IS NULL OR [ActiveOrganizationId] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_UserPreference_Calendar", "[CalendarSystem] COLLATE Latin1_General_100_BIN2 IN ('persian','gregorian')");
+
+                            t.HasCheckConstraint("CK_UserPreference_IdleTimeout", "[IdleTimeoutMinutes] IS NULL OR [IdleTimeoutMinutes] IN (15,30,60)");
 
                             t.HasCheckConstraint("CK_UserPreference_Language", "DATALENGTH([Language]) = 5 AND [Language] COLLATE Latin1_General_100_BIN2 IN ('fa-IR','en-US')");
 
@@ -1426,6 +1514,15 @@ namespace ForgeFlow.Infrastructure.Identity.Migrations
                 });
 
             modelBuilder.Entity("ForgeFlow.Infrastructure.Identity.UserNotificationPreference", b =>
+                {
+                    b.HasOne("ForgeFlow.Infrastructure.Identity.ApplicationAccount", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ForgeFlow.Infrastructure.Identity.UserPasskey", b =>
                 {
                     b.HasOne("ForgeFlow.Infrastructure.Identity.ApplicationAccount", null)
                         .WithMany()

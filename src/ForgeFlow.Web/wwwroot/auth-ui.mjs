@@ -135,6 +135,7 @@ function setBusy(form, busy) {
 
 function bind() {
     const login = document.querySelector('[data-auth-login]');
+    const login2fa = document.querySelector('[data-auth-login-2fa]');
     const logout = document.querySelector('[data-auth-logout]');
     const changePassword = document.querySelector('[data-auth-change-password]');
     const notice = document.querySelector('#auth-ui-notice');
@@ -179,6 +180,45 @@ function bind() {
                         clearDrafts();
                         location.assign(response.url);
                         return;
+                    }
+                    fail(await responseMessage(response, form.dataset.unavailableMessage || ''));
+                } catch {
+                    fail(form.dataset.unavailableMessage || '');
+                }
+            } else if (form.matches('[data-auth-login-2fa]')) {
+                event.preventDefault();
+                const codeInput = form.elements.namedItem('code');
+                const error = document.querySelector('#login-2fa-error');
+                const errorText = error?.querySelector('[data-auth-error-message]');
+                const fail = message => {
+                    if (errorText) errorText.textContent = message;
+                    if (error) error.hidden = false;
+                    codeInput?.focus();
+                    if (codeInput) codeInput.value = '';
+                    setBusy(form, false);
+                };
+                if (!codeInput?.value.trim()) {
+                    fail(form.dataset.requiredMessage || form.dataset.unavailableMessage || '');
+                    return;
+                }
+                if (error) error.hidden = true;
+                setBusy(form, true);
+                try {
+                    if (!form.elements.namedItem('__RequestVerificationToken')?.value) await getRequestToken();
+                    const response = await fetch(form.action, {
+                        method: 'POST', body: new FormData(form), credentials: 'same-origin', redirect: 'follow', cache: 'no-store'
+                    });
+                    if (response.redirected && response.ok && new URL(response.url).origin === location.origin) {
+                        clearDrafts();
+                        location.assign(response.url);
+                        return;
+                    }
+                    if (response.status === 401) {
+                        const body = await response.clone().json().catch(() => null);
+                        if (body?.code === 'Auth.TwoFactorPendingExpired') {
+                            location.assign('/account/login');
+                            return;
+                        }
                     }
                     fail(await responseMessage(response, form.dataset.unavailableMessage || ''));
                 } catch {
@@ -253,6 +293,8 @@ function bind() {
                             success.hidden = false;
                         }
                         if (sessionsLink) sessionsLink.hidden = false;
+                        const twoFaPrompt = document.querySelector('#change-pwd-2fa-prompt');
+                        if (twoFaPrompt) twoFaPrompt.hidden = false;
                         await getRequestToken();
                         setBusy(form, false);
                         return;
@@ -287,7 +329,14 @@ function bind() {
                 return;
             }
             const button = event.target.closest('[data-auth-culture]');
-            if (!button) return;
+            if (!button) {
+                const passkeyBtn = event.target.closest('[data-auth-passkey-login]');
+                if (passkeyBtn) {
+                    event.preventDefault();
+                    await handlePasskeyLogin(passkeyBtn);
+                }
+                return;
+            }
             event.preventDefault();
             document.querySelectorAll('[data-auth-culture]').forEach(item => item.disabled = true);
             const fallback = document.documentElement.dataset.serverUnavailable || document.documentElement.dataset.authLoginUnavailable || '';
@@ -321,12 +370,156 @@ function bind() {
         }, true);
     }
 
-    const activeForm = login || logout || changePassword;
+    const activeForm = login || login2fa || logout || changePassword;
     if (activeForm && !activeForm.dataset.antiforgeryReady) {
         getRequestToken().then(() => activeForm.dataset.antiforgeryReady = 'true').catch(() => {
-            const fallback = login?.dataset.unavailableMessage || document.documentElement.dataset.authLogoutUnavailable || '';
+            const fallback = (login || login2fa)?.dataset.unavailableMessage || document.documentElement.dataset.authLogoutUnavailable || '';
             showNotice(fallback);
         });
+    }
+}
+
+window.__forgeflowDownloadText = (filename, content) => {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+};
+
+let idleTimerId = null;
+let idleDurationMs = 0;
+function resetIdleTimer() {
+    if (idleTimerId !== null) {
+        clearTimeout(idleTimerId);
+        idleTimerId = null;
+    }
+    if (idleDurationMs <= 0) return;
+    idleTimerId = setTimeout(() => {
+        const logoutForm = document.querySelector('[data-auth-logout]');
+        if (logoutForm instanceof HTMLFormElement) {
+            logoutForm.requestSubmit();
+        } else {
+            location.assign('/account/login');
+        }
+    }, idleDurationMs);
+}
+
+window.__forgeflowSetIdleMinutes = minutes => {
+    idleDurationMs = typeof minutes === 'number' && minutes > 0 ? minutes * 60 * 1000 : 0;
+    if (idleDurationMs > 0 && !document.documentElement.dataset.idleBound) {
+        document.documentElement.dataset.idleBound = 'true';
+        ['pointerdown', 'keydown', 'scroll'].forEach(evt =>
+            document.addEventListener(evt, resetIdleTimer, { passive: true }));
+    }
+    resetIdleTimer();
+};
+
+function b64UrlToBytes(b64u) {
+    const padded = b64u.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b64u.length + 3) % 4);
+    const bin = atob(padded);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+}
+
+function bytesToB64Url(buf) {
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function fetchJsonWithCsrf(url, bodyObj) {
+    await getRequestToken();
+    const requestToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: {
+            'Content-Type': 'application/json',
+            'RequestVerificationToken': requestToken
+        },
+        body: JSON.stringify(bodyObj || {})
+    });
+    return response;
+}
+
+window.__forgeflowPasskeyRegister = async (displayName, unsupportedMsg) => {
+    if (!window.PublicKeyCredential || !navigator.credentials?.create) {
+        return { ok: false, message: unsupportedMsg || '' };
+    }
+    try {
+        const optResp = await fetchJsonWithCsrf('/account/passkey/register-options', {});
+        if (!optResp.ok) return { ok: false, message: await responseMessage(optResp, '') };
+        const opts = await optResp.json();
+        opts.challenge = b64UrlToBytes(opts.challenge);
+        opts.user.id = b64UrlToBytes(opts.user.id);
+        if (Array.isArray(opts.excludeCredentials)) {
+            opts.excludeCredentials = opts.excludeCredentials.map(c => ({ ...c, id: b64UrlToBytes(c.id) }));
+        }
+        const cred = await navigator.credentials.create({ publicKey: opts });
+        if (!cred) return { ok: false, message: '' };
+        const verResp = await fetchJsonWithCsrf('/account/passkey/register-verify', {
+            displayName: displayName || 'Passkey',
+            clientDataJson: bytesToB64Url(cred.response.clientDataJSON),
+            attestationObject: bytesToB64Url(cred.response.attestationObject)
+        });
+        if (!verResp.ok) return { ok: false, message: await responseMessage(verResp, '') };
+        return { ok: true, message: '' };
+    } catch {
+        return { ok: false, message: '' };
+    }
+};
+
+async function handlePasskeyLogin(button) {
+    const error = document.querySelector('#login-error');
+    const errorText = error?.querySelector('[data-auth-error-message]');
+    const form = document.querySelector('[data-auth-login]');
+    const fail = msg => {
+        if (errorText) errorText.textContent = msg;
+        if (error) error.hidden = false;
+        button.disabled = false;
+    };
+    if (!window.PublicKeyCredential || !navigator.credentials?.get) {
+        fail(button.dataset.unsupportedMessage || form?.dataset.unavailableMessage || '');
+        return;
+    }
+    if (error) error.hidden = true;
+    button.disabled = true;
+    try {
+        const optResp = await fetchJsonWithCsrf('/account/passkey/login-options', {});
+        if (!optResp.ok) {
+            fail(await responseMessage(optResp, form?.dataset.unavailableMessage || ''));
+            return;
+        }
+        const opts = await optResp.json();
+        opts.challenge = b64UrlToBytes(opts.challenge);
+        const assertion = await navigator.credentials.get({ publicKey: opts });
+        if (!assertion) {
+            fail(form?.dataset.unavailableMessage || '');
+            return;
+        }
+        const verResp = await fetchJsonWithCsrf('/account/passkey/login-verify', {
+            credentialId: bytesToB64Url(assertion.rawId),
+            clientDataJson: bytesToB64Url(assertion.response.clientDataJSON),
+            authenticatorData: bytesToB64Url(assertion.response.authenticatorData),
+            signature: bytesToB64Url(assertion.response.signature)
+        });
+        if (verResp.ok) {
+            const data = await verResp.json();
+            clearDrafts();
+            location.assign(data?.redirectUrl === '/' ? '/' : '/');
+            return;
+        }
+        fail(await responseMessage(verResp, form?.dataset.unavailableMessage || ''));
+    } catch {
+        fail(form?.dataset.unavailableMessage || '');
     }
 }
 

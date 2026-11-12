@@ -46,7 +46,8 @@ public sealed class UserUseCaseTests
         internal TrustedActor? LastActor;
 
         private static UserDetails Details(long orgId, long userId) => new(
-            userId, orgId, "alice", true, true, false, null, true, false, null, ValidVersion, ValidVersion, []);
+            userId, orgId, "alice", true, true, false, null, true, false, null, ValidVersion, ValidVersion, [],
+            false, null, 0, 0);
 
         private void OnCall()
         {
@@ -113,7 +114,13 @@ public sealed class UserUseCaseTests
         public Task<OrganizationResult<UserDetails>> UnlockUser(long? organizationId, long userId, byte[] expectedAccountVersion, OrganizationWriteAccess access, CancellationToken ct)
             => Write(organizationId ?? 1, userId, access, ct);
 
-        public Task<OrganizationResult<UserDetails>> ResetUserPassword(long? organizationId, long userId, string newPassword, byte[] expectedAccountVersion, OrganizationWriteAccess access, CancellationToken ct)
+        public Task<OrganizationResult<UserDetails>> ResetUserPassword(long? organizationId, long userId, string newPassword, byte[] expectedAccountVersion, OrganizationWriteAccess access, CancellationToken ct, bool requirePasswordChange = true)
+            => Write(organizationId ?? 1, userId, access, ct);
+
+        public Task<OrganizationResult<UserDetails>> ResetUserTwoFactor(long? organizationId, long userId, string reason, byte[] expectedAccountVersion, OrganizationWriteAccess access, CancellationToken ct)
+            => Write(organizationId ?? 1, userId, access, ct);
+
+        public Task<OrganizationResult<UserDetails>> RevokeUserSessions(long? organizationId, long userId, byte[] expectedAccountVersion, OrganizationWriteAccess access, CancellationToken ct)
             => Write(organizationId ?? 1, userId, access, ct);
     }
 
@@ -325,5 +332,48 @@ public sealed class UserUseCaseTests
 
         Assert.False(FixedRolePolicy.Allows(FixedAccessRoles.SiteOperator, siteScope, UserPermissions.UsersRead));
         Assert.False(FixedRolePolicy.Allows(FixedAccessRoles.SiteOperator, orgScope, UserPermissions.UsersRead));
+    }
+
+    [Fact]
+    public async Task ResetUserTwoFactor_rejects_self_reset_missing_reason_and_unconfirmed_identity()
+    {
+        var store = new StoreStub();
+        var orgScope = new OrganizationScope.Organization(1);
+        var useCases = new UserUseCases(store, new ActorSource(), new Grants(UserPermissions.UsersResetTwoFactor, orgScope));
+
+        var selfReset = await useCases.ResetUserTwoFactor(orgScope, new ResetUserTwoFactor(1, 42, "Lost phone", true, ValidVersion));
+        Assert.False(selfReset.Succeeded);
+        Assert.Equal(UserManagementErrors.CannotResetOwnTwoFactor, selfReset.Error!.Code);
+
+        var noIdentityCheck = await useCases.ResetUserTwoFactor(orgScope, new ResetUserTwoFactor(1, 99, "Lost phone", false, ValidVersion));
+        Assert.False(noIdentityCheck.Succeeded);
+        Assert.Equal(UserManagementErrors.TwoFactorReasonRequired, noIdentityCheck.Error!.Code);
+
+        var blankReason = await useCases.ResetUserTwoFactor(orgScope, new ResetUserTwoFactor(1, 99, "   ", true, ValidVersion));
+        Assert.False(blankReason.Succeeded);
+        Assert.Equal(UserManagementErrors.TwoFactorReasonRequired, blankReason.Error!.Code);
+
+        Assert.Equal(0, store.Calls);
+
+        var ok = await useCases.ResetUserTwoFactor(orgScope, new ResetUserTwoFactor(1, 99, "Verified via phone", true, ValidVersion));
+        Assert.True(ok.Succeeded);
+        Assert.Equal(1, store.Calls);
+    }
+
+    [Fact]
+    public async Task RevokeUserSessions_requires_permission_and_valid_version()
+    {
+        var store = new StoreStub();
+        var orgScope = new OrganizationScope.Organization(1);
+        var useCases = new UserUseCases(store, new ActorSource(), new Grants(UserPermissions.UsersResetPassword, orgScope));
+
+        var badVersion = await useCases.RevokeUserSessions(orgScope, new RevokeUserSessions(1, 99, "bad"));
+        Assert.False(badVersion.Succeeded);
+        Assert.Equal(UserManagementErrors.ConcurrencyConflict, badVersion.Error!.Code);
+        Assert.Equal(0, store.Calls);
+
+        var ok = await useCases.RevokeUserSessions(orgScope, new RevokeUserSessions(1, 99, ValidVersion));
+        Assert.True(ok.Succeeded);
+        Assert.Equal(1, store.Calls);
     }
 }

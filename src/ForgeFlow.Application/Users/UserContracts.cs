@@ -10,6 +10,7 @@ public static class UserPermissions
     public const string UsersSetActive = "Users.SetActive";
     public const string UsersUnlock = "Users.Unlock";
     public const string UsersResetPassword = "Users.ResetPassword";
+    public const string UsersResetTwoFactor = "Users.ResetTwoFactor";
     public const string UsersAttachOrganization = "Users.AttachOrganization";
     public const string MembershipsManage = "Memberships.Manage";
     public const string RolesAssignFixed = "Roles.AssignFixed";
@@ -51,7 +52,11 @@ public sealed record UserDetails(
     string? OrganizationAdminRoleRowVersion,
     string AccountRowVersion,
     string MembershipRowVersion,
-    IReadOnlyList<UserSiteMembershipDetails> Sites);
+    IReadOnlyList<UserSiteMembershipDetails> Sites,
+    bool TwoFactorEnabled = false,
+    DateTime? TwoFactorEnabledAtUtc = null,
+    int RecoveryCodesRemaining = 0,
+    int ActiveSessionCount = 0);
 
 public sealed record CreateOrganizationUser(
     long OrganizationId,
@@ -59,14 +64,16 @@ public sealed record CreateOrganizationUser(
     string? InitialPassword,
     bool AssignOrganizationAdmin,
     IReadOnlyList<long>? SiteIds,
-    bool AssignSiteOperatorToSites = false);
+    bool AssignSiteOperatorToSites = false,
+    bool RequirePasswordChange = true);
 
 public sealed record AttachExistingUserToOrganization(
     long OrganizationId,
     string? UserName,
     bool AssignOrganizationAdmin,
     IReadOnlyList<long>? SiteIds,
-    bool AssignSiteOperatorToSites = false);
+    bool AssignSiteOperatorToSites = false,
+    bool RequirePasswordChange = true);
 
 public sealed record SetUserActive(long? OrganizationId, long UserId, bool IsActive, string? ExpectedAccountRowVersion);
 public sealed record SetOrganizationMembershipActive(long OrganizationId, long UserId, bool IsActive, string? ExpectedMembershipRowVersion);
@@ -75,7 +82,9 @@ public sealed record SetSiteMembershipActive(long OrganizationId, long UserId, l
 public sealed record AssignTenantRole(long OrganizationId, long UserId, TenantRoleKind Role, long? SiteId = null);
 public sealed record SetTenantRoleActive(long OrganizationId, long UserId, TenantRoleKind Role, long? SiteId, bool IsActive, string? ExpectedRoleRowVersion);
 public sealed record UnlockUser(long? OrganizationId, long UserId, string? ExpectedAccountRowVersion);
-public sealed record ResetUserPassword(long? OrganizationId, long UserId, string? NewPassword, string? ExpectedAccountRowVersion);
+public sealed record ResetUserPassword(long? OrganizationId, long UserId, string? NewPassword, string? ExpectedAccountRowVersion, bool RequirePasswordChange = true);
+public sealed record ResetUserTwoFactor(long? OrganizationId, long UserId, string? Reason, bool IdentityVerified, string? ExpectedAccountRowVersion);
+public sealed record RevokeUserSessions(long? OrganizationId, long UserId, string? ExpectedAccountRowVersion);
 
 public sealed class UserStoreUnavailableException(Exception inner) : Exception(UserManagementErrors.PersistenceUnavailable, inner);
 
@@ -139,6 +148,20 @@ public interface IUserOperationsStore
         long? organizationId,
         long userId,
         string newPassword,
+        byte[] expectedAccountVersion,
+        OrganizationWriteAccess access,
+        CancellationToken ct,
+        bool requirePasswordChange = true);
+    Task<OrganizationResult<UserDetails>> ResetUserTwoFactor(
+        long? organizationId,
+        long userId,
+        string reason,
+        byte[] expectedAccountVersion,
+        OrganizationWriteAccess access,
+        CancellationToken ct);
+    Task<OrganizationResult<UserDetails>> RevokeUserSessions(
+        long? organizationId,
+        long userId,
         byte[] expectedAccountVersion,
         OrganizationWriteAccess access,
         CancellationToken ct);

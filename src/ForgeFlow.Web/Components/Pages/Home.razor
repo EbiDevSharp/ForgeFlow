@@ -5,15 +5,35 @@
 @using ForgeFlow.Domain.ProductionOrders
 @using ForgeFlow.Domain.Quality
 @using ForgeFlow.Web.Roles
+@using ForgeFlow.Infrastructure.Identity
 @inject DashboardUseCases DashboardService
 @inject OrganizationUseCases OrgService
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
 @inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
+@inject IServiceProvider Services
 
 <PageTitle>@Text["Home"] - @Text["AppTitle"]</PageTitle>
 
 <section class="home-page organization-reader" aria-labelledby="dash-title">
+    @if (showTwoFactorBanner)
+    {
+        <div class="sec-home-banner" role="region" aria-labelledby="home-2fa-banner-title">
+            <div class="sec-home-banner-icon" aria-hidden="true">
+                <span class="ff-icon ff-icon--shield"></span>
+            </div>
+            <div class="sec-home-banner-body">
+                <div id="home-2fa-banner-title" class="sec-home-banner-title">@Text["Home2FABannerTitle"]</div>
+                <p class="sec-home-banner-text">@Text["Home2FABannerBody"]</p>
+            </div>
+            <div class="sec-home-banner-actions">
+                <a class="sec-btn-link sec-btn-link--primary" href="/account/security?setup2fa=1">@Text["Home2FABannerEnableBtn"]</a>
+                <button type="button" class="sec-banner-later-btn" disabled="@snoozingTwoFactor" @onclick="SnoozeTwoFactorBannerAsync">
+                    @Text["Home2FABannerLaterBtn"]
+                </button>
+            </div>
+        </div>
+    }
     <div class="read-page-head">
         <div>
             <h1 id="dash-title">@Text["DashTitle"]</h1>
@@ -363,6 +383,8 @@
     private IReadOnlyList<SiteDetails> orgSites = [];
     private long siteFilter;
     private DashboardSnapshot? snapshot;
+    private bool showTwoFactorBanner;
+    private bool snoozingTwoFactor;
 
     private OrganizationScope? CurrentScope =>
         scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
@@ -374,7 +396,47 @@
         _ => 0
     };
 
-    protected override async Task OnInitializedAsync() => await ReloadScopeAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(ReloadScopeAsync(), LoadTwoFactorBannerAsync());
+    }
+
+    private async Task LoadTwoFactorBannerAsync()
+    {
+        try
+        {
+            var sessionSource = Services.GetService(typeof(ICurrentAuthenticatedSession)) as ICurrentAuthenticatedSession;
+            var sessions = Services.GetService(typeof(RuntimeSessions)) as RuntimeSessions;
+            if (sessionSource is null || sessions is null) return;
+            var reference = await sessionSource.GetAsync(CancellationToken.None);
+            if (reference is null) return;
+            var status = await sessions.GetTwoFactorReminderStatusAsync(reference, CancellationToken.None);
+            if (status is { TwoFactorEnabled: false } && (status.SnoozedUntilUtc is null || status.SnoozedUntilUtc < DateTime.UtcNow))
+                showTwoFactorBanner = true;
+        }
+        catch { }
+    }
+
+    private async Task SnoozeTwoFactorBannerAsync()
+    {
+        snoozingTwoFactor = true;
+        try
+        {
+            var sessionSource = Services.GetService(typeof(ICurrentAuthenticatedSession)) as ICurrentAuthenticatedSession;
+            var sessions = Services.GetService(typeof(RuntimeSessions)) as RuntimeSessions;
+            if (sessionSource is not null && sessions is not null)
+            {
+                var reference = await sessionSource.GetAsync(CancellationToken.None);
+                if (reference is not null)
+                    await sessions.SnoozeTwoFactorReminderAsync(reference, CancellationToken.None);
+            }
+            showTwoFactorBanner = false;
+        }
+        finally
+        {
+            snoozingTwoFactor = false;
+        }
+    }
 
     private async Task ReloadScopeAsync()
     {

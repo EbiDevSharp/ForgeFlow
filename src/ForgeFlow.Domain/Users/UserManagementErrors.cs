@@ -9,6 +9,8 @@ public static class UserManagementErrors
     public const string PasswordInvalid = "Users.PasswordInvalid";
     public const string NotFound = "Users.NotFound";
     public const string SelfDeactivationForbidden = "Users.SelfDeactivationForbidden";
+    public const string CannotResetOwnTwoFactor = "Users.CannotResetOwnTwoFactor";
+    public const string TwoFactorReasonRequired = "Users.TwoFactorReasonRequired";
     public const string LastOrganizationAdminRequired = "Users.LastOrganizationAdminRequired";
     public const string LastPlatformAdminRequired = "Users.LastPlatformAdminRequired";
     public const string ParentOrganizationInactive = "Users.ParentOrganizationInactive";

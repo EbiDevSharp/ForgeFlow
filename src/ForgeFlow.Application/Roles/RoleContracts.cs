@@ -56,6 +56,20 @@ public sealed record UserDirectPermissionDetails(
     bool IsActive,
     string RowVersion);
 
+public sealed record UserEffectivePermissionCell(
+    byte ScopeKind,
+    long? SiteId,
+    string PermissionCode,
+    bool GrantedByRole,
+    bool GrantedDirectly,
+    IReadOnlyList<string> GrantingRoleNames);
+
+public sealed record UserPermissionGroup(
+    byte ScopeKind,
+    long? SiteId,
+    ForgeFlow.Domain.Roles.PermissionModule Module,
+    IReadOnlyList<UserEffectivePermissionCell> Operations);
+
 public sealed record UserPermissionMatrix(
     long UserId,
     long OrganizationId,
@@ -63,7 +77,9 @@ public sealed record UserPermissionMatrix(
     bool AccountIsActive,
     bool OrganizationMembershipIsActive,
     IReadOnlyList<UserAssignedRoleDetails> AssignedRoles,
-    IReadOnlyList<UserDirectPermissionDetails> DirectGrants);
+    IReadOnlyList<UserDirectPermissionDetails> DirectGrants,
+    IReadOnlyList<UserEffectivePermissionCell>? EffectiveCells = null,
+    IReadOnlyList<UserPermissionGroup>? Groups = null);
 
 public sealed record CreateOrganizationRole(
     long OrganizationId,

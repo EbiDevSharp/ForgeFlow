@@ -399,9 +399,6 @@
   <data name="UserAssignSitesLabel" xml:space="preserve">
     <value>Initial site access</value>
   </data>
-  <data name="UserAssignSiteOperator" xml:space="preserve">
-    <value>Grant site operator role on selected sites</value>
-  </data>
   <data name="UserUnlockButton" xml:space="preserve">
     <value>Unlock account</value>
   </data>
@@ -423,20 +420,11 @@
   <data name="UserRevokeOrgAdmin" xml:space="preserve">
     <value>Revoke org admin</value>
   </data>
-  <data name="UserGrantSiteOperator" xml:space="preserve">
-    <value>Grant operator</value>
-  </data>
-  <data name="UserRevokeSiteOperator" xml:space="preserve">
-    <value>Revoke operator</value>
-  </data>
   <data name="UserAddSiteLabel" xml:space="preserve">
     <value>Assign site</value>
   </data>
   <data name="UserAddSiteButton" xml:space="preserve">
     <value>Add site</value>
-  </data>
-  <data name="UserMultiOrgAccountHint" xml:space="preserve">
-    <value>This user belongs to multiple organizations or has platform authority. Account-wide deactivation requires platform access; manage their membership in this organization below.</value>
   </data>
   <data name="UserConfirmDisableAccount" xml:space="preserve">
     <value>Disable account “{0}” and sign out all active sessions?</value>
@@ -633,17 +621,11 @@
   <data name="UserPermissionsTitle" xml:space="preserve">
     <value>Permissions &amp; roles — {0}</value>
   </data>
-  <data name="UserRolesSectionTitle" xml:space="preserve">
-    <value>Assigned roles</value>
-  </data>
   <data name="UserAssignRoleLabel" xml:space="preserve">
     <value>Role to assign</value>
   </data>
   <data name="UserAssignRoleButton" xml:space="preserve">
     <value>Assign role</value>
-  </data>
-  <data name="UserDirectOpsSectionTitle" xml:space="preserve">
-    <value>Page &amp; operation permissions</value>
   </data>
   <data name="UserPermScopeLabel" xml:space="preserve">
     <value>Permission target scope</value>
@@ -655,13 +637,7 @@
     <value>Site: {0} — {1}</value>
   </data>
   <data name="UserPermSaveButton" xml:space="preserve">
-    <value>Save operation permissions</value>
-  </data>
-  <data name="RoleGrantedBadge" xml:space="preserve">
-    <value>Via role</value>
-  </data>
-  <data name="UserAdminFullAccessNotice" xml:space="preserve">
-    <value>Organization administrator has full access to all pages and operations.</value>
+    <value>Save permissions</value>
   </data>
   <data name="RoleErrorInvalidName" xml:space="preserve">
     <value>Enter a valid role name (2–128 characters, not a reserved system code).</value>
@@ -2702,4 +2678,180 @@
   <data name="QcErrorSpecRangeInvalid" xml:space="preserve"><value>Minimum tolerance cannot exceed maximum tolerance, and duplicate parameters are not allowed.</value></data>
   <data name="QcErrorSpecLinesRequired" xml:space="preserve"><value>At least one specification parameter line is required.</value></data>
   <data name="QcErrorConcessionReasonRequired" xml:space="preserve"><value>A mandatory test failed; enter a defect reason or concession notes before accepting this lot.</value></data>
+  <data name="AccountSecurityTitle" xml:space="preserve"><value>Account Security</value></data>
+  <data name="AccountSecuritySubtitle" xml:space="preserve"><value>Manage sign-in, two-factor authentication, and access protection for your account.</value></data>
+  <data name="RecommendedBadge" xml:space="preserve"><value>Recommended</value></data>
+  <data name="SecurityPostureWeak" xml:space="preserve"><value>Your account security needs attention</value></data>
+  <data name="SecurityPostureMedium" xml:space="preserve"><value>Your account security is medium</value></data>
+  <data name="SecurityPostureStrong" xml:space="preserve"><value>Your account security is strong</value></data>
+  <data name="SecurityPostureCount" xml:space="preserve"><value>{0} of {1}</value></data>
+  <data name="SecurityPostureHintEnable2FA" xml:space="preserve"><value>Enable two-factor authentication to protect your account even if your password is compromised.</value></data>
+  <data name="SecurityPostureHintComplete" xml:space="preserve"><value>Your core security protections are active. Review your sessions periodically.</value></data>
+  <data name="SecurityRowPasswordTitle" xml:space="preserve"><value>Password</value></data>
+  <data name="SecurityRowPasswordLastChanged" xml:space="preserve"><value>Last changed: {0}. Do not reuse this password with any other service.</value></data>
+  <data name="SecurityRowPasswordStatusSet" xml:space="preserve"><value>Configured</value></data>
+  <data name="SecurityRowPasswordAction" xml:space="preserve"><value>Change password</value></data>
+  <data name="SecurityRow2FATitle" xml:space="preserve"><value>Two-Factor Authentication (Authenticator App)</value></data>
+  <data name="SecurityRow2FADesc" xml:space="preserve"><value>After your password, a 6-digit code from an authenticator app is required. Even if your password leaks, your account stays safe.</value></data>
+  <data name="SecurityRow2FAOn" xml:space="preserve"><value>On</value></data>
+  <data name="SecurityRow2FAOff" xml:space="preserve"><value>Off</value></data>
+  <data name="SecurityRow2FAEnableBtn" xml:space="preserve"><value>Enable</value></data>
+  <data name="SecurityRow2FADisableBtn" xml:space="preserve"><value>Disable</value></data>
+  <data name="SecurityRowRecoveryTitle" xml:space="preserve"><value>Recovery Codes</value></data>
+  <data name="SecurityRowRecoveryDescDisabled" xml:space="preserve"><value>10 single-use codes when you cannot access your authenticator app. Enable two-factor authentication first.</value></data>
+  <data name="SecurityRowRecoveryDescEnabled" xml:space="preserve"><value>{0} of 10 single-use recovery codes remaining. Store them in a safe place.</value></data>
+  <data name="SecurityRowRecoveryViewBtn" xml:space="preserve"><value>View codes</value></data>
+  <data name="SecurityRowRecoveryRegenerateBtn" xml:space="preserve"><value>Regenerate codes</value></data>
+  <data name="SecurityRowPasskeyTitle" xml:space="preserve"><value>Passkey</value></data>
+  <data name="SecurityRowPasskeyDesc" xml:space="preserve"><value>Passwordless sign-in with fingerprint, face recognition, or hardware security key.</value></data>
+  <data name="SecurityRowPasskeySoonBadge" xml:space="preserve"><value>Coming soon</value></data>
+  <data name="SecurityRowPasskeyAddBtn" xml:space="preserve"><value>Add passkey</value></data>
+  <data name="SecurityRowIdleTitle" xml:space="preserve"><value>Auto Sign-Out</value></data>
+  <data name="SecurityRowIdleDesc" xml:space="preserve"><value>Automatically sign out if you are inactive for this duration.</value></data>
+  <data name="SecurityIdleOff" xml:space="preserve"><value>Off</value></data>
+  <data name="SecurityIdleMinutes" xml:space="preserve"><value>{0} minutes</value></data>
+  <data name="SecurityIdleSavedNotice" xml:space="preserve"><value>Auto sign-out preference updated.</value></data>
+  <data name="SecurityRowSessionsTitle" xml:space="preserve"><value>Sessions &amp; Alerts</value></data>
+  <data name="SecurityRowSessionsDesc" xml:space="preserve"><value>{0} device(s) signed into your account.</value></data>
+  <data name="SecurityRowSessionsAlertOn" xml:space="preserve"><value>New-device sign-in alerts are on.</value></data>
+  <data name="SecurityRowSessionsAlertOff" xml:space="preserve"><value>New-device sign-in alerts are off.</value></data>
+  <data name="SecurityRowSessionsBtn" xml:space="preserve"><value>Manage sessions</value></data>
+  <data name="TotpSetupTitle" xml:space="preserve"><value>Enable Two-Factor Authentication</value></data>
+  <data name="TotpStep1Title" xml:space="preserve"><value>Install an authenticator app</value></data>
+  <data name="TotpStep1Desc" xml:space="preserve"><value>Such as Google Authenticator, Microsoft Authenticator, or Authy.</value></data>
+  <data name="TotpStep2Title" xml:space="preserve"><value>Scan the QR code</value></data>
+  <data name="TotpStep2ManualHint" xml:space="preserve"><value>Or enter this key manually:</value></data>
+  <data name="TotpCopyKeyBtn" xml:space="preserve"><value>Copy key</value></data>
+  <data name="TotpKeyCopied" xml:space="preserve"><value>Copied</value></data>
+  <data name="TotpStep3Title" xml:space="preserve"><value>Enter the 6-digit code</value></data>
+  <data name="TotpVerifyAndEnableBtn" xml:space="preserve"><value>Verify &amp; Enable</value></data>
+  <data name="TotpCancelBtn" xml:space="preserve"><value>Cancel</value></data>
+  <data name="RecoveryDialogTitle" xml:space="preserve"><value>Recovery Codes</value></data>
+  <data name="RecoveryDialogWarning" xml:space="preserve"><value>These codes are shown only once and each can be used only once. Keep them in a safe place.</value></data>
+  <data name="RecoveryCopyAllBtn" xml:space="preserve"><value>Copy all</value></data>
+  <data name="RecoveryCopiedAll" xml:space="preserve"><value>Copied all</value></data>
+  <data name="RecoveryDownloadBtn" xml:space="preserve"><value>Download</value></data>
+  <data name="RecoverySavedCheckbox" xml:space="preserve"><value>I have saved these codes in a safe place</value></data>
+  <data name="RecoveryDoneBtn" xml:space="preserve"><value>Done</value></data>
+  <data name="RecoveryRegenerateTitle" xml:space="preserve"><value>Regenerate Recovery Codes</value></data>
+  <data name="RecoveryRegenerateDesc" xml:space="preserve"><value>Generating new recovery codes invalidates all previous unused codes. Enter your current password to continue.</value></data>
+  <data name="RecoveryRegenerateConfirmBtn" xml:space="preserve"><value>Generate new codes</value></data>
+  <data name="Disable2FADialogTitle" xml:space="preserve"><value>Disable Two-Factor Authentication</value></data>
+  <data name="Disable2FADialogDesc" xml:space="preserve"><value>Disabling two-factor authentication reduces your account security. Enter your current password to confirm.</value></data>
+  <data name="Disable2FAConfirmBtn" xml:space="preserve"><value>Disable 2FA</value></data>
+  <data name="Login2FATitle" xml:space="preserve"><value>Two-Factor Verification</value></data>
+  <data name="Login2FASubtitle" xml:space="preserve"><value>Enter the 6-digit code from your authenticator app.</value></data>
+  <data name="Login2FARecoverySubtitle" xml:space="preserve"><value>Enter one of your single-use recovery codes.</value></data>
+  <data name="Login2FACodeLabel" xml:space="preserve"><value>6-digit verification code</value></data>
+  <data name="Login2FARecoveryCodeLabel" xml:space="preserve"><value>Recovery code</value></data>
+  <data name="Login2FARememberDevice" xml:space="preserve"><value>Remember this device for 30 days</value></data>
+  <data name="Login2FAVerifyBtn" xml:space="preserve"><value>Verify</value></data>
+  <data name="Login2FAUseRecoveryLink" xml:space="preserve"><value>Use a recovery code</value></data>
+  <data name="Login2FAUseAuthenticatorLink" xml:space="preserve"><value>Use authenticator app</value></data>
+  <data name="Login2FABackToLogin" xml:space="preserve"><value>Back to sign in</value></data>
+  <data name="Home2FABannerTitle" xml:space="preserve"><value>Two-factor authentication is off</value></data>
+  <data name="Home2FABannerBody" xml:space="preserve"><value>With a code from an authenticator app, your account stays protected even if your password is leaked. Setup takes about 2 minutes. Selecting "Later" hides this for 7 days.</value></data>
+  <data name="Home2FABannerEnableBtn" xml:space="preserve"><value>Enable</value></data>
+  <data name="Home2FABannerLaterBtn" xml:space="preserve"><value>Later</value></data>
+  <data name="ChangePwd2FAPromptTitle" xml:space="preserve"><value>Make your account even safer</value></data>
+  <data name="ChangePwd2FAPromptBody" xml:space="preserve"><value>Two-factor authentication is still off on your account. Enable it now for stronger protection.</value></data>
+  <data name="ChangePwd2FAPromptBtn" xml:space="preserve"><value>Enable 2FA</value></data>
+  <data name="NotifTitle_TwoFactorReminder" xml:space="preserve"><value>Strengthen your account security</value></data>
+  <data name="NotifBody_TwoFactorReminder" xml:space="preserve"><value>Two-factor authentication is off. Enable it in Account Security.</value></data>
+  <data name="NotifAction_ReviewSecurity" xml:space="preserve"><value>Review account security</value></data>
+  <data name="SecurityErrorInvalidCode" xml:space="preserve"><value>The verification code is invalid or expired.</value></data>
+  <data name="SecurityErrorCurrentPassword" xml:space="preserve"><value>The current password is incorrect.</value></data>
+  <data name="SecurityError2FANotEnabled" xml:space="preserve"><value>Two-factor authentication is not enabled on this account.</value></data>
+  <data name="SecuritySuccess2FAEnabled" xml:space="preserve"><value>Two-factor authentication has been enabled.</value></data>
+  <data name="SecuritySuccess2FADisabled" xml:space="preserve"><value>Two-factor authentication has been disabled.</value></data>
+  <data name="SecuritySuccessRecoveryRegenerated" xml:space="preserve"><value>New recovery codes have been generated. Previous codes are no longer valid.</value></data>
+  <data name="AuditEv_TwoFactorEnabled" xml:space="preserve"><value>Two-Factor Authentication Enabled</value></data>
+  <data name="AuditEv_TwoFactorDisabled" xml:space="preserve"><value>Two-Factor Authentication Disabled</value></data>
+  <data name="AuditEv_RecoveryCodesGenerated" xml:space="preserve"><value>Recovery Codes Generated</value></data>
+  <data name="AuditEv_RecoveryCodeRedeemed" xml:space="preserve"><value>Recovery Code Used</value></data>
+  <data name="AuditEv_IdleTimeoutUpdated" xml:space="preserve"><value>Auto Sign-Out Updated</value></data>
+  <data name="AuditEv_DeviceTrusted" xml:space="preserve"><value>Device Trusted for 30 Days</value></data>
+  <data name="MySettingsMenuTitle" xml:space="preserve"><value>My Settings</value></data>
+  <data name="SecurityOverviewTab" xml:space="preserve"><value>Security Overview</value></data>
+  <data name="SecurityRowPasskeyCount" xml:space="preserve"><value>{0} passkey(s) registered</value></data>
+  <data name="SecurityRowPasskeyNone" xml:space="preserve"><value>None</value></data>
+  <data name="SecurityPasskeyModalTitle" xml:space="preserve"><value>Add Passkey</value></data>
+  <data name="SecurityPasskeyNameLabel" xml:space="preserve"><value>Passkey name</value></data>
+  <data name="SecurityPasskeyNamePlaceholder" xml:space="preserve"><value>e.g. Work Laptop or Windows Hello</value></data>
+  <data name="SecurityPasskeyCreateBtn" xml:space="preserve"><value>Create Passkey</value></data>
+  <data name="SecurityPasskeyRemoveBtn" xml:space="preserve"><value>Remove</value></data>
+  <data name="SecurityPasskeyUnsupported" xml:space="preserve"><value>Passkeys are not supported in this browser or context.</value></data>
+  <data name="SecurityPasskeyRegisteredNotice" xml:space="preserve"><value>Passkey registered successfully.</value></data>
+  <data name="SecurityPasskeyRemovedNotice" xml:space="preserve"><value>Passkey removed.</value></data>
+  <data name="LoginPasskeyBtn" xml:space="preserve"><value>Sign in with a Passkey</value></data>
+  <data name="AuditEv_PasskeyRegistered" xml:space="preserve"><value>Passkey Registered</value></data>
+  <data name="AuditEv_PasskeyRemoved" xml:space="preserve"><value>Passkey Removed</value></data>
+  <data name="AuditEv_PasskeySignIn" xml:space="preserve"><value>Signed In with Passkey</value></data>
+  <data name="AuditEv_TwoFactorReset" xml:space="preserve"><value>Two-Factor Authentication Reset by Admin</value></data>
+  <data name="AuditEv_SessionsRevokedByAdmin" xml:space="preserve"><value>All Sessions Revoked by Admin</value></data>
+  <data name="AuditEv_AccountLockoutCleared" xml:space="preserve"><value>Account Lockout Cleared</value></data>
+  <data name="PermOpResetTwoFactor" xml:space="preserve"><value>Reset user two-factor authentication</value></data>
+  <data name="UserErrorCannotResetOwnTwoFactor" xml:space="preserve"><value>You cannot reset two-factor authentication on your own account.</value></data>
+  <data name="UserErrorTwoFactorReasonRequired" xml:space="preserve"><value>Enter a reason and confirm identity verification before resetting 2FA.</value></data>
+  <data name="NotifTitle_TwoFactorResetAlert" xml:space="preserve"><value>Two-factor authentication was reset</value></data>
+  <data name="NotifBody_TwoFactorResetAlert" xml:space="preserve"><value>An administrator reset two-factor authentication for account {0}. Sign in and re-enable 2FA immediately if this was unexpected.</value></data>
+  <data name="UserEditModalTitle" xml:space="preserve"><value>Edit User</value></data>
+  <data name="UserTabAccess" xml:space="preserve"><value>Access</value></data>
+  <data name="UserTabSecurity" xml:space="preserve"><value>Security</value></data>
+  <data name="UserOrgMembershipCardTitle" xml:space="preserve"><value>Organization Membership</value></data>
+  <data name="UserLockStatusLabel" xml:space="preserve"><value>Sign-in lock:</value></data>
+  <data name="UserLockStatusOpen" xml:space="preserve"><value>Open</value></data>
+  <data name="UserLockStatusLocked" xml:space="preserve"><value>Locked</value></data>
+  <data name="User2FAStatusTitle" xml:space="preserve"><value>Two-Factor Authentication</value></data>
+  <data name="User2FAEnabledMeta" xml:space="preserve"><value>Enabled: {0} · Remaining recovery codes: {1}</value></data>
+  <data name="User2FADisabledHint" xml:space="preserve"><value>Two-factor authentication is not currently enabled on this account.</value></data>
+  <data name="User2FAResetHint" xml:space="preserve"><value>For users who lost both their authenticator app and recovery codes. The user will be prompted to set up 2FA on next sign-in.</value></data>
+  <data name="User2FAResetBtn" xml:space="preserve"><value>Reset 2FA</value></data>
+  <data name="UserSessionsCardTitle" xml:space="preserve"><value>Sessions</value></data>
+  <data name="UserActiveSessionsCount" xml:space="preserve"><value>{0} active session(s)</value></data>
+  <data name="UserRevokeAllSessionsBtn" xml:space="preserve"><value>Revoke all sessions</value></data>
+  <data name="UserRevokeSessionsSuccess" xml:space="preserve"><value>All active sessions for this user have been revoked.</value></data>
+  <data name="User2FAResetDialogTitle" xml:space="preserve"><value>Reset Two-Factor Authentication?</value></data>
+  <data name="User2FAResetWarning" xml:space="preserve"><value>This removes the user's authenticator key, recovery codes, and trusted 30-day devices, and closes all active sessions.</value></data>
+  <data name="User2FAResetBody" xml:space="preserve"><value>User {0} will be required to re-enable 2FA on their next sign-in. A security alert will be sent and this event will be audited.</value></data>
+  <data name="User2FAResetReasonLabel" xml:space="preserve"><value>Reason (required)</value></data>
+  <data name="User2FAResetReasonPlaceholder" xml:space="preserve"><value>e.g. Lost phone, verified identity by phone</value></data>
+  <data name="User2FAResetIdentityCheck" xml:space="preserve"><value>I have verified the user's identity through a trusted channel (in person or by phone).</value></data>
+  <data name="User2FAResetConfirmBtn" xml:space="preserve"><value>Reset 2FA</value></data>
+  <data name="User2FAResetSuccess" xml:space="preserve"><value>Two-factor authentication was reset and active sessions were revoked.</value></data>
+  <data name="UserMustChangePasswordLabel" xml:space="preserve"><value>User must change password on next sign-in</value></data>
+  <data name="UserCreateInOrgSubtitle" xml:space="preserve"><value>Will be created in organization {0}.</value></data>
+  <data name="UserUsernamePlaceholder" xml:space="preserve"><value>e.g. operator1</value></data>
+  <data name="UserUsernameAllowedHint" xml:space="preserve"><value>1 to 128 English characters: letters, digits, or . _ @ + -</value></data>
+  <data name="UserUsernameInvalidError" xml:space="preserve"><value>Username may contain only letters, digits, and . _ @ + -</value></data>
+  <data name="UserGenerateRandomPassword" xml:space="preserve"><value>Generate random password</value></data>
+  <data name="UserPasswordStrengthMin" xml:space="preserve"><value>Password must be at least 12 characters.</value></data>
+  <data name="UserPasswordStrengthMedium" xml:space="preserve"><value>Acceptable password strength.</value></data>
+  <data name="UserPasswordStrengthStrong" xml:space="preserve"><value>Strong password.</value></data>
+  <data name="UserOrgAdminSwitchDesc" xml:space="preserve"><value>Administrative access to users and settings in this organization.</value></data>
+  <data name="UserSitesSelectedCount" xml:space="preserve"><value>{0} of {1} selected</value></data>
+  <data name="PermSummaryCount" xml:space="preserve"><value>{0} of {1} permissions</value></data>
+  <data name="PermSummaryBreakdown" xml:space="preserve"><value>{0} via role · {1} direct</value></data>
+  <data name="PermSummaryFullAccess" xml:space="preserve"><value>Full access</value></data>
+  <data name="PermRolesLabel" xml:space="preserve"><value>Roles:</value></data>
+  <data name="PermAddRoleChipBtn" xml:space="preserve"><value>+ Add role</value></data>
+  <data name="PermRemoveRoleAria" xml:space="preserve"><value>Remove role {0}</value></data>
+  <data name="PermFilterAll" xml:space="preserve"><value>All</value></data>
+  <data name="PermFilterGranted" xml:space="preserve"><value>Granted only</value></data>
+  <data name="PermFilterDirect" xml:space="preserve"><value>Direct only</value></data>
+  <data name="PermFilterChanges" xml:space="preserve"><value>Changes</value></data>
+  <data name="PermSearchPageOrOpPlaceholder" xml:space="preserve"><value>Search page or operation</value></data>
+  <data name="PermAccordionRowCount" xml:space="preserve"><value>{0} of {1}</value></data>
+  <data name="PermChangesBadge" xml:space="preserve"><value>{0} change(s)</value></data>
+  <data name="PermSelectAllEditable" xml:space="preserve"><value>Select all editable</value></data>
+  <data name="PermClearDirect" xml:space="preserve"><value>Clear direct</value></data>
+  <data name="PermBadgeRole" xml:space="preserve"><value>Role</value></data>
+  <data name="PermBadgeNew" xml:space="preserve"><value>New</value></data>
+  <data name="PermLegendRole" xml:space="preserve"><value>Via role (locked)</value></data>
+  <data name="PermLegendDirect" xml:space="preserve"><value>Direct</value></data>
+  <data name="PermLegendUnsaved" xml:space="preserve"><value>Unsaved change</value></data>
+  <data name="PermLegendNone" xml:space="preserve"><value>None</value></data>
+  <data name="PermTooltipViaRole" xml:space="preserve"><value>Via: {0}</value></data>
+  <data name="PermUnsavedChangesCount" xml:space="preserve"><value>{0} unsaved change(s)</value></data>
+  <data name="PermEmptyFilterResult" xml:space="preserve"><value>No pages match the current filter.</value></data>
 </root>

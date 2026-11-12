@@ -763,6 +763,86 @@ public sealed class SqlRoleOperationsStore(
             })
             .ToListAsync(ct);
 
+        var activeRoleIds = assignedRoles.Where(a => a.IsActive).Select(a => a.RoleId).Distinct().ToArray();
+        var rolePermPairs = activeRoleIds.Length == 0
+            ? []
+            : await db.RolePermissions.AsNoTracking()
+                .Where(p => activeRoleIds.Contains(p.RoleId) && p.IsActive)
+                .Select(p => new { p.RoleId, p.PermissionCode })
+                .ToListAsync(ct);
+        var rolePermsByRoleId = rolePermPairs
+            .GroupBy(x => x.RoleId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.PermissionCode).ToHashSet(StringComparer.Ordinal));
+
+        var userSiteIds = await db.SiteMemberships.AsNoTracking()
+            .Where(s => s.UserId == userId && s.OrganizationId == organizationId && s.IsActive)
+            .Select(s => s.SiteId)
+            .ToListAsync(ct);
+        var allSiteIds = userSiteIds
+            .Concat(assignedRoles.Where(a => a.SiteId.HasValue).Select(a => a.SiteId!.Value))
+            .Concat(directGrants.Where(g => g.SiteId.HasValue).Select(g => g.SiteId!.Value))
+            .Distinct()
+            .OrderBy(id => id)
+            .ToArray();
+
+        var effectiveCells = new List<UserEffectivePermissionCell>();
+        var groups = new List<UserPermissionGroup>();
+        void AddScopeCells(byte scopeKind, long? siteId)
+        {
+            var scopeDescriptors = scopeKind == 1
+                ? PermissionCatalog.All.Where(d => d.Applicability != PermissionScopeApplicability.PlatformOnly)
+                : PermissionCatalog.All.Where(d => d.Applicability == PermissionScopeApplicability.OrganizationOrSite);
+            var directSet = directGrants
+                .Where(g => g.IsActive && g.ScopeKind == scopeKind && g.SiteId == siteId)
+                .Select(g => g.PermissionCode)
+                .ToHashSet(StringComparer.Ordinal);
+            var activeRolesForScope = assignedRoles
+                .Where(a => a.IsActive && (a.ScopeKind == 1 || (scopeKind == 2 && a.ScopeKind == 2 && a.SiteId == siteId)))
+                .ToList();
+
+            var cellsByModule = new Dictionary<PermissionModule, List<UserEffectivePermissionCell>>();
+            foreach (var desc in scopeDescriptors)
+            {
+                var grantingRoles = new List<string>();
+                foreach (var ra in activeRolesForScope)
+                {
+                    bool grants = ra.RoleId == PermissionCatalog.OrganizationAdministratorRoleId
+                        ? PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(desc.Code, scopeKind)
+                        : ra.RoleId == PermissionCatalog.SiteOperatorRoleId
+                            ? scopeKind == 2 && desc.Code is "Sites.Read" or "Sites.Update" or "Sites.SetActive"
+                            : rolePermsByRoleId.TryGetValue(ra.RoleId, out var set) && set.Contains(desc.Code);
+                    if (grants && !grantingRoles.Contains(ra.Name, StringComparer.Ordinal))
+                        grantingRoles.Add(ra.Name);
+                }
+
+                var grantedByRole = grantingRoles.Count > 0;
+                var grantedDirectly = directSet.Contains(desc.Code);
+                var cell = new UserEffectivePermissionCell(
+                    scopeKind,
+                    siteId,
+                    desc.Code,
+                    grantedByRole,
+                    grantedDirectly,
+                    grantingRoles);
+                if (grantedByRole || grantedDirectly)
+                    effectiveCells.Add(cell);
+
+                if (!cellsByModule.TryGetValue(desc.Module, out var list))
+                {
+                    list = [];
+                    cellsByModule[desc.Module] = list;
+                }
+                list.Add(cell);
+            }
+
+            foreach (var kv in cellsByModule)
+                groups.Add(new UserPermissionGroup(scopeKind, siteId, kv.Key, kv.Value));
+        }
+
+        AddScopeCells(1, null);
+        foreach (var sid in allSiteIds)
+            AddScopeCells(2, sid);
+
         return new UserPermissionMatrix(
             account.Id,
             organizationId,
@@ -784,7 +864,9 @@ public sealed class SqlRoleOperationsStore(
                 g.SiteId,
                 g.PermissionCode,
                 g.IsActive,
-                Convert.ToBase64String(g.RowVersion))).ToArray());
+                Convert.ToBase64String(g.RowVersion))).ToArray(),
+            effectiveCells,
+            groups);
     }
 
     private static bool MatchesRowVersion(AuthDbContext db, object entity, byte[] expected)

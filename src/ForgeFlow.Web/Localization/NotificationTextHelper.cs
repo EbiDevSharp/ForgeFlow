@@ -41,6 +41,14 @@ public static class NotificationTextHelper
                 text["NotifTitle_PasswordChanged"],
                 text["NotifBody_PasswordChanged", Get("device", "Browser")],
                 text["NotifAction_ViewSessions"]),
+            NotificationTemplateCatalog.TwoFactorReminder => new(
+                text["NotifTitle_TwoFactorReminder"],
+                text["NotifBody_TwoFactorReminder"],
+                text["NotifAction_ReviewSecurity"]),
+            NotificationTemplateCatalog.TwoFactorResetAlert => new(
+                text["NotifTitle_TwoFactorResetAlert"],
+                text["NotifBody_TwoFactorResetAlert", Get("user", "—")],
+                text["NotifAction_ReviewSecurity"]),
             _ => new(item.TemplateCode, string.Empty, null)
         };
     }

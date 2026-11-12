@@ -11,6 +11,10 @@ public sealed class ApplicationAccount : IdentityUser<long>
     public byte[]? AvatarData { get; internal set; }
     public DateTime CreatedAtUtc { get; internal set; }
     public DateTime? UpdatedAtUtc { get; internal set; }
+    public DateTime? PasswordChangedAtUtc { get; internal set; }
+    public DateTime? TwoFactorEnabledAtUtc { get; internal set; }
+    public bool RequireTwoFactorSetup { get; internal set; }
+    public bool RequirePasswordChange { get; internal set; }
 }
 
 public sealed class UserPreference
@@ -22,6 +26,9 @@ public sealed class UserPreference
     public string TimeZoneId { get; internal set; } = null!;
     public long? ActiveOrganizationId { get; internal set; }
     public long? ActiveSiteId { get; internal set; }
+    public int? IdleTimeoutMinutes { get; internal set; }
+    public DateTime? TwoFactorReminderSnoozedUntilUtc { get; internal set; }
+    public DateTime? TwoFactorOneTimeNotifiedAtUtc { get; internal set; }
     public DateTime CreatedAtUtc { get; internal set; }
     public DateTime? UpdatedAtUtc { get; internal set; }
 }
@@ -47,6 +54,20 @@ public sealed class UserNotification
     public string? LinkUrl { get; internal set; }
     public DateTime CreatedAtUtc { get; internal set; }
     public DateTime? ReadAtUtc { get; internal set; }
+}
+
+public sealed class UserPasskey
+{
+    public long Id { get; internal set; }
+    public long UserId { get; internal set; }
+    public byte[] CredentialId { get; internal set; } = null!;
+    public byte[] PublicKeyCose { get; internal set; } = null!;
+    public int Algorithm { get; internal set; }
+    public long SignCount { get; internal set; }
+    public string DisplayName { get; internal set; } = null!;
+    public DateTime CreatedAtUtc { get; internal set; }
+    public DateTime? LastUsedAtUtc { get; internal set; }
+    public DateTime? RevokedAtUtc { get; internal set; }
 }
 
 public static class FixedAccessRoles

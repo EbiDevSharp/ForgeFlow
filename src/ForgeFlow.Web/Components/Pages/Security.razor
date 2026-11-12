@@ -1,0 +1,692 @@
+@page "/account/security"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ForgeFlow.Application.Users
+@using ForgeFlow.Infrastructure.Identity
+@using ForgeFlow.Web.Authentication
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<SharedResources> Text
+@inject DisplayFormatter Format
+@inject ICurrentAuthenticatedSession SessionSource
+@inject RuntimeSessions SessionsService
+@inject UserDisplayPreferences DisplayPreferences
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>@Text["AccountSecurityTitle"]</PageTitle>
+
+<section class="account-page" aria-labelledby="security-title">
+    <div class="account-page-head">
+        <div>
+            <h1 id="security-title">@Text["AccountSecurityTitle"]</h1>
+            <p class="account-page-subtitle">@Text["AccountSecuritySubtitle"]</p>
+        </div>
+    </div>
+
+    <AccountNav Active="security" />
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="prefs-feedback prefs-feedback--error" role="alert">@errorMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="prefs-feedback prefs-feedback--saved" role="status">@statusMessage</div>
+    }
+
+    @if (!loaded || snapshot is null)
+    {
+        <div class="prefs-card prefs-loading">
+            <BitProgress Circular="true" Indeterminate="true" Label="@Text["ReadLoading"]" />
+        </div>
+    }
+    else
+    {
+        var score = ComputeScore(snapshot);
+        var postureTitle = score >= 4 ? Text["SecurityPostureStrong"] : score >= 2 ? Text["SecurityPostureMedium"] : Text["SecurityPostureWeak"];
+        var postureHint = snapshot.TwoFactorEnabled ? Text["SecurityPostureHintComplete"] : Text["SecurityPostureHintEnable2FA"];
+        var barClass = score >= 4 ? "is-strong" : score >= 2 ? "is-medium" : "is-weak";
+
+        <div class="sec-posture-card @barClass" role="region" aria-label="@Text["AccountSecurityTitle"]">
+            <div class="sec-posture-icon" aria-hidden="true">
+                <span class="ff-icon ff-icon--shield"></span>
+            </div>
+            <div class="sec-posture-body">
+                <div class="sec-posture-head">
+                    <span class="sec-posture-title">@postureTitle</span>
+                    <span class="sec-posture-score">(@Text["SecurityPostureCount", score, 4])</span>
+                </div>
+                <div class="sec-posture-segments" aria-hidden="true">
+                    @for (var i = 1; i <= 4; i++)
+                    {
+                        <span class="sec-posture-seg @(i <= score ? "is-filled" : string.Empty)"></span>
+                    }
+                </div>
+                <p class="sec-posture-hint">@postureHint</p>
+            </div>
+        </div>
+
+        <div class="sec-list-card">
+            <div class="sec-row">
+                <div class="sec-row-main">
+                    <div class="sec-row-title">@Text["SecurityRowPasswordTitle"]</div>
+                    <div class="sec-row-desc">@Text["SecurityRowPasswordLastChanged", FormatLastChanged(snapshot.PasswordChangedAtUtc)]</div>
+                </div>
+                <div class="sec-row-end">
+                    <span class="sec-badge sec-badge--success">@Text["SecurityRowPasswordStatusSet"]</span>
+                    <a class="sec-btn-link" href="/account/change-password">@Text["SecurityRowPasswordAction"]</a>
+                </div>
+            </div>
+
+            <div class="sec-row">
+                <div class="sec-row-main">
+                    <div class="sec-row-title">@Text["SecurityRow2FATitle"]</div>
+                    <div class="sec-row-desc">@Text["SecurityRow2FADesc"]</div>
+                </div>
+                <div class="sec-row-end">
+                    @if (snapshot.TwoFactorEnabled)
+                    {
+                        <span class="sec-badge sec-badge--success">@Text["SecurityRow2FAOn"]</span>
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!busy)" OnClick="OpenDisable2FA">
+                            @Text["SecurityRow2FADisableBtn"]
+                        </BitButton>
+                    }
+                    else
+                    {
+                        <span class="sec-badge sec-badge--warn">@Text["SecurityRow2FAOff"]</span>
+                        <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" Size="BitSize.Small" IsEnabled="@(!busy)" OnClick="BeginTotpSetupAsync">
+                            @Text["SecurityRow2FAEnableBtn"]
+                        </BitButton>
+                    }
+                </div>
+            </div>
+
+            <div class="sec-row">
+                <div class="sec-row-main">
+                    <div class="sec-row-title">@Text["SecurityRowRecoveryTitle"]</div>
+                    <div class="sec-row-desc">
+                        @(snapshot.TwoFactorEnabled
+                            ? Text["SecurityRowRecoveryDescEnabled", snapshot.RecoveryCodesRemaining]
+                            : Text["SecurityRowRecoveryDescDisabled"])
+                    </div>
+                </div>
+                <div class="sec-row-end">
+                    @if (snapshot.TwoFactorEnabled)
+                    {
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!busy)" OnClick="OpenRegenerateRecovery">
+                            @Text["SecurityRowRecoveryRegenerateBtn"]
+                        </BitButton>
+                    }
+                    else
+                    {
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="false">
+                            @Text["SecurityRowRecoveryViewBtn"]
+                        </BitButton>
+                    }
+                </div>
+            </div>
+
+            <div class="sec-row sec-row--stack">
+                <div class="sec-row-top">
+                    <div class="sec-row-main">
+                        <div class="sec-row-title">@Text["SecurityRowPasskeyTitle"]</div>
+                        <div class="sec-row-desc">@Text["SecurityRowPasskeyDesc"]</div>
+                    </div>
+                    <div class="sec-row-end">
+                        @if (snapshot.Passkeys is { Count: > 0 } pks)
+                        {
+                            <span class="sec-badge sec-badge--success">@Text["SecurityRowPasskeyCount", pks.Count]</span>
+                        }
+                        else
+                        {
+                            <span class="sec-badge sec-badge--warn">@Text["SecurityRowPasskeyNone"]</span>
+                        }
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!busy)" OnClick="OpenAddPasskey">
+                            @Text["SecurityRowPasskeyAddBtn"]
+                        </BitButton>
+                    </div>
+                </div>
+                @if (snapshot.Passkeys is { Count: > 0 } passkeyList)
+                {
+                    <div class="sec-passkey-list">
+                        @foreach (var pk in passkeyList)
+                        {
+                            <div class="sec-passkey-item">
+                                <div class="sec-passkey-meta">
+                                    <span class="sec-passkey-name">@pk.DisplayName</span>
+                                    <span class="sec-passkey-date" dir="ltr">@Format.Timestamp(pk.LastUsedAtUtc ?? pk.CreatedAtUtc, " - ")</span>
+                                </div>
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!busy)" OnClick="() => RemovePasskeyAsync(pk.Id)">
+                                    @Text["SecurityPasskeyRemoveBtn"]
+                                </BitButton>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="sec-row">
+                <div class="sec-row-main">
+                    <div class="sec-row-title">@Text["SecurityRowIdleTitle"]</div>
+                    <div class="sec-row-desc">@Text["SecurityRowIdleDesc"]</div>
+                </div>
+                <div class="sec-row-end">
+                    <select class="sec-select"
+                            aria-label="@Text["SecurityRowIdleTitle"]"
+                            disabled="@busy"
+                            value="@(snapshot.IdleTimeoutMinutes?.ToString() ?? string.Empty)"
+                            @onchange="OnIdleTimeoutChangedAsync">
+                        <option value="">@Text["SecurityIdleOff"]</option>
+                        @foreach (var mins in UserPreferenceCatalog.SupportedIdleTimeoutsMinutes)
+                        {
+                            <option value="@mins">@Text["SecurityIdleMinutes", mins]</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div class="sec-row">
+                <div class="sec-row-main">
+                    <div class="sec-row-title">@Text["SecurityRowSessionsTitle"]</div>
+                    <div class="sec-row-desc">
+                        @Text["SecurityRowSessionsDesc", snapshot.ActiveSessionCount]
+                        @(snapshot.NewDeviceAlertEnabled ? Text["SecurityRowSessionsAlertOn"] : Text["SecurityRowSessionsAlertOff"])
+                    </div>
+                </div>
+                <div class="sec-row-end">
+                    <a class="sec-btn-link" href="/account/sessions">@Text["SecurityRowSessionsBtn"]</a>
+                </div>
+            </div>
+        </div>
+    }
+</section>
+
+@if (showTotpDialog && totpSetup is not null)
+{
+    <div class="sec-modal-backdrop" role="presentation">
+        <div class="sec-modal" role="dialog" aria-modal="true" aria-labelledby="totp-setup-title">
+            <div class="sec-modal-head">
+                <h2 id="totp-setup-title">@Text["TotpSetupTitle"]</h2>
+                <button type="button" class="sec-modal-close" aria-label="@Text["TotpCancelBtn"]" @onclick="CloseTotpDialog">×</button>
+            </div>
+            <div class="sec-modal-body">
+                @if (!string.IsNullOrEmpty(dialogError))
+                {
+                    <div class="prefs-feedback prefs-feedback--error" role="alert">@dialogError</div>
+                }
+
+                <div class="sec-step">
+                    <span class="sec-step-num">1</span>
+                    <div>
+                        <div class="sec-step-title">@Text["TotpStep1Title"]</div>
+                        <div class="sec-step-desc">@Text["TotpStep1Desc"]</div>
+                    </div>
+                </div>
+
+                <div class="sec-step">
+                    <span class="sec-step-num">2</span>
+                    <div class="sec-step-content">
+                        <div class="sec-step-title">@Text["TotpStep2Title"]</div>
+                        <div class="sec-qr-box">
+                            @((MarkupString)totpQrSvg!)
+                        </div>
+                        <div class="sec-step-desc">@Text["TotpStep2ManualHint"]</div>
+                        <div class="sec-key-row">
+                            <code class="sec-manual-key" dir="ltr">@totpSetup.SharedKey</code>
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CopySharedKeyAsync">
+                                @(keyCopied ? Text["TotpKeyCopied"] : Text["TotpCopyKeyBtn"])
+                            </BitButton>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sec-step">
+                    <span class="sec-step-num">3</span>
+                    <div class="sec-step-content">
+                        <span class="sec-step-title">@Text["TotpStep3Title"]</span>
+                        <div class="sec-otp-wrap" dir="ltr">
+                            <BitOtpInput Length="6"
+                                         Type="BitInputType.Number"
+                                         Dir="BitDir.Ltr"
+                                         AutoFocus="true"
+                                         Class="sec-bit-otp"
+                                         @bind-Value="totpCode" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="sec-modal-foot">
+                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!busy)" OnClick="CloseTotpDialog">
+                    @Text["TotpCancelBtn"]
+                </BitButton>
+                <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" IsEnabled="@(!busy)" OnClick="ConfirmTotpSetupAsync">
+                    @Text["TotpVerifyAndEnableBtn"]
+                </BitButton>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showRecoveryCodesDialog && generatedRecoveryCodes.Count > 0)
+{
+    <div class="sec-modal-backdrop" role="presentation">
+        <div class="sec-modal" role="dialog" aria-modal="true" aria-labelledby="recovery-codes-title">
+            <div class="sec-modal-head">
+                <h2 id="recovery-codes-title">@Text["RecoveryDialogTitle"]</h2>
+            </div>
+            <div class="sec-modal-body">
+                <div class="sec-warning-box" role="alert">@Text["RecoveryDialogWarning"]</div>
+                <div class="sec-codes-grid" dir="ltr">
+                    @foreach (var recoveryCode in generatedRecoveryCodes)
+                    {
+                        <div class="sec-code-pill">@recoveryCode</div>
+                    }
+                </div>
+                <div class="sec-codes-actions">
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CopyAllRecoveryCodesAsync">
+                        @(codesCopied ? Text["RecoveryCopiedAll"] : Text["RecoveryCopyAllBtn"])
+                    </BitButton>
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="DownloadRecoveryCodesAsync">
+                        @Text["RecoveryDownloadBtn"]
+                    </BitButton>
+                </div>
+                <label class="sec-confirm-check">
+                    <input type="checkbox" @bind="recoveryCodesSavedConfirmed" />
+                    <span>@Text["RecoverySavedCheckbox"]</span>
+                </label>
+            </div>
+            <div class="sec-modal-foot">
+                <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" IsEnabled="@recoveryCodesSavedConfirmed" OnClick="CloseRecoveryCodesDialog">
+                    @Text["RecoveryDoneBtn"]
+                </BitButton>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showPasswordConfirmDialog)
+{
+    <div class="sec-modal-backdrop" role="presentation">
+        <div class="sec-modal sec-modal--sm" role="dialog" aria-modal="true" aria-labelledby="pwd-confirm-title">
+            <div class="sec-modal-head">
+                <h2 id="pwd-confirm-title">@(passwordConfirmMode == "disable" ? Text["Disable2FADialogTitle"] : Text["RecoveryRegenerateTitle"])</h2>
+                <button type="button" class="sec-modal-close" aria-label="@Text["TotpCancelBtn"]" @onclick="ClosePasswordConfirmDialog">×</button>
+            </div>
+            <div class="sec-modal-body">
+                @if (!string.IsNullOrEmpty(dialogError))
+                {
+                    <div class="prefs-feedback prefs-feedback--error" role="alert">@dialogError</div>
+                }
+                <p class="sec-row-desc">@(passwordConfirmMode == "disable" ? Text["Disable2FADialogDesc"] : Text["RecoveryRegenerateDesc"])</p>
+                <div class="sec-field">
+                    <label for="sec-confirm-password">@Text["CurrentPasswordLabel"]</label>
+                    <input id="sec-confirm-password" type="password" autocomplete="current-password" class="sec-text-input" @bind="confirmPassword" />
+                </div>
+            </div>
+            <div class="sec-modal-foot">
+                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!busy)" OnClick="ClosePasswordConfirmDialog">
+                    @Text["TotpCancelBtn"]
+                </BitButton>
+                <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" IsEnabled="@(!busy)" OnClick="SubmitPasswordConfirmAsync">
+                    @(passwordConfirmMode == "disable" ? Text["Disable2FAConfirmBtn"] : Text["RecoveryRegenerateConfirmBtn"])
+                </BitButton>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showAddPasskeyDialog)
+{
+    <div class="sec-modal-backdrop" role="presentation">
+        <div class="sec-modal sec-modal--sm" role="dialog" aria-modal="true" aria-labelledby="add-passkey-title">
+            <div class="sec-modal-head">
+                <h2 id="add-passkey-title">@Text["SecurityPasskeyModalTitle"]</h2>
+                <button type="button" class="sec-modal-close" aria-label="@Text["TotpCancelBtn"]" @onclick="CloseAddPasskey">×</button>
+            </div>
+            <div class="sec-modal-body">
+                @if (!string.IsNullOrEmpty(dialogError))
+                {
+                    <div class="prefs-feedback prefs-feedback--error" role="alert">@dialogError</div>
+                }
+                <div class="sec-field">
+                    <label for="passkey-display-name">@Text["SecurityPasskeyNameLabel"]</label>
+                    <input id="passkey-display-name"
+                           type="text"
+                           maxlength="100"
+                           class="sec-text-input"
+                           placeholder="@Text["SecurityPasskeyNamePlaceholder"]"
+                           @bind="newPasskeyName" />
+                </div>
+            </div>
+            <div class="sec-modal-foot">
+                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!busy)" OnClick="CloseAddPasskey">
+                    @Text["TotpCancelBtn"]
+                </BitButton>
+                <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" IsEnabled="@(!busy)" OnClick="RegisterPasskeyAsync">
+                    @Text["SecurityPasskeyCreateBtn"]
+                </BitButton>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "setup2fa")] public string? Setup2FaQuery { get; set; }
+
+    private bool loaded;
+    private bool busy;
+    private AccountSecuritySnapshot? snapshot;
+    private string? errorMessage;
+    private string? statusMessage;
+    private string? dialogError;
+
+    private bool showTotpDialog;
+    private TotpSetupInfo? totpSetup;
+    private string? totpQrSvg;
+    private string totpCode = string.Empty;
+    private bool keyCopied;
+
+    private bool showRecoveryCodesDialog;
+    private IReadOnlyList<string> generatedRecoveryCodes = [];
+    private bool codesCopied;
+    private bool recoveryCodesSavedConfirmed;
+
+    private bool showPasswordConfirmDialog;
+    private string passwordConfirmMode = string.Empty;
+    private string confirmPassword = string.Empty;
+
+    private bool showAddPasskeyDialog;
+    private string newPasskeyName = string.Empty;
+    private sealed record JsPasskeyResult(bool ok, string? message);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        if (Setup2FaQuery == "1" && snapshot is { TwoFactorEnabled: false })
+            await BeginTotpSetupAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null)
+        {
+            Navigation.NavigateTo("/account/login", forceLoad: true);
+            return;
+        }
+        snapshot = await SessionsService.GetAccountSecurityAsync(reference, CancellationToken.None);
+        if (snapshot is null)
+        {
+            Navigation.NavigateTo("/account/login", forceLoad: true);
+            return;
+        }
+        loaded = true;
+    }
+
+    private static int ComputeScore(AccountSecuritySnapshot s)
+    {
+        var score = 1; // Password configured
+        if (s.TwoFactorEnabled) score++;
+        if (s.TwoFactorEnabled && s.RecoveryCodesRemaining > 0) score++;
+        if ((s.Passkeys?.Count ?? 0) > 0 || s.IdleTimeoutMinutes is not null) score++;
+        return score;
+    }
+
+    private string FormatLastChanged(DateTime? utc) => utc.HasValue ? Format.Timestamp(utc.Value, " - ") : "—";
+
+    private async Task BeginTotpSetupAsync()
+    {
+        errorMessage = null;
+        statusMessage = null;
+        dialogError = null;
+        keyCopied = false;
+        totpCode = string.Empty;
+
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null) { Navigation.NavigateTo("/account/login", forceLoad: true); return; }
+
+        busy = true;
+        try
+        {
+            totpSetup = await SessionsService.BeginTotpSetupAsync(reference, CancellationToken.None);
+            if (totpSetup is null)
+            {
+                errorMessage = Text["ServerUnavailable"];
+                return;
+            }
+            totpQrSvg = QrCodeSvg.GenerateSvg(totpSetup.AuthenticatorUri);
+            showTotpDialog = true;
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void CloseTotpDialog()
+    {
+        showTotpDialog = false;
+        totpSetup = null;
+        totpQrSvg = null;
+        totpCode = string.Empty;
+        dialogError = null;
+    }
+
+    private async Task ConfirmTotpSetupAsync()
+    {
+        dialogError = null;
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null) { Navigation.NavigateTo("/account/login", forceLoad: true); return; }
+
+        busy = true;
+        try
+        {
+            var res = await SessionsService.ConfirmTotpSetupAsync(reference, totpCode, CancellationToken.None);
+            if (res.Code == "Auth.SessionInvalid") { Navigation.NavigateTo("/account/login", forceLoad: true); return; }
+            if (res.Code != "Auth.TwoFactorEnabled")
+            {
+                dialogError = ResolveSecurityMessage(res.Code);
+                return;
+            }
+
+            CloseTotpDialog();
+            generatedRecoveryCodes = res.RecoveryCodes;
+            codesCopied = false;
+            recoveryCodesSavedConfirmed = false;
+            showRecoveryCodesDialog = true;
+            statusMessage = Text["SecuritySuccess2FAEnabled"];
+            await LoadAsync();
+            DisplayPreferences.NotifyMenuContextChanged();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void CloseRecoveryCodesDialog()
+    {
+        showRecoveryCodesDialog = false;
+        generatedRecoveryCodes = [];
+        recoveryCodesSavedConfirmed = false;
+    }
+
+    private void OpenDisable2FA()
+    {
+        dialogError = null;
+        confirmPassword = string.Empty;
+        passwordConfirmMode = "disable";
+        showPasswordConfirmDialog = true;
+    }
+
+    private void OpenRegenerateRecovery()
+    {
+        dialogError = null;
+        confirmPassword = string.Empty;
+        passwordConfirmMode = "regenerate";
+        showPasswordConfirmDialog = true;
+    }
+
+    private void ClosePasswordConfirmDialog()
+    {
+        showPasswordConfirmDialog = false;
+        confirmPassword = string.Empty;
+        dialogError = null;
+    }
+
+    private async Task SubmitPasswordConfirmAsync()
+    {
+        dialogError = null;
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null) { Navigation.NavigateTo("/account/login", forceLoad: true); return; }
+
+        busy = true;
+        try
+        {
+            if (passwordConfirmMode == "disable")
+            {
+                var code = await SessionsService.DisableTotpAsync(reference, confirmPassword, CancellationToken.None);
+                if (code == "Auth.SessionInvalid") { Navigation.NavigateTo("/account/login", forceLoad: true); return; }
+                if (code != "Auth.TwoFactorDisabled") { dialogError = ResolveSecurityMessage(code); return; }
+                ClosePasswordConfirmDialog();
+                statusMessage = Text["SecuritySuccess2FADisabled"];
+                await LoadAsync();
+                DisplayPreferences.NotifyMenuContextChanged();
+            }
+            else
+            {
+                var res = await SessionsService.RegenerateRecoveryCodesAsync(reference, confirmPassword, CancellationToken.None);
+                if (res.Code == "Auth.SessionInvalid") { Navigation.NavigateTo("/account/login", forceLoad: true); return; }
+                if (res.Code != "Auth.RecoveryCodesRegenerated") { dialogError = ResolveSecurityMessage(res.Code); return; }
+                ClosePasswordConfirmDialog();
+                generatedRecoveryCodes = res.RecoveryCodes;
+                codesCopied = false;
+                recoveryCodesSavedConfirmed = false;
+                showRecoveryCodesDialog = true;
+                statusMessage = Text["SecuritySuccessRecoveryRegenerated"];
+                await LoadAsync();
+            }
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task OnIdleTimeoutChangedAsync(ChangeEventArgs args)
+    {
+        errorMessage = null;
+        statusMessage = null;
+        var raw = args.Value?.ToString();
+        int? minutes = string.IsNullOrWhiteSpace(raw) ? null : int.TryParse(raw, out var m) ? m : null;
+
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null) { Navigation.NavigateTo("/account/login", forceLoad: true); return; }
+
+        busy = true;
+        try
+        {
+            var code = await SessionsService.SetIdleTimeoutAsync(reference, minutes, CancellationToken.None);
+            if (code == "Auth.SessionInvalid") { Navigation.NavigateTo("/account/login", forceLoad: true); return; }
+            if (code != "Security.IdleTimeoutSaved") { errorMessage = ResolveSecurityMessage(code); return; }
+            statusMessage = Text["SecurityIdleSavedNotice"];
+            await LoadAsync();
+            await JS.InvokeVoidAsync("window.__forgeflowSetIdleMinutes", minutes);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private void OpenAddPasskey()
+    {
+        dialogError = null;
+        newPasskeyName = string.Empty;
+        showAddPasskeyDialog = true;
+    }
+
+    private void CloseAddPasskey()
+    {
+        showAddPasskeyDialog = false;
+        newPasskeyName = string.Empty;
+        dialogError = null;
+    }
+
+    private async Task RegisterPasskeyAsync()
+    {
+        dialogError = null;
+        errorMessage = null;
+        statusMessage = null;
+        busy = true;
+        try
+        {
+            var res = await JS.InvokeAsync<JsPasskeyResult>(
+                "window.__forgeflowPasskeyRegister",
+                newPasskeyName,
+                Text["SecurityPasskeyUnsupported"].Value);
+            if (!res.ok)
+            {
+                dialogError = string.IsNullOrWhiteSpace(res.message) ? Text["SecurityPasskeyUnsupported"] : res.message;
+                return;
+            }
+            CloseAddPasskey();
+            statusMessage = Text["SecurityPasskeyRegisteredNotice"];
+            await LoadAsync();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task RemovePasskeyAsync(long passkeyId)
+    {
+        errorMessage = null;
+        statusMessage = null;
+        var reference = await SessionSource.GetAsync(CancellationToken.None);
+        if (reference is null) { Navigation.NavigateTo("/account/login", forceLoad: true); return; }
+
+        busy = true;
+        try
+        {
+            var code = await SessionsService.RemovePasskeyAsync(reference, passkeyId, CancellationToken.None);
+            if (code == "Auth.SessionInvalid") { Navigation.NavigateTo("/account/login", forceLoad: true); return; }
+            if (code != "Auth.PasskeyRemoved") { errorMessage = Text["ServerUnavailable"]; return; }
+            statusMessage = Text["SecurityPasskeyRemovedNotice"];
+            await LoadAsync();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private string ResolveSecurityMessage(string code) => code switch
+    {
+        "Auth.TwoFactorInvalidCode" => Text["SecurityErrorInvalidCode"],
+        "Auth.CurrentPasswordInvalid" => Text["SecurityErrorCurrentPassword"],
+        "Auth.TwoFactorNotEnabled" => Text["SecurityError2FANotEnabled"],
+        _ => Text["ServerUnavailable"]
+    };
+
+    private async Task CopySharedKeyAsync()
+    {
+        if (totpSetup is null) return;
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", totpSetup.SharedKey);
+        keyCopied = true;
+    }
+
+    private async Task CopyAllRecoveryCodesAsync()
+    {
+        if (generatedRecoveryCodes.Count == 0) return;
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", string.Join(Environment.NewLine, generatedRecoveryCodes));
+        codesCopied = true;
+    }
+
+    private async Task DownloadRecoveryCodesAsync()
+    {
+        if (generatedRecoveryCodes.Count == 0) return;
+        var content = string.Join(Environment.NewLine, generatedRecoveryCodes);
+        await JS.InvokeVoidAsync("window.__forgeflowDownloadText", "forgeflow-recovery-codes.txt", content);
+    }
+}

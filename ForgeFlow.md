@@ -3934,3 +3934,143 @@ ode .\verification\slice01-ui\browser-check.cjs **4/4 PASS**; Batch #2 GPPS Chro
   - Authenticated Chrome Playwright verification (`fa-IR` RTL & `en-US` LTR, Light & Dark modes, `1440px` desktop & `320px` mobile) across `/boms` (grid icon buttons, Versions modal Open icon button, active `BOM-GPPS-001 · v1` workbench modal) and `/traceability?itemId=1&lotCode=LOT-SM-1405-01`: **PASS (`0` console/page errors, zero horizontal overflow)**.
 - **Remaining Acceptance Gaps**: None.
 - **Next Small Step**: Continue manual browser review at `https://localhost:5001` or authorize git commit/push when ready.
+
+## Security Audit & Authentication Hardening Increment
+
+- **Scope**: Performed a comprehensive security audit of ForgeFlow (with emphasis on /account/login, /account/sign-in, /account/logout, /account/change-password-submit, /account/avatar, RuntimeSessions, AuthDbContext, uth-ui.mjs, and NuGet dependencies), added automated security regression tests, and applied hardening fixes.
+- **Changes Applied**:
+  1. **NuGet Vulnerability Remediation** (Directory.Packages.props, src/ForgeFlow.Infrastructure/ForgeFlow.Infrastructure.csproj): Pinned transitive dependency System.Security.Cryptography.Pkcs to 10.0.13 to resolve high/moderate advisories (GHSA-846f-f764-76mx, GHSA-2fmv-rv2c-59x7) and unblock clean dotnet restore under TreatWarningsAsErrors.
+  2. **HTTP Security Headers & HSTS** (src/ForgeFlow.Web/Authentication/AuthenticationBackend.cs, src/ForgeFlow.Web/Program.cs): Added UseSecurityHeaders() middleware emitting X-Content-Type-Options: nosniff, X-Frame-Options: DENY (with TryAdd preserving framework SAMEORIGIN on antiforgery pages), Referrer-Policy: strict-origin-when-cross-origin, and Permissions-Policy: camera=(), microphone=(), geolocation=(); enabled pp.UseHsts() outside Development and SmokeTest.
+  3. **Per-IP Login Rate Limiter Partitioning** (src/ForgeFlow.Web/Authentication/AuthenticationBackend.cs): Updated uth-login fixed-window rate limiter from a single global "auth-login" key to context.Connection.RemoteIpAddress?.ToString() ?? "unknown" so one client IP cannot exhaust the login budget for all users while remaining immune to X-Forwarded-For header spoofing.
+  4. **Security Test Suite** (	ests/ForgeFlow.Web.Tests/SecurityAuditTests.cs): Added 26 test executions covering __Host- cookie attributes, non-HTTPS rejection, 16KB body limit, duplicate field rejection, already-authenticated re-login guard, open-redirect payloads, anonymous vs. authenticated CSRF token binding, password/lockout policy bounds, SessionClaims validation, security headers, per-IP rate limiting (429 Auth.LoginThrottled), uth-ui.mjs XSS/storage checks, and /account/avatar authorization.
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - dotnet list package --vulnerable --include-transitive: **0 vulnerable packages** across all 8 projects.
+  - dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (  Warning(s),   Error(s))**.
+  - Non-SQL + HTTP test suite (FORGEFLOW_TEST_SQLSERVER='', FORGEFLOW_AUTH_HTTP_TESTS='1', --filter "FullyQualifiedName!~Sql"): **Passed: 408, Failed: 0, Skipped: 0, Total: 408**.
+  - Live Development instance at https://localhost:5001 (	estforgflow):
+    - GET /account/login: **HTTP 200** with security headers (X-Content-Type-Options: nosniff, X-Frame-Options: SAMEORIGIN, Content-Security-Policy: frame-ancestors 'self', Referrer-Policy: strict-origin-when-cross-origin, Permissions-Policy: camera=(), microphone=(), geolocation=(), Cache-Control: no-cache, no-store, max-age=0).
+    - GET /: **HTTP 302** -> /account/login?returnUrl=%2F (Cache-Control: no-store).
+    - POST /account/sign-in without CSRF: **HTTP 400** (Auth.RequestRejected).
+    - POST /account/sign-in with open redirect //evil.example: **HTTP 400** (Auth.RequestRejected).
+    - POST /account/sign-in with invalid credentials: **HTTP 401** (Auth.LoginRejected).
+    - POST /account/change-password-submit unauthenticated: **HTTP 401** (Auth.SessionInvalid).
+    - 
+ode verification/slice01-ui/browser-check.cjs: **4/4 PASS** (a-IR & en-US, 1440px & 320px).
+- **Remaining Acceptance Gaps**: SQL Server integration tests (*Sql*) were not run here because FORGEFLOW_TEST_SQLSERVER was not configured; Content-Security-Policy script/style directives remain deferred pending reverse-proxy / Blazor Server inline-asset alignment.
+- **Next Small Step**: Review the security audit report/walkthrough or authorize git commit/push when ready.
+## Account Security Hub, TOTP 2FA & Proactive Reminders (Phase 1)
+
+- **Scope**: Implemented /account/security (Account Security Hub), TOTP Authenticator setup + 10 single-use recovery codes, /account/login-2fa + /account/sign-in-2fa with 30-day __Host-ForgeFlow.Remember2FA device trust, configurable Idle Auto-Logout (Off / 15 / 30 / 60 min), and proactive 2FA reminders (avatar menu Recommended badge, 7-day snoozable Home banner, one-time bell notification, post-password-change prompt, and security-alert links).
+- **Files Changed / Added**:
+  - src/ForgeFlow.Application/Users/UserProfileContracts.cs, src/ForgeFlow.Application/Audit/AuditEventCatalog.cs
+  - src/ForgeFlow.Infrastructure/Identity/IdentityRecords.cs, AuthDbContext.cs, IdentityPersistence.cs, RuntimeSessions.cs, and EF Core migration 20261112063318_AccountSecurityAndTwoFactor
+  - src/ForgeFlow.Web/Authentication/QrCodeSvg.cs (zero-dependency local SVG QR renderer), AuthenticationBackend.cs
+  - src/ForgeFlow.Web/Components/Pages/Security.razor, LoginTwoFactor.razor, Home.razor, ChangePassword.razor
+  - src/ForgeFlow.Web/Components/Layout/UserMenu.razor, AccountNav.razor
+  - src/ForgeFlow.Web/Localization/NotificationTextHelper.cs, src/ForgeFlow.Web/Resources/** (a-IR / en-US)
+  - src/ForgeFlow.Web/wwwroot/auth-ui.mjs, src/ForgeFlow.Web/wwwroot/app.css
+  - 	ests/ForgeFlow.Web.Tests/AccountSecurityTests.cs, AuthBootstrapTests.cs, ResourceContractTests.cs
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (  Warning(s),   Error(s))**.
+  - Non-SQL + HTTP test suite (FORGEFLOW_TEST_SQLSERVER='', FORGEFLOW_AUTH_HTTP_TESTS='1', --filter "FullyQualifiedName!~Sql"): **Passed: 423, Failed: 0, Skipped: 0, Total: 423**.
+  - Live Development instance at https://localhost:5001 (	estforgflow): GET /account/login returns **HTTP 200**; 
+ode verification/slice01-ui/browser-check.cjs **4/4 PASS** (a-IR & en-US, 1440px & 320px).
+- **Remaining Acceptance Gaps**:
+  - Apply EF Core AuthDbContext migration (AccountSecurityAndTwoFactor) to 	estforgflow before testing authenticated /account/security and 2FA flows against SQL Server (per startup rule, migrations are never run automatically on startup).
+  - Authenticated a-IR/en-US RTL/LTR and 1440px/320px browser verification for /account/security and /account/login-2fa.
+  - Phase 2: Passkeys (WebAuthn).
+- **Next Small Step**: Apply the AuthDbContext migration to 	estforgflow (dotnet ef database update --context AuthDbContext ...) and verify /account/security and /account/login-2fa in the browser.
+## Passkeys (WebAuthn Phase 2) & Account Navigation Cleanup
+
+- **Scope**:
+  1. Simplified the header [UserMenu.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Layout/UserMenu.razor) dropdown by removing redundant links and consolidating into **«تنظیمات من»** (/account/profile with Recommended badge when 2FA is off) + Logout.
+  2. Reorganized [AccountNav.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Layout/AccountNav.razor) from 8 flat tabs into **4 categorized tabs** (نمایه من, تنظیمات, امنیت, اعلان‌ها) with contextual sub-tabs for Security (نمای کلی امنیت, تغییر رمز عبور, نشست‌های فعال, فعالیت‌های من) and Notifications (اعلان‌ها, تنظیمات اعلان‌ها).
+  3. Implemented **Passkeys (WebAuthn / FIDO2)** end-to-end without external NuGet dependencies: [WebAuthnVerifier.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Identity/WebAuthnVerifier.cs) (ES256 P-256 & RS256 CBOR/COSE verification with signCount replay protection), uth.UserPasskey table (20261112070859_UserPasskeysWebAuthn applied to 	estforgflow), 4 WebAuthn endpoints in [AuthenticationBackend.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Authentication/AuthenticationBackend.cs), live Passkey management on [Security.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Security.razor), and **Sign in with a Passkey** on [Login.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Login.razor) + [auth-ui.mjs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/wwwroot/auth-ui.mjs).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (  Warning(s),   Error(s))**.
+  - Non-SQL + HTTP test suite (FORGEFLOW_TEST_SQLSERVER='', FORGEFLOW_AUTH_HTTP_TESTS='1', --filter "FullyQualifiedName!~Sql"): **Passed: 424, Failed: 0, Skipped: 0, Total: 424**.
+  - Live Development instance at https://localhost:5001 (	estforgflow): GET /account/login returns **HTTP 200**; 
+ode verification/slice01-ui/browser-check.cjs **4/4 PASS** (a-IR & en-US, 1440px & 320px).
+- **Remaining Acceptance Gaps**: Authenticated WebAuthn browser registration/sign-in flow in a live browser (a-IR/en-US, desktop/mobile) awaits user verification with a platform authenticator (Windows Hello / virtual authenticator).
+- **Next Small Step**: Test the simplified header menu, categorized settings tabs, and Passkey registration/sign-in at https://localhost:5001/account/login.
+## BitOtpInput 6-Digit UI Polish Increment
+
+- **Scope**: Replaced single text inputs for 6-digit TOTP verification in [Security.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Security.razor) (Step 3 of TOTP setup) and [LoginTwoFactor.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/LoginTwoFactor.razor) with Bit.BlazorUI's <BitOtpInput Length="6" Type="BitInputType.Number" Dir="BitDir.Ltr" AutoFocus="true" /> and light/dark/mobile CSS styling in [app.css](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/wwwroot/app.css).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (  Warning(s),   Error(s))**.
+  - Non-SQL + HTTP test suite (FORGEFLOW_TEST_SQLSERVER='', FORGEFLOW_AUTH_HTTP_TESTS='1', --filter "FullyQualifiedName!~Sql"): **Passed: 424, Failed: 0, Skipped: 0, Total: 424**.
+  - Live Development instance at https://localhost:5001 (	estforgflow): GET /account/login returns **HTTP 200**; 
+ode verification/slice01-ui/browser-check.cjs **4/4 PASS** (a-IR & en-US, 1440px & 320px).
+- **Remaining Acceptance Gaps**: Interactive browser check of <BitOtpInput> inside /account/security and /account/login-2fa across a-IR/en-US and desktop/mobile.
+- **Next Small Step**: Verify the 6-digit BitOtpInput boxes live in the browser at https://localhost:5001/account/login.
+
+## User Management Modals Redesign, Admin 2FA Reset & Require Password Change
+
+- **Scope**:
+  1. **Edit User Modal ([Users.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Users.razor), [app.css](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/wwwroot/app.css))**: Header with truncated username + status badges and single footer Close button; two tabs (**Access** and **Security**). Access tab shows org membership card with Org Admin badge + 3 actions, sites list with inline Operator toggle switch + activate/deactivate, and compact Add Site row. Security tab shows account status & sign-in lock, Password Reset with `RequirePasswordChange` checkbox, Two-Factor status (enabled date, remaining recovery codes, Reset 2FA action), and active sessions count with Revoke All Sessions action.
+  2. **Admin 2FA Reset Security Rules & Backend ([PermissionCatalog.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Roles/PermissionCatalog.cs), [UserUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Users/UserUseCases.cs), [SqlUserOperationsStore.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Identity/SqlUserOperationsStore.cs))**: Added dedicated `Users.ResetTwoFactor` permission (auto-granted to `OrganizationAdministrator`), forbidden on own account (`Users.CannotResetOwnTwoFactor`), mandatory reason + identity-verified confirmation dialog; resets authenticator key, disables 2FA, clears recovery codes, rotates `SecurityStamp` (invalidating remembered-2FA cookies), sets `RequireTwoFactorSetup = true` (forcing `/account/security?setup2fa=1` on next login), revokes active sessions (`TwoFactorReset`), records `TwoFactorReset` audit event with reason, and sends `TwoFactorResetAlert` notifications to target user and peer org admins.
+  3. **Require Password Change on First Login ([RuntimeSessions.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Identity/RuntimeSessions.cs), [AuthenticationBackend.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Authentication/AuthenticationBackend.cs))**: Added `RequirePasswordChange` on `ApplicationAccount` (applied on Create User and Admin Password Reset, cleared on `ChangeOwnPasswordAsync`, redirecting to `/account/change-password` upon login). Applied EF Core migration `20261112075407_UserAdminSecurityAndRequireSetup` to `localhost/testforgflow`.
+  4. **Create User Modal ([Users.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Users.razor))**: Target organization subtitle, top labels, inline password eye, **Generate Random Password** button (16-char one-time reveal), 4-segment password strength bar, blur validation (`onblur`) with error states, default-checked `RequirePasswordChange`, Org Admin toggle switch with description, selectable site card list with code chips and `{X} of {Y} selected` counter, and disabled primary Create button while invalid.
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - `dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 426, Failed: 0, Skipped: 0, Total: 426** (includes new `ResetUserTwoFactor` and `RevokeUserSessions` unit tests in [UserUseCaseTests.cs](file:///d:/Projects/ForgeFlow/tests/ForgeFlow.Web.Tests/UserUseCaseTests.cs)).
+  - Live Development instance at `https://localhost:5001` (`testforgflow`): `GET /account/login` returns **HTTP 200**; `node verification/slice01-ui/browser-check.cjs` **4/4 PASS** (`fa-IR` & `en-US`, `1440px` & `320px`).
+- **Remaining Acceptance Gaps**: Authenticated interactive browser verification of the redesigned Create User / Edit User modals, 2FA Reset confirmation dialog, and forced password-change / 2FA re-setup redirect flows across `fa-IR`/`en-US` and desktop/mobile (`1440px` / `320px`).
+- **Next Small Step**: Verify the redesigned User Management modals and Admin 2FA Reset flow live in the browser at `https://localhost:5001/account/login`.
+
+## Create User Modal Password Field Alignment
+
+- **Scope**: Replaced the custom password input in the Create User modal ([Users.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Users.razor)) with `<BitTextField>` using the same `login-field*` classes (`CreatePasswordFieldClasses`) and built-in reveal-password eye button as [Login.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Login.razor), plus invalid-state border/ring styling in [app.css](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/wwwroot/app.css).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - `dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 426, Failed: 0, Skipped: 0, Total: 426**.
+  - Live Development instance at `https://localhost:5001` (`testforgflow`): `GET /account/login` returns **HTTP 200**.
+- **Remaining Acceptance Gaps**: Authenticated interactive browser verification of the Create User modal password field across `fa-IR`/`en-US` and desktop/mobile.
+- **Next Small Step**: Verify the Create User modal password box live at `https://localhost:5001/account/login`.
+
+## Edit User Modal Password Field Alignment
+
+- **Scope**: Updated the Reset Password `<BitTextField>` in the Edit User modal ([Users.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Users.razor)) to use `LoginPasswordFieldClasses` (`login-field*` classes) so both Create User and Edit User password boxes share the exact same appearance and reveal-password eye button as [Login.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Login.razor).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - `dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 426, Failed: 0, Skipped: 0, Total: 426**.
+  - Live Development instance at `https://localhost:5001` (`testforgflow`): `GET /account/login` returns **HTTP 200**.
+- **Remaining Acceptance Gaps**: Authenticated interactive browser verification of the Edit User modal password field across `fa-IR`/`en-US` and desktop/mobile.
+- **Next Small Step**: Verify both Create User and Edit User password boxes live at `https://localhost:5001/account/login`.
+
+## Permission Matrix Modal & Site Operator Checkbox Removal
+
+- **Scope**:
+  1. **Removed Site Operator Checkboxes/Switches ([Users.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Users.razor))**: Removed the Site Operator toggle switch and checkbox from Create User, Edit User (Access tab -> Sites list & Add Site row), and Attach User modals so site membership assignment no longer implicitly grants `SiteOperator`.
+  2. **Server-Computed Effective Permission Cells ([RoleContracts.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Roles/RoleContracts.cs), [SqlRoleOperationsStore.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Identity/SqlRoleOperationsStore.cs))**: Added `UserEffectivePermissionCell(ScopeKind, SiteId, PermissionCode, GrantedByRole, GrantedDirectly, GrantingRoleNames)` to `UserPermissionMatrix` and computed it in `BuildUserMatrixAsync`.
+  3. **Permission Matrix Modal Redesign ([Users.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Users.razor), [app.css](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/wwwroot/app.css))**: Replaced the per-page dropdown with a full overview & edit matrix (`Page / Section`, `View`, `Edit`, `Enable / Disable`, `Total` `{X}/{Y}`), 4 cell states (Via role/locked with role-name tooltip, Direct, Unsaved dashed amber border, None), top summary bar (including green full-access bar for Org Admin), compact single-line assigned role row, `All / Granted only / Direct only` filter + page search, legend, and unsaved changes counter in the footer.
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - `dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 426, Failed: 0, Skipped: 0, Total: 426**.
+  - Live Development instance at `https://localhost:5001` (`testforgflow`): `GET /account/login` returns **HTTP 200**; `node verification/slice01-ui/browser-check.cjs` **4/4 PASS** (`fa-IR` & `en-US`, `1440px` & `320px`).
+- **Remaining Acceptance Gaps**: Authenticated interactive browser verification of the new Permission Matrix modal across `fa-IR`/`en-US` and desktop/mobile (`1440px` / `320px`).
+- **Next Small Step**: Verify the Permission Matrix modal and Site Operator checkbox removal live at `https://localhost:5001/account/login`.
+
+## Grouped Accordion Permissions Modal Redesign
+
+- **Scope**:
+  1. **Server-Side Grouped Permissions ([RoleContracts.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Roles/RoleContracts.cs), [SqlRoleOperationsStore.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Identity/SqlRoleOperationsStore.cs))**: Added `UserPermissionGroup(ScopeKind, SiteId, Module, Operations)` to `UserPermissionMatrix` and populated it dynamically from `PermissionCatalog.All` in `BuildUserMatrixAsync`.
+  2. **Grouped Accordion UI ([Users.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Users.razor), [app.css](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/wwwroot/app.css))**: Replaced the fixed-column matrix with a `700px` fixed-width, bounded-height modal (`pa-modal`) where only the grouped accordion list scrolls vertically (no horizontal scroll). Includes two-tone summary progress bar (role + direct), removable role chips with `+ Add role`, 4-state filter (`All / Granted only / Direct only / Changes`) + page/operation search, collapsed rows with mini dual progress bars and `{X} of {Y}` counts, and expanded 2-column operation card grids with `Select all editable` / `Clear direct` and 4 visual states (Role-locked with `Role` badge & tooltip, Direct, Unsaved with `New` badge, None).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - `dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 426, Failed: 0, Skipped: 0, Total: 426**.
+  - Live Development instance at `https://localhost:5001` (`testforgflow`): `GET /account/login` returns **HTTP 200**; `node verification/slice01-ui/browser-check.cjs` **4/4 PASS** (`fa-IR` & `en-US`, `1440px` & `320px`).
+- **Remaining Acceptance Gaps**: Authenticated interactive browser verification of the `700px` Grouped Accordion Permissions modal across `fa-IR`/`en-US` and desktop/mobile (`1440px` / `320px`).
+- **Next Small Step**: Verify the Grouped Accordion Permissions modal live at `https://localhost:5001/account/login`.
+
+## Users Grid Quick Actions & Modal Confirmation Dialog
+
+- **Scope**:
+  1. **Grid Row Icon Actions ([Users.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Users.razor), [app.css](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/wwwroot/app.css))**: Added Activate/Deactivate Account icon button (`ff-icon--activate` / `ff-icon--deactivate`) and Unlock User icon button (`ff-icon--unlock`, shown when locked) to the Users DataGrid `Actions` column with permission and self-deactivation guards.
+  2. **Modal Confirmation Dialog ([Users.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Users.razor))**: Moved `confirmAction` out of the bottom of the Edit User modal into a dedicated `<BitDialog>` (`440px`) so confirmations (for account enable/disable, membership enable/disable, org-admin revocation, and password reset) are always centered and visible from both the Edit User modal and the Users DataGrid row actions.
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - `dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 426, Failed: 0, Skipped: 0, Total: 426**.
+  - Live Development instance at `https://localhost:5001` (`testforgflow`): `GET /account/login` returns **HTTP 200**; `node verification/slice01-ui/browser-check.cjs` **4/4 PASS** (`fa-IR` & `en-US`, `1440px` & `320px`).
+- **Remaining Acceptance Gaps**: Authenticated interactive browser verification of the Users DataGrid Activate/Deactivate and Unlock icon buttons and the dedicated Confirmation `<BitDialog>` across `fa-IR`/`en-US` and desktop/mobile.
+- **Next Small Step**: Verify the grid action icons and confirmation dialog live at `https://localhost:5001/account/login`.

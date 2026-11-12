@@ -62,7 +62,7 @@ public sealed class UserManagementPageTests
             LastPasswordSeen = request.InitialPassword;
             var v = Convert.ToBase64String(new byte[8]);
             return Task.FromResult(OrganizationResult<UserDetails>.Success(
-                new UserDetails(200, request.OrganizationId, canonicalUserName.Value, true, true, false, null, true, request.AssignOrganizationAdmin, v, v, v, [])));
+                new UserDetails(200, request.OrganizationId, canonicalUserName.Value, true, true, false, null, true, request.AssignOrganizationAdmin, v, v, v, [], false, null, 0, 0)));
         }
 
         public Task<OrganizationResult<UserDetails>> AttachExistingUserToOrganization(
@@ -90,7 +90,13 @@ public sealed class UserManagementPageTests
         public Task<OrganizationResult<UserDetails>> UnlockUser(long? organizationId, long userId, byte[] expectedAccountVersion, OrganizationWriteAccess access, CancellationToken ct)
             => throw new NotImplementedException();
 
-        public Task<OrganizationResult<UserDetails>> ResetUserPassword(long? organizationId, long userId, string newPassword, byte[] expectedAccountVersion, OrganizationWriteAccess access, CancellationToken ct)
+        public Task<OrganizationResult<UserDetails>> ResetUserPassword(long? organizationId, long userId, string newPassword, byte[] expectedAccountVersion, OrganizationWriteAccess access, CancellationToken ct, bool requirePasswordChange = true)
+            => throw new NotImplementedException();
+
+        public Task<OrganizationResult<UserDetails>> ResetUserTwoFactor(long? organizationId, long userId, string reason, byte[] expectedAccountVersion, OrganizationWriteAccess access, CancellationToken ct)
+            => throw new NotImplementedException();
+
+        public Task<OrganizationResult<UserDetails>> RevokeUserSessions(long? organizationId, long userId, byte[] expectedAccountVersion, OrganizationWriteAccess access, CancellationToken ct)
             => throw new NotImplementedException();
     }
 
@@ -181,6 +187,7 @@ public sealed class UserManagementPageTests
             services.AddSingleton<IJSRuntime, NoOpJs>();
             services.AddBitBlazorUIServices();
             services.AddSingleton<CulturePolicy>();
+            services.AddSingleton<ForgeFlow.Web.Localization.DisplayFormatter>();
             services.AddScoped<DraftCoordinator>();
             services.AddDbContext<AuthDbContext>(o => o.UseSqlServer("Server=invalid.invalid;Database=missing;Integrated Security=True;Encrypt=True;Connect Timeout=1"));
             var nullActor = new ActorStub { Actor = null };
@@ -264,7 +271,7 @@ public sealed class UserManagementPageTests
         var v = Convert.ToBase64String(new byte[8]);
         var store = new StoreStub
         {
-            CurrentDetails = new UserDetails(77, 1, "worker", true, true, false, null, true, false, null, v, v, [])
+            CurrentDetails = new UserDetails(77, 1, "worker", true, true, false, null, true, false, null, v, v, [], false, null, 0, 0)
         };
         var actors = new ActorStub();
         var grants = new AllowOrgAdminGrants(1);

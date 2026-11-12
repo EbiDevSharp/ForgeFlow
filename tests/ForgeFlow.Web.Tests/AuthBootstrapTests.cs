@@ -50,11 +50,11 @@ public sealed class AuthBootstrapTests
     public void Model_contains_only_approved_auth_tables_and_excludes_existing_business_tables()
     {
         using var db = Offline(); var model = db.GetService<IDesignTimeModel>().Model;
-        Assert.Equal(16, model.GetEntityTypes().Count(e => e.GetSchema() == "auth"));
+        Assert.Equal(17, model.GetEntityTypes().Count(e => e.GetSchema() == "auth"));
         Assert.True(model.FindEntityType(typeof(Organization))!.IsTableExcludedFromMigrations());
         Assert.True(model.FindEntityType(typeof(Site))!.IsTableExcludedFromMigrations());
         Assert.All(model.GetEntityTypes().SelectMany(e => e.GetForeignKeys()), fk => Assert.Equal(DeleteBehavior.NoAction, fk.DeleteBehavior));
-        Assert.DoesNotContain(model.GetEntityTypes(), e => e.Name.Contains("IdentityRole", StringComparison.Ordinal) || e.Name.Contains("Passkey", StringComparison.Ordinal));
+        Assert.DoesNotContain(model.GetEntityTypes(), e => e.Name.Contains("IdentityRole", StringComparison.Ordinal) || e.Name.Contains("IdentityUserPasskey", StringComparison.Ordinal));
         var user = model.FindEntityType(typeof(ApplicationAccount))!;
         Assert.Equal(typeof(long), Assert.Single(user.FindPrimaryKey()!.Properties).ClrType);
         Assert.Equal(128, user.FindProperty("NormalizedUserName")!.GetMaxLength());
@@ -78,7 +78,7 @@ public sealed class AuthBootstrapTests
         using var db = Offline();
         Assert.False(db.Database.HasPendingModelChanges());
         var migrations = db.GetService<IMigrationsAssembly>();
-        Assert.Equal(6, migrations.Migrations.Count);
+        Assert.Equal(9, migrations.Migrations.Count);
         var baseline = migrations.CreateMigration(migrations.Migrations.ElementAt(0).Value, db.Database.ProviderName!);
         Assert.Equal(10, baseline.UpOperations.OfType<CreateTableOperation>().Count());
         Assert.All(baseline.UpOperations.OfType<CreateTableOperation>(), table => Assert.Equal("auth", table.Schema));

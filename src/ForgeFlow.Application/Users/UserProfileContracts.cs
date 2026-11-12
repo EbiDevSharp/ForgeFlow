@@ -49,6 +49,11 @@ public static class UserPreferenceCatalog
     public static string? NormalizeLanguage(string? raw)
         => SupportedLanguages.FirstOrDefault(v => string.Equals(v, raw?.Trim(), StringComparison.OrdinalIgnoreCase));
 
+    public static IReadOnlyList<int> SupportedIdleTimeoutsMinutes { get; } = [15, 30, 60];
+
+    public static bool IsValidIdleTimeout(int? minutes)
+        => minutes is null || minutes is 15 or 30 or 60;
+
     public static string DefaultCalendarForLanguage(string? language)
         => string.Equals(NormalizeLanguage(language), EnglishLanguage, StringComparison.Ordinal)
             ? GregorianCalendar
@@ -212,7 +217,36 @@ public sealed record UserMenuContextSnapshot(
     DateTime? PreviousSignInUtc,
     string? PreviousSignInIp,
     int FailedSignInsSincePrevious,
-    int ActiveSessionCount);
+    int ActiveSessionCount,
+    bool TwoFactorEnabled = false);
+
+public sealed record UserPasskeySnapshot(
+    long Id,
+    string DisplayName,
+    DateTime CreatedAtUtc,
+    DateTime? LastUsedAtUtc);
+
+public sealed record AccountSecuritySnapshot(
+    DateTime? PasswordChangedAtUtc,
+    bool TwoFactorEnabled,
+    int RecoveryCodesRemaining,
+    int? IdleTimeoutMinutes,
+    int ActiveSessionCount,
+    bool NewDeviceAlertEnabled,
+    DateTime? TwoFactorReminderSnoozedUntilUtc,
+    IReadOnlyList<UserPasskeySnapshot>? Passkeys = null);
+
+public sealed record TotpSetupInfo(
+    string SharedKey,
+    string AuthenticatorUri);
+
+public sealed record TotpConfirmResult(
+    string Code,
+    IReadOnlyList<string> RecoveryCodes);
+
+public sealed record TwoFactorReminderStatus(
+    bool TwoFactorEnabled,
+    DateTime? SnoozedUntilUtc);
 
 public sealed record ActiveSessionSnapshot(
     Guid SessionId,
@@ -351,6 +385,8 @@ public static class NotificationTemplateCatalog
     public const string RoleOrAccessChanged = "RoleOrAccessChanged";
     public const string MyProductionOrderStatusChanged = "MyProductionOrderStatusChanged";
     public const string PasswordChangedAlert = "PasswordChangedAlert";
+    public const string TwoFactorReminder = "TwoFactorReminder";
+    public const string TwoFactorResetAlert = "TwoFactorResetAlert";
 
     public static IReadOnlyList<string> All { get; } =
     [
@@ -358,7 +394,9 @@ public static class NotificationTemplateCatalog
         FailedSignInAttempts,
         RoleOrAccessChanged,
         MyProductionOrderStatusChanged,
-        PasswordChangedAlert
+        PasswordChangedAlert,
+        TwoFactorReminder,
+        TwoFactorResetAlert
     ];
 }
 

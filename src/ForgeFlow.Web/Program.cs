@@ -46,6 +46,9 @@ if (authDiagnostics)
 }
 
 var app = builder.Build();
+if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment(LocalRuntimeConfiguration.SmokeEnvironment))
+    app.UseHsts();
+app.UseSecurityHeaders();
 app.Use(async (context, next) =>
 {
     var corr = Guid.TryParse(context.Request.Headers[HttpOperationContextAccessor.CorrelationHeader].FirstOrDefault(), out var headerGuid)

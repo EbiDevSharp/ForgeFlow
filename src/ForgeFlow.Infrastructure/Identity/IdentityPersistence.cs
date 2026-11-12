@@ -58,7 +58,9 @@ public static class IdentityPersistence
             identity.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-@+";
             identity.Lockout.MaxFailedAccessAttempts = 5;
             identity.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-        }).AddEntityFrameworkStores<AuthDbContext>().AddPasswordValidator<BootstrapPasswordValidator>();
+        }).AddEntityFrameworkStores<AuthDbContext>()
+            .AddTokenProvider<AuthenticatorTokenProvider<ApplicationAccount>>(TokenOptions.DefaultAuthenticatorProvider)
+            .AddPasswordValidator<BootstrapPasswordValidator>();
         return services;
     }
 }

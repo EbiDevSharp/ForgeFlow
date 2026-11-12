@@ -1,0 +1,116 @@
+@page "/account/login-2fa"
+@layout ForgeFlow.Web.Components.Layout.LoginLayout
+@using ForgeFlow.Web.Authentication
+@inject IStringLocalizer<SharedResources> Text
+@inject NavigationManager Navigation
+
+<PageTitle>@Text["Login2FATitle"]</PageTitle>
+
+<section class="auth-page" aria-labelledby="login-2fa-title">
+    <div class="auth-card">
+        <div class="auth-2fa-shield" aria-hidden="true">
+            <span class="ff-icon ff-icon--shield"></span>
+        </div>
+        <div class="auth-heading">
+            <h1 id="login-2fa-title">@Text["Login2FATitle"]</h1>
+            <p>@(useRecoveryCode ? Text["Login2FARecoverySubtitle"] : Text["Login2FASubtitle"])</p>
+        </div>
+
+        <form id="auth-login-2fa-form" action="/account/sign-in-2fa" method="post" data-auth-login-2fa
+              data-required-message="@Text["LoginRequired"]" data-unavailable-message="@Text["LoginUnavailable"]" novalidate>
+            <input type="hidden" name="__RequestVerificationToken" value="" />
+            <input type="hidden" name="isRecovery" value="@(useRecoveryCode ? "true" : "false")" />
+
+            <div class="auth-fields">
+                @if (useRecoveryCode)
+                {
+                    <BitTextField Name="code" Type="BitInputType.Text" Label="@Text["Login2FARecoveryCodeLabel"]"
+                                  Classes="@FieldClasses"
+                                  InputHtmlAttributes="@RecoveryAttributes" />
+                }
+                else
+                {
+                    <input type="hidden" name="code" value="@totpCode" />
+                    <div class="auth-2fa-otp-wrap" dir="ltr" aria-label="@Text["Login2FACodeLabel"]">
+                        <BitOtpInput Length="6"
+                                     Type="BitInputType.Number"
+                                     Dir="BitDir.Ltr"
+                                     AutoFocus="true"
+                                     Class="sec-bit-otp"
+                                     @bind-Value="totpCode" />
+                    </div>
+                }
+            </div>
+
+            <label class="auth-2fa-remember">
+                <input type="checkbox" name="rememberDevice" value="true" />
+                <span>@Text["Login2FARememberDevice"]</span>
+            </label>
+
+            <div id="login-2fa-error" class="auth-error" role="alert" hidden>
+                <span data-auth-error-message></span>
+            </div>
+
+            <BitButton ButtonType="BitButtonType.Submit" Color="BitColor.Primary" FullWidth="true"
+                       Class="auth-submit" data-auth-submit="true" LoadingLabel="@Text["LoginLoading"]">
+                <span data-auth-submit-label>@Text["Login2FAVerifyBtn"]</span>
+                <span class="auth-loading-indicator" data-auth-loading hidden aria-hidden="true">
+                    <BitProgress Circular="true" Indeterminate="true" Label="@Text["LoginLoading"]" />
+                </span>
+            </BitButton>
+        </form>
+
+        <div class="auth-2fa-links">
+            <button type="button" class="auth-link-btn" @onclick="ToggleMode">
+                @(useRecoveryCode ? Text["Login2FAUseAuthenticatorLink"] : Text["Login2FAUseRecoveryLink"])
+            </button>
+            <a class="auth-link-btn" href="/account/login" data-enhance-nav="false">@Text["Login2FABackToLogin"]</a>
+        </div>
+    </div>
+</section>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+
+    private bool useRecoveryCode;
+    private string? totpCode;
+
+    private static readonly BitTextFieldClassStyles FieldClasses = new()
+    {
+        Root = "login-field",
+        InputWrapper = "login-field-wrapper",
+        FieldGroup = "login-field-group",
+        Input = "login-field-input"
+    };
+
+    private static readonly Dictionary<string, object> TotpAttributes = new()
+    {
+        ["id"] = "login-2fa-code",
+        ["inputmode"] = "numeric",
+        ["autocomplete"] = "one-time-code",
+        ["maxlength"] = "6",
+        ["dir"] = "ltr",
+        ["aria-required"] = "true"
+    };
+
+    private static readonly Dictionary<string, object> RecoveryAttributes = new()
+    {
+        ["id"] = "login-2fa-recovery",
+        ["autocomplete"] = "off",
+        ["maxlength"] = "32",
+        ["dir"] = "ltr",
+        ["aria-required"] = "true"
+    };
+
+    protected override void OnInitialized()
+    {
+        if (HttpContext is not null && !AuthenticationBackend.HasValidPendingTwoFactor(HttpContext))
+            Navigation.NavigateTo("/account/login", forceLoad: true, replace: true);
+    }
+
+    private void ToggleMode()
+    {
+        useRecoveryCode = !useRecoveryCode;
+        totpCode = null;
+    }
+}
