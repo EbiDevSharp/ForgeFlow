@@ -34,7 +34,7 @@ public sealed class OrganizationSqlServerTests
         Assert.Equal(0, await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id = SCHEMA_ID('organization')").SingleAsync());
         await db.Database.MigrateAsync();
         Assert.Equal(48, await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id = SCHEMA_ID('organization')").SingleAsync());
-        Assert.Equal(14, (await db.Database.GetAppliedMigrationsAsync()).Count());
+        Assert.Equal(15, (await db.Database.GetAppliedMigrationsAsync()).Count());
     }
 
     [OrganizationSqlServerFact]

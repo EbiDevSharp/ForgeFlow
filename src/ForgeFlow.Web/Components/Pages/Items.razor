@@ -7,6 +7,7 @@
 @using ForgeFlow.Application.Units
 @using ForgeFlow.Domain.Items
 @using ForgeFlow.Domain.Quality
+@using ForgeFlow.Web.Components.Pages.ItemSections
 @using ForgeFlow.Web.Roles
 @inject ItemUseCases ItemService
 @inject UnitUseCases UnitService
@@ -160,262 +161,44 @@
 
         @if (activeTab == TabItems)
         {
-            <div class="read-grid-card">
-                <div class="read-grid">
-                    <BitDataGrid @ref="itemsGrid" TItem="ItemSummary" OnRead="ReadItemsGridAsync" Pageable="true" PageSize="25"
-                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="items-title" WrapCellText="true" Resizable="true">
-                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
-                        <Columns>
-                            <BitDataGridColumn TItem="ItemSummary" Title="@Text["ReadCode"]">
-                                <Template Context="row"><bdi dir="ltr">@row.Code</bdi></Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="ItemSummary" Title="@Text["ReadName"]">
-                                <Template Context="row">@row.Name</Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="ItemSummary" Title="@Text["ItemBaseUnitLabel"]">
-                                <Template Context="row">@row.BaseUnitName (<bdi dir="ltr">@row.BaseUnitSymbol</bdi>)</Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="ItemSummary" Title="@Text["ItemCapabilitiesLabel"]">
-                                <Template Context="row">
-                                    <div class="cap-badge-row">
-                                        @if (row.CanBePurchased) { <span class="cap-badge">@Text["ItemCapPurchase"]</span> }
-                                        @if (row.CanBeManufactured) { <span class="cap-badge">@Text["ItemCapManufacture"]</span> }
-                                        @if (row.CanBeSold) { <span class="cap-badge">@Text["ItemCapSell"]</span> }
-                                        @if (row.CanBeConsumed) { <span class="cap-badge">@Text["ItemCapConsume"]</span> }
-                                        @if (row.RequiresLotTracking) { <span class="cap-badge">@Text["ItemLotTrackedBadge"]</span> }
-                                        @if (row.QualityControlMode != QualityControlMode.None) { <span class="cap-badge">@Text["ItemQcRequiredBadge"]</span> }
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="ItemSummary" Title="@Text["ReadStatus"]">
-                                <Template Context="row">
-                                    <span class="read-badge @(row.IsActive ? "active" : "inactive")">
-                                        @Text[row.IsActive ? "ReadActive" : "ReadInactiveStatus"]
-                                    </span>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="ItemSummary" Title="@Text["ReadActions"]">
-                                <Template Context="row">
-                                    <div class="read-row-actions">
-                                        <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
-                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                       IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
-                                                       OnClick="() => OpenItemModal(row.Id, edit: false)" />
-                                        </BitTooltip>
-                                        @if (scopeCanManage)
-                                        {
-                                            <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
-                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                           Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
-                                                           OnClick="() => OpenItemModal(row.Id, edit: true)" />
-                                            </BitTooltip>
-                                        }
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                        </Columns>
-                    </BitDataGrid>
-                </div>
-            </div>
+            <ItemGrid @ref="itemsGrid"
+                      OnRead="ReadItemsGridAsync"
+                      PageSizeOptions="@PageSizeOptions"
+                      GridStrings="@GridStrings"
+                      CanManage="@scopeCanManage"
+                      EditIcon="@EditIcon"
+                      OnOpenModal="args => OpenItemModal(args.Id, args.Edit)" />
         }
         else if (activeTab == TabClassifications)
         {
-            <div class="read-grid-card">
-                <div class="read-grid">
-                    <BitDataGrid @ref="classificationsGrid" TItem="ClassificationSummary" OnRead="ReadClassificationsGridAsync" Pageable="true" PageSize="25"
-                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="items-title" WrapCellText="true" Resizable="true">
-                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
-                        <Columns>
-                            <BitDataGridColumn TItem="ClassificationSummary" Title="@Text["ClassificationSetLabel"]">
-                                <Template Context="row">@row.ClassificationSetName</Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="ClassificationSummary" Title="@Text["ReadCode"]">
-                                <Template Context="row"><bdi dir="ltr">@row.Code</bdi></Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="ClassificationSummary" Title="@Text["ReadName"]">
-                                <Template Context="row">@row.Name</Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="ClassificationSummary" Title="@Text["ClassificationParentLabel"]">
-                                <Template Context="row">@(row.ParentClassificationName ?? "—")</Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="ClassificationSummary" Title="@Text["ReadStatus"]">
-                                <Template Context="row">
-                                    <span class="read-badge @(row.IsActive ? "active" : "inactive")">
-                                        @Text[row.IsActive ? "ReadActive" : "ReadInactiveStatus"]
-                                    </span>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="ClassificationSummary" Title="@Text["ReadActions"]">
-                                <Template Context="row">
-                                    <div class="read-row-actions">
-                                        <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
-                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                       IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
-                                                       OnClick="() => OpenClassificationModal(row.Id, edit: false)" />
-                                        </BitTooltip>
-                                        @if (scopeCanManage)
-                                        {
-                                            <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
-                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                           Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
-                                                           OnClick="() => OpenClassificationModal(row.Id, edit: true)" />
-                                            </BitTooltip>
-                                        }
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                        </Columns>
-                    </BitDataGrid>
-                </div>
-            </div>
+            <ClassificationGrid @ref="classificationsGrid"
+                                OnRead="ReadClassificationsGridAsync"
+                                PageSizeOptions="@PageSizeOptions"
+                                GridStrings="@GridStrings"
+                                CanManage="@scopeCanManage"
+                                EditIcon="@EditIcon"
+                                OnOpenModal="args => OpenClassificationModal(args.Id, args.Edit)" />
         }
         else
         {
-            <div class="read-grid-card">
-                <div class="read-grid">
-                    <BitDataGrid @ref="attributesGrid" TItem="AttributeDefinitionSummary" OnRead="ReadAttributesGridAsync" Pageable="true" PageSize="25"
-                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="items-title" WrapCellText="true" Resizable="true">
-                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
-                        <Columns>
-                            <BitDataGridColumn TItem="AttributeDefinitionSummary" Title="@Text["ReadCode"]">
-                                <Template Context="row"><bdi dir="ltr">@row.Code</bdi></Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="AttributeDefinitionSummary" Title="@Text["ReadName"]">
-                                <Template Context="row">@row.Name</Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="AttributeDefinitionSummary" Title="@Text["AttributeDataTypeLabel"]">
-                                <Template Context="row">
-                                    <span class="read-badge role">@Text[DataTypeResourceKey(row.DataType)]</span>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="AttributeDefinitionSummary" Title="@Text["UnitsTab"]">
-                                <Template Context="row"><bdi dir="ltr">@(row.UnitSymbol ?? "—")</bdi></Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="AttributeDefinitionSummary" Title="@Text["AttributeRequiredLabel"]">
-                                <Template Context="row">
-                                    <span class="read-badge @(row.IsRequired ? "system" : "inactive")">
-                                        @Text[row.IsRequired ? "AttributeRequiredYes" : "AttributeRequiredNo"]
-                                    </span>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="AttributeDefinitionSummary" Title="@Text["ReadStatus"]">
-                                <Template Context="row">
-                                    <span class="read-badge @(row.IsActive ? "active" : "inactive")">
-                                        @Text[row.IsActive ? "ReadActive" : "ReadInactiveStatus"]
-                                    </span>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="AttributeDefinitionSummary" Title="@Text["ReadActions"]">
-                                <Template Context="row">
-                                    <div class="read-row-actions">
-                                        <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
-                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                       IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
-                                                       OnClick="() => OpenAttributeModal(row.Id, edit: false)" />
-                                        </BitTooltip>
-                                        @if (scopeCanManage)
-                                        {
-                                            <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
-                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                           Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
-                                                           OnClick="() => OpenAttributeModal(row.Id, edit: true)" />
-                                            </BitTooltip>
-                                        }
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                        </Columns>
-                    </BitDataGrid>
-                </div>
-            </div>
+            <AttributeGrid @ref="attributesGrid"
+                           OnRead="ReadAttributesGridAsync"
+                           PageSizeOptions="@PageSizeOptions"
+                           GridStrings="@GridStrings"
+                           CanManage="@scopeCanManage"
+                           EditIcon="@EditIcon"
+                           DataTypeResourceKey="DataTypeResourceKey"
+                           OnOpenModal="args => OpenAttributeModal(args.Id, args.Edit)" />
         }
     }
 </section>
 
-<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createItemOpen"
-           OnDismissing="OnCreateItemDismissing"
-           Title="@Text["ItemCreateTitle"]" AriaLabel="@Text["ItemCreateTitle"]"
-           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-    <Body>
-        <div class="audit-modal-body">
-            <form class="write-panel" @onsubmit:preventDefault>
-                <div class="read-field">
-                    <label for="create-item-code">@Text["ReadCode"]</label>
-                    <input id="create-item-code" @bind="createItemCode" @bind:event="oninput" maxlength="32"
-                           disabled="@itemSaving" aria-describedby="create-item-code-hint" />
-                    <span id="create-item-code-hint" class="write-hint">@Text["CreateCodeHint"]</span>
-                </div>
-                <div class="read-field">
-                    <label for="create-item-name">@Text["ReadName"]</label>
-                    <input id="create-item-name" @bind="createItemName" @bind:event="oninput" maxlength="200" disabled="@itemSaving" />
-                </div>
-                <div class="read-field">
-                    <label for="create-item-desc">@Text["ItemDescriptionLabel"]</label>
-                    <input id="create-item-desc" @bind="createItemDescription" @bind:event="oninput" maxlength="500" disabled="@itemSaving" />
-                </div>
-                <div class="read-field">
-                    <label for="create-item-unit">@Text["ItemBaseUnitLabel"]</label>
-                    <select id="create-item-unit" @bind="createItemBaseUnitId" disabled="@itemSaving">
-                        @foreach (var u in activeUnits)
-                        {
-                            <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
-                        }
-                    </select>
-                </div>
-                <div class="perm-group">
-                    <div class="perm-group-header">
-                        <span>@Text["ItemCapabilitiesLabel"]</span>
-                    </div>
-                    <div class="perm-grid">
-                        <label class="perm-check"><input type="checkbox" @bind="createCapPurchase" disabled="@itemSaving" /><span>@Text["ItemCapPurchase"]</span></label>
-                        <label class="perm-check"><input type="checkbox" @bind="createCapManufacture" disabled="@itemSaving" /><span>@Text["ItemCapManufacture"]</span></label>
-                        <label class="perm-check"><input type="checkbox" @bind="createCapSell" disabled="@itemSaving" /><span>@Text["ItemCapSell"]</span></label>
-                        <label class="perm-check"><input type="checkbox" @bind="createCapConsume" disabled="@itemSaving" /><span>@Text["ItemCapConsume"]</span></label>
-                    </div>
-                </div>
-                <label class="perm-check">
-                    <input type="checkbox" @bind="createRequiresLotTracking" disabled="@itemSaving" />
-                    <span>@Text["ItemRequiresLotTrackingLabel"]</span>
-                </label>
-                <div class="read-field">
-                    <label for="create-item-qc">@Text["ItemQcModeLabel"]</label>
-                    <select id="create-item-qc" @bind="createQualityControlMode" disabled="@itemSaving">
-                        <option value="@QualityControlMode.None">@Text["ItemQcModeNone"]</option>
-                        <option value="@QualityControlMode.IncomingReceipts">@Text["ItemQcModeIncoming"]</option>
-                        <option value="@QualityControlMode.ProductionReceipts">@Text["ItemQcModeProduction"]</option>
-                        <option value="@QualityControlMode.AllReceipts">@Text["ItemQcModeAll"]</option>
-                    </select>
-                </div>
-
-                @if (createItemDiscardConfirm)
-                {
-                    <div class="write-confirm" role="alertdialog" aria-labelledby="create-item-discard-text">
-                        <p id="create-item-discard-text">@Text["WriteDiscardConfirm"]</p>
-                        <div class="write-actions">
-                            <BitButton Size="BitSize.Small" OnClick="ConfirmCreateItemDiscard">@Text["WriteDiscard"]</BitButton>
-                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => createItemDiscardConfirm = false">@Text["WriteKeepEditing"]</BitButton>
-                        </div>
-                    </div>
-                }
-                else
-                {
-                    <div class="write-actions">
-                        <BitButton Size="BitSize.Small"
-                                   IsEnabled="@(!itemSaving && !string.IsNullOrWhiteSpace(createItemCode) && !string.IsNullOrWhiteSpace(createItemName) && createItemBaseUnitId > 0)"
-                                   OnClick="SubmitCreateItemAsync">@Text["CreateSubmit"]</BitButton>
-                    </div>
-                }
-
-                @if (itemSaving) { <p role="status">@Text["WriteSaving"]</p> }
-                @if (itemError is not null) { <p role="alert" class="write-error">@Text[itemError]</p> }
-            </form>
-        </div>
-    </Body>
-</BitDialog>
+<CreateItemModal @ref="createItemModal"
+                 DialogClasses="@DialogClasses"
+                 CurrentScope="@CurrentScope"
+                 CurrentOrgId="@CurrentOrgId"
+                 ActiveUnits="@activeUnits"
+                 OnCreated="OnItemCreatedAsync" />
 
 <BitDialog Width="640px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="itemModalOpen"
            Title="@Text[itemEditMode ? "ItemEditTitle" : "ItemDetailTitle"]"
@@ -810,72 +593,19 @@
     </Body>
 </BitDialog>
 
-<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createSetOpen"
-           Title="@Text["ClassificationSetCreateButton"]" AriaLabel="@Text["ClassificationSetCreateButton"]"
-           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-    <Body>
-        <div class="audit-modal-body">
-            <form class="write-panel" @onsubmit:preventDefault>
-                <div class="read-field">
-                    <label for="create-set-code">@Text["ReadCode"]</label>
-                    <input id="create-set-code" @bind="createSetCode" @bind:event="oninput" maxlength="32" disabled="@clsSaving" />
-                </div>
-                <div class="read-field">
-                    <label for="create-set-name">@Text["ReadName"]</label>
-                    <input id="create-set-name" @bind="createSetName" @bind:event="oninput" maxlength="200" disabled="@clsSaving" />
-                </div>
-                <label class="perm-check"><input type="checkbox" @bind="createSetAllowMultiple" disabled="@clsSaving" /><span>@Text["ClassificationSetAllowMultiple"]</span></label>
-                <div class="write-actions">
-                    <BitButton Size="BitSize.Small" IsEnabled="@(!clsSaving && !string.IsNullOrWhiteSpace(createSetCode) && !string.IsNullOrWhiteSpace(createSetName))"
-                               OnClick="SubmitCreateSetAsync">@Text["CreateSubmit"]</BitButton>
-                </div>
-                @if (clsError is not null) { <p role="alert" class="write-error">@Text[clsError]</p> }
-            </form>
-        </div>
-    </Body>
-</BitDialog>
+<CreateClassificationSetModal @ref="createSetModal"
+                              DialogClasses="@DialogClasses"
+                              CurrentScope="@CurrentScope"
+                              CurrentOrgId="@CurrentOrgId"
+                              OnCreated="OnClassificationCreatedAsync" />
 
-<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createClsOpen"
-           Title="@Text["ClassificationCreateButton"]" AriaLabel="@Text["ClassificationCreateButton"]"
-           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-    <Body>
-        <div class="audit-modal-body">
-            <form class="write-panel" @onsubmit:preventDefault>
-                <div class="read-field">
-                    <label for="create-cls-set">@Text["ClassificationSetLabel"]</label>
-                    <select id="create-cls-set" @bind="createClsSetId" disabled="@clsSaving">
-                        @foreach (var s in classificationSets.Where(x => x.IsActive)) { <option value="@s.Id">@s.Code — @s.Name</option> }
-                    </select>
-                </div>
-                <div class="read-field">
-                    <label for="create-cls-parent">@Text["ClassificationParentLabel"]</label>
-                    <select id="create-cls-parent" @bind="createClsParentIdText" disabled="@clsSaving">
-                        <option value="">—</option>
-                        @foreach (var p in activeClassifications.Where(x => x.ClassificationSetId == createClsSetId))
-                        {
-                            <option value="@p.Id">@p.Code — @p.Name</option>
-                        }
-                    </select>
-                </div>
-                <div class="read-field">
-                    <label for="create-cls-code">@Text["ReadCode"]</label>
-                    <input id="create-cls-code" @bind="createClsCode" @bind:event="oninput" maxlength="32" disabled="@clsSaving" />
-                </div>
-                <div class="read-field">
-                    <label for="create-cls-name">@Text["ReadName"]</label>
-                    <input id="create-cls-name" @bind="createClsName" @bind:event="oninput" maxlength="200" disabled="@clsSaving" />
-                </div>
-                <div class="write-actions">
-                    <BitButton Size="BitSize.Small" IsEnabled="@(!clsSaving && createClsSetId > 0 && !string.IsNullOrWhiteSpace(createClsCode) && !string.IsNullOrWhiteSpace(createClsName))"
-                               OnClick="SubmitCreateClassificationAsync">@Text["CreateSubmit"]</BitButton>
-                </div>
-                @if (clsError is not null) { <p role="alert" class="write-error">@Text[clsError]</p> }
-            </form>
-        </div>
-    </Body>
-</BitDialog>
+<CreateClassificationModal @ref="createClsModal"
+                           DialogClasses="@DialogClasses"
+                           CurrentScope="@CurrentScope"
+                           CurrentOrgId="@CurrentOrgId"
+                           ClassificationSets="@classificationSets"
+                           ActiveClassifications="@activeClassifications"
+                           OnCreated="OnClassificationCreatedAsync" />
 
 <BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="clsModalOpen"
            Title="@Text[clsEditMode ? "ReadEdit" : "ReadDetails"]"
@@ -937,47 +667,13 @@
     </Body>
 </BitDialog>
 
-<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createAttrOpen"
-           Title="@Text["AttributeCreateButton"]" AriaLabel="@Text["AttributeCreateButton"]"
-           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-    <Body>
-        <div class="audit-modal-body">
-            <form class="write-panel" @onsubmit:preventDefault>
-                <div class="read-field">
-                    <label for="create-attr-code">@Text["ReadCode"]</label>
-                    <input id="create-attr-code" @bind="createAttrCode" @bind:event="oninput" maxlength="32" disabled="@attrSaving" />
-                </div>
-                <div class="read-field">
-                    <label for="create-attr-name">@Text["ReadName"]</label>
-                    <input id="create-attr-name" @bind="createAttrName" @bind:event="oninput" maxlength="200" disabled="@attrSaving" />
-                </div>
-                <div class="read-field">
-                    <label for="create-attr-type">@Text["AttributeDataTypeLabel"]</label>
-                    <select id="create-attr-type" @bind="createAttrDataType" disabled="@attrSaving">
-                        @foreach (var dt in AllDataTypes) { <option value="@dt">@Text[DataTypeResourceKey(dt)]</option> }
-                    </select>
-                </div>
-                @if (createAttrDataType == AttributeDataType.Decimal)
-                {
-                    <div class="read-field">
-                        <label for="create-attr-unit">@Text["UnitsTab"]</label>
-                        <select id="create-attr-unit" @bind="createAttrUnitIdText" disabled="@attrSaving">
-                            <option value="">—</option>
-                            @foreach (var u in activeUnits) { <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option> }
-                        </select>
-                    </div>
-                }
-                <label class="perm-check"><input type="checkbox" @bind="createAttrRequired" disabled="@attrSaving" /><span>@Text["AttributeRequiredLabel"]</span></label>
-                <div class="write-actions">
-                    <BitButton Size="BitSize.Small" IsEnabled="@(!attrSaving && !string.IsNullOrWhiteSpace(createAttrCode) && !string.IsNullOrWhiteSpace(createAttrName))"
-                               OnClick="SubmitCreateAttributeAsync">@Text["CreateSubmit"]</BitButton>
-                </div>
-                @if (attrError is not null) { <p role="alert" class="write-error">@Text[attrError]</p> }
-            </form>
-        </div>
-    </Body>
-</BitDialog>
+<CreateAttributeModal @ref="createAttrModal"
+                      DialogClasses="@DialogClasses"
+                      CurrentScope="@CurrentScope"
+                      CurrentOrgId="@CurrentOrgId"
+                      ActiveUnits="@activeUnits"
+                      DataTypeResourceKey="DataTypeResourceKey"
+                      OnCreated="RefreshActiveGridAsync" />
 
 <BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="attrModalOpen"
            Title="@Text[attrEditMode ? "ReadEdit" : "ReadDetails"]"
@@ -1066,9 +762,9 @@
         public string BoolText { get; set; } = string.Empty;
     }
 
-    private BitDataGrid<ItemSummary>? itemsGrid;
-    private BitDataGrid<ClassificationSummary>? classificationsGrid;
-    private BitDataGrid<AttributeDefinitionSummary>? attributesGrid;
+    private ItemGrid? itemsGrid;
+    private ClassificationGrid? classificationsGrid;
+    private AttributeGrid? attributesGrid;
 
     private IReadOnlyList<OrganizationScope> available = [];
     private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
@@ -1090,12 +786,9 @@
     private string search = string.Empty;
     private bool includeInactive;
 
-    private bool createItemOpen, createItemDiscardConfirm, itemSaving, itemSaved, itemModalOpen, itemEditMode;
+    private CreateItemModal? createItemModal;
+    private bool itemSaving, itemSaved, itemModalOpen, itemEditMode;
     private byte itemModalTab;
-    private string createItemCode = string.Empty, createItemName = string.Empty, createItemDescription = string.Empty;
-    private long createItemBaseUnitId;
-    private bool createCapPurchase = true, createCapManufacture, createCapSell, createCapConsume, createRequiresLotTracking;
-    private QualityControlMode createQualityControlMode = QualityControlMode.None;
     private string? itemError;
     private bool? itemConfirmToggle;
     private ItemDetails? selectedItem;
@@ -1112,17 +805,15 @@
     private UnitConversionPreviewResult? itemCalcResult;
     private readonly Dictionary<long, AttrEditModel> editAttrInputs = [];
 
-    private bool createSetOpen, createSetAllowMultiple, createClsOpen, clsModalOpen, clsEditMode, clsSaving, clsSaved;
-    private string createSetCode = string.Empty, createSetName = string.Empty;
-    private long createClsSetId;
-    private string createClsParentIdText = string.Empty, createClsCode = string.Empty, createClsName = string.Empty;
+    private CreateClassificationSetModal? createSetModal;
+    private CreateClassificationModal? createClsModal;
+    private bool clsModalOpen, clsEditMode, clsSaving, clsSaved;
     private ClassificationSummary? selectedClassification;
     private string editClsName = string.Empty, editClsParentIdText = string.Empty;
     private string? clsError;
 
-    private bool createAttrOpen, createAttrRequired, attrModalOpen, attrEditMode, attrSaving, attrSaved, editAttrRequired;
-    private string createAttrCode = string.Empty, createAttrName = string.Empty, createAttrUnitIdText = string.Empty;
-    private AttributeDataType createAttrDataType = AttributeDataType.Text;
+    private CreateAttributeModal? createAttrModal;
+    private bool attrModalOpen, attrEditMode, attrSaving, attrSaved, editAttrRequired;
     private AttributeDefinitionSummary? selectedAttr;
     private string editAttrName = string.Empty, editAttrUnitIdText = string.Empty;
     private string? attrError;
@@ -1241,7 +932,6 @@
         if (unitRes.Succeeded && unitRes.Value is not null)
         {
             activeUnits = unitRes.Value.ToList();
-            if (createItemBaseUnitId == 0 && activeUnits.Count > 0) createItemBaseUnitId = activeUnits[0].Id;
             if (newItemConvFromId == 0 && activeUnits.Count > 0) newItemConvFromId = activeUnits[0].Id;
             if (newItemConvToId == 0 && activeUnits.Count > 1) newItemConvToId = activeUnits[1].Id;
             if (itemCalcFromId == 0 && activeUnits.Count > 0) itemCalcFromId = activeUnits[0].Id;
@@ -1250,10 +940,7 @@
 
         var setRes = await ItemService.ListClassificationSets(CurrentScope, CurrentOrgId, includeInactive: false);
         if (setRes.Succeeded && setRes.Value is not null)
-        {
             classificationSets = setRes.Value.ToList();
-            if (createClsSetId == 0 && classificationSets.Count > 0) createClsSetId = classificationSets[0].Id;
-        }
 
         var clsRes = await ItemService.ListActiveClassifications(CurrentScope, CurrentOrgId);
         if (clsRes.Succeeded && clsRes.Value is not null)
@@ -1310,9 +997,9 @@
 
     private Task RefreshActiveGridAsync() => activeTab switch
     {
-        TabItems => ReloadGrid(itemsGrid),
-        TabClassifications => ReloadGrid(classificationsGrid),
-        _ => ReloadGrid(attributesGrid)
+        TabItems => itemsGrid is null ? Task.CompletedTask : itemsGrid.RefreshAsync(),
+        TabClassifications => classificationsGrid is null ? Task.CompletedTask : classificationsGrid.RefreshAsync(),
+        _ => attributesGrid is null ? Task.CompletedTask : attributesGrid.RefreshAsync()
     };
 
     private static async Task ReloadGrid<T>(BitDataGrid<T>? grid) where T : class
@@ -1366,41 +1053,12 @@
         return res.Succeeded && res.Value is not null ? new(res.Value.Items.ToList(), res.Value.Total) : new([], 0);
     }
 
-    private void OpenCreateItem()
-    {
-        createItemCode = string.Empty;
-        createItemName = string.Empty;
-        createItemDescription = string.Empty;
-        if (activeUnits.Count > 0 && createItemBaseUnitId == 0) createItemBaseUnitId = activeUnits[0].Id;
-        createCapPurchase = true;
-        createCapManufacture = createCapSell = createCapConsume = createRequiresLotTracking = false;
-        createQualityControlMode = QualityControlMode.None;
-        itemError = null;
-        createItemDiscardConfirm = false;
-        createItemOpen = true;
-    }
+    private void OpenCreateItem() => createItemModal?.Open();
 
-    private async Task SubmitCreateItemAsync()
+    private async Task OnItemCreatedAsync(string itemCode)
     {
-        if (CurrentScope is null || CurrentOrgId <= 0 || itemSaving) return;
-        itemSaving = true;
-        itemError = null;
-        try
-        {
-            var res = await ItemService.CreateItem(CurrentScope, new CreateItemRequest(
-                CurrentOrgId, createItemCode, createItemName, createItemDescription, createItemBaseUnitId,
-                createCapPurchase, createCapManufacture, createCapSell, createCapConsume,
-                createRequiresLotTracking, createQualityControlMode));
-            if (!res.Succeeded || res.Value is null)
-            {
-                itemError = RolePermissionLocalization.FailureKey(res.Error!.Code);
-                return;
-            }
-            createItemOpen = false;
-            pageNotice = Text["ItemCreatedSucceeded", res.Value.Summary.Code];
-            await RefreshActiveGridAsync();
-        }
-        finally { itemSaving = false; }
+        pageNotice = Text["ItemCreatedSucceeded", itemCode];
+        await RefreshActiveGridAsync();
     }
 
     private async Task OpenItemModal(long id, bool edit)
@@ -1639,58 +1297,14 @@
         finally { itemSaving = false; }
     }
 
-    private void OpenCreateSet()
-    {
-        createSetCode = string.Empty;
-        createSetName = string.Empty;
-        createSetAllowMultiple = false;
-        clsError = null;
-        createSetOpen = true;
-    }
+    private void OpenCreateSet() => createSetModal?.Open();
 
-    private async Task SubmitCreateSetAsync()
-    {
-        if (CurrentScope is null || CurrentOrgId <= 0 || clsSaving) return;
-        clsSaving = true;
-        clsError = null;
-        try
-        {
-            var res = await ItemService.CreateClassificationSet(CurrentScope, new CreateClassificationSetRequest(
-                CurrentOrgId, createSetCode, createSetName, false, createSetAllowMultiple));
-            if (!res.Succeeded) { clsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            createSetOpen = false;
-            await RefreshScopeContextAsync();
-            await RefreshActiveGridAsync();
-        }
-        finally { clsSaving = false; }
-    }
+    private void OpenCreateClassification() => createClsModal?.Open();
 
-    private void OpenCreateClassification()
+    private async Task OnClassificationCreatedAsync()
     {
-        createClsCode = string.Empty;
-        createClsName = string.Empty;
-        createClsParentIdText = string.Empty;
-        if (createClsSetId == 0 && classificationSets.Count > 0) createClsSetId = classificationSets[0].Id;
-        clsError = null;
-        createClsOpen = true;
-    }
-
-    private async Task SubmitCreateClassificationAsync()
-    {
-        if (CurrentScope is null || CurrentOrgId <= 0 || clsSaving) return;
-        long? parentId = long.TryParse(createClsParentIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var pid) && pid > 0 ? pid : null;
-        clsSaving = true;
-        clsError = null;
-        try
-        {
-            var res = await ItemService.CreateClassification(CurrentScope, new CreateClassificationRequest(
-                CurrentOrgId, createClsSetId, parentId, createClsCode, createClsName));
-            if (!res.Succeeded) { clsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            createClsOpen = false;
-            await RefreshScopeContextAsync();
-            await RefreshActiveGridAsync();
-        }
-        finally { clsSaving = false; }
+        await RefreshScopeContextAsync();
+        await RefreshActiveGridAsync();
     }
 
     private async Task OpenClassificationModal(long id, bool edit)
@@ -1741,28 +1355,7 @@
         finally { clsSaving = false; }
     }
 
-    private void OpenCreateAttribute()
-    {
-        createAttrCode = string.Empty; createAttrName = string.Empty; createAttrUnitIdText = string.Empty;
-        createAttrDataType = AttributeDataType.Text; createAttrRequired = false; attrError = null;
-        createAttrOpen = true;
-    }
-
-    private async Task SubmitCreateAttributeAsync()
-    {
-        if (CurrentScope is null || CurrentOrgId <= 0 || attrSaving) return;
-        long? unitId = createAttrDataType == AttributeDataType.Decimal && long.TryParse(createAttrUnitIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var uid) && uid > 0 ? uid : null;
-        attrSaving = true; attrError = null;
-        try
-        {
-            var res = await ItemService.CreateAttributeDefinition(CurrentScope, new CreateAttributeDefinitionRequest(
-                CurrentOrgId, createAttrCode, createAttrName, createAttrDataType, unitId, createAttrRequired));
-            if (!res.Succeeded) { attrError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            createAttrOpen = false;
-            await RefreshActiveGridAsync();
-        }
-        finally { attrSaving = false; }
-    }
+    private void OpenCreateAttribute() => createAttrModal?.Open();
 
     private async Task OpenAttributeModal(long id, bool edit)
     {
@@ -1809,21 +1402,6 @@
             await RefreshActiveGridAsync();
         }
         finally { attrSaving = false; }
-    }
-
-    private void OnCreateItemDismissing(BitDialogDismissArgs args)
-    {
-        if (itemSaving) return;
-        if (string.IsNullOrWhiteSpace(createItemCode) && string.IsNullOrWhiteSpace(createItemName) && string.IsNullOrWhiteSpace(createItemDescription))
-            return;
-        args.Cancel = true;
-        createItemDiscardConfirm = true;
-    }
-
-    private void ConfirmCreateItemDiscard()
-    {
-        createItemDiscardConfirm = false;
-        createItemOpen = false;
     }
 
     private string FormatAttrDisplay(ItemAttributeValueSummary attr) => attr.DataType switch

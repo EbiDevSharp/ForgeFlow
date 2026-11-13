@@ -27,6 +27,8 @@ public sealed class LocalizationTests
         var policy = new CulturePolicy();
         Assert.Equal(name, policy.Language);
         Assert.Equal(direction, policy.Direction);
+        var pickerCulture = policy.PickerCulture;
+        Assert.NotNull(pickerCulture);
         var formatter = new DisplayFormatter(policy);
         Assert.Equal(date, formatter.Date(new DateOnly(2026, 3, 21)));
         foreach (var number in new[] { 0m, -1234.5m, 12345.67m })

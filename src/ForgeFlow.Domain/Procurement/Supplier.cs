@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Procurement;
 
 /// <summary>Organization-shared vendor/supplier master.</summary>
-public sealed class Supplier
+public sealed class Supplier : IHasRowVersion
 {
     private Supplier()
     {
@@ -43,6 +45,7 @@ public sealed class Supplier
     public string? Address { get; private set; }
     public string? Notes { get; private set; }
     public bool IsActive { get; private set; } = true;
+    public byte[] RowVersion { get; private set; } = [];
 
     public static Supplier Create(
         long organizationId,

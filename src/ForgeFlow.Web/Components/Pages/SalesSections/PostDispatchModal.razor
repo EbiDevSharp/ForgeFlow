@@ -1,0 +1,257 @@
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Sales
+@using ForgeFlow.Domain.Organizations
+@inject SalesUseCases SalesService
+@inject InventoryUseCases InvService
+@inject DocumentSequenceUseCases SeqService
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+@inject CulturePolicy Culture
+
+<ForgeFormDialog Width="980px" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+                 Title="@Text["SalesDispatchModalTitle"]"
+                 CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (error is not null)
+        {
+            <p role="alert" class="write-error">@error</p>
+        }
+        <div class="write-modal-grid">
+            <div class="write-field">
+                <label for="do-num">@Text["SalesDispatchNumber"]</label>
+                <input id="do-num" type="text" class="@(allowOverride ? string.Empty : "proc-input-readonly")" @bind="dispatchNumber" maxlength="32" readonly="@(!allowOverride)" dir="ltr" />
+            </div>
+            <div class="write-field">
+                <label for="do-wh">@Text["InvWarehouseLabel"]</label>
+                <select id="do-wh" value="@warehouseId" @onchange="ChangeWarehouseAsync">
+                    @foreach (var w in warehouses)
+                    {
+                        <option value="@w.Id">@w.Code — @w.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="write-field">
+                <label>@Text["SalesDispatchDate"]</label>
+                <BitDatePicker @bind-Value="dispatchDateOffset" Class="bom-dtp proc-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                               Placeholder="@Text["ProcSelectDatePlaceholder"]"
+                               GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon" />
+            </div>
+            <div class="write-field">
+                <label for="do-carrier">@Text["SalesCarrierName"]</label>
+                <input id="do-carrier" type="text" @bind="carrier" maxlength="120" />
+            </div>
+            <div class="write-field">
+                <label for="do-track">@Text["SalesTrackingNumber"]</label>
+                <input id="do-track" type="text" @bind="tracking" maxlength="64" dir="ltr" />
+            </div>
+            <div class="write-field">
+                <label for="do-notes">@Text["PoNotesLabel"]</label>
+                <input id="do-notes" type="text" @bind="notes" maxlength="1000" />
+            </div>
+        </div>
+
+        <div class="proc-lines-section">
+            <h3>@Text["SalesDispatchPickLots"]</h3>
+            <div class="read-grid">
+                <table class="ff-table">
+                    <thead>
+                        <tr>
+                            <th>@Text["PoItemColumn"]</th>
+                            <th>@Text["SalesRemainingQty"]</th>
+                            <th>@Text["InvLotCodeLabel"]</th>
+                            <th>@Text["ProcOrderedCol"]</th>
+                            <th>@Text["QcCoaTitle"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in lines)
+                        {
+                            var lots = dispatchableLots.Where(l => l.ItemId == row.ItemId).ToList();
+                            var selectedLot = lots.FirstOrDefault(l => l.LotCode == row.LotCode);
+                            <tr>
+                                <td><bdi dir="ltr">@row.ItemCode</bdi> — @row.ItemName</td>
+                                <td dir="ltr">@Format.Number(row.RemainingBaseQuantity) @row.UnitSymbol</td>
+                                <td>
+                                    <select @bind="row.LotCode">
+                                        <option value="">—</option>
+                                        @foreach (var lot in lots)
+                                        {
+                                            <option value="@lot.LotCode" disabled="@(lot.IsExpired || lot.AvailableForOrderBaseQuantity <= 0m)">
+                                                @lot.LotCode (@Format.Number(lot.AvailableForOrderBaseQuantity)@(lot.IsExpired ? " - EXPIRED" : string.Empty))
+                                            </option>
+                                        }
+                                    </select>
+                                </td>
+                                <td><input type="number" step="0.0001" min="0" @bind="row.Quantity" dir="ltr" /></td>
+                                <td>
+                                    @if (selectedLot is not null && !string.IsNullOrEmpty(selectedLot.LotCode))
+                                    {
+                                        <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnOpenCoa.InvokeAsync((row.ItemId, selectedLot.LotCode))">
+                                            @(selectedLot.LatestCertificateNumber ?? Text["QcCoaBtn"])
+                                        </BitButton>
+                                    }
+                                    else
+                                    {
+                                        <span>—</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </ChildContent>
+    <FooterActions>
+        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CloseAsync">@Text["WriteCancel"]</BitButton>
+        <BitButton Size="BitSize.Small" IsEnabled="!saving" OnClick="SaveDispatchAsync">@(saving ? Text["WriteSaving"] : Text["SalesPostDispatchButton"])</BitButton>
+    </FooterActions>
+</ForgeFormDialog>
+
+@code {
+    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
+    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
+
+    private bool saving;
+    private string? error;
+    private long salesOrderId;
+    private string dispatchNumber = string.Empty;
+    private bool allowOverride;
+    private long warehouseId;
+    private DateTimeOffset? dispatchDateOffset = DateTimeOffset.Now;
+    private string? carrier;
+    private string? tracking;
+    private string? notes;
+    private List<WarehouseSummary> warehouses = [];
+    private List<DispatchLineItem> lines = [];
+    private IReadOnlyList<DispatchableLotSummary> dispatchableLots = [];
+
+    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public EventCallback OnDispatched { get; set; }
+    [Parameter] public EventCallback<(long ItemId, string LotCode)> OnOpenCoa { get; set; }
+
+    public async Task OpenAsync(long orderId)
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0) return;
+        var ordRes = await SalesService.GetSalesOrder(CurrentScope, CurrentOrgId, orderId);
+        if (!ordRes.Succeeded || ordRes.Value is null) return;
+        var order = ordRes.Value;
+        salesOrderId = orderId;
+
+        var whRes = await InvService.ListWarehouses(CurrentScope, CurrentOrgId, new WarehouseListQuery(SiteId: order.Summary.SiteId, IncludeInactive: false, PageSize: 100));
+        warehouses = whRes.Succeeded ? whRes.Value!.Items.ToList() : [];
+        warehouseId = order.Summary.SourceWarehouseId ?? (warehouses.FirstOrDefault()?.Id ?? 0);
+        var dispPrev = await SeqService.GetPreview(CurrentScope, CurrentOrgId, DocumentSequenceType.DeliveryOrder);
+        allowOverride = dispPrev.Succeeded && dispPrev.Value!.AllowManualOverride;
+        dispatchNumber = dispPrev.Succeeded ? dispPrev.Value!.NextPreview : string.Empty;
+        dispatchDateOffset = DateTimeOffset.Now;
+        carrier = null;
+        tracking = null;
+        notes = null;
+        lines = order.Lines.Where(l => l.RemainingBaseQuantity > 0m).Select(l => new DispatchLineItem
+        {
+            SalesOrderLineId = l.Id,
+            ItemId = l.ItemId,
+            ItemCode = l.ItemCode,
+            ItemName = l.ItemName,
+            RemainingBaseQuantity = l.RemainingBaseQuantity,
+            UnitId = l.BaseUnitIdSnapshot,
+            UnitSymbol = l.BaseUnitSymbolSnapshot,
+            Quantity = l.RemainingBaseQuantity
+        }).ToList();
+
+        if (warehouseId > 0)
+        {
+            var lotsRes = await SalesService.ListDispatchableLots(CurrentScope, CurrentOrgId, orderId, warehouseId);
+            dispatchableLots = lotsRes.Succeeded ? lotsRes.Value! : [];
+        }
+        else
+        {
+            dispatchableLots = [];
+        }
+
+        error = null;
+        IsOpen = true;
+        await IsOpenChanged.InvokeAsync(true);
+        StateHasChanged();
+    }
+
+    private async Task ChangeWarehouseAsync(ChangeEventArgs e)
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0) return;
+        if (long.TryParse(e.Value?.ToString(), out var whId))
+        {
+            warehouseId = whId;
+            var lotsRes = await SalesService.ListDispatchableLots(CurrentScope, CurrentOrgId, salesOrderId, whId);
+            dispatchableLots = lotsRes.Succeeded ? lotsRes.Value! : [];
+            foreach (var row in lines)
+            {
+                if (!dispatchableLots.Any(l => l.ItemId == row.ItemId && l.LotCode == row.LotCode))
+                {
+                    row.LotCode = string.Empty;
+                }
+            }
+        }
+    }
+
+    private async Task SaveDispatchAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || saving) return;
+        saving = true;
+        error = null;
+        try
+        {
+            var picked = lines.Where(l => l.Quantity > 0m && !string.IsNullOrWhiteSpace(l.LotCode))
+                .Select(l => new PostDeliveryOrderLineRequest(l.SalesOrderLineId, l.LotCode, l.Quantity, l.UnitId, null))
+                .ToArray();
+            var date = DateOnly.FromDateTime((dispatchDateOffset ?? DateTimeOffset.Now).DateTime);
+            var res = await SalesService.PostDeliveryOrder(CurrentScope, CurrentOrgId, salesOrderId,
+                new PostDeliveryOrderRequest(warehouseId, allowOverride ? dispatchNumber : null, date, carrier, tracking, notes, picked));
+            if (!res.Succeeded)
+            {
+                error = MapError(res.Error!.Code);
+                return;
+            }
+
+            IsOpen = false;
+            await IsOpenChanged.InvokeAsync(false);
+            await OnDispatched.InvokeAsync();
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+
+    private string MapError(string code)
+    {
+        var key = "Err_" + code.Replace(".", string.Empty, StringComparison.Ordinal);
+        var val = Text[key];
+        return val.ResourceNotFound ? code : val.Value;
+    }
+
+    public sealed class DispatchLineItem
+    {
+        public long SalesOrderLineId { get; set; }
+        public long ItemId { get; set; }
+        public string ItemCode { get; set; } = string.Empty;
+        public string ItemName { get; set; } = string.Empty;
+        public decimal RemainingBaseQuantity { get; set; }
+        public long UnitId { get; set; }
+        public string UnitSymbol { get; set; } = string.Empty;
+        public string LotCode { get; set; } = string.Empty;
+        public decimal Quantity { get; set; }
+    }
+}

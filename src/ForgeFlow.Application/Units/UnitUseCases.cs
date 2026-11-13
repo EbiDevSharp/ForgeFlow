@@ -1,499 +1,147 @@
-using System.Globalization;
 using ForgeFlow.Application.Common;
 using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
-using ForgeFlow.Domain.Units;
+using ForgeFlow.Application.Units.Slices;
 
 namespace ForgeFlow.Application.Units;
 
-/// <summary>Secured use cases for organization-scoped units of measure and multi-hop conversions.</summary>
-public sealed class UnitUseCases(
-    IUnitOperationsStore store,
-    ITrustedActorAccessor? actors = null,
-    IOrganizationPermissionEvaluator? permissions = null,
-    IUserOperationRecorder? operationRecorder = null,
-    IOperationContextAccessor? opContext = null)
+/// <summary>Secured vertical-slice facade for organization-scoped units of measure, multi-hop conversions, and currencies.</summary>
+public sealed class UnitUseCases
 {
-    private async ValueTask<(TrustedActor? Actor, string? Error)> Authorize(
-        OrganizationScope? scope,
-        string permission,
-        CancellationToken ct)
+    private readonly UnitCatalogSlices catalogSlices;
+    private readonly UnitConversionSlices conversionSlices;
+    private readonly CurrencySlices currencySlices;
+
+    public UnitUseCases(
+        IUnitOperationsStore store,
+        ITrustedActorAccessor? actors = null,
+        IOrganizationPermissionEvaluator? permissions = null,
+        IUserOperationRecorder? operationRecorder = null,
+        IOperationContextAccessor? opContext = null)
     {
-        if (actors is null) return (null, UnitErrors.ActorRequired);
-        var actor = await actors.ResolveAsync(ct);
-        if (actor is null) return (null, UnitErrors.ActorRequired);
-        if (scope is null) return (actor, UnitErrors.ScopeRequired);
-        if (permissions is null || !(await permissions.EvaluateAsync(actor, scope, permission, ct)).IsAllowed)
-            return (actor, UnitErrors.AccessDenied);
-        return (actor, null);
+        var support = new UnitSliceSupport(actors, permissions, operationRecorder, opContext);
+        catalogSlices = new UnitCatalogSlices(store, support);
+        conversionSlices = new UnitConversionSlices(store, support);
+        currencySlices = new CurrencySlices(store, support);
     }
 
-    private Task<OrganizationResult<T>> RecordRejected<T>(
-        OrganizationResult<T> result,
-        TrustedActor? actor,
-        OrganizationScope? scope,
-        long organizationId,
-        string entityType,
-        string? entityRef,
-        string action)
-        => OperationAuditHelper.RecordIfRejectedAsync(
-            result, operationRecorder, opContext, UserOperationCatalog.UnitActionRejected,
-            actor, scope, organizationId, null, entityType, entityRef, new { Action = action });
-
-    private OrganizationWriteAccess Access(TrustedActor actor, OrganizationScope scope, string permission) => new(actor, async ct =>
-    {
-        var current = await Authorize(scope, permission, ct);
-        return current.Error is null
-            && current.Actor!.ActorId == actor.ActorId
-            && current.Actor.Provenance == actor.Provenance
-            && current.Actor.ProvenanceReference == actor.ProvenanceReference;
-    });
-
-    private static bool TryScopeOrganizationId(OrganizationScope? scope, long requestedOrgId, bool allowSite, out long orgId)
-    {
-        orgId = scope switch
-        {
-            OrganizationScope.Organization org => org.OrganizationId,
-            OrganizationScope.Site site when allowSite => site.OrganizationId,
-            _ => 0
-        };
-        return orgId > 0 && orgId == requestedOrgId;
-    }
-
-    private static byte[]? DecodeVersion(string? raw)
-    {
-        if (string.IsNullOrEmpty(raw)) return null;
-        try
-        {
-            var bytes = Convert.FromBase64String(raw);
-            return bytes.Length == 8 ? bytes : null;
-        }
-        catch (FormatException)
-        {
-            return null;
-        }
-    }
-
-    private static UnitListQuery Bound(UnitListQuery query) => query with
-    {
-        Page = Math.Clamp(query.Page, 1, 1_000_000),
-        PageSize = Math.Clamp(query.PageSize, 1, 100),
-        Search = query.Search?.Trim()
-    };
-
-    private static UnitConversionListQuery Bound(UnitConversionListQuery query) => query with
-    {
-        Page = Math.Clamp(query.Page, 1, 1_000_000),
-        PageSize = Math.Clamp(query.PageSize, 1, 100),
-        Search = query.Search?.Trim()
-    };
-
-    private static async Task<OrganizationResult<T>> ExecuteStore<T>(Func<Task<OrganizationResult<T>>> action)
-    {
-        try { return await action(); }
-        catch (UnitRuleException ex) { return OrganizationResult<T>.Failure(ex.Code, ex.Parameters); }
-        catch (UnitStoreUnavailableException) { return OrganizationResult<T>.Failure(UnitErrors.PersistenceUnavailable); }
-    }
-
-    public async Task<OrganizationResult<OrganizationPage<UnitSummary>>> ListUnits(
+    public Task<OrganizationResult<OrganizationPage<UnitSummary>>> ListUnits(
         OrganizationScope? scope,
         long organizationId,
         UnitListQuery query,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsRead, ct);
-        if (auth.Error is not null) return OrganizationResult<OrganizationPage<UnitSummary>>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, organizationId, allowSite: true, out _))
-            return OrganizationResult<OrganizationPage<UnitSummary>>.Failure(UnitErrors.NotFound);
+        => catalogSlices.ListAsync(scope, organizationId, query, ct);
 
-        return await ExecuteStore(async () =>
-            OrganizationResult<OrganizationPage<UnitSummary>>.Success(
-                await store.ListUnits(organizationId, Bound(query), ct)));
-    }
-
-    public async Task<OrganizationResult<IReadOnlyList<UnitSummary>>> ListActiveUnits(
+    public Task<OrganizationResult<IReadOnlyList<UnitSummary>>> ListActiveUnits(
         OrganizationScope? scope,
         long organizationId,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsRead, ct);
-        if (auth.Error is not null) return OrganizationResult<IReadOnlyList<UnitSummary>>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, organizationId, allowSite: true, out _))
-            return OrganizationResult<IReadOnlyList<UnitSummary>>.Failure(UnitErrors.NotFound);
+        => catalogSlices.ListActiveAsync(scope, organizationId, ct);
 
-        return await ExecuteStore(async () =>
-            OrganizationResult<IReadOnlyList<UnitSummary>>.Success(
-                await store.ListActiveUnits(organizationId, ct)));
-    }
-
-    public async Task<OrganizationResult<UnitSummary>> GetUnit(
+    public Task<OrganizationResult<UnitSummary>> GetUnit(
         OrganizationScope? scope,
         long organizationId,
         long id,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsRead, ct);
-        if (auth.Error is not null) return OrganizationResult<UnitSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, organizationId, allowSite: true, out _) || id <= 0)
-            return OrganizationResult<UnitSummary>.Failure(UnitErrors.NotFound);
+        => catalogSlices.GetAsync(scope, organizationId, id, ct);
 
-        return await ExecuteStore(async () =>
-        {
-            var item = await store.GetUnit(organizationId, id, ct);
-            return item is null
-                ? OrganizationResult<UnitSummary>.Failure(UnitErrors.NotFound)
-                : OrganizationResult<UnitSummary>.Success(item);
-        });
-    }
-
-    public async Task<OrganizationResult<UnitSummary>> CreateUnit(
+    public Task<OrganizationResult<UnitSummary>> CreateUnit(
         OrganizationScope? scope,
         CreateUnitRequest request,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        OrganizationResult<UnitSummary> res;
-        if (auth.Error is not null) res = OrganizationResult<UnitSummary>.Failure(auth.Error);
-        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
-            res = OrganizationResult<UnitSummary>.Failure(UnitErrors.NotFound);
-        else
-        {
-            try
-            {
-                _ = Unit.Create(request.OrganizationId, request.Code, request.Name, request.Symbol, request.Dimension, request.PrecisionScale);
-                res = await ExecuteStore(() => store.CreateUnit(request, Access(auth.Actor!, scope!, UnitPermissions.UnitsManage), ct));
-            }
-            catch (UnitRuleException ex)
-            {
-                res = OrganizationResult<UnitSummary>.Failure(ex.Code, ex.Parameters);
-            }
-        }
-        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Unit", request.Code, "CreateUnit");
-    }
+        => catalogSlices.CreateAsync(scope, request, ct);
 
-    public async Task<OrganizationResult<UnitSummary>> UpdateUnit(
+    public Task<OrganizationResult<UnitSummary>> UpdateUnit(
         OrganizationScope? scope,
         UpdateUnitRequest request,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        OrganizationResult<UnitSummary> res;
-        if (auth.Error is not null) res = OrganizationResult<UnitSummary>.Failure(auth.Error);
-        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            res = OrganizationResult<UnitSummary>.Failure(UnitErrors.NotFound);
-        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            res = OrganizationResult<UnitSummary>.Failure(UnitErrors.ConcurrencyConflict);
-        else
-            res = await ExecuteStore(() => store.UpdateUnit(
-                request.OrganizationId,
-                request.Id,
-                version,
-                request.Name,
-                request.Symbol,
-                request.PrecisionScale,
-                Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
-                ct));
-        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Unit", request.Id.ToString(CultureInfo.InvariantCulture), "UpdateUnit");
-    }
+        => catalogSlices.UpdateAsync(scope, request, ct);
 
-    public async Task<OrganizationResult<UnitSummary>> SetUnitActive(
+    public Task<OrganizationResult<UnitSummary>> SetUnitActive(
         OrganizationScope? scope,
         SetUnitActiveRequest request,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        OrganizationResult<UnitSummary> res;
-        if (auth.Error is not null) res = OrganizationResult<UnitSummary>.Failure(auth.Error);
-        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            res = OrganizationResult<UnitSummary>.Failure(UnitErrors.NotFound);
-        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            res = OrganizationResult<UnitSummary>.Failure(UnitErrors.ConcurrencyConflict);
-        else
-            res = await ExecuteStore(() => store.SetUnitActive(
-                request.OrganizationId,
-                request.Id,
-                version,
-                request.IsActive,
-                Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
-                ct));
-        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Unit", request.Id.ToString(CultureInfo.InvariantCulture), "SetUnitActive");
-    }
+        => catalogSlices.SetActiveAsync(scope, request, ct);
 
-    public async Task<OrganizationResult<OrganizationPage<UnitConversionSummary>>> ListConversions(
+    public Task<OrganizationResult<OrganizationPage<UnitConversionSummary>>> ListConversions(
         OrganizationScope? scope,
         long organizationId,
         UnitConversionListQuery query,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsRead, ct);
-        if (auth.Error is not null) return OrganizationResult<OrganizationPage<UnitConversionSummary>>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, organizationId, allowSite: true, out _))
-            return OrganizationResult<OrganizationPage<UnitConversionSummary>>.Failure(UnitErrors.NotFound);
+        => conversionSlices.ListAsync(scope, organizationId, query, ct);
 
-        return await ExecuteStore(async () =>
-            OrganizationResult<OrganizationPage<UnitConversionSummary>>.Success(
-                await store.ListConversions(organizationId, Bound(query), ct)));
-    }
-
-    public async Task<OrganizationResult<UnitConversionSummary>> GetConversion(
+    public Task<OrganizationResult<UnitConversionSummary>> GetConversion(
         OrganizationScope? scope,
         long organizationId,
         long id,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsRead, ct);
-        if (auth.Error is not null) return OrganizationResult<UnitConversionSummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, organizationId, allowSite: true, out _) || id <= 0)
-            return OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConversionNotFound);
+        => conversionSlices.GetAsync(scope, organizationId, id, ct);
 
-        return await ExecuteStore(async () =>
-        {
-            var item = await store.GetConversion(organizationId, id, ct);
-            return item is null
-                ? OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConversionNotFound)
-                : OrganizationResult<UnitConversionSummary>.Success(item);
-        });
-    }
-
-    public async Task<OrganizationResult<UnitConversionSummary>> CreateConversion(
+    public Task<OrganizationResult<UnitConversionSummary>> CreateConversion(
         OrganizationScope? scope,
         CreateUnitConversionRequest request,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        OrganizationResult<UnitConversionSummary> res;
-        if (auth.Error is not null) res = OrganizationResult<UnitConversionSummary>.Failure(auth.Error);
-        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
-            res = OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.NotFound);
-        else
-        {
-            try
-            {
-                _ = UnitConversion.Create(request.OrganizationId, request.FromUnitId, request.ToUnitId, request.Factor);
-                res = await ExecuteStore(() => store.CreateConversion(request, Access(auth.Actor!, scope!, UnitPermissions.UnitsManage), ct));
-            }
-            catch (UnitRuleException ex)
-            {
-                res = OrganizationResult<UnitConversionSummary>.Failure(ex.Code, ex.Parameters);
-            }
-        }
-        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "UnitConversion", $"{request.FromUnitId}->{request.ToUnitId}", "CreateConversion");
-    }
+        => conversionSlices.CreateAsync(scope, request, ct);
 
-    public async Task<OrganizationResult<UnitConversionSummary>> UpdateConversionFactor(
+    public Task<OrganizationResult<UnitConversionSummary>> UpdateConversionFactor(
         OrganizationScope? scope,
         UpdateUnitConversionFactorRequest request,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        OrganizationResult<UnitConversionSummary> res;
-        if (auth.Error is not null) res = OrganizationResult<UnitConversionSummary>.Failure(auth.Error);
-        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            res = OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConversionNotFound);
-        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            res = OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConcurrencyConflict);
-        else
-            res = await ExecuteStore(() => store.UpdateConversionFactor(
-                request.OrganizationId,
-                request.Id,
-                version,
-                request.Factor,
-                Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
-                ct));
-        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "UnitConversion", request.Id.ToString(CultureInfo.InvariantCulture), "UpdateConversionFactor");
-    }
+        => conversionSlices.UpdateFactorAsync(scope, request, ct);
 
-    public async Task<OrganizationResult<UnitConversionSummary>> SetConversionActive(
+    public Task<OrganizationResult<UnitConversionSummary>> SetConversionActive(
         OrganizationScope? scope,
         SetUnitConversionActiveRequest request,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        OrganizationResult<UnitConversionSummary> res;
-        if (auth.Error is not null) res = OrganizationResult<UnitConversionSummary>.Failure(auth.Error);
-        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            res = OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConversionNotFound);
-        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            res = OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ConcurrencyConflict);
-        else
-            res = await ExecuteStore(() => store.SetConversionActive(
-                request.OrganizationId,
-                request.Id,
-                version,
-                request.IsActive,
-                Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
-                ct));
-        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "UnitConversion", request.Id.ToString(CultureInfo.InvariantCulture), "SetConversionActive");
-    }
+        => conversionSlices.SetActiveAsync(scope, request, ct);
 
-    public async Task<OrganizationResult<UnitConversionPreviewResult>> PreviewConversion(
+    public Task<OrganizationResult<UnitConversionPreviewResult>> PreviewConversion(
         OrganizationScope? scope,
         ConvertQuantityRequest request,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsRead, ct);
-        if (auth.Error is not null) return OrganizationResult<UnitConversionPreviewResult>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: true, out _))
-            return OrganizationResult<UnitConversionPreviewResult>.Failure(UnitErrors.NotFound);
+        => conversionSlices.PreviewConversionAsync(scope, request, ct);
 
-        return await ExecuteStore(async () =>
-        {
-            if (request.Quantity <= 0m)
-                return OrganizationResult<UnitConversionPreviewResult>.Failure(UnitErrors.ConversionQuantityInvalid);
-
-            var fromUnit = await store.GetUnit(request.OrganizationId, request.FromUnitId, ct);
-            var toUnit = await store.GetUnit(request.OrganizationId, request.ToUnitId, ct);
-            if (fromUnit is null || toUnit is null)
-                return OrganizationResult<UnitConversionPreviewResult>.Failure(UnitErrors.NotFound);
-            if (!fromUnit.IsActive || !toUnit.IsActive)
-                return OrganizationResult<UnitConversionPreviewResult>.Failure(UnitErrors.UnitInactive);
-
-            var edges = await store.ListActiveConversionEdges(request.OrganizationId, ct);
-            var resolution = UnitConversionGraph.ConvertQuantity(request.Quantity, request.FromUnitId, request.ToUnitId, edges);
-
-            return OrganizationResult<UnitConversionPreviewResult>.Success(new UnitConversionPreviewResult(
-                request.FromUnitId,
-                request.ToUnitId,
-                request.Quantity,
-                resolution.Factor,
-                resolution.ConvertedQuantity,
-                resolution.Hops));
-        });
-    }
-
-    public async Task<OrganizationResult<SeedStandardUnitsResult>> SeedStandardUnits(
+    public Task<OrganizationResult<SeedStandardUnitsResult>> SeedStandardUnits(
         OrganizationScope? scope,
         long organizationId,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        OrganizationResult<SeedStandardUnitsResult> res;
-        if (auth.Error is not null) res = OrganizationResult<SeedStandardUnitsResult>.Failure(auth.Error);
-        else if (!TryScopeOrganizationId(scope, organizationId, allowSite: false, out _))
-            res = OrganizationResult<SeedStandardUnitsResult>.Failure(UnitErrors.NotFound);
-        else
-            res = await ExecuteStore(() =>
-                store.SeedStandardUnits(organizationId, Access(auth.Actor!, scope!, UnitPermissions.UnitsManage), ct));
-        return await RecordRejected(res, auth.Actor, scope, organizationId, "Unit", "SeedStandard", "SeedStandardUnits");
-    }
+        => conversionSlices.SeedStandardUnitsAsync(scope, organizationId, ct);
 
-    public async Task<OrganizationResult<OrganizationPage<CurrencySummary>>> ListCurrencies(
+    public Task<OrganizationResult<OrganizationPage<CurrencySummary>>> ListCurrencies(
         OrganizationScope? scope,
         long organizationId,
         CurrencyListQuery query,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsRead, ct);
-        if (auth.Error is not null) return OrganizationResult<OrganizationPage<CurrencySummary>>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, organizationId, allowSite: true, out _))
-            return OrganizationResult<OrganizationPage<CurrencySummary>>.Failure(UnitErrors.NotFound);
+        => currencySlices.ListAsync(scope, organizationId, query, ct);
 
-        var bound = new CurrencyListQuery(
-            query.Search?.Trim(),
-            query.IncludeInactive,
-            Math.Clamp(query.Page, 1, 1_000_000),
-            Math.Clamp(query.PageSize, 1, 100));
-
-        return await ExecuteStore(async () =>
-            OrganizationResult<OrganizationPage<CurrencySummary>>.Success(
-                await store.ListCurrencies(organizationId, bound, ct)));
-    }
-
-    public async Task<OrganizationResult<IReadOnlyList<CurrencySummary>>> ListActiveCurrencies(
+    public Task<OrganizationResult<IReadOnlyList<CurrencySummary>>> ListActiveCurrencies(
         OrganizationScope? scope,
         long organizationId,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsRead, ct);
-        if (auth.Error is not null) return OrganizationResult<IReadOnlyList<CurrencySummary>>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, organizationId, allowSite: true, out _))
-            return OrganizationResult<IReadOnlyList<CurrencySummary>>.Failure(UnitErrors.NotFound);
+        => currencySlices.ListActiveAsync(scope, organizationId, ct);
 
-        return await ExecuteStore(async () =>
-            OrganizationResult<IReadOnlyList<CurrencySummary>>.Success(
-                await store.ListActiveCurrencies(organizationId, ct)));
-    }
-
-    public async Task<OrganizationResult<CurrencySummary>> GetCurrency(
+    public Task<OrganizationResult<CurrencySummary>> GetCurrency(
         OrganizationScope? scope,
         long organizationId,
         long id,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsRead, ct);
-        if (auth.Error is not null) return OrganizationResult<CurrencySummary>.Failure(auth.Error);
-        if (!TryScopeOrganizationId(scope, organizationId, allowSite: true, out _) || id <= 0)
-            return OrganizationResult<CurrencySummary>.Failure(UnitErrors.CurrencyNotFound);
+        => currencySlices.GetAsync(scope, organizationId, id, ct);
 
-        return await ExecuteStore(async () =>
-        {
-            var item = await store.GetCurrency(organizationId, id, ct);
-            return item is null
-                ? OrganizationResult<CurrencySummary>.Failure(UnitErrors.CurrencyNotFound)
-                : OrganizationResult<CurrencySummary>.Success(item);
-        });
-    }
-
-    public async Task<OrganizationResult<CurrencySummary>> CreateCurrency(
+    public Task<OrganizationResult<CurrencySummary>> CreateCurrency(
         OrganizationScope? scope,
         CreateCurrencyRequest request,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        OrganizationResult<CurrencySummary> res;
-        if (auth.Error is not null) res = OrganizationResult<CurrencySummary>.Failure(auth.Error);
-        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _))
-            res = OrganizationResult<CurrencySummary>.Failure(UnitErrors.NotFound);
-        else
-            res = await ExecuteStore(() => store.CreateCurrency(request, Access(auth.Actor!, scope!, UnitPermissions.UnitsManage), ct));
-        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Currency", request.Code, nameof(CreateCurrency));
-    }
+        => currencySlices.CreateAsync(scope, request, ct);
 
-    public async Task<OrganizationResult<CurrencySummary>> UpdateCurrency(
+    public Task<OrganizationResult<CurrencySummary>> UpdateCurrency(
         OrganizationScope? scope,
         UpdateCurrencyRequest request,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        OrganizationResult<CurrencySummary> res;
-        if (auth.Error is not null) res = OrganizationResult<CurrencySummary>.Failure(auth.Error);
-        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            res = OrganizationResult<CurrencySummary>.Failure(UnitErrors.CurrencyNotFound);
-        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            res = OrganizationResult<CurrencySummary>.Failure(UnitErrors.ConcurrencyConflict);
-        else
-            res = await ExecuteStore(() => store.UpdateCurrency(
-                request.OrganizationId,
-                request.Id,
-                version,
-                request.Name,
-                request.Symbol,
-                request.PrecisionScale,
-                Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
-                ct));
-        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Currency", request.Id.ToString(CultureInfo.InvariantCulture), nameof(UpdateCurrency));
-    }
+        => currencySlices.UpdateAsync(scope, request, ct);
 
-    public async Task<OrganizationResult<CurrencySummary>> SetCurrencyActive(
+    public Task<OrganizationResult<CurrencySummary>> SetCurrencyActive(
         OrganizationScope? scope,
         SetCurrencyActiveRequest request,
         CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, UnitPermissions.UnitsManage, ct);
-        OrganizationResult<CurrencySummary> res;
-        if (auth.Error is not null) res = OrganizationResult<CurrencySummary>.Failure(auth.Error);
-        else if (!TryScopeOrganizationId(scope, request.OrganizationId, allowSite: false, out _) || request.Id <= 0)
-            res = OrganizationResult<CurrencySummary>.Failure(UnitErrors.CurrencyNotFound);
-        else if (DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
-            res = OrganizationResult<CurrencySummary>.Failure(UnitErrors.ConcurrencyConflict);
-        else
-            res = await ExecuteStore(() => store.SetCurrencyActive(
-                request.OrganizationId,
-                request.Id,
-                version,
-                request.IsActive,
-                Access(auth.Actor!, scope!, UnitPermissions.UnitsManage),
-                ct));
-        return await RecordRejected(res, auth.Actor, scope, request.OrganizationId, "Currency", request.Id.ToString(CultureInfo.InvariantCulture), nameof(SetCurrencyActive));
-    }
+        => currencySlices.SetActiveAsync(scope, request, ct);
 }

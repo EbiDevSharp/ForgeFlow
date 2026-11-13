@@ -733,34 +733,48 @@
         await LoadActiveTabAsync();
     }
 
-    private async Task ReloadActiveDataAsync()
+    private CancellationTokenSource? loadCts;
+
+    private async Task ReloadActiveDataAsync(bool debounce = false)
     {
-        await LoadActiveTabAsync();
+        var completed = await LoadActiveTabAsync(debounce);
+        if (!completed) return;
         if (activeTab == TabShortage && shortageGrid is not null)
             await shortageGrid.RefreshAsync();
         else if (activeTab == TabVariance && varianceGrid is not null)
             await varianceGrid.RefreshAsync();
     }
 
-    private async Task LoadActiveTabAsync()
+    private async Task<bool> LoadActiveTabAsync(bool debounce = false)
     {
         var scope = CurrentScope;
-        if (scope is null) return;
+        if (scope is null) return false;
+
+        loadCts?.Cancel();
+        loadCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        loadCts = cts;
+        var ct = cts.Token;
+
         gridLoading = true;
         pageError = null;
         try
         {
+            if (debounce)
+                await Task.Delay(250, ct);
+
             var orgId = ScopeOrgId(scope);
             long? siteArg = siteFilter > 0 ? siteFilter : null;
 
             if (activeTab == TabShortage)
             {
                 var query = new MaterialShortageQuery(siteArg, dueFromFilter, dueToFilter, onlyShortages, searchText);
-                var res = await ReportService.GetMaterialShortageReport(scope, orgId, query);
+                var res = await ReportService.GetMaterialShortageReport(scope, orgId, query, ct);
+                if (ct.IsCancellationRequested) return false;
                 if (!res.Succeeded)
                 {
                     pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
-                    return;
+                    return false;
                 }
                 shortageReport = res.Value!;
             }
@@ -768,19 +782,28 @@
             {
                 ProductionOrderStatus? parsedStatus = int.TryParse(statusFilter, out var st) ? (ProductionOrderStatus)st : null;
                 var query = new ProductionVarianceQuery(siteArg, parsedStatus, dueFromFilter, dueToFilter, searchText);
-                var res = await ReportService.GetProductionVarianceReport(scope, orgId, query);
+                var res = await ReportService.GetProductionVarianceReport(scope, orgId, query, ct);
+                if (ct.IsCancellationRequested) return false;
                 if (!res.Succeeded)
                 {
                     pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
-                    return;
+                    return false;
                 }
                 varianceReport = res.Value!;
             }
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
         }
         finally
         {
-            gridLoading = false;
-            StateHasChanged();
+            if (ReferenceEquals(loadCts, cts))
+            {
+                gridLoading = false;
+                StateHasChanged();
+            }
         }
     }
 
@@ -838,7 +861,7 @@
     private async Task OnSearchInput(ChangeEventArgs e)
     {
         searchText = e.Value?.ToString() ?? string.Empty;
-        await ReloadActiveDataAsync();
+        await ReloadActiveDataAsync(debounce: true);
     }
 
     private void OpenShortageOrdersModal(MaterialShortageItemSummary item)
@@ -988,6 +1011,8 @@
 
     public async ValueTask DisposeAsync()
     {
+        loadCts?.Cancel();
+        loadCts?.Dispose();
         if (downloadJs is not null)
         {
             try { await downloadJs.DisposeAsync(); }

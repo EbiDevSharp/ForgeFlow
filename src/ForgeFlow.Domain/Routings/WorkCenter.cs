@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Routings;
 
 /// <summary>Site-scoped physical or logical manufacturing work center / station.</summary>
-public sealed class WorkCenter
+public sealed class WorkCenter : IHasRowVersion
 {
     private WorkCenter() { Code = null!; Name = null!; }
 
@@ -46,6 +48,7 @@ public sealed class WorkCenter
     public decimal? HourlyCostRate { get; private set; }
     public string? Notes { get; private set; }
     public bool IsActive { get; private set; } = true;
+    public byte[] RowVersion { get; private set; } = [];
 
     public static WorkCenter Create(
         long organizationId,

@@ -26,9 +26,13 @@ public static class DiagnosticRedactor
         @"(?i)\bBearer\s+[A-Za-z0-9\-._~+/]+=*",
         RegexOptions.Compiled);
 
+    private static readonly Regex JsonSecretKeyValue = new(
+        @"(?i)""[^""]*(password|pwd|token|hash|stamp|cookie|authorization|secret|apikey|api_key|connectionstring)[^""]*""\s*:\s*""[^""]*""",
+        RegexOptions.Compiled | RegexOptions.Singleline);
+
     private static readonly Regex QuotedLiteral = new(
         @"(['""])(.*?)\1",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled | RegexOptions.Singleline);
 
     private static readonly Regex LongOpaqueToken = new(
         @"[A-Za-z0-9_+/=-]{32,}",
@@ -109,6 +113,7 @@ public static class DiagnosticRedactor
             output = output.Replace(secret, "[redacted]", StringComparison.Ordinal);
 
         output = BearerPattern.Replace(output, "Bearer [redacted]");
+        output = JsonSecretKeyValue.Replace(output, "\"[redacted]\":\"[redacted]\"");
         output = SecretKeyValue.Replace(output, "$1=[redacted]");
         output = QuotedLiteral.Replace(output, match =>
         {
@@ -201,6 +206,7 @@ public static class DiagnosticRedactor
             output = output.Replace(secret, "[redacted]", StringComparison.Ordinal);
 
         output = BearerPattern.Replace(output, "Bearer [redacted]");
+        output = JsonSecretKeyValue.Replace(output, "\"[redacted]\":\"[redacted]\"");
         output = SecretKeyValue.Replace(output, "$1=[redacted]");
         output = LongOpaqueToken.Replace(output, match =>
             SafeQuotedAllowlist.IsMatch(match.Value) ? match.Value : "[redacted]");

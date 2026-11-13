@@ -22,10 +22,27 @@ namespace ForgeFlow.Infrastructure.Organizations;
 /// Create/dispose through IDbContextFactory for each operation, never keep on a Blazor circuit.
 /// This infrastructure boundary does not authenticate or authorize: secured use cases must do that first.
 /// </summary>
-public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext> options, TimeProvider? clock = null)
+public sealed class OrganizationDbContext(
+    DbContextOptions<OrganizationDbContext> options,
+    TimeProvider? clock = null,
+    ICurrentOrganizationAccessor? organizationAccessor = null)
     : DbContext(options)
 {
+    internal long? CurrentOrganizationFilterId => organizationAccessor?.CurrentOrganizationId;
     private bool failed;
+    private bool inOperationScope;
+    private TrustedActor? currentActor;
+    private (TrustedActor Actor, DateTime Now, PendingChange[] Changes)? pendingAudit;
+
+    internal TrustedActor? CurrentActor => currentActor;
+    internal bool IsSavingAuditBatch { get; private set; }
+
+    internal void MarkFailed()
+    {
+        failed = true;
+        pendingAudit = null;
+        ChangeTracker.Clear();
+    }
     // Stored JSON only, never HTML. Keep valid 200-character Persian before/after names within nvarchar(2000).
     private static readonly JsonSerializerOptions AuditJson = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
     public DbSet<Organization> Organizations => Set<Organization>();
@@ -77,18 +94,39 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
     public DbSet<DocumentSequence> DocumentSequences => Set<DocumentSequence>();
     public DbSet<OrganizationChange> OrganizationChanges => Set<OrganizationChange>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) => OrganizationModel.Configure(modelBuilder);
-
-    // There is no default actor or unaudited write path through this context.
-    public override int SaveChanges(bool acceptAllChangesOnSuccess) => RejectUnattributedWrite();
-    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
-        => Task.FromResult(RejectUnattributedWrite());
-
-    private int RejectUnattributedWrite()
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        if (failed || ChangeTracker.HasChanges()) throw new InvalidOperationException(OrganizationAccessErrors.ActorRequired);
-        return 0;
+        base.OnConfiguring(optionsBuilder);
+        var coreExt = optionsBuilder.Options.FindExtension<Microsoft.EntityFrameworkCore.Infrastructure.CoreOptionsExtension>();
+        if (coreExt?.Interceptors?.OfType<OrganizationAuditSaveChangesInterceptor>().Any() != true)
+            optionsBuilder.AddInterceptors(new OrganizationAuditSaveChangesInterceptor());
     }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfigurationsFromAssembly(
+            typeof(OrganizationDbContext).Assembly,
+            t => t.Namespace == "ForgeFlow.Infrastructure.Organizations.Configurations");
+        ApplyOrganizationQueryFilters(modelBuilder);
+    }
+
+    private void ApplyOrganizationQueryFilters(ModelBuilder modelBuilder)
+    {
+        var method = typeof(OrganizationDbContext).GetMethod(
+            nameof(ConfigureOrganizationQueryFilter),
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var orgProp = entityType.FindProperty("OrganizationId");
+            if (orgProp is not null && orgProp.ClrType == typeof(long))
+                method.MakeGenericMethod(entityType.ClrType).Invoke(this, [modelBuilder]);
+        }
+    }
+
+    private void ConfigureOrganizationQueryFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : class
+        => modelBuilder.Entity<TEntity>().HasQueryFilter(
+            e => CurrentOrganizationFilterId == null || EF.Property<long>(e, "OrganizationId") == CurrentOrganizationFilterId);
 
     /// <summary>
     /// Trusted caller supplies actor only after current permission evaluation. No provider or fake authorization.
@@ -104,9 +142,158 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
         ArgumentNullException.ThrowIfNull(actor);
         if (failed || (ownsTransaction ? Database.CurrentTransaction is not null : Database.CurrentTransaction is null))
             throw new InvalidOperationException(OrganizationAccessErrors.PersistenceUnavailable);
+
+        var previousActor = currentActor;
+        var previousInOp = inOperationScope;
+        currentActor = actor;
+        inOperationScope = !ownsTransaction;
+
+        await using var transaction = ownsTransaction ? await Database.BeginTransactionAsync(cancellationToken) : null;
+        try
+        {
+            var count = await base.SaveChangesAsync(true, cancellationToken);
+            if (transaction is not null)
+            {
+                try { await transaction.CommitAsync(cancellationToken); }
+                catch (Exception ex) { throw new OrganizationCommitOutcomeUnknownException(ex); }
+            }
+            return count;
+        }
+        catch
+        {
+            MarkFailed();
+            throw;
+        }
+        finally
+        {
+            currentActor = previousActor;
+            inOperationScope = previousInOp;
+        }
+    }
+
+    internal void PrepareAttributedSaveSync(TrustedActor? actor)
+        => PrepareAttributedSaveAsync(actor, CancellationToken.None, sync: true).GetAwaiter().GetResult();
+
+    internal Task PrepareAttributedSaveAsync(TrustedActor? actor, CancellationToken cancellationToken)
+        => PrepareAttributedSaveAsync(actor, cancellationToken, sync: false);
+
+    private async Task PrepareAttributedSaveAsync(TrustedActor? actor, CancellationToken cancellationToken, bool sync)
+    {
         ChangeTracker.DetectChanges();
         var entries = ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToArray();
-        if (entries.Length == 0) return 0;
+        if (failed || (entries.Length > 0 && actor is null))
+            throw new InvalidOperationException(OrganizationAccessErrors.ActorRequired);
+        if (entries.Length == 0)
+            return;
+
+        ArgumentNullException.ThrowIfNull(actor);
+        ValidateEntries(entries);
+        var now = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
+        var changes = CaptureAllChanges(entries).ToArray();
+        if (!sync)
+            await LockAndValidateParents(entries, cancellationToken);
+        ApplyAuditMetadata(entries, actor, now);
+        pendingAudit = (actor, now, changes);
+    }
+
+    internal void FlushPendingAuditChangesSync()
+    {
+        if (pendingAudit is not { } batch) return;
+        pendingAudit = null;
+        if (batch.Changes.Length == 0) return;
+
+        IsSavingAuditBatch = true;
+        try
+        {
+            EnqueueOrganizationChanges(batch.Actor, batch.Now, batch.Changes);
+            base.SaveChanges(true);
+        }
+        catch (DbUpdateException ex) when (inOperationScope) { throw new OrganizationAuditWriteException(ex); }
+        finally
+        {
+            IsSavingAuditBatch = false;
+            ClearTrackedDomainEvents();
+        }
+    }
+
+    internal async Task FlushPendingAuditChangesAsync(CancellationToken cancellationToken)
+    {
+        if (pendingAudit is not { } batch)
+        {
+            ClearTrackedDomainEvents();
+            return;
+        }
+        pendingAudit = null;
+        if (batch.Changes.Length == 0)
+        {
+            ClearTrackedDomainEvents();
+            return;
+        }
+
+        IsSavingAuditBatch = true;
+        try
+        {
+            EnqueueOrganizationChanges(batch.Actor, batch.Now, batch.Changes);
+            await base.SaveChangesAsync(true, cancellationToken);
+        }
+        catch (DbUpdateException ex) when (inOperationScope) { throw new OrganizationAuditWriteException(ex); }
+        finally
+        {
+            IsSavingAuditBatch = false;
+            ClearTrackedDomainEvents();
+        }
+    }
+
+    private void ClearTrackedDomainEvents()
+    {
+        foreach (var entry in ChangeTracker.Entries<ForgeFlow.Domain.Common.IHasDomainEvents>())
+            entry.Entity.ClearDomainEvents();
+    }
+
+    private void EnqueueOrganizationChanges(TrustedActor actor, DateTime now, PendingChange[] changes)
+    {
+        foreach (var entry in ChangeTracker.Entries<ForgeFlow.Domain.Common.IHasDomainEvents>())
+        {
+            foreach (var evt in entry.Entity.DomainEvents.OfType<ForgeFlow.Domain.Common.IAuditableDomainEvent>())
+            {
+                OrganizationChanges.Add(new OrganizationChange(
+                    evt.OrganizationId, evt.SiteId, actor.ActorId, evt.EventCode, now, actor.CorrelationId, evt.BuildAuditJson()));
+            }
+        }
+        foreach (var change in changes)
+        {
+            var orgId = ResolveEntityOrganizationId(change.Entry.Entity);
+            long? siteId = ResolveEntitySiteId(change.Entry.Entity);
+            OrganizationChanges.Add(new OrganizationChange(orgId, siteId, actor.ActorId, change.EventCode,
+                now, actor.CorrelationId, change.Json));
+        }
+    }
+
+    private static void ApplyAuditMetadata(EntityEntry[] entries, TrustedActor actor, DateTime now)
+    {
+        foreach (var entry in entries)
+        {
+            if (entry.State == EntityState.Deleted)
+                continue;
+            if (entry.State == EntityState.Added)
+            {
+                entry.Property("CreatedAtUtc").CurrentValue = now;
+                entry.Property("CreatedByActorId").CurrentValue = actor.ActorId;
+                entry.Property("UpdatedAtUtc").CurrentValue = null;
+                entry.Property("UpdatedByActorId").CurrentValue = null;
+            }
+            else
+            {
+                if (now < (DateTime)entry.Property("CreatedAtUtc").CurrentValue!)
+                    throw new InvalidOperationException(OrganizationAccessErrors.PersistenceUnavailable);
+                entry.Property("UpdatedAtUtc").CurrentValue = now;
+                entry.Property("UpdatedByActorId").CurrentValue = actor.ActorId;
+            }
+        }
+    }
+
+    private static void ValidateEntries(EntityEntry[] entries)
+    {
         foreach (var entry in entries)
         {
             if (entry.Entity is not (Organization or Site or Unit or UnitConversion or Currency
@@ -174,61 +361,12 @@ public sealed class OrganizationDbContext(DbContextOptions<OrganizationDbContext
                     SalesOrderLine => new[] { "DispatchedBaseQuantity" },
                     DeliveryOrder => new[] { "Status", "ReversedAtUtc", "ReversalReason" },
                     DeliveryOrderLine => Array.Empty<string>(),
-                    DocumentSequence => new[] { "Prefix", "Separator", "YearMode", "PaddingDigits", "NextNumber", "AllowManualOverride", "IsActive" },
+                    DocumentSequence => new[] { "Prefix", "Separator", "YearMode", "PaddingDigits", "NextNumber", "LastAllocatedYear", "AllowManualOverride", "IsActive" },
                     _ => new[] { "Name", "IsActive" }
                 };
                 if (entry.Properties.Any(p => p.IsModified && !allowedProps.Contains(p.Metadata.Name, StringComparer.Ordinal)))
                     throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             }
-        }
-        var now = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
-        var changes = CaptureAllChanges(entries).ToArray();
-        await using var transaction = ownsTransaction ? await Database.BeginTransactionAsync(cancellationToken) : null;
-        try
-        {
-            await LockAndValidateParents(entries, cancellationToken);
-            foreach (var entry in entries)
-            {
-                if (entry.State == EntityState.Deleted)
-                    continue;
-                if (entry.State == EntityState.Added)
-                {
-                    entry.Property("CreatedAtUtc").CurrentValue = now;
-                    entry.Property("CreatedByActorId").CurrentValue = actor.ActorId;
-                    entry.Property("UpdatedAtUtc").CurrentValue = null;
-                    entry.Property("UpdatedByActorId").CurrentValue = null;
-                }
-                else
-                {
-                    if (now < (DateTime)entry.Property("CreatedAtUtc").CurrentValue!)
-                        throw new InvalidOperationException(OrganizationAccessErrors.PersistenceUnavailable);
-                    entry.Property("UpdatedAtUtc").CurrentValue = now;
-                    entry.Property("UpdatedByActorId").CurrentValue = actor.ActorId;
-                }
-            }
-            var count = await base.SaveChangesAsync(true, cancellationToken);
-            foreach (var change in changes)
-            {
-                var orgId = ResolveEntityOrganizationId(change.Entry.Entity);
-                long? siteId = ResolveEntitySiteId(change.Entry.Entity);
-                OrganizationChanges.Add(new OrganizationChange(orgId, siteId, actor.ActorId, change.EventCode,
-                    now, actor.CorrelationId, change.Json));
-            }
-            try { await base.SaveChangesAsync(true, cancellationToken); }
-            catch (DbUpdateException ex) when (!ownsTransaction) { throw new OrganizationAuditWriteException(ex); }
-            if (transaction is not null)
-            {
-                try { await transaction.CommitAsync(cancellationToken); }
-                catch (Exception ex) { throw new OrganizationCommitOutcomeUnknownException(ex); }
-            }
-            return count;
-        }
-        catch
-        {
-            failed = true;
-            // Disposal rolls back even when cancellation prevents an explicit rollback call.
-            ChangeTracker.Clear();
-            throw;
         }
     }
 

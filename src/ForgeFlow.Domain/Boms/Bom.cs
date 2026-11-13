@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Boms;
 
 /// <summary>Organization-shared planned manufacturing BOM header tied to a manufacturable PrimaryOutputItem.</summary>
-public sealed class Bom
+public sealed class Bom : IHasRowVersion
 {
     private Bom()
     {
@@ -11,8 +13,7 @@ public sealed class Bom
 
     private Bom(long organizationId, string? code, string? name, long primaryOutputItemId)
     {
-        if (organizationId <= 0)
-            throw new BomRuleException(BomErrors.NotFound);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(organizationId);
         if (primaryOutputItemId <= 0)
             throw new BomRuleException(BomErrors.PrimaryItemInvalid);
 
@@ -29,6 +30,7 @@ public sealed class Bom
     public string Name { get; private set; }
     public long PrimaryOutputItemId { get; private set; }
     public bool IsActive { get; private set; } = true;
+    public byte[] RowVersion { get; private set; } = [];
 
     public static Bom Create(long organizationId, string? code, string? name, long primaryOutputItemId)
         => new(organizationId, code, name, primaryOutputItemId);

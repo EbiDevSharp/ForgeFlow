@@ -129,7 +129,7 @@ public sealed class ScopedRoleAssignment
     public long? SiteId { get; internal set; }
     public bool IsActive { get; internal set; }
 }
-public sealed class AccountSession
+public sealed class AccountSession : ForgeFlow.Domain.Common.IHasRowVersion
 {
     public Guid Id { get; internal set; }
     public long UserId { get; internal set; }
@@ -143,6 +143,7 @@ public sealed class AccountSession
     public DateTime ExpiresAtUtc { get; internal set; }
     public DateTime? RevokedAtUtc { get; internal set; }
     public string? RevokeReason { get; internal set; }
+    public byte[] RowVersion { get; internal set; } = [];
 }
 public sealed class BootstrapState
 {

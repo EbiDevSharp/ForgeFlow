@@ -1,9 +1,15 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Quality;
 
 /// <summary>Site-isolated quality inspection and quarantine hold record linked to stocked warehouse balances.</summary>
-public sealed class QualityInspection
+public sealed class QualityInspection : IHasRowVersion, IHasDomainEvents
 {
     private readonly List<QualityInspectionLine> _lines = [];
+    private readonly List<IDomainEvent> _domainEvents = [];
+
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void ClearDomainEvents() => _domainEvents.Clear();
 
     private QualityInspection() { }
 
@@ -68,6 +74,7 @@ public sealed class QualityInspection
     public string? Notes { get; private set; }
     public string? CertificateNumber { get; private set; }
     public DateTime? InspectedAtUtc { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
     public long? InspectedByActorId { get; private set; }
 
     public IReadOnlyCollection<QualityInspectionLine> Lines => _lines.AsReadOnly();
@@ -180,6 +187,9 @@ public sealed class QualityInspection
         Status = RemainingBlockedBaseQuantity == 0m
             ? QualityInspectionStatus.Completed
             : QualityInspectionStatus.InReview;
+
+        if (Status == QualityInspectionStatus.Completed)
+            _domainEvents.Add(new QualityInspectionCompletedDomainEvent(OrganizationId, SiteId, InspectionNumber, utcNow));
     }
 
     public void Cancel(string? notes, long actorId, DateTime utcNow)
@@ -195,6 +205,7 @@ public sealed class QualityInspection
         InspectedAtUtc = utcNow;
         InspectedByActorId = actorId;
         Status = QualityInspectionStatus.Cancelled;
+        _domainEvents.Add(new QualityInspectionCancelledDomainEvent(OrganizationId, SiteId, InspectionNumber, utcNow));
     }
 
     private void EnsureMutable()
@@ -203,3 +214,6 @@ public sealed class QualityInspection
             throw new QualityRuleException(QualityErrors.InspectionAlreadyTerminal);
     }
 }
+
+public sealed record QualityInspectionCompletedDomainEvent(long OrganizationId, long SiteId, string InspectionNumber, DateTime OccurredAtUtc) : IDomainEvent;
+public sealed record QualityInspectionCancelledDomainEvent(long OrganizationId, long SiteId, string InspectionNumber, DateTime OccurredAtUtc) : IDomainEvent;

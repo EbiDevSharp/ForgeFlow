@@ -1,0 +1,89 @@
+@using System.Globalization
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Web.Roles
+@inject ItemUseCases ItemService
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="isOpen"
+           Title="@Text["ClassificationCreateButton"]" AriaLabel="@Text["ClassificationCreateButton"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            <form class="write-panel" @onsubmit:preventDefault>
+                <div class="read-field">
+                    <label for="create-cls-set">@Text["ClassificationSetLabel"]</label>
+                    <select id="create-cls-set" @bind="setId" disabled="@saving">
+                        @foreach (var s in ClassificationSets.Where(x => x.IsActive)) { <option value="@s.Id">@s.Code — @s.Name</option> }
+                    </select>
+                </div>
+                <div class="read-field">
+                    <label for="create-cls-parent">@Text["ClassificationParentLabel"]</label>
+                    <select id="create-cls-parent" @bind="parentIdText" disabled="@saving">
+                        <option value="">—</option>
+                        @foreach (var p in ActiveClassifications.Where(x => x.ClassificationSetId == setId))
+                        {
+                            <option value="@p.Id">@p.Code — @p.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="read-field">
+                    <label for="create-cls-code">@Text["ReadCode"]</label>
+                    <input id="create-cls-code" @bind="code" @bind:event="oninput" maxlength="32" disabled="@saving" />
+                </div>
+                <div class="read-field">
+                    <label for="create-cls-name">@Text["ReadName"]</label>
+                    <input id="create-cls-name" @bind="name" @bind:event="oninput" maxlength="200" disabled="@saving" />
+                </div>
+                <div class="write-actions">
+                    <BitButton Size="BitSize.Small" IsEnabled="@(!saving && setId > 0 && !string.IsNullOrWhiteSpace(code) && !string.IsNullOrWhiteSpace(name))"
+                               OnClick="SubmitAsync">@Text["CreateSubmit"]</BitButton>
+                </div>
+                @if (error is not null) { <p role="alert" class="write-error">@Text[error]</p> }
+            </form>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    private bool isOpen, saving;
+    private long setId;
+    private string parentIdText = string.Empty, code = string.Empty, name = string.Empty;
+    private string? error;
+
+    [Parameter, EditorRequired] public BitDialogClassStyles DialogClasses { get; set; } = default!;
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public IReadOnlyList<ClassificationSetSummary> ClassificationSets { get; set; } = [];
+    [Parameter] public IReadOnlyList<ClassificationSummary> ActiveClassifications { get; set; } = [];
+    [Parameter] public EventCallback OnCreated { get; set; }
+
+    public void Open()
+    {
+        code = string.Empty;
+        name = string.Empty;
+        parentIdText = string.Empty;
+        if (setId == 0 && ClassificationSets.Count > 0) setId = ClassificationSets[0].Id;
+        error = null;
+        isOpen = true;
+        StateHasChanged();
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || saving) return;
+        long? parentId = long.TryParse(parentIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var pid) && pid > 0 ? pid : null;
+        saving = true;
+        error = null;
+        try
+        {
+            var res = await ItemService.CreateClassification(CurrentScope, new CreateClassificationRequest(
+                CurrentOrgId, setId, parentId, code, name));
+            if (!res.Succeeded) { error = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            isOpen = false;
+            await OnCreated.InvokeAsync();
+        }
+        finally { saving = false; }
+    }
+}

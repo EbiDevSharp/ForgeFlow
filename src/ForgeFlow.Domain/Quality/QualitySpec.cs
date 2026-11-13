@@ -1,3 +1,5 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Quality;
 
 public enum QualitySpecTargetKind : byte
@@ -14,7 +16,7 @@ public enum QualitySpecCheckpoint : byte
 }
 
 /// <summary>Inspection specification template attached to either an Item or an Item Classification.</summary>
-public sealed class QualitySpec
+public sealed class QualitySpec : IHasRowVersion
 {
     private readonly List<QualitySpecLine> _lines = [];
 
@@ -70,6 +72,7 @@ public sealed class QualitySpec
     public int Version { get; private set; }
     public bool IsActive { get; private set; } = true;
     public string? Notes { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
 
     public IReadOnlyCollection<QualitySpecLine> Lines => _lines.AsReadOnly();
 

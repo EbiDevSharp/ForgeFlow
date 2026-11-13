@@ -24,12 +24,13 @@ public static class OrganizationPersistenceRegistration
     public static IServiceCollection AddOrganizationPersistence(this IServiceCollection services, IConfiguration configuration)
     {
         services.TryAddSingleton(TimeProvider.System);
-        services.AddDbContextFactory<OrganizationDbContext>(options =>
+        services.AddDbContextFactory<OrganizationDbContext>((provider, options) =>
         {
             var connection = configuration.GetConnectionString("ForgeFlow");
             if (string.IsNullOrWhiteSpace(connection))
                 throw new InvalidOperationException("OrganizationSite.PersistenceUnavailable");
-            options.UseSqlServer(connection); // No retry, automatic migration, or sensitive-data logging.
+            options.UseSqlServer(connection) // No retry, automatic migration, or sensitive-data logging.
+                   .AddInterceptors(new OrganizationAuditSaveChangesInterceptor(provider.GetService<ICurrentActorAccessor>()));
         });
         // EF also registers a scoped context by default. Expose only the factory to prevent circuit capture.
         services.RemoveAll<OrganizationDbContext>();

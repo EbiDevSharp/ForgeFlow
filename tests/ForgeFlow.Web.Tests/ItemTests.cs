@@ -95,15 +95,19 @@ public sealed class ItemTests
     }
 
     [Fact]
-    public void Item_requires_valid_code_name_base_unit_and_at_least_one_capability()
+    public void Item_requires_valid_code_name_base_unit_and_allows_draft_without_capabilities()
     {
         var item = Item.Create(1, "  hips-01 ", "  پلی‌استایرن مقاوم  ", "Graded polymer resin", 2, true, false, false, true);
         Assert.Equal("HIPS-01", item.Code);
         Assert.Equal("پلی‌استایرن مقاوم", item.Name);
         Assert.True(item.IsActive);
 
-        Assert.Equal(ItemErrors.CapabilityRequired,
-            Assert.Throws<ItemRuleException>(() => Item.Create(1, "X", "Name", null, 2, false, false, false, false)).Code);
+        var draftItem = Item.Create(1, "ENG-01", "Engineering Draft", null, 2, false, false, false, false);
+        Assert.False(draftItem.CanBePurchased);
+        Assert.False(draftItem.CanBeManufactured);
+        Assert.False(draftItem.CanBeSold);
+        Assert.False(draftItem.CanBeConsumed);
+
         Assert.Equal(ItemErrors.CodeInvalid,
             Assert.Throws<ItemRuleException>(() => Item.Create(1, "bad code", "Name", null, 2, true, false, false, false)).Code);
         Assert.Equal(ItemErrors.BaseUnitNotFound,

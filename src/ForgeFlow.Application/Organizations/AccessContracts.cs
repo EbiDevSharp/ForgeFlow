@@ -33,6 +33,18 @@ public interface ITrustedActorAccessor
     ValueTask<TrustedActor?> ResolveAsync(CancellationToken cancellationToken);
 }
 
+public interface ICurrentActorAccessor
+{
+    /// <summary>Current ambient trusted actor for standard DbContext SaveChanges interception, or null when unattributed.</summary>
+    TrustedActor? CurrentActor { get; }
+}
+
+public interface ICurrentOrganizationAccessor
+{
+    /// <summary>When non-null, OrganizationDbContext enforces a global OrganizationId query filter.</summary>
+    long? CurrentOrganizationId { get; }
+}
+
 /// <summary>Untrusted requested scope, not an authorization grant. No null/default platform fallback.</summary>
 public abstract class OrganizationScope
 {

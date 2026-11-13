@@ -1,6 +1,8 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Inventory;
 
-public sealed class Warehouse
+public sealed class Warehouse : IHasRowVersion
 {
     private Warehouse() { }
 
@@ -24,6 +26,7 @@ public sealed class Warehouse
     public string Name { get; private set; } = string.Empty;
     public bool IsDefaultForSite { get; private set; }
     public bool IsActive { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
 
     public static Warehouse Create(long organizationId, long siteId, string? code, string? name, bool isDefaultForSite) =>
         new(organizationId, siteId, code ?? string.Empty, name ?? string.Empty, isDefaultForSite);

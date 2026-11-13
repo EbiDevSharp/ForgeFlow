@@ -1,0 +1,150 @@
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Sales
+@using ForgeFlow.Domain.Inventory
+@using ForgeFlow.Domain.Sales
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="920px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses"
+           IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           Title="@(Order?.Summary.OrderNumber ?? Text["SalesTabOrders"])" ShowCloseButton="true">
+    @if (Order is not null)
+    {
+        var s = Order.Summary;
+        <div class="proc-detail-wrap">
+            @if (DetailError is not null)
+            {
+                <p role="alert" class="write-modal-err">@DetailError</p>
+            }
+            <table class="ff-table">
+                <tbody>
+                    <tr>
+                        <th>@Text["SalesCustomerColumn"]</th><td><bdi dir="ltr">@s.CustomerCode</bdi> — @s.CustomerName</td>
+                        <th>@Text["PoStatusColumn"]</th><td>@OrderStatusLabel(s.Status)</td>
+                    </tr>
+                    <tr>
+                        <th>@Text["ProcOrderDateLabel"]</th><td dir="ltr">@Format.Date(s.OrderDate)</td>
+                        <th>@Text["SalesRequestedDate"]</th><td dir="ltr">@(s.RequestedDeliveryDate is DateOnly rd ? Format.Date(rd) : "—")</td>
+                    </tr>
+                    <tr>
+                        <th>@Text["SalesShippingAddress"]</th><td colspan="3">@(s.ShippingAddressSnapshot ?? "—")</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>@Text["ProcLinesSection"]</h4>
+            <table class="ff-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>@Text["PoItemColumn"]</th>
+                        <th>@Text["ProcOrderedCol"]</th>
+                        <th>@Text["SalesDispatchedQty"]</th>
+                        <th>@Text["SalesRemainingQty"]</th>
+                        <th>@Text["ReadActions"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var l in Order.Lines)
+                    {
+                        <tr>
+                            <td dir="ltr">@l.LineNumber</td>
+                            <td><bdi dir="ltr">@l.ItemCode</bdi> — @l.ItemName</td>
+                            <td dir="ltr">@Format.Number(l.OrderedBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
+                            <td dir="ltr">@Format.Number(l.DispatchedBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
+                            <td dir="ltr">@Format.Number(l.RemainingBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
+                            <td>
+                                @if (CanManageOrders && l.RemainingBaseQuantity > 0m && s.Status is SalesOrderStatus.Approved or SalesOrderStatus.PartiallyDispatched)
+                                {
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OnReserveLine.InvokeAsync(l)">@Text["SalesReserveStockButton"]</BitButton>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (Reservations.Count > 0)
+            {
+                <h4>@Text["SalesReservationsTitle"]</h4>
+                <table class="ff-table">
+                    <thead>
+                        <tr>
+                            <th>@Text["InvWarehouseLabel"]</th>
+                            <th>@Text["PoItemColumn"]</th>
+                            <th>@Text["InvLotCodeLabel"]</th>
+                            <th>@Text["ProcOrderedCol"]</th>
+                            <th>@Text["PoStatusColumn"]</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in Reservations)
+                        {
+                            <tr>
+                                <td><bdi dir="ltr">@r.WarehouseCode</bdi></td>
+                                <td><bdi dir="ltr">@r.ItemCode</bdi></td>
+                                <td dir="ltr">@(string.IsNullOrEmpty(r.LotCode) ? "—" : r.LotCode)</td>
+                                <td dir="ltr">@Format.Number(r.RemainingReservedBaseQuantity) / @Format.Number(r.ReservedBaseQuantity) @r.BaseUnitSymbol</td>
+                                <td>@r.Status</td>
+                                <td>
+                                    @if (CanManageOrders && (r.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed))
+                                    {
+                                        <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnReleaseReservation.InvokeAsync(r)">@Text["SalesReleaseReservation"]</BitButton>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <div class="proc-detail-actions">
+                @if (CanManageOrders && s.Status == SalesOrderStatus.Draft)
+                {
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OnEdit.InvokeAsync(Order)">@Text["ReadEdit"]</BitButton>
+                    <BitButton Size="BitSize.Small" OnClick="OnApprove">@Text["ProcApproveBtn"]</BitButton>
+                }
+                @if (CanDispatch && s.Status is SalesOrderStatus.Approved or SalesOrderStatus.PartiallyDispatched)
+                {
+                    <BitButton Size="BitSize.Small" OnClick="() => OnDispatch.InvokeAsync(s.Id)">@Text["SalesDispatchButton"]</BitButton>
+                }
+                @if (CanManageOrders && s.Status is SalesOrderStatus.PartiallyDispatched or SalesOrderStatus.Dispatched)
+                {
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="OnClose">@Text["ProcShortCloseBtn"]</BitButton>
+                }
+                @if (CanManageOrders && s.Status is SalesOrderStatus.Draft or SalesOrderStatus.Approved)
+                {
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="OnCancel">@Text["ProcCancelBtn"]</BitButton>
+                }
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CloseDialogAsync">@Text["ReadClose"]</BitButton>
+            </div>
+        </div>
+    }
+</BitDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter, EditorRequired] public BitDialogClassStyles DialogClasses { get; set; } = default!;
+    [Parameter] public SalesOrderDetails? Order { get; set; }
+    [Parameter] public IReadOnlyList<StockReservationSummary> Reservations { get; set; } = [];
+    [Parameter] public string? DetailError { get; set; }
+    [Parameter] public bool CanManageOrders { get; set; }
+    [Parameter] public bool CanDispatch { get; set; }
+    [Parameter, EditorRequired] public Func<SalesOrderStatus, string> OrderStatusLabel { get; set; } = default!;
+
+    [Parameter] public EventCallback<SalesOrderLineDetails> OnReserveLine { get; set; }
+    [Parameter] public EventCallback<StockReservationSummary> OnReleaseReservation { get; set; }
+    [Parameter] public EventCallback<SalesOrderDetails> OnEdit { get; set; }
+    [Parameter] public EventCallback OnApprove { get; set; }
+    [Parameter] public EventCallback<long> OnDispatch { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private async Task CloseDialogAsync()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+}

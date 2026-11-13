@@ -1,0 +1,70 @@
+@using ForgeFlow.Application.Sales
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="840px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses"
+           IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           Title="@(Dispatch?.Summary.DispatchNumber ?? Text["SalesTabDispatches"])" ShowCloseButton="true">
+    @if (Dispatch is not null)
+    {
+        var ds = Dispatch.Summary;
+        <div class="proc-detail-wrap">
+            <table class="ff-table">
+                <tbody>
+                    <tr>
+                        <th>@Text["SalesOrderNumber"]</th><td dir="ltr">@ds.SalesOrderNumber</td>
+                        <th>@Text["SalesDispatchDate"]</th><td dir="ltr">@Format.Date(ds.DispatchDate)</td>
+                    </tr>
+                    <tr>
+                        <th>@Text["SalesCarrierName"]</th><td>@(ds.CarrierName ?? "—")</td>
+                        <th>@Text["SalesTrackingNumber"]</th><td dir="ltr">@(ds.TrackingNumber ?? "—")</td>
+                    </tr>
+                </tbody>
+            </table>
+            <table class="ff-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>@Text["PoItemColumn"]</th>
+                        <th>@Text["InvLotCodeLabel"]</th>
+                        <th>@Text["SalesDispatchedQty"]</th>
+                        <th>@Text["QcCoaTitle"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var dl in Dispatch.Lines)
+                    {
+                        <tr>
+                            <td dir="ltr">@dl.LineNumber</td>
+                            <td><bdi dir="ltr">@dl.ItemCode</bdi> — @dl.ItemName</td>
+                            <td dir="ltr">@dl.LotCode</td>
+                            <td dir="ltr">@Format.Number(dl.DispatchedBaseQuantity) @dl.BaseUnitSymbolSnapshot</td>
+                            <td>
+                                <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnOpenCoa.InvokeAsync((dl.ItemId, dl.LotCode))">
+                                    @(dl.CertificateNumberSnapshot ?? Text["QcCoaBtn"])
+                                </BitButton>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div class="proc-detail-actions">
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CloseDialogAsync">@Text["ReadClose"]</BitButton>
+            </div>
+        </div>
+    }
+</BitDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter, EditorRequired] public BitDialogClassStyles DialogClasses { get; set; } = default!;
+    [Parameter] public DeliveryOrderDetails? Dispatch { get; set; }
+    [Parameter] public EventCallback<(long ItemId, string LotCode)> OnOpenCoa { get; set; }
+
+    private async Task CloseDialogAsync()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+}

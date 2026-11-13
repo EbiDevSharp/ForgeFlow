@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Routings;
 
 /// <summary>Site-scoped versioned manufacturing routing defining ordered operations and work centers for an item.</summary>
-public sealed class Routing
+public sealed class Routing : IHasRowVersion
 {
     private readonly List<RoutingOperation> _operations = [];
 
@@ -51,6 +53,7 @@ public sealed class Routing
     public bool IsDefault { get; private set; }
     public string? Notes { get; private set; }
     public DateTime? ActivatedAtUtc { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
 
     public IReadOnlyList<RoutingOperation> Operations => _operations;
 

@@ -1,0 +1,179 @@
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Quality
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Web.Roles
+@inject QualityUseCases QualityService
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="640px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses"
+           IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged"
+           Title="@Text["QcCreateHoldTitle"]" AriaLabel="@Text["QcCreateHoldTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true"
+           OnDismissing="OnDismissing">
+    <Body>
+        <div class="audit-modal-body">
+            @if (holdError is not null)
+            {
+                <p role="alert" class="write-error">@Text[holdError]</p>
+            }
+            <div class="po-form-grid">
+                <div class="write-field">
+                    <label for="qc-hold-num">@Text["QcNumberColumn"]</label>
+                    <input id="qc-hold-num" type="text" maxlength="32" @bind="holdNumber" placeholder="QC-HOLD-001" />
+                </div>
+                <div class="write-field">
+                    <label for="qc-hold-wh">@Text["InvWarehouseLabel"]</label>
+                    <select id="qc-hold-wh" @bind="holdWarehouseId">
+                        <option value="0">@Text["InvSelectWarehouseOption"]</option>
+                        @foreach (var w in ActiveWarehouses)
+                        {
+                            <option value="@w.Id">@w.Code — @w.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="write-field">
+                    <label for="qc-hold-item">@Text["BomLineItemColumn"]</label>
+                    <select id="qc-hold-item" value="@holdItemId" @onchange="OnHoldItemChanged">
+                        <option value="0">@Text["InvSelectItemOption"]</option>
+                        @foreach (var it in ActiveItems)
+                        {
+                            <option value="@it.Id">@it.Code — @it.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="write-field">
+                    <label for="qc-hold-lot">@Text["InvLotCodeLabel"]</label>
+                    <input id="qc-hold-lot" type="text" maxlength="32" @bind="holdLotCode" />
+                </div>
+                <div class="write-field">
+                    <label for="qc-hold-qty">@Text["BomQuantityColumn"]</label>
+                    <input id="qc-hold-qty" type="number" step="0.000001" min="0.000001" @bind="holdQuantity" />
+                </div>
+                <div class="write-field">
+                    <label for="qc-hold-unit">@Text["BomLineUnitColumn"]</label>
+                    <select id="qc-hold-unit" @bind="holdUnitId">
+                        @foreach (var u in ActiveUnits)
+                        {
+                            <option value="@u.Id">@u.Code (@u.Symbol)</option>
+                        }
+                    </select>
+                </div>
+                <div class="write-field">
+                    <label for="qc-hold-defect">@Text["QcDefectCodeLabel"]</label>
+                    <input id="qc-hold-defect" type="text" maxlength="64" @bind="holdDefectCode" />
+                </div>
+                <div class="write-field po-field-full">
+                    <label for="qc-hold-notes">@Text["PoNotesLabel"]</label>
+                    <textarea id="qc-hold-notes" rows="2" maxlength="1000" @bind="holdNotes"></textarea>
+                </div>
+            </div>
+            <div class="po-dialog-footer">
+                <BitButton IsEnabled="@(!modalBusy && holdWarehouseId > 0 && holdItemId > 0 && !string.IsNullOrWhiteSpace(holdNumber))" OnClick="SubmitManualHoldAsync">
+                    @Text["QcCreateHoldBtn"]
+                </BitButton>
+                <BitButton Variant="BitVariant.Outline" OnClick="CloseAsync">@Text["WriteCancel"]</BitButton>
+            </div>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    private bool modalBusy;
+    private string? holdError;
+    private string holdNumber = string.Empty;
+    private long holdWarehouseId;
+    private long holdItemId;
+    private string holdLotCode = string.Empty;
+    private decimal holdQuantity = 1m;
+    private long holdUnitId;
+    private string holdDefectCode = string.Empty;
+    private string holdNotes = string.Empty;
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter, EditorRequired] public BitDialogClassStyles DialogClasses { get; set; } = default!;
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public IReadOnlyList<WarehouseSummary> ActiveWarehouses { get; set; } = [];
+    [Parameter] public IReadOnlyList<ItemSummary> ActiveItems { get; set; } = [];
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public EventCallback OnHoldCreated { get; set; }
+
+    public void Open()
+    {
+        holdNumber = $"QCH-{DateTime.UtcNow:yyyyMMddHHmm}";
+        holdWarehouseId = ActiveWarehouses.FirstOrDefault()?.Id ?? 0;
+        var firstItem = ActiveItems.FirstOrDefault();
+        holdItemId = firstItem?.Id ?? 0;
+        holdUnitId = firstItem?.BaseUnitId ?? ActiveUnits.FirstOrDefault()?.Id ?? 0;
+        holdLotCode = string.Empty;
+        holdQuantity = 1m;
+        holdDefectCode = string.Empty;
+        holdNotes = string.Empty;
+        holdError = null;
+        IsOpen = true;
+        IsOpenChanged.InvokeAsync(true);
+        StateHasChanged();
+    }
+
+    private async Task OnIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    private void OnHoldItemChanged(ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), out var id))
+        {
+            holdItemId = id;
+            var it = ActiveItems.FirstOrDefault(x => x.Id == id);
+            if (it is not null) holdUnitId = it.BaseUnitId;
+        }
+    }
+
+    private async Task SubmitManualHoldAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || modalBusy) return;
+        modalBusy = true;
+        holdError = null;
+        try
+        {
+            var res = await QualityService.CreateManualHold(CurrentScope, new CreateManualQualityHoldRequest(
+                CurrentOrgId, holdWarehouseId, holdItemId, holdLotCode, holdNumber,
+                holdQuantity, holdUnitId > 0 ? holdUnitId : null, holdDefectCode, holdNotes));
+            if (!res.Succeeded)
+            {
+                holdError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            IsOpen = false;
+            await IsOpenChanged.InvokeAsync(false);
+            await OnHoldCreated.InvokeAsync();
+        }
+        finally
+        {
+            modalBusy = false;
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+
+    private void OnDismissing(BitDialogDismissArgs args)
+    {
+        if (modalBusy)
+        {
+            args.Cancel = true;
+            return;
+        }
+        IsOpen = false;
+        IsOpenChanged.InvokeAsync(false);
+    }
+}

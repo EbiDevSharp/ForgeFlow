@@ -43,6 +43,7 @@ public sealed class InventoryBalance
     public decimal ReservedBaseQuantity { get; private set; }
     public decimal AvailableBaseQuantity => decimal.Round(OnHandBaseQuantity - BlockedBaseQuantity - ReservedBaseQuantity, 6, MidpointRounding.AwayFromZero);
     public DateTime LastMovedAtUtc { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
 
     public static InventoryBalance CreateZero(
         long organizationId,

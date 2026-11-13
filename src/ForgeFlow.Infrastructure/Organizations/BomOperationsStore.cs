@@ -17,9 +17,9 @@ public sealed class BomOperationsStore(Func<IDbContextFactory<OrganizationDbCont
 
     public Task<OrganizationPage<BomSummary>> ListBoms(long organizationId, BomListQuery query, CancellationToken ct) => Read(async db =>
     {
-        var joined = from b in db.Boms
-                     join i in db.Items on new { b.OrganizationId, ItemId = b.PrimaryOutputItemId } equals new { i.OrganizationId, ItemId = i.Id }
-                     join u in db.Units on new { i.OrganizationId, UnitId = i.BaseUnitId } equals new { u.OrganizationId, UnitId = u.Id }
+        var joined = from b in db.Boms.AsNoTracking()
+                     join i in db.Items.AsNoTracking() on new { b.OrganizationId, ItemId = b.PrimaryOutputItemId } equals new { i.OrganizationId, ItemId = i.Id }
+                     join u in db.Units.AsNoTracking() on new { i.OrganizationId, UnitId = i.BaseUnitId } equals new { u.OrganizationId, UnitId = u.Id }
                      where b.OrganizationId == organizationId && (query.IncludeInactive || b.IsActive)
                      select new { b, i, u };
 
@@ -34,9 +34,22 @@ public sealed class BomOperationsStore(Func<IDbContextFactory<OrganizationDbCont
             .ThenBy(x => x.b.Id)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
+            .Select(x => new
+            {
+                x.b.Id,
+                x.b.OrganizationId,
+                x.b.Code,
+                x.b.Name,
+                x.b.PrimaryOutputItemId,
+                ItemCode = x.i.Code,
+                ItemName = x.i.Name,
+                UnitSymbol = x.u.Symbol,
+                x.b.IsActive,
+                RowVersion = EF.Property<byte[]>(x.b, "RowVersion")
+            })
             .ToListAsync(ct);
 
-        var bomIds = page.Select(x => x.b.Id).ToArray();
+        var bomIds = page.Select(x => x.Id).ToArray();
         var versionCounts = bomIds.Length == 0
             ? new Dictionary<long, int>()
             : await db.BomVersions.AsNoTracking()
@@ -46,17 +59,17 @@ public sealed class BomOperationsStore(Func<IDbContextFactory<OrganizationDbCont
                 .ToDictionaryAsync(x => x.BomId, x => x.Count, ct);
 
         var items = page.Select(x => new BomSummary(
-            x.b.Id,
-            x.b.OrganizationId,
-            x.b.Code,
-            x.b.Name,
-            x.b.PrimaryOutputItemId,
-            x.i.Code,
-            x.i.Name,
-            x.u.Symbol,
-            x.b.IsActive,
-            versionCounts.GetValueOrDefault(x.b.Id),
-            Convert.ToBase64String(db.Entry(x.b).Property<byte[]>("RowVersion").CurrentValue!))).ToArray();
+            x.Id,
+            x.OrganizationId,
+            x.Code,
+            x.Name,
+            x.PrimaryOutputItemId,
+            x.ItemCode,
+            x.ItemName,
+            x.UnitSymbol,
+            x.IsActive,
+            versionCounts.GetValueOrDefault(x.Id),
+            Convert.ToBase64String(x.RowVersion))).ToArray();
 
         return new OrganizationPage<BomSummary>(items, count, query.Page, query.PageSize);
     }, ct);
@@ -558,20 +571,47 @@ public sealed class BomOperationsStore(Func<IDbContextFactory<OrganizationDbCont
 
     private static async Task<BomDetails?> BuildBomDetailsAsync(OrganizationDbContext db, long organizationId, long id, CancellationToken ct)
     {
-        var row = await (from b in db.Boms
-                         join i in db.Items on new { b.OrganizationId, ItemId = b.PrimaryOutputItemId } equals new { i.OrganizationId, ItemId = i.Id }
-                         join u in db.Units on new { i.OrganizationId, UnitId = i.BaseUnitId } equals new { u.OrganizationId, UnitId = u.Id }
+        var row = await (from b in db.Boms.AsNoTracking()
+                         join i in db.Items.AsNoTracking() on new { b.OrganizationId, ItemId = b.PrimaryOutputItemId } equals new { i.OrganizationId, ItemId = i.Id }
+                         join u in db.Units.AsNoTracking() on new { i.OrganizationId, UnitId = i.BaseUnitId } equals new { u.OrganizationId, UnitId = u.Id }
                          where b.OrganizationId == organizationId && b.Id == id
-                         select new { b, i, u }).SingleOrDefaultAsync(ct);
+                         select new
+                         {
+                             b.Id,
+                             b.OrganizationId,
+                             b.Code,
+                             b.Name,
+                             b.PrimaryOutputItemId,
+                             ItemCode = i.Code,
+                             ItemName = i.Name,
+                             UnitSymbol = u.Symbol,
+                             b.IsActive,
+                             RowVersion = EF.Property<byte[]>(b, "RowVersion")
+                         }).SingleOrDefaultAsync(ct);
         if (row is null) return null;
 
-        var versionRows = await (from v in db.BomVersions
-                                 join vu in db.Units on new { v.OrganizationId, UnitId = v.BaseOutputUnitId } equals new { vu.OrganizationId, UnitId = vu.Id }
+        var versionRows = await (from v in db.BomVersions.AsNoTracking()
+                                 join vu in db.Units.AsNoTracking() on new { v.OrganizationId, UnitId = v.BaseOutputUnitId } equals new { vu.OrganizationId, UnitId = vu.Id }
                                  where v.OrganizationId == organizationId && v.BomId == id
                                  orderby v.VersionNumber descending
-                                 select new { v, vu }).ToListAsync(ct);
+                                 select new
+                                 {
+                                     v.Id,
+                                     v.OrganizationId,
+                                     v.BomId,
+                                     v.VersionNumber,
+                                     v.Status,
+                                     v.BaseOutputQuantity,
+                                     v.BaseOutputUnitId,
+                                     UnitCode = vu.Code,
+                                     UnitSymbol = vu.Symbol,
+                                     v.EffectiveFromDate,
+                                     v.EffectiveToDate,
+                                     v.Notes,
+                                     RowVersion = EF.Property<byte[]>(v, "RowVersion")
+                                 }).ToListAsync(ct);
 
-        var verIds = versionRows.Select(x => x.v.Id).ToArray();
+        var verIds = versionRows.Select(x => x.Id).ToArray();
         var apps = verIds.Length == 0
             ? new Dictionary<long, (long AppId, bool IsActive)>()
             : await db.BomApplicabilities.AsNoTracking()
@@ -589,39 +629,39 @@ public sealed class BomOperationsStore(Func<IDbContextFactory<OrganizationDbCont
 
         var versionSummaries = versionRows.Select(x =>
         {
-            var hasApp = apps.TryGetValue(x.v.Id, out var appInfo);
+            var hasApp = apps.TryGetValue(x.Id, out var appInfo);
             var condCount = hasApp ? condCounts.GetValueOrDefault(appInfo.AppId) : 0;
             return new BomVersionSummary(
-                x.v.Id,
-                x.v.OrganizationId,
-                x.v.BomId,
-                x.v.VersionNumber,
-                x.v.Status,
-                x.v.BaseOutputQuantity,
-                x.v.BaseOutputUnitId,
-                x.vu.Code,
-                x.vu.Symbol,
-                x.v.EffectiveFromDate,
-                x.v.EffectiveToDate,
-                x.v.Notes,
+                x.Id,
+                x.OrganizationId,
+                x.BomId,
+                x.VersionNumber,
+                x.Status,
+                x.BaseOutputQuantity,
+                x.BaseOutputUnitId,
+                x.UnitCode,
+                x.UnitSymbol,
+                x.EffectiveFromDate,
+                x.EffectiveToDate,
+                x.Notes,
                 hasApp,
                 hasApp && appInfo.IsActive,
                 condCount,
-                Convert.ToBase64String(db.Entry(x.v).Property<byte[]>("RowVersion").CurrentValue!));
+                Convert.ToBase64String(x.RowVersion));
         }).ToArray();
 
         var summary = new BomSummary(
-            row.b.Id,
-            row.b.OrganizationId,
-            row.b.Code,
-            row.b.Name,
-            row.b.PrimaryOutputItemId,
-            row.i.Code,
-            row.i.Name,
-            row.u.Symbol,
-            row.b.IsActive,
+            row.Id,
+            row.OrganizationId,
+            row.Code,
+            row.Name,
+            row.PrimaryOutputItemId,
+            row.ItemCode,
+            row.ItemName,
+            row.UnitSymbol,
+            row.IsActive,
             versionSummaries.Length,
-            Convert.ToBase64String(db.Entry(row.b).Property<byte[]>("RowVersion").CurrentValue!));
+            Convert.ToBase64String(row.RowVersion));
 
         return new BomDetails(summary, versionSummaries);
     }

@@ -1,11 +1,17 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.ProductionOrders;
 
 /// <summary>
 /// Site-scoped manufacturing order capturing a resolved BOM version and planned input/output snapshot.
 /// Structurally immutable after Release so subsequent BOM updates never alter historical orders (Day 11).
 /// </summary>
-public sealed class ProductionOrder
+public sealed class ProductionOrder : IHasRowVersion, IHasDomainEvents
 {
+    private readonly List<IDomainEvent> _domainEvents = [];
+
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void ClearDomainEvents() => _domainEvents.Clear();
     private ProductionOrder() { }
 
     private ProductionOrder(
@@ -25,8 +31,7 @@ public sealed class ProductionOrder
         long baseOutputUnitIdSnapshot,
         string? notes)
     {
-        if (organizationId <= 0)
-            throw new ProductionOrderRuleException(ProductionOrderErrors.NotFound);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(organizationId);
         if (siteId <= 0)
             throw new ProductionOrderRuleException(ProductionOrderErrors.SiteInvalid);
         if (itemId <= 0)
@@ -86,6 +91,7 @@ public sealed class ProductionOrder
     public DateTime? StartedAtUtc { get; private set; }
     public DateTime? CompletedAtUtc { get; private set; }
     public DateTime? CancelledAtUtc { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
 
     public static ProductionOrder CreateDraft(
         long organizationId,
@@ -170,8 +176,11 @@ public sealed class ProductionOrder
     public void ApplyRoutingSnapshot(long? routingId, string? routingCodeSnapshot)
     {
         EnsureDraftMutable();
-        if (routingId is > 0 && !string.IsNullOrWhiteSpace(routingCodeSnapshot))
+        if (routingId is > 0)
         {
+            if (string.IsNullOrWhiteSpace(routingCodeSnapshot))
+                throw new ProductionOrderRuleException(ProductionOrderErrors.RoutingInvalid);
+
             RoutingId = routingId.Value;
             RoutingCodeSnapshot = ProductionOrderText.OrderNumber(routingCodeSnapshot);
         }
@@ -188,6 +197,7 @@ public sealed class ProductionOrder
             throw new ProductionOrderRuleException(ProductionOrderErrors.TransitionInvalid);
         Status = ProductionOrderStatus.Released;
         ReleasedAtUtc = utcNow;
+        _domainEvents.Add(new ProductionOrderReleasedDomainEvent(OrganizationId, SiteId, OrderNumber, utcNow));
     }
 
     public void Start(DateTime utcNow)
@@ -218,6 +228,7 @@ public sealed class ProductionOrder
             Notes = ProductionOrderText.OptionalText(notes, ProductionOrderErrors.NotesInvalid);
         Status = ProductionOrderStatus.Completed;
         CompletedAtUtc = utcNow;
+        _domainEvents.Add(new ProductionOrderCompletedDomainEvent(OrganizationId, SiteId, OrderNumber, utcNow));
     }
 
     public void Cancel(string? reason, DateTime utcNow)
@@ -227,5 +238,10 @@ public sealed class ProductionOrder
         CancellationReason = ProductionOrderText.RequiredReason(reason);
         Status = ProductionOrderStatus.Cancelled;
         CancelledAtUtc = utcNow;
+        _domainEvents.Add(new ProductionOrderCancelledDomainEvent(OrganizationId, SiteId, OrderNumber, CancellationReason, utcNow));
     }
 }
+
+public sealed record ProductionOrderReleasedDomainEvent(long OrganizationId, long SiteId, string OrderNumber, DateTime OccurredAtUtc) : IDomainEvent;
+public sealed record ProductionOrderCompletedDomainEvent(long OrganizationId, long SiteId, string OrderNumber, DateTime OccurredAtUtc) : IDomainEvent;
+public sealed record ProductionOrderCancelledDomainEvent(long OrganizationId, long SiteId, string OrderNumber, string Reason, DateTime OccurredAtUtc) : IDomainEvent;

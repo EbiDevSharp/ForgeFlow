@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Quality;
 
 /// <summary>Organization-level lot metadata (manufacture date, expiration date, notes) keyed by (OrganizationId, ItemId, LotCode).</summary>
-public sealed class ItemLot
+public sealed class ItemLot : IHasRowVersion
 {
     private ItemLot() { }
 
@@ -32,6 +34,7 @@ public sealed class ItemLot
     public DateOnly? ManufactureDate { get; private set; }
     public DateOnly? ExpirationDate { get; private set; }
     public string? Notes { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
 
     public static ItemLot Create(
         long organizationId,

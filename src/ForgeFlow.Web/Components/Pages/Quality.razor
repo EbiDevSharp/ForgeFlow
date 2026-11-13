@@ -7,6 +7,7 @@
 @using ForgeFlow.Application.Quality
 @using ForgeFlow.Application.Units
 @using ForgeFlow.Domain.Quality
+@using ForgeFlow.Web.Components.Pages.QualitySections
 @using ForgeFlow.Web.Roles
 @using System.Globalization
 @inject QualityUseCases QualityService
@@ -179,85 +180,15 @@
 
         @if (activeTab == TabInspections)
         {
-            <div class="read-grid-card">
-                <div class="read-grid">
-                    <BitDataGrid @ref="inspGrid" TItem="QualityInspectionSummary" OnRead="ReadInspectionsAsync" Pageable="true" PageSize="25"
-                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="qc-title" WrapCellText="true" Resizable="true">
-                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
-                        <Columns>
-                            <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["QcNumberColumn"]">
-                                <Template Context="q">
-                                    <div>
-                                        <div class="read-primary-cell"><bdi dir="ltr">@q.InspectionNumber</bdi></div>
-                                        <div class="read-sub-cell"><span dir="ltr">@q.SiteCode / @q.WarehouseCode</span></div>
-                                        @if (!string.IsNullOrWhiteSpace(q.CertificateNumber))
-                                        {
-                                            <div class="read-sub-cell" dir="ltr">@Text["QcCertNumberShort"]: @q.CertificateNumber</div>
-                                        }
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["BomLineItemColumn"]">
-                                <Template Context="q">
-                                    <div>
-                                        <div class="read-primary-cell"><span dir="ltr">@q.ItemCode</span> — @q.ItemName</div>
-                                        @if (!string.IsNullOrEmpty(q.LotCode))
-                                        {
-                                            <div class="read-sub-cell">
-                                                <a class="qc-lot-link" href="@($"/traceability?itemId={q.ItemId}&lotCode={Uri.EscapeDataString(q.LotCode)}")" dir="ltr">@q.LotCode</a>
-                                            </div>
-                                        }
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["QcSourceColumn"]">
-                                <Template Context="q">
-                                    <div>
-                                        <div class="read-primary-cell">@SourceLabel(q.SourceType)</div>
-                                        @if (!string.IsNullOrEmpty(q.SourceDocumentNumber))
-                                        {
-                                            <div class="read-sub-cell" dir="ltr">@q.SourceDocumentNumber</div>
-                                        }
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["QcQuantitiesColumn"]">
-                                <Template Context="q">
-                                    <div>
-                                        <div class="read-primary-cell" dir="ltr">@Format.Number(q.InspectedBaseQuantity) @q.BaseUnitSymbol</div>
-                                        <div class="read-sub-cell" dir="ltr">
-                                            @Text["QcQtyBreakdown", Format.Number(q.AcceptedBaseQuantity), Format.Number(q.RejectedBaseQuantity), Format.Number(q.RemainingBlockedBaseQuantity)]
-                                        </div>
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["ReadStatus"]">
-                                <Template Context="q">
-                                    <span class="read-badge @StatusBadgeClass(q.Status)">@StatusLabel(q.Status)</span>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["ReadActions"]">
-                                <Template Context="q">
-                                    <div class="read-row-actions">
-                                        <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
-                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                       IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
-                                                       OnClick="() => OpenInspectionDetailsAsync(q.Id)" />
-                                        </BitTooltip>
-                                        @if (!string.IsNullOrWhiteSpace(q.LotCode))
-                                        {
-                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OpenCoaModal(q.ItemId, q.LotCode)">
-                                                @Text["QcCoaBtn"]
-                                            </BitButton>
-                                        }
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                        </Columns>
-                    </BitDataGrid>
-                </div>
-            </div>
+            <InspectionGrid @ref="inspGrid"
+                            OnRead="ReadInspectionsAsync"
+                            PageSizeOptions="@PageSizeOptions"
+                            GridStrings="@GridStrings"
+                            SourceLabel="SourceLabel"
+                            StatusBadgeClass="StatusBadgeClass"
+                            StatusLabel="StatusLabel"
+                            OnOpenDetails="OpenInspectionDetailsAsync"
+                            OnOpenCoa="args => OpenCoaModal(args.ItemId, args.LotCode)" />
         }
         else if (activeTab == TabLots)
         {
@@ -467,369 +398,35 @@
         }
     }
 
-    <BitDialog Width="640px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="holdModalOpen"
-               Title="@Text["QcCreateHoldTitle"]" AriaLabel="@Text["QcCreateHoldTitle"]"
-               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-        <Body>
-            <div class="audit-modal-body">
-                @if (holdError is not null)
-                {
-                    <p role="alert" class="write-error">@Text[holdError]</p>
-                }
-                <div class="po-form-grid">
-                    <div class="write-field">
-                        <label for="qc-hold-num">@Text["QcNumberColumn"]</label>
-                        <input id="qc-hold-num" type="text" maxlength="32" @bind="holdNumber" placeholder="QC-HOLD-001" />
-                    </div>
-                    <div class="write-field">
-                        <label for="qc-hold-wh">@Text["InvWarehouseLabel"]</label>
-                        <select id="qc-hold-wh" @bind="holdWarehouseId">
-                            <option value="0">@Text["InvSelectWarehouseOption"]</option>
-                            @foreach (var w in activeWarehouses)
-                            {
-                                <option value="@w.Id">@w.Code — @w.Name</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="write-field">
-                        <label for="qc-hold-item">@Text["BomLineItemColumn"]</label>
-                        <select id="qc-hold-item" value="@holdItemId" @onchange="OnHoldItemChanged">
-                            <option value="0">@Text["InvSelectItemOption"]</option>
-                            @foreach (var it in activeItems)
-                            {
-                                <option value="@it.Id">@it.Code — @it.Name</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="write-field">
-                        <label for="qc-hold-lot">@Text["InvLotCodeLabel"]</label>
-                        <input id="qc-hold-lot" type="text" maxlength="32" @bind="holdLotCode" />
-                    </div>
-                    <div class="write-field">
-                        <label for="qc-hold-qty">@Text["BomQuantityColumn"]</label>
-                        <input id="qc-hold-qty" type="number" step="0.000001" min="0.000001" @bind="holdQuantity" />
-                    </div>
-                    <div class="write-field">
-                        <label for="qc-hold-unit">@Text["BomLineUnitColumn"]</label>
-                        <select id="qc-hold-unit" @bind="holdUnitId">
-                            @foreach (var u in activeUnits)
-                            {
-                                <option value="@u.Id">@u.Code (@u.Symbol)</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="write-field">
-                        <label for="qc-hold-defect">@Text["QcDefectCodeLabel"]</label>
-                        <input id="qc-hold-defect" type="text" maxlength="64" @bind="holdDefectCode" />
-                    </div>
-                    <div class="write-field po-field-full">
-                        <label for="qc-hold-notes">@Text["PoNotesLabel"]</label>
-                        <textarea id="qc-hold-notes" rows="2" maxlength="1000" @bind="holdNotes"></textarea>
-                    </div>
-                </div>
-                <div class="po-dialog-footer">
-                    <BitButton IsEnabled="@(!modalBusy && holdWarehouseId > 0 && holdItemId > 0 && !string.IsNullOrWhiteSpace(holdNumber))" OnClick="SubmitManualHoldAsync">
-                        @Text["QcCreateHoldBtn"]
-                    </BitButton>
-                    <BitButton Variant="BitVariant.Outline" OnClick="() => holdModalOpen = false">@Text["WriteCancel"]</BitButton>
-                </div>
-            </div>
-        </Body>
-    </BitDialog>
+    <QualityHoldModal @ref="holdModal"
+                      @bind-IsOpen="holdModalOpen"
+                      DialogClasses="@DialogClasses"
+                      CurrentScope="@CurrentScope"
+                      CurrentOrgId="@(ScopeOrganizationId(CurrentScope))"
+                      ActiveWarehouses="@activeWarehouses"
+                      ActiveItems="@activeItems"
+                      ActiveUnits="@activeUnits"
+                      OnHoldCreated="OnHoldCreatedAsync" />
 
-    <BitDialog Width="780px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailsOpen"
-               Title="@Text["QcDetailsTitle"]" AriaLabel="@Text["QcDetailsTitle"]"
-               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-        <Body>
-            @if (selectedInspection is not null)
-            {
-                var q = selectedInspection.Summary;
-                <div class="audit-modal-body audit-modal-body--wide">
-                    <div class="audit-modal-title-row">
-                        <span class="audit-modal-code" dir="ltr">@q.InspectionNumber</span>
-                        <span class="read-badge @StatusBadgeClass(q.Status)">@StatusLabel(q.Status)</span>
-                    </div>
-                    @if (detailsError is not null)
-                    {
-                        <p role="alert" class="write-error">@Text[detailsError]</p>
-                    }
-                    <div class="audit-meta-card">
-                        <div class="audit-meta-row">
-                            <span class="audit-meta-label">@Text["InvWarehouseLabel"]</span>
-                            <span class="audit-meta-val" dir="ltr">@q.SiteCode / @q.WarehouseCode — @q.WarehouseName</span>
-                        </div>
-                        <div class="audit-meta-row">
-                            <span class="audit-meta-label">@Text["BomLineItemColumn"]</span>
-                            <span class="audit-meta-val"><span dir="ltr">@q.ItemCode</span> — @q.ItemName</span>
-                        </div>
-                        @if (!string.IsNullOrEmpty(q.LotCode))
-                        {
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["InvLotCodeLabel"]</span>
-                                <span class="audit-meta-val" dir="ltr">
-                                    <a class="qc-lot-link" href="@($"/traceability?itemId={q.ItemId}&lotCode={Uri.EscapeDataString(q.LotCode)}")">@q.LotCode</a>
-                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="qc-inline-coa-btn" OnClick="() => OpenCoaModal(q.ItemId, q.LotCode)">
-                                        @Text["QcCoaBtn"]
-                                    </BitButton>
-                                </span>
-                            </div>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(q.CertificateNumber))
-                        {
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["QcCertNumberLabel"]</span>
-                                <span class="audit-meta-val" dir="ltr">@q.CertificateNumber</span>
-                            </div>
-                        }
-                        <div class="audit-meta-row">
-                            <span class="audit-meta-label">@Text["QcQuantitiesColumn"]</span>
-                            <span class="audit-meta-val" dir="ltr">
-                                @Format.Number(q.InspectedBaseQuantity) @q.BaseUnitSymbol ·
-                                @Text["QcQtyBreakdown", Format.Number(q.AcceptedBaseQuantity), Format.Number(q.RejectedBaseQuantity), Format.Number(q.RemainingBlockedBaseQuantity)]
-                            </span>
-                        </div>
-                        @if (q.InspectedAtUtc.HasValue)
-                        {
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["AuditTimeColumn"]</span>
-                                <span class="audit-meta-val"><bdi dir="ltr">@Format.Timestamp(q.InspectedAtUtc.Value)</bdi> @(q.InspectedByActorName is not null ? $"({q.InspectedByActorName})" : string.Empty)</span>
-                            </div>
-                        }
-                    </div>
+    <QualityInspectionDetailsModal @ref="detailsModal"
+                                  @bind-IsOpen="detailsOpen"
+                                  DialogClasses="@DialogClasses"
+                                  CurrentScope="@CurrentScope"
+                                  CurrentOrgId="@(ScopeOrganizationId(CurrentScope))"
+                                  ActiveParameters="@activeParameters"
+                                  CanManage="@scopeCanManage"
+                                  StatusBadgeClass="StatusBadgeClass"
+                                  StatusLabel="StatusLabel"
+                                  OnInspectionChanged="OnInspectionChangedAsync"
+                                  OnOpenCoa="OpenCoaModalFromTuple" />
 
-                    @if (scopeCanManage && q.Status is QualityInspectionStatus.Pending or QualityInspectionStatus.InReview)
-                    {
-                        <div class="po-context-card">
-                            <div class="po-context-head">
-                                <strong>@Text["QcMeasurementsSection"]</strong>
-                                <div class="read-row-actions">
-                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)" OnClick="ApplySpecToInspectionAsync">
-                                        @Text["QcLoadTemplateBtn"]
-                                    </BitButton>
-                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="po-add-cond-btn" Icon="@PlusIcon" OnClick="AddMeasurementLine">
-                                        @Text["QcAddLineBtn"]
-                                    </BitButton>
-                                </div>
-                            </div>
-                            <div class="po-form-grid">
-                                <div class="write-field">
-                                    <label for="qc-det-cert">@Text["QcCertNumberLabel"]</label>
-                                    <input id="qc-det-cert" type="text" maxlength="64" @bind="editCertificateNumber" placeholder="COA-2026-001" />
-                                </div>
-                                <div class="write-field">
-                                    <label for="qc-det-defect">@Text["QcDefectCodeLabel"]</label>
-                                    <input id="qc-det-defect" type="text" maxlength="64" @bind="editDefectCode" />
-                                </div>
-                                <div class="write-field po-field-full">
-                                    <label for="qc-det-notes">@Text["PoNotesLabel"]</label>
-                                    <input id="qc-det-notes" type="text" maxlength="1000" @bind="editNotes" />
-                                </div>
-                            </div>
-                            @foreach (var line in editLines)
-                            {
-                                <div class="qc-spec-meas-card">
-                                    <div class="qc-spec-meas-head">
-                                        <select class="qc-param-select" value="@(line.QualityParameterId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty)"
-                                                @onchange="e => OnMeasurementParamChanged(line, e)">
-                                            <option value="">@Text["QcCustomParamOption"]</option>
-                                            @foreach (var p in activeParameters)
-                                            {
-                                                <option value="@p.Id">@p.Code — @p.Name (@p.Symbol@(string.IsNullOrWhiteSpace(p.UnitSymbol) ? string.Empty : $", {p.UnitSymbol}"))</option>
-                                            }
-                                        </select>
-                                        @if (!string.IsNullOrWhiteSpace(line.Symbol))
-                                        {
-                                            <span class="qc-symbol-chip" dir="ltr">@line.Symbol</span>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(line.UnitSymbol))
-                                        {
-                                            <span class="cap-badge" dir="ltr">@line.UnitSymbol</span>
-                                        }
-                                        @if (line.IsMandatory)
-                                        {
-                                            <span class="read-badge qc-status-pending">@Text["QcMandatoryLabel"]</span>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(line.TestMethod))
-                                        {
-                                            <span class="read-sub-cell" dir="ltr">@line.TestMethod</span>
-                                        }
-                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => editLines.Remove(line)">@Text["BomRemoveRowBtn"]</BitButton>
-                                    </div>
-                                    <div class="qc-line-row">
-                                        <input type="text" maxlength="100" @bind="line.ParameterName" placeholder="@Text["QcParamNamePlaceholder"]" disabled="@line.QualityParameterId.HasValue" />
-                                        <input type="text" maxlength="100" @bind="line.ExpectedSpec" placeholder="@Text["QcExpectedSpecPlaceholder"]" />
-                                        @if (line.DataType == QualityParameterDataType.Numeric)
-                                        {
-                                            <input type="number" step="any" dir="ltr" value="@(line.MeasuredNumericValue?.ToString("0.######", CultureInfo.InvariantCulture))" @onchange="e => OnNumericMeasuredChanged(line, e)"
-                                                   placeholder="@Text["QcMeasuredValPlaceholder"]" />
-                                        }
-                                        else
-                                        {
-                                            <input type="text" maxlength="100" @bind="line.MeasuredValue" placeholder="@Text["QcMeasuredValPlaceholder"]" />
-                                        }
-                                        <label class="perm-check">
-                                            <input type="checkbox" @bind="line.IsPassed" disabled="@(line.DataType == QualityParameterDataType.Numeric && (line.MinValue.HasValue || line.MaxValue.HasValue) && line.MeasuredNumericValue.HasValue)" />
-                                            <span>@Text["QcPassedCheck"]</span>
-                                        </label>
-                                    </div>
-                                </div>
-                            }
-                            <div class="write-actions">
-                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)" OnClick="SaveMeasurementsAsync">
-                                    @Text["QcSaveMeasurementsBtn"]
-                                </BitButton>
-                            </div>
-                        </div>
-
-                        <div class="po-context-card">
-                            <strong>@Text["QcDispositionSection"]</strong>
-                            @if (HasMandatoryFailure() && dispAcceptQty > 0m && string.IsNullOrWhiteSpace(editDefectCode) && string.IsNullOrWhiteSpace(dispNotes) && string.IsNullOrWhiteSpace(editNotes))
-                            {
-                                <p role="alert" class="write-error qc-concession-banner">@Text["QcConcessionWarning"]</p>
-                            }
-                            <div class="po-form-grid">
-                                <div class="write-field">
-                                    <label for="qc-disp-accept">@Text["QcAcceptQtyLabel"] (@q.BaseUnitSymbol)</label>
-                                    <input id="qc-disp-accept" type="number" step="0.000001" min="0" @bind="dispAcceptQty" />
-                                </div>
-                                <div class="write-field">
-                                    <label for="qc-disp-reject">@Text["QcRejectScrapQtyLabel"] (@q.BaseUnitSymbol)</label>
-                                    <input id="qc-disp-reject" type="number" step="0.000001" min="0" @bind="dispRejectQty" />
-                                </div>
-                                <div class="write-field">
-                                    <label for="qc-disp-scrapdoc">@Text["QcScrapDocLabel"]</label>
-                                    <input id="qc-disp-scrapdoc" type="text" maxlength="32" class="@(qcScrapAllowOverride ? string.Empty : "proc-input-readonly")" @bind="dispScrapDoc" readonly="@(!qcScrapAllowOverride)" dir="ltr" />
-                                </div>
-                                <div class="write-field">
-                                    <label for="qc-disp-notes">@Text["PoNotesLabel"]</label>
-                                    <input id="qc-disp-notes" type="text" maxlength="1000" @bind="dispNotes" />
-                                </div>
-                            </div>
-                            <div class="write-actions">
-                                <BitButton IsEnabled="@(!modalBusy && (dispAcceptQty + dispRejectQty) > 0m)" OnClick="SubmitDispositionAsync">
-                                    @Text["QcRecordDispositionBtn"]
-                                </BitButton>
-                                @if (q.AcceptedBaseQuantity == 0m && q.RejectedBaseQuantity == 0m)
-                                {
-                                    <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="CancelHoldAsync">
-                                        @Text["QcCancelHoldBtn"]
-                                    </BitButton>
-                                }
-                            </div>
-                        </div>
-                    }
-                    else if (selectedInspection.Lines.Count > 0)
-                    {
-                        <div class="audit-modal-section">
-                            <h3 class="audit-section-heading">@Text["QcMeasurementsSection"]</h3>
-                            <div class="audit-fields-box">
-                                <table class="audit-fields-table">
-                                    <thead>
-                                        <tr>
-                                            <th>#</th>
-                                            <th>@Text["QcParamNamePlaceholder"]</th>
-                                            <th>@Text["QcExpectedSpecPlaceholder"]</th>
-                                            <th>@Text["QcMeasuredValPlaceholder"]</th>
-                                            <th>@Text["ReadStatus"]</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var l in selectedInspection.Lines)
-                                        {
-                                            <tr>
-                                                <td>@l.LineNumber</td>
-                                                <td>
-                                                    @if (!string.IsNullOrWhiteSpace(l.Symbol))
-                                                    {
-                                                        <strong class="qc-symbol-chip" dir="ltr">@l.Symbol</strong>
-                                                    }
-                                                    <span>@l.ParameterName</span>
-                                                    @if (l.IsMandatory) { <span class="qc-mandatory-star">*</span> }
-                                                    @if (!string.IsNullOrWhiteSpace(l.TestMethod))
-                                                    {
-                                                        <div class="read-sub-cell" dir="ltr">@l.TestMethod</div>
-                                                    }
-                                                </td>
-                                                <td dir="ltr">@(l.ExpectedSpec ?? "—")</td>
-                                                <td dir="ltr">
-                                                    @(l.MeasuredValue ?? "—")
-                                                    @if (!string.IsNullOrWhiteSpace(l.UnitSymbol) && !string.IsNullOrWhiteSpace(l.MeasuredValue))
-                                                    {
-                                                        <span class="read-sub-cell"> @l.UnitSymbol</span>
-                                                    }
-                                                </td>
-                                                <td>
-                                                    <span class="read-badge @(l.IsPassed ? "qc-status-completed" : "rpt-shortage-badge")">
-                                                        @Text[l.IsPassed ? "QcPassedCheck" : "QcFailedLabel"]
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-        </Body>
-    </BitDialog>
-
-    <BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="lotModalOpen"
-               Title="@Text["QcLotUpsertTitle"]" AriaLabel="@Text["QcLotUpsertTitle"]"
-               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-        <Body>
-            <div class="audit-modal-body">
-                @if (lotError is not null)
-                {
-                    <p role="alert" class="write-error">@Text[lotError]</p>
-                }
-                <div class="po-form-grid">
-                    <div class="write-field">
-                        <label for="qc-lot-item">@Text["BomLineItemColumn"]</label>
-                        <select id="qc-lot-item" @bind="lotEditItemId" disabled="@(editingLot is not null)">
-                            <option value="0">@Text["InvSelectItemOption"]</option>
-                            @foreach (var it in activeItems)
-                            {
-                                <option value="@it.Id">@it.Code — @it.Name</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="write-field">
-                        <label for="qc-lot-code">@Text["InvLotCodeLabel"]</label>
-                        <input id="qc-lot-code" type="text" maxlength="32" @bind="lotEditCode" disabled="@(editingLot is not null)" />
-                    </div>
-                    <div class="write-field">
-                        <label>@Text["QcLotMfgDateLabel"]</label>
-                        <BitDatePicker @bind-Value="lotMfgDateOffset" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
-                                       ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowClearButton="true" ShowGoToToday="true"
-                                       GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
-                                       NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon" NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
-                    </div>
-                    <div class="write-field">
-                        <label>@Text["QcLotExpDateLabel"]</label>
-                        <BitDatePicker @bind-Value="lotExpDateOffset" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
-                                       ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowClearButton="true" ShowGoToToday="true"
-                                       GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
-                                       NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon" NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
-                    </div>
-                    <div class="write-field po-field-full">
-                        <label for="qc-lot-notes">@Text["PoNotesLabel"]</label>
-                        <textarea id="qc-lot-notes" rows="2" maxlength="500" @bind="lotEditNotes"></textarea>
-                    </div>
-                </div>
-                <div class="po-dialog-footer">
-                    <BitButton IsEnabled="@(!modalBusy && lotEditItemId > 0 && !string.IsNullOrWhiteSpace(lotEditCode))" OnClick="SubmitLotMetadataAsync">
-                        @Text["WriteSave"]
-                    </BitButton>
-                    <BitButton Variant="BitVariant.Outline" OnClick="() => lotModalOpen = false">@Text["WriteCancel"]</BitButton>
-                </div>
-            </div>
-        </Body>
-    </BitDialog>
+    <QualityLotModal @ref="lotModal"
+                     @bind-IsOpen="lotModalOpen"
+                     DialogClasses="@DialogClasses"
+                     CurrentScope="@CurrentScope"
+                     CurrentOrgId="@(ScopeOrganizationId(CurrentScope))"
+                     ActiveItems="@activeItems"
+                     OnSaved="OnLotSavedAsync" />
 
     <ForgeFormDialog IsOpen="@paramModalOpen" IsOpenChanged="v => paramModalOpen = v" Width="640px"
                      Title="@Text[editingParam is null ? "QcCreateParameterTitle" : "QcEditParameterTitle"]"
@@ -1041,7 +638,7 @@
     private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
     private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
 
-    private BitDataGrid<QualityInspectionSummary>? inspGrid;
+    private InspectionGrid? inspGrid;
     private BitDataGrid<ItemLotSummary>? lotGrid;
     private BitDataGrid<QualityParameterSummary>? paramGrid;
     private BitDataGrid<QualitySpecSummary>? specGrid;
@@ -1074,39 +671,14 @@
     private string? appliedSearch;
     private bool modalBusy;
 
+    private QualityHoldModal? holdModal;
     private bool holdModalOpen;
-    private string? holdError;
-    private string holdNumber = string.Empty;
-    private long holdWarehouseId;
-    private long holdItemId;
-    private string holdLotCode = string.Empty;
-    private decimal holdQuantity = 1m;
-    private long holdUnitId;
-    private string? holdDefectCode;
-    private string? holdNotes;
 
+    private QualityInspectionDetailsModal? detailsModal;
     private bool detailsOpen;
-    private QualityInspectionDetails? selectedInspection;
-    private string? detailsError;
-    private string? editCertificateNumber;
-    private string? editDefectCode;
-    private string? editNotes;
-    private readonly List<MeasurementEditRow> editLines = [];
-    private decimal dispAcceptQty;
-    private decimal dispRejectQty;
-    private string? dispScrapDoc;
-    private string? qcScrapPreview;
-    private bool qcScrapAllowOverride;
-    private string? dispNotes;
 
+    private QualityLotModal? lotModal;
     private bool lotModalOpen;
-    private ItemLotSummary? editingLot;
-    private string? lotError;
-    private long lotEditItemId;
-    private string lotEditCode = string.Empty;
-    private DateTimeOffset? lotMfgDateOffset;
-    private DateTimeOffset? lotExpDateOffset;
-    private string? lotEditNotes;
 
     private bool coaOpen;
     private long coaItemId;
@@ -1136,25 +708,6 @@
     private string? specNotes;
     private readonly List<SpecLineEditRow> specLines = [];
 
-    private sealed class MeasurementEditRow
-    {
-        public long? QualityParameterId { get; set; }
-        public string? ParameterCode { get; set; }
-        public string ParameterName { get; set; } = string.Empty;
-        public string? Symbol { get; set; }
-        public string? UnitSymbol { get; set; }
-        public string? TestMethod { get; set; }
-        public QualityParameterDataType DataType { get; set; } = QualityParameterDataType.Text;
-        public decimal? MinValue { get; set; }
-        public decimal? MaxValue { get; set; }
-        public decimal? TargetValue { get; set; }
-        public decimal? MeasuredNumericValue { get; set; }
-        public string? ExpectedSpec { get; set; }
-        public string? MeasuredValue { get; set; }
-        public bool IsPassed { get; set; } = true;
-        public bool IsMandatory { get; set; }
-        public string? Notes { get; set; }
-    }
 
     private sealed class SpecLineEditRow
     {
@@ -1168,7 +721,7 @@
     }
 
     private OrganizationScope? CurrentScope => scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
-    private static long ScopeOrganizationId(OrganizationScope scope) => scope switch
+    private static long ScopeOrganizationId(OrganizationScope? scope) => scope switch
     {
         OrganizationScope.Organization o => o.OrganizationId,
         OrganizationScope.Site s => s.OrganizationId,
@@ -1315,10 +868,7 @@
     private async Task ReloadActiveGridAsync(bool fromFirstPage)
     {
         if (activeTab == TabInspections && inspGrid is not null)
-        {
-            if (fromFirstPage && inspGrid.CurrentPage > 1) await inspGrid.GoToPageAsync(1);
-            else await inspGrid.RefreshAsync();
-        }
+            await inspGrid.RefreshAsync(fromFirstPage);
         else if (activeTab == TabLots && lotGrid is not null)
         {
             if (fromFirstPage && lotGrid.CurrentPage > 1) await lotGrid.GoToPageAsync(1);
@@ -1393,185 +943,33 @@
 
     private Task OpenHoldModalAsync()
     {
-        holdError = null;
-        holdNumber = $"QCH-{DateTime.UtcNow:yyyyMMddHHmm}";
-        holdWarehouseId = activeWarehouses.FirstOrDefault()?.Id ?? 0;
-        var firstItem = activeItems.FirstOrDefault();
-        holdItemId = firstItem?.Id ?? 0;
-        holdUnitId = firstItem?.BaseUnitId ?? activeUnits.FirstOrDefault()?.Id ?? 0;
-        holdLotCode = string.Empty;
-        holdQuantity = 1m;
-        holdDefectCode = null;
-        holdNotes = null;
-        holdModalOpen = true;
+        holdModal?.Open();
         return Task.CompletedTask;
     }
 
-    private void OnHoldItemChanged(ChangeEventArgs e)
+    private async Task OnHoldCreatedAsync()
     {
-        if (long.TryParse(e.Value?.ToString(), out var id))
-        {
-            holdItemId = id;
-            var it = activeItems.FirstOrDefault(x => x.Id == id);
-            if (it is not null) holdUnitId = it.BaseUnitId;
-        }
-    }
-
-    private async Task SubmitManualHoldAsync()
-    {
-        var scope = CurrentScope;
-        if (scope is null) return;
-        modalBusy = true;
-        holdError = null;
-        try
-        {
-            var res = await QualityService.CreateManualHold(scope, new CreateManualQualityHoldRequest(
-                ScopeOrganizationId(scope), holdWarehouseId, holdItemId, holdLotCode, holdNumber,
-                holdQuantity, holdUnitId > 0 ? holdUnitId : null, holdDefectCode, holdNotes));
-            if (!res.Succeeded) { holdError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            holdModalOpen = false;
-            pageNotice = Text["QcHoldCreatedNotice"];
-            await ReloadActiveGridAsync(true);
-        }
-        finally { modalBusy = false; }
+        pageNotice = Text["QcHoldCreatedNotice"];
+        await ReloadActiveGridAsync(true);
     }
 
     private async Task OpenInspectionDetailsAsync(long id)
     {
-        var scope = CurrentScope;
-        if (scope is null) return;
-        var res = await QualityService.GetInspection(scope, ScopeOrganizationId(scope), id);
-        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-        var scrapPrev = await SeqService.GetPreview(scope, ScopeOrganizationId(scope), ForgeFlow.Domain.Organizations.DocumentSequenceType.QualityScrap);
-        qcScrapAllowOverride = scrapPrev.Succeeded && scrapPrev.Value!.AllowManualOverride;
-        qcScrapPreview = scrapPrev.Succeeded ? scrapPrev.Value!.NextPreview : null;
-        ApplyInspectionDetails(res.Value!);
-        detailsOpen = true;
-    }
-
-    private void ApplyInspectionDetails(QualityInspectionDetails details)
-    {
-        selectedInspection = details;
-        detailsError = null;
-        editCertificateNumber = details.Summary.CertificateNumber;
-        editDefectCode = details.Summary.DefectReasonCode;
-        editNotes = details.Summary.Notes;
-        editLines.Clear();
-        foreach (var l in details.Lines)
+        if (detailsModal is not null)
         {
-            editLines.Add(new MeasurementEditRow
-            {
-                QualityParameterId = l.QualityParameterId,
-                ParameterCode = l.ParameterCode,
-                ParameterName = l.ParameterName,
-                Symbol = l.Symbol,
-                UnitSymbol = l.UnitSymbol,
-                TestMethod = l.TestMethod,
-                DataType = l.DataType,
-                MinValue = l.MinValue,
-                MaxValue = l.MaxValue,
-                TargetValue = l.TargetValue,
-                MeasuredNumericValue = l.MeasuredNumericValue,
-                ExpectedSpec = l.ExpectedSpec,
-                MeasuredValue = l.MeasuredValue,
-                IsPassed = l.IsPassed,
-                IsMandatory = l.IsMandatory,
-                Notes = l.Notes
-            });
-        }
-        dispAcceptQty = details.Summary.RemainingBlockedBaseQuantity;
-        dispRejectQty = 0m;
-        dispScrapDoc = qcScrapPreview;
-        dispNotes = null;
-    }
-
-    private void AddMeasurementLine() => editLines.Add(new MeasurementEditRow());
-
-    private void OnMeasurementParamChanged(MeasurementEditRow row, ChangeEventArgs e)
-    {
-        if (!long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var pid) || pid <= 0)
-        {
-            row.QualityParameterId = null;
-            row.ParameterCode = null;
-            row.Symbol = null;
-            row.UnitSymbol = null;
-            row.TestMethod = null;
-            row.DataType = QualityParameterDataType.Text;
-            return;
-        }
-        var p = activeParameters.FirstOrDefault(x => x.Id == pid);
-        if (p is null) return;
-        row.QualityParameterId = p.Id;
-        row.ParameterCode = p.Code;
-        row.ParameterName = p.Name;
-        row.Symbol = p.Symbol;
-        row.UnitSymbol = p.UnitSymbol;
-        row.TestMethod = p.DefaultTestMethod;
-        row.DataType = p.DataType;
-    }
-
-    private void OnNumericMeasuredChanged(MeasurementEditRow row, ChangeEventArgs e)
-    {
-        if (decimal.TryParse(e.Value?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var val))
-        {
-            row.MeasuredNumericValue = val;
-            row.MeasuredValue = val.ToString("0.######", CultureInfo.InvariantCulture);
-            if (row.MinValue.HasValue || row.MaxValue.HasValue)
-                row.IsPassed = QualityInspectionLine.EvaluateNumericPass(row.MinValue, row.MaxValue, val);
-        }
-        else
-        {
-            row.MeasuredNumericValue = null;
-            row.MeasuredValue = null;
-            if (row.MinValue.HasValue || row.MaxValue.HasValue)
-                row.IsPassed = false;
+            await detailsModal.OpenAsync(id);
         }
     }
 
-    private bool HasMandatoryFailure() => editLines.Any(l => l.IsMandatory && !l.IsPassed);
-
-    private async Task ApplySpecToInspectionAsync()
+    private async Task OnInspectionChangedAsync(string? notice)
     {
-        var scope = CurrentScope;
-        if (scope is null || selectedInspection is null) return;
-        modalBusy = true;
-        detailsError = null;
-        try
-        {
-            var res = await SpecService.ApplySpecToInspection(
-                scope,
-                selectedInspection.Summary.OrganizationId,
-                selectedInspection.Summary.Id,
-                selectedInspection.Summary.RowVersion);
-            if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            ApplyInspectionDetails(res.Value!);
-            pageNotice = Text["QcTemplateLoadedNotice"];
-            await ReloadActiveGridAsync(false);
-        }
-        finally { modalBusy = false; }
+        pageNotice = notice;
+        await ReloadActiveGridAsync(false);
     }
 
-    private async Task SaveMeasurementsAsync()
+    private void OpenCoaModalFromTuple((long ItemId, string LotCode) args)
     {
-        var scope = CurrentScope;
-        if (scope is null || selectedInspection is null) return;
-        modalBusy = true;
-        detailsError = null;
-        try
-        {
-            var lines = editLines.Select(l => new QualityInspectionLineInput(
-                l.ParameterName, l.ExpectedSpec, l.MeasuredValue, l.IsPassed, l.Notes,
-                l.QualityParameterId, l.ParameterCode, l.Symbol, l.UnitSymbol, l.TestMethod,
-                l.DataType, l.MinValue, l.MaxValue, l.TargetValue, l.MeasuredNumericValue, l.IsMandatory)).ToArray();
-            var res = await QualityService.UpdateMeasurements(scope, new UpdateQualityMeasurementsRequest(
-                selectedInspection.Summary.OrganizationId, selectedInspection.Summary.Id,
-                editDefectCode, editNotes, lines, selectedInspection.Summary.RowVersion, editCertificateNumber));
-            if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            ApplyInspectionDetails(res.Value!);
-            pageNotice = Text["WriteSaved"];
-            await ReloadActiveGridAsync(false);
-        }
-        finally { modalBusy = false; }
+        OpenCoaModal(args.ItemId, args.LotCode);
     }
 
     private void OpenCoaModal(long itemId, string lotCode)
@@ -1762,75 +1160,15 @@
         _ => Text["QcCheckpointAll"]
     };
 
-    private async Task SubmitDispositionAsync()
-    {
-        var scope = CurrentScope;
-        if (scope is null || selectedInspection is null) return;
-        modalBusy = true;
-        detailsError = null;
-        try
-        {
-            var res = await QualityService.RecordDisposition(scope, new RecordQualityDispositionRequest(
-                selectedInspection.Summary.OrganizationId, selectedInspection.Summary.Id,
-                dispAcceptQty, dispRejectQty, selectedInspection.Summary.BaseUnitId,
-                editDefectCode, dispNotes, qcScrapAllowOverride ? dispScrapDoc : null, selectedInspection.Summary.RowVersion));
-            if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            ApplyInspectionDetails(res.Value!);
-            pageNotice = Text["QcDispositionSavedNotice"];
-            await ReloadActiveGridAsync(false);
-        }
-        finally { modalBusy = false; }
-    }
-
-    private async Task CancelHoldAsync()
-    {
-        var scope = CurrentScope;
-        if (scope is null || selectedInspection is null) return;
-        modalBusy = true;
-        detailsError = null;
-        try
-        {
-            var res = await QualityService.CancelHold(scope, new CancelQualityHoldRequest(
-                selectedInspection.Summary.OrganizationId, selectedInspection.Summary.Id,
-                dispNotes ?? editNotes, selectedInspection.Summary.RowVersion));
-            if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            ApplyInspectionDetails(res.Value!);
-            pageNotice = Text["QcHoldCancelledNotice"];
-            await ReloadActiveGridAsync(false);
-        }
-        finally { modalBusy = false; }
-    }
-
     private void OpenLotModal(ItemLotSummary? lot)
     {
-        lotError = null;
-        editingLot = lot;
-        lotEditItemId = lot?.ItemId ?? activeItems.FirstOrDefault()?.Id ?? 0;
-        lotEditCode = lot?.LotCode ?? string.Empty;
-        lotMfgDateOffset = lot?.ManufactureDate is DateOnly m ? new DateTimeOffset(m.Year, m.Month, m.Day, 0, 0, 0, TimeSpan.Zero) : null;
-        lotExpDateOffset = lot?.ExpirationDate is DateOnly e ? new DateTimeOffset(e.Year, e.Month, e.Day, 0, 0, 0, TimeSpan.Zero) : null;
-        lotEditNotes = lot?.Notes;
-        lotModalOpen = true;
+        lotModal?.Open(lot);
     }
 
-    private async Task SubmitLotMetadataAsync()
+    private async Task OnLotSavedAsync()
     {
-        var scope = CurrentScope;
-        if (scope is null) return;
-        modalBusy = true;
-        lotError = null;
-        try
-        {
-            DateOnly? mfg = lotMfgDateOffset.HasValue ? DateOnly.FromDateTime(lotMfgDateOffset.Value.Date) : null;
-            DateOnly? exp = lotExpDateOffset.HasValue ? DateOnly.FromDateTime(lotExpDateOffset.Value.Date) : null;
-            var res = await QualityService.UpsertItemLotMetadata(scope, new UpsertItemLotMetadataRequest(
-                ScopeOrganizationId(scope), lotEditItemId, lotEditCode, mfg, exp, lotEditNotes, editingLot?.RowVersion));
-            if (!res.Succeeded) { lotError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            lotModalOpen = false;
-            pageNotice = Text["WriteSaved"];
-            await ReloadActiveGridAsync(false);
-        }
-        finally { modalBusy = false; }
+        pageNotice = Text["WriteSaved"];
+        await ReloadActiveGridAsync(false);
     }
 
     private string StatusLabel(QualityInspectionStatus status) => status switch

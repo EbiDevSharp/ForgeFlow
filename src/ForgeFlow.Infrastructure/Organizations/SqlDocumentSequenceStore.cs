@@ -153,7 +153,7 @@ public sealed class SqlDocumentSequenceStore(
                 if (seq is null)
                     return OrganizationResult<DocumentSequenceSummary>.Failure(DocumentSequenceErrors.NotFound);
 
-                var currentVersion = (byte[])db.Entry(seq).Property("RowVersion").CurrentValue!;
+                var currentVersion = seq.RowVersion;
                 if (version.Length > 0 && !currentVersion.SequenceEqual(version))
                     return OrganizationResult<DocumentSequenceSummary>.Failure(DocumentSequenceErrors.ConcurrencyConflict);
 
@@ -162,7 +162,7 @@ public sealed class SqlDocumentSequenceStore(
 
                 await tx.CommitAsync(ct);
                 return OrganizationResult<DocumentSequenceSummary>.Success(
-                    ToSummary(seq, (byte[])db.Entry(seq).Property("RowVersion").CurrentValue!, utcNow));
+                    ToSummary(seq, seq.RowVersion, utcNow));
             });
         }
         catch (DocumentSequenceRuleException ex)
@@ -191,6 +191,9 @@ public sealed class SqlDocumentSequenceStore(
         if (!string.IsNullOrWhiteSpace(requestedNumber))
             return requestedNumber.Trim().ToUpperInvariant();
 
+        if (db.Database.CurrentTransaction is null)
+            throw new InvalidOperationException("DocumentSequence allocation requires an active database transaction.");
+
         var docTypeByte = (byte)documentType;
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT [Id] FROM [organization].[DocumentSequence] WITH (UPDLOCK, HOLDLOCK) WHERE [OrganizationId] = {organizationId} AND [DocumentType] = {docTypeByte}", ct);
@@ -200,8 +203,17 @@ public sealed class SqlDocumentSequenceStore(
 
         if (seq is null)
         {
-            seq = DocumentSequence.CreateDefault(organizationId, documentType);
-            db.DocumentSequences.Add(seq);
+            // Serialize first-time sequence creation on the parent Organization row so concurrent
+            // transactions cannot both observe null and collide on UX_DocumentSequence_Org_Type.
+            await LockOrganizationAsync(db, organizationId, ct);
+            seq = await db.DocumentSequences
+                .SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.DocumentType == documentType, ct);
+
+            if (seq is null)
+            {
+                seq = DocumentSequence.CreateDefault(organizationId, documentType);
+                db.DocumentSequences.Add(seq);
+            }
         }
 
         return seq.AllocateNextNumber(utcNow);

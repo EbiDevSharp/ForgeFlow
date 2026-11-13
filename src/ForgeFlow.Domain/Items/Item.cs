@@ -1,3 +1,5 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Items;
 
 public enum QualityControlMode : byte
@@ -9,8 +11,10 @@ public enum QualityControlMode : byte
 }
 
 /// <summary>Organization-shared universal Item Master with operational capabilities.</summary>
-public sealed class Item
+public sealed class Item : IHasDomainEvents, IHasRowVersion
 {
+    private readonly List<IDomainEvent> domainEvents = [];
+
     private Item()
     {
         Code = null!;
@@ -30,13 +34,11 @@ public sealed class Item
         bool requiresLotTracking,
         QualityControlMode qualityControlMode)
     {
-        if (organizationId <= 0)
-            throw new ItemRuleException(ItemErrors.NotFound);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(organizationId);
         if (baseUnitId <= 0)
             throw new ItemRuleException(ItemErrors.BaseUnitNotFound, ("field", "BaseUnitId"));
         if (!Enum.IsDefined(qualityControlMode))
             throw new ItemRuleException(ItemErrors.QualityControlModeInvalid, ("field", "QualityControlMode"));
-        EnsureHasCapability(canBePurchased, canBeManufactured, canBeSold, canBeConsumed);
 
         OrganizationId = organizationId;
         Code = ItemText.Code(code);
@@ -50,7 +52,11 @@ public sealed class Item
         RequiresLotTracking = requiresLotTracking;
         QualityControlMode = qualityControlMode;
         IsActive = true;
+        domainEvents.Add(new ItemCreatedDomainEvent(organizationId, Code, DateTime.UtcNow));
     }
+
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => domainEvents;
+    public void ClearDomainEvents() => domainEvents.Clear();
 
     public long Id { get; private set; }
     public long OrganizationId { get; private set; }
@@ -65,6 +71,7 @@ public sealed class Item
     public bool RequiresLotTracking { get; private set; }
     public QualityControlMode QualityControlMode { get; private set; }
     public bool IsActive { get; private set; } = true;
+    public byte[] RowVersion { get; private set; } = [];
 
     public static Item Create(
         long organizationId,
@@ -97,7 +104,6 @@ public sealed class Item
             throw new ItemRuleException(ItemErrors.BaseUnitNotFound, ("field", "BaseUnitId"));
         if (!Enum.IsDefined(qualityControlMode))
             throw new ItemRuleException(ItemErrors.QualityControlModeInvalid, ("field", "QualityControlMode"));
-        EnsureHasCapability(canBePurchased, canBeManufactured, canBeSold, canBeConsumed);
 
         var normalizedName = ItemText.Name(name);
         var normalizedDescription = ItemText.OptionalText(description, ItemText.DescriptionMaxLength, ItemErrors.DescriptionInvalid, "Description");
@@ -124,6 +130,7 @@ public sealed class Item
         CanBeConsumed = canBeConsumed;
         RequiresLotTracking = requiresLotTracking;
         QualityControlMode = qualityControlMode;
+        domainEvents.Add(new ItemUpdatedDomainEvent(OrganizationId, Code, DateTime.UtcNow));
         return true;
     }
 
@@ -131,6 +138,7 @@ public sealed class Item
     {
         if (IsActive) return false;
         IsActive = true;
+        domainEvents.Add(new ItemStatusChangedDomainEvent(OrganizationId, Code, true, DateTime.UtcNow));
         return true;
     }
 
@@ -138,12 +146,11 @@ public sealed class Item
     {
         if (!IsActive) return false;
         IsActive = false;
+        domainEvents.Add(new ItemStatusChangedDomainEvent(OrganizationId, Code, false, DateTime.UtcNow));
         return true;
     }
-
-    private static void EnsureHasCapability(bool purchased, bool manufactured, bool sold, bool consumed)
-    {
-        if (!purchased && !manufactured && !sold && !consumed)
-            throw new ItemRuleException(ItemErrors.CapabilityRequired);
-    }
 }
+
+public sealed record ItemCreatedDomainEvent(long OrganizationId, string ItemCode, DateTime OccurredAtUtc) : IDomainEvent;
+public sealed record ItemUpdatedDomainEvent(long OrganizationId, string ItemCode, DateTime OccurredAtUtc) : IDomainEvent;
+public sealed record ItemStatusChangedDomainEvent(long OrganizationId, string ItemCode, bool IsActive, DateTime OccurredAtUtc) : IDomainEvent;

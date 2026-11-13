@@ -81,6 +81,31 @@ public sealed class SwitchAndDraftTests
     }
 
     [Theory]
+    [InlineData("password", "pwd-input", "text")]
+    [InlineData("userPassword", "u-pwd", "text")]
+    [InlineData("authToken", "token-input", "text")]
+    [InlineData("secretKey", "sk-input", "text")]
+    [InlineData("regularField", "reg-input", "password")]
+    [InlineData("apiKey", "api-token", "text")]
+    public void DraftCoordinator_ValidateDefinition_rejects_sensitive_fields(string fieldName, string fieldId, string kind)
+    {
+        var def = new DraftDefinition("test-form", "test-scope", 1, [new DraftField(fieldName, fieldId, 100, kind)], ["en-US", "fa-IR"]);
+        Assert.Throws<InvalidOperationException>(() => DraftCoordinator.ValidateDefinition(def));
+    }
+
+    [Fact]
+    public void DraftCoordinator_ValidateDefinition_allows_safe_business_fields()
+    {
+        var def = new DraftDefinition("item-form", "items", 1, [
+            new DraftField("Code", "item-code", 32, "text"),
+            new DraftField("Name", "item-name", 200, "text"),
+            new DraftField("Notes", "item-notes", 500, "text"),
+            new DraftField("Quantity", "item-qty", 20, "number")
+        ], ["en-US", "fa-IR"]);
+        DraftCoordinator.ValidateDefinition(def);
+    }
+
+    [Theory]
     [InlineData("fa-IR", "/", true, 204)]
     [InlineData("en-US", "/", true, 204)]
     [InlineData("xx-XX", "/", true, 400)]

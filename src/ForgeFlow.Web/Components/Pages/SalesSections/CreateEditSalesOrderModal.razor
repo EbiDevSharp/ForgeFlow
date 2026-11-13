@@ -1,0 +1,433 @@
+@using ForgeFlow.Application.Common
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Reporting
+@using ForgeFlow.Application.Sales
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Organizations
+@inject SalesUseCases SalesService
+@inject InventoryUseCases InvService
+@inject ItemUseCases ItemService
+@inject UnitUseCases UnitService
+@inject DocumentSequenceUseCases SeqService
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+@inject CulturePolicy Culture
+
+<ForgeFormDialog Width="1020px" IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged"
+                 Title="@(orderToEdit is not null ? Text["SalesOrderEditTitle"] : Text["SalesOrderCreateButton"])"
+                 Subtitle="@Text["SalesOrderModalSubtitle"]"
+                 CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (modalError is not null)
+        {
+            <p role="alert" class="write-error">@modalError</p>
+        }
+
+        <div class="proc-po-section-head">
+            <span class="proc-po-section-bar" aria-hidden="true"></span>
+            <h3>@Text["ProcGeneralInfoSection"]</h3>
+        </div>
+
+        <div class="proc-po-general-grid">
+            <div class="proc-po-field">
+                <label for="so-num">@Text["SalesOrderNumber"]</label>
+                <input id="so-num" type="text" class="@((orderToEdit is not null || !allowOverride) ? "proc-input-readonly" : string.Empty)"
+                       @bind="orderNumber" maxlength="32" readonly="@(orderToEdit is not null || !allowOverride)" dir="ltr" />
+            </div>
+            <div class="proc-po-field">
+                <label for="so-cust">@Text["SalesCustomerColumn"] <span class="proc-req-star" aria-hidden="true">*</span></label>
+                <select id="so-cust" @bind="customerId">
+                    <option value="0">@Text["SalesSelectCustomerPlaceholder"]</option>
+                    @foreach (var c in activeCustomers)
+                    {
+                        <option value="@c.Id">@c.Code — @c.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="proc-po-field">
+                <label for="so-site">@Text["PoSiteColumn"]</label>
+                <select id="so-site" value="@siteId" @onchange="ChangeSiteAsync" disabled="@(orderToEdit is not null || CurrentScope is OrganizationScope.Site)">
+                    @foreach (var s in AuthorizedSites)
+                    {
+                        <option value="@s.Id">@s.Code — @s.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="proc-po-field">
+                <label>@Text["ProcOrderDateLabel"]</label>
+                <BitDatePicker @bind-Value="orderDateOffset" Class="bom-dtp proc-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                               Placeholder="@Text["ProcSelectDatePlaceholder"]"
+                               ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowGoToToday="true"
+                               GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                               NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon"
+                               NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+            </div>
+            <div class="proc-po-field">
+                <label>@Text["SalesRequestedDate"]</label>
+                <BitDatePicker @bind-Value="requestedDateOffset" Class="bom-dtp proc-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                               Placeholder="@Text["ProcSelectDatePlaceholder"]"
+                               ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowGoToToday="true"
+                               GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                               NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon"
+                               NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+            </div>
+            <div class="proc-po-field">
+                <label for="so-cur">@Text["ProcCurrencyLabel"]</label>
+                <select id="so-cur" @bind="currencyCode">
+                    @foreach (var cur in activeCurrencies)
+                    {
+                        <option value="@cur.Code">@cur.Code — @cur.Name (@cur.Symbol)</option>
+                    }
+                    @if (!string.IsNullOrEmpty(currencyCode) && activeCurrencies.All(c => c.Code != currencyCode))
+                    {
+                        <option value="@currencyCode">@currencyCode</option>
+                    }
+                </select>
+            </div>
+
+            <div class="proc-po-field">
+                <label for="so-wh">@Text["SalesSourceWarehouse"]</label>
+                <select id="so-wh" value="@warehouseId" @onchange="ChangeWarehouseAsync">
+                    <option value="0">@Text["InvAllWarehousesOption"]</option>
+                    @foreach (var w in siteWarehouses)
+                    {
+                        <option value="@w.Id">@w.Code — @w.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="proc-po-field proc-po-notes-span">
+                <label for="so-addr">@Text["SalesShippingAddress"]</label>
+                <input id="so-addr" type="text" @bind="shippingAddress" maxlength="500" />
+            </div>
+
+            <div class="proc-po-field" style="grid-column:1 / -1">
+                <label for="so-notes">@Text["PoNotesLabel"]</label>
+                <input id="so-notes" type="text" @bind="notes" maxlength="1000" placeholder="@Text["ProcNotesOptionalPlaceholder"]" />
+            </div>
+        </div>
+
+        <div class="proc-po-section-head proc-po-section-head--split">
+            <div class="proc-po-section-title">
+                <span class="proc-po-section-bar" aria-hidden="true"></span>
+                <h3>@Text["ProcLinesSection"]</h3>
+            </div>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Icon="@PlusIcon" Class="proc-po-add-line-btn" OnClick="AddOrderLine">
+                @Text["ProcAddLineBtn"]
+            </BitButton>
+        </div>
+
+        <p class="write-hint" style="margin:0">@Text["SalesInventoryInfoHint"]</p>
+
+        <div class="proc-lines-card">
+            <div class="proc-lines-table">
+                <div class="proc-lines-grid proc-lines-head">
+                    <span>@Text["PoItemColumn"]</span>
+                    <span>@Text["ProcOrderedCol"]</span>
+                    <span>@Text["BomLineUnitColumn"]</span>
+                    <span>@Text["ProcUnitPriceLabel"]</span>
+                    <span>@Text["ProcLineAmountLabel"]</span>
+                    <span>@Text["PoNotesLabel"]</span>
+                    <span aria-hidden="true"></span>
+                </div>
+                @for (var idx = 0; idx < lines.Count; idx++)
+                {
+                    var i = idx;
+                    var line = lines[i];
+                    var stockInfo = line.ItemId > 0 && itemStockSummary.TryGetValue(line.ItemId, out var st) ? st : null;
+                    <div class="proc-lines-grid proc-lines-row sales-lines-row">
+                        <div style="display:flex;flex-direction:column;min-width:0">
+                            <select aria-label="@Text["PoItemColumn"]" value="@line.ItemId" @onchange="e => OnLineItemChanged(i, e)">
+                                <option value="0">@Text["ProcSelectItemPlaceholder"]</option>
+                                @foreach (var it in sellableItems)
+                                {
+                                    <option value="@it.Id">@it.Code — @it.Name</option>
+                                }
+                            </select>
+                            @if (line.ItemId > 0 && stockInfo is not null)
+                            {
+                                var isLow = stockInfo.Available <= 0m || (line.UnitId == stockInfo.BaseUnitId && line.Quantity > stockInfo.Available);
+                                <span class="sales-stock-pill @(isLow ? "is-low" : "is-ok")">
+                                    @(stockInfo.Available > 0m
+                                        ? Text["SalesStockAvailableBadge", Format.Number(stockInfo.Available), stockInfo.BaseUnitSymbol]
+                                        : Text["SalesStockZeroBadge", stockInfo.BaseUnitSymbol])
+                                </span>
+                            }
+                        </div>
+                        <input type="number" step="0.000001" min="0.000001" aria-label="@Text["ProcOrderedCol"]" @bind="line.Quantity" @bind:event="oninput" dir="ltr" />
+                        <select aria-label="@Text["BomLineUnitColumn"]" @bind="line.UnitId">
+                            @foreach (var u in activeUnits)
+                            {
+                                <option value="@u.Id">@u.Code (@u.Symbol)</option>
+                            }
+                        </select>
+                        <input type="number" step="0.0001" min="0" aria-label="@Text["ProcUnitPriceLabel"]" placeholder="0" @bind="line.UnitPrice" @bind:event="oninput" dir="ltr" />
+                        <div class="proc-line-amount" dir="ltr">
+                            @(line.UnitPrice.HasValue && line.Quantity > 0m ? Format.Number(line.Quantity * line.UnitPrice.Value) : "—")
+                        </div>
+                        <input type="text" maxlength="300" aria-label="@Text["PoNotesLabel"]" placeholder="@Text["PoNotesLabel"]" @bind="line.Notes" />
+                        <button type="button" class="proc-line-del-btn" aria-label="@Text["BomRemoveRowBtn"]" title="@Text["BomRemoveRowBtn"]"
+                                disabled="@(lines.Count <= 1)" @onclick="() => RemoveOrderLine(i)">
+                            <span class="ff-icon ff-icon--trash" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </ChildContent>
+    <FooterActions>
+        <BitButton Class="proc-po-primary-btn" IsEnabled="@(!saving)" OnClick="SaveOrderAsync">@(saving ? Text["WriteSaving"] : Text["WriteSave"])</BitButton>
+        <BitButton Variant="BitVariant.Outline" Class="proc-po-cancel-btn" OnClick="CloseAsync">@Text["WriteCancel"]</BitButton>
+    </FooterActions>
+    <FooterEnd>
+        <div class="proc-po-footer-total">
+            <span class="proc-po-total-label">@Text["ProcGrandTotalLabel"]</span>
+            <strong class="proc-po-total-val" dir="ltr">@Format.CurrencyAmount(OrderEstimatedTotal, currencyCode)</strong>
+        </div>
+    </FooterEnd>
+</ForgeFormDialog>
+
+@code {
+    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
+    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
+    private static readonly BitIconInfo PlusIcon = BitIconInfo.Css("ff-icon ff-icon--plus");
+    private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
+    private static readonly BitIconInfo NextNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-next");
+    private static readonly BitIconInfo PrevNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-prev");
+    private static readonly BitIconInfo NextYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-next");
+    private static readonly BitIconInfo PrevYearIcon = BitIconInfo.Css("ff-icon ff-icon--chevrons-prev");
+    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public IReadOnlyList<SiteDetails> AuthorizedSites { get; set; } = [];
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private SalesOrderDetails? orderToEdit;
+    private bool saving;
+    private string? modalError;
+    private bool allowOverride;
+    private string orderNumber = string.Empty;
+    private long customerId;
+    private long siteId;
+    private DateTimeOffset? orderDateOffset;
+    private DateTimeOffset? requestedDateOffset;
+    private string currencyCode = "IRR";
+    private long warehouseId;
+    private string? shippingAddress;
+    private string? notes;
+    private List<OrderLineEdit> lines = [];
+    private List<CustomerSummary> activeCustomers = [];
+    private List<CurrencySummary> activeCurrencies = [];
+    private List<UnitSummary> activeUnits = [];
+    private List<ItemSummary> sellableItems = [];
+    private List<WarehouseSummary> siteWarehouses = [];
+    private Dictionary<long, ItemStockSnapshot> itemStockSummary = [];
+
+    private decimal OrderEstimatedTotal => lines.Sum(l => l.UnitPrice.HasValue && l.Quantity > 0m ? l.Quantity * l.UnitPrice.Value : 0m);
+
+    private async Task OnIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    private async Task CloseAsync()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+
+    public async Task InitializeForCreateAsync()
+    {
+        if (CurrentScope is null) return;
+        orderToEdit = null;
+        siteId = CurrentScope is OrganizationScope.Site s ? s.SiteId : (AuthorizedSites.FirstOrDefault()?.Id ?? 0);
+        await LoadCommonLookupsAsync();
+        await LoadSiteLookupsAsync(siteId);
+
+        var prevRes = await SeqService.GetPreview(CurrentScope, CurrentOrgId, DocumentSequenceType.SalesOrder);
+        allowOverride = prevRes.Succeeded && prevRes.Value!.AllowManualOverride;
+        orderNumber = prevRes.Succeeded ? prevRes.Value!.NextPreview : string.Empty;
+        customerId = activeCustomers.FirstOrDefault()?.Id ?? 0;
+        warehouseId = 0;
+        orderDateOffset = DateTimeOffset.Now;
+        requestedDateOffset = null;
+        currencyCode = activeCurrencies.FirstOrDefault()?.Code ?? "IRR";
+        shippingAddress = null;
+        notes = null;
+        var firstItem = sellableItems.FirstOrDefault();
+        lines = [new OrderLineEdit { ItemId = firstItem?.Id ?? 0, Quantity = 1m, UnitId = firstItem?.BaseUnitId ?? 0 }];
+        modalError = null;
+        await OnIsOpenChanged(true);
+    }
+
+    public async Task InitializeForEditAsync(SalesOrderDetails details)
+    {
+        if (CurrentScope is null) return;
+        orderToEdit = details;
+        siteId = details.Summary.SiteId;
+        await LoadCommonLookupsAsync();
+        await LoadSiteLookupsAsync(siteId);
+
+        orderNumber = details.Summary.OrderNumber;
+        customerId = details.Summary.CustomerId;
+        warehouseId = details.Summary.SourceWarehouseId ?? 0;
+        orderDateOffset = new DateTimeOffset(details.Summary.OrderDate.ToDateTime(TimeOnly.MinValue));
+        requestedDateOffset = details.Summary.RequestedDeliveryDate is DateOnly rd ? new DateTimeOffset(rd.ToDateTime(TimeOnly.MinValue)) : null;
+        currencyCode = details.Summary.CurrencyCode;
+        shippingAddress = details.Summary.ShippingAddressSnapshot;
+        notes = details.Summary.Notes;
+        lines = details.Lines.Select(l => new OrderLineEdit
+        {
+            ItemId = l.ItemId,
+            Quantity = l.OrderedQuantity,
+            UnitId = l.OrderedUnitId,
+            UnitPrice = l.UnitPrice,
+            Notes = l.Notes
+        }).ToList();
+        modalError = null;
+        await OnIsOpenChanged(true);
+    }
+
+    private async Task LoadCommonLookupsAsync()
+    {
+        if (CurrentScope is null) return;
+        var custRes = await SalesService.ListCustomers(CurrentScope, CurrentOrgId, new CustomerListQuery(IncludeInactive: false, PageSize: 100));
+        activeCustomers = custRes.Succeeded ? custRes.Value!.Items.ToList() : [];
+
+        var itemRes = await ItemService.ListItems(CurrentScope, CurrentOrgId, new ItemListQuery(IncludeInactive: false, PageSize: 100));
+        sellableItems = itemRes.Succeeded ? itemRes.Value!.Items.Where(i => i.CanBeSold).ToList() : [];
+
+        var unitRes = await UnitService.ListUnits(CurrentScope, CurrentOrgId, new UnitListQuery(IncludeInactive: false, PageSize: 100));
+        activeUnits = unitRes.Succeeded ? unitRes.Value!.Items.ToList() : [];
+
+        var curRes = await UnitService.ListCurrencies(CurrentScope, CurrentOrgId, new CurrencyListQuery(IncludeInactive: false, PageSize: 100));
+        activeCurrencies = curRes.Succeeded ? curRes.Value!.Items.ToList() : [];
+    }
+
+    private async Task LoadSiteLookupsAsync(long forSiteId)
+    {
+        if (CurrentScope is null || forSiteId <= 0) return;
+        var whRes = await InvService.ListWarehouses(CurrentScope, CurrentOrgId, new WarehouseListQuery(SiteId: forSiteId, IncludeInactive: false, PageSize: 100));
+        siteWarehouses = whRes.Succeeded ? whRes.Value!.Items.ToList() : [];
+        await LoadStockSummaryAsync(forSiteId, warehouseId);
+    }
+
+    private async Task LoadStockSummaryAsync(long forSiteId, long forWarehouseId)
+    {
+        itemStockSummary = [];
+        if (CurrentScope is null || forSiteId <= 0) return;
+        try
+        {
+            var balRes = await InvService.ListBalances(CurrentScope, CurrentOrgId,
+                new InventoryBalanceListQuery(SiteId: forSiteId, WarehouseId: forWarehouseId > 0 ? forWarehouseId : null, IncludeZeroBalances: false, Page: 1, PageSize: 100));
+            if (!balRes.Succeeded) return;
+
+            var dict = new Dictionary<long, ItemStockSnapshot>();
+            foreach (var b in balRes.Value!.Items)
+            {
+                if (dict.TryGetValue(b.ItemId, out var cur))
+                    dict[b.ItemId] = cur with { Available = cur.Available + b.AvailableBaseQuantity };
+                else
+                    dict[b.ItemId] = new ItemStockSnapshot(b.BaseUnitId, b.BaseUnitSymbol, b.AvailableBaseQuantity);
+            }
+            foreach (var it in sellableItems)
+            {
+                if (!dict.ContainsKey(it.Id))
+                    dict[it.Id] = new ItemStockSnapshot(it.BaseUnitId, it.BaseUnitSymbol, 0m);
+            }
+            itemStockSummary = dict;
+        }
+        catch { }
+    }
+
+    private async Task ChangeSiteAsync(ChangeEventArgs e)
+    {
+        if (CurrentScope is null) return;
+        if (long.TryParse(e.Value?.ToString(), out var id))
+        {
+            siteId = id;
+            warehouseId = 0;
+            await LoadSiteLookupsAsync(siteId);
+        }
+    }
+
+    private async Task ChangeWarehouseAsync(ChangeEventArgs e)
+    {
+        warehouseId = long.TryParse(e.Value?.ToString(), out var whId) ? whId : 0;
+        await LoadStockSummaryAsync(siteId, warehouseId);
+    }
+
+    private void OnLineItemChanged(int index, ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), out var newItemId))
+        {
+            lines[index].ItemId = newItemId;
+            var item = sellableItems.FirstOrDefault(x => x.Id == newItemId);
+            if (item is not null)
+                lines[index].UnitId = item.BaseUnitId;
+        }
+    }
+
+    private void AddOrderLine()
+    {
+        var firstItem = sellableItems.FirstOrDefault();
+        lines.Add(new OrderLineEdit { ItemId = firstItem?.Id ?? 0, Quantity = 1m, UnitId = firstItem?.BaseUnitId ?? 0 });
+    }
+
+    private void RemoveOrderLine(int index)
+    {
+        if (lines.Count > 1) lines.RemoveAt(index);
+    }
+
+    private async Task SaveOrderAsync()
+    {
+        if (CurrentScope is null) return;
+        saving = true;
+        modalError = null;
+        try
+        {
+            var orderDate = DateOnly.FromDateTime((orderDateOffset ?? DateTimeOffset.Now).DateTime);
+            DateOnly? reqDate = requestedDateOffset is DateTimeOffset dto ? DateOnly.FromDateTime(dto.DateTime) : null;
+            var lineRequests = lines.Select(l => new SalesOrderLineRequest(l.ItemId, l.Quantity, l.UnitId, l.UnitPrice, l.Notes)).ToArray();
+
+            var res = orderToEdit is not null
+                ? await SalesService.UpdateSalesOrder(CurrentScope, CurrentOrgId, orderToEdit.Summary.Id,
+                    new UpdateSalesOrderRequest(customerId, orderDate, reqDate, warehouseId > 0 ? warehouseId : null, currencyCode, shippingAddress, notes, lineRequests),
+                    orderToEdit.Summary.RowVersion)
+                : await SalesService.CreateSalesOrder(CurrentScope,
+                    new CreateSalesOrderRequest(CurrentOrgId, siteId, customerId, allowOverride ? orderNumber : null, orderDate, reqDate, warehouseId > 0 ? warehouseId : null, currencyCode, shippingAddress, notes, lineRequests));
+
+            if (!res.Succeeded)
+            {
+                var key = "Err_" + res.Error!.Code.Replace(".", string.Empty, StringComparison.Ordinal);
+                var val = Text[key];
+                modalError = val.ResourceNotFound ? res.Error.Code : val.Value;
+                return;
+            }
+
+            await CloseAsync();
+            await OnSaved.InvokeAsync();
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private sealed record ItemStockSnapshot(long BaseUnitId, string BaseUnitSymbol, decimal Available);
+
+    private sealed class OrderLineEdit
+    {
+        public long ItemId { get; set; }
+        public decimal Quantity { get; set; } = 1m;
+        public long UnitId { get; set; }
+        public decimal? UnitPrice { get; set; }
+        public string? Notes { get; set; }
+    }
+}

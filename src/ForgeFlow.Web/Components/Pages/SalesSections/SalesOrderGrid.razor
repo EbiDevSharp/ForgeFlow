@@ -1,0 +1,70 @@
+@using ForgeFlow.Application.Sales
+@using ForgeFlow.Domain.Sales
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-grid-card">
+    <div class="read-grid">
+        <BitDataGrid @ref="grid" TItem="SalesOrderSummary" OnRead="OnRead" Pageable="true" PageSize="25"
+                     Resizable="true" WrapCellText="true"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["SalesTabOrders"]">
+            <Columns>
+                <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["SalesOrderNumber"]" Width="120px">
+                    <Template Context="o"><bdi dir="ltr">@o.OrderNumber</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["SalesCustomerColumn"]" MinWidth="150">
+                    <Template Context="o"><bdi dir="ltr">@o.CustomerCode</bdi> — @o.CustomerName</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["PoSiteColumn"]" Width="120px">
+                    <Template Context="o"><bdi dir="ltr">@o.SiteCode</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["ProcOrderDateLabel"]" Width="104px">
+                    <Template Context="o"><bdi dir="ltr">@Format.Date(o.OrderDate)</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["SalesRequestedDate"]" Width="104px">
+                    <Template Context="o">
+                        @if (o.RequestedDeliveryDate is DateOnly rd)
+                        {
+                            <bdi dir="ltr">@Format.Date(rd)</bdi>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["PoStatusColumn"]" Width="130px">
+                    <Template Context="o">
+                        <span class="write-status-badge @OrderStatusCss(o.Status)">@OrderStatusLabel(o.Status)</span>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="SalesOrderSummary" Title="@Text["ReadActions"]" Width="210px">
+                    <Template Context="o">
+                        <div class="read-row-actions">
+                            <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnOpenDetail.InvokeAsync(o.Id)">@Text["ReadDetails"]</BitButton>
+                            @if (CanDispatch && o.Status is SalesOrderStatus.Approved or SalesOrderStatus.PartiallyDispatched)
+                            {
+                                <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnPostDispatch.InvokeAsync(o.Id)">@Text["SalesDispatchButton"]</BitButton>
+                            }
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private BitDataGrid<SalesOrderSummary>? grid;
+
+    [Parameter, EditorRequired] public Func<BitDataGridReadRequest, Task<BitDataGridReadResult<SalesOrderSummary>>> OnRead { get; set; } = default!;
+    [Parameter, EditorRequired] public int[] PageSizeOptions { get; set; } = [];
+    [Parameter, EditorRequired] public BitDataGridStrings GridStrings { get; set; } = default!;
+    [Parameter] public bool CanDispatch { get; set; }
+    [Parameter, EditorRequired] public Func<SalesOrderStatus, string> OrderStatusCss { get; set; } = default!;
+    [Parameter, EditorRequired] public Func<SalesOrderStatus, string> OrderStatusLabel { get; set; } = default!;
+    [Parameter] public EventCallback<long> OnOpenDetail { get; set; }
+    [Parameter] public EventCallback<long> OnPostDispatch { get; set; }
+
+    public Task RefreshAsync() => grid?.RefreshAsync() ?? Task.CompletedTask;
+}

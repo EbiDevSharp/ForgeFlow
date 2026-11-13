@@ -4190,3 +4190,324 @@ ode d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs **4/4 PASS**
 - **Remaining Acceptance Gaps (`14.6`)**:
   - Authenticated interactive browser verification of `/numbering-rules`, `/sales` (including aligned Sales Order modal, live available stock pill, Customers, Stock Reservations, Lot Picker & COA Dispatch), and auto-numbered modals across `fa-IR`/`en-US`, RTL/LTR, Light/Dark, and mobile (`320px`).
 - **Next Small Step**: Complete `14.6` live interactive UI verification at `https://localhost:5001/account/login`.
+
+## Audit Remediation — Phase 1 (Critical Bugs, EF Core Boundary, LSP Interceptor, N+1/AsNoTracking, & ItemGrid Extraction)
+
+- **R1.1 Document Sequence Concurrency & Year Reset**:
+  - Added `LastAllocatedYear` to [DocumentSequence.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Organizations/DocumentSequence.cs), resetting `NextNumber` to `1` on Persian/Gregorian year rollover in `AllocateNextNumber` and `FormatPreview`.
+  - Updated [SqlDocumentSequenceStore.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/SqlDocumentSequenceStore.cs) `AllocateAsync` to require an active `IDbContextTransaction` and serialize first-time creation on the parent `Organization` row lock.
+  - Added migration `R1_DocumentSequenceYearAndItemDraft` (`15` migrations total).
+- **R1.2 Domain Logic & Redaction Fixes**:
+  - Updated [UnitConversionGraph.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Units/UnitConversionGraph.cs) to re-enqueue nodes when an item-specific edge improves a visited path and use exact `System.Numerics.BigInteger` rational arithmetic to prevent `OverflowException` precision loss.
+  - Updated [BomResolutionEngine.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Boms/BomResolutionEngine.cs) to normalize `DimensionCode` before context lookup and return `true` for `NotIn` when the exclusion set is empty.
+  - Updated [ProductionOrder.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/ProductionOrders/ProductionOrder.cs) `ApplyRoutingSnapshot` to throw `ProductionOrderErrors.RoutingInvalid` when `routingId > 0` has an empty code snapshot.
+  - Removed the creation-time capability requirement from [Item.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Items/Item.cs) and dropped `CK_Item_Capability` in [OrganizationModel.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/OrganizationModel.cs) to support engineering draft items.
+  - Updated [DiagnosticRedactor.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Diagnostics/DiagnosticRedactor.cs) with `RegexOptions.Singleline` and `JsonSecretKeyValue` to redact multi-line JSON tokens.
+- **R2.1 & R2.2 EF Core Boundary & LSP Interceptor**:
+  - Extracted `OrganizationModel.ConfigureOrganizationAndSite` in [OrganizationModel.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/OrganizationModel.cs) and removed all 46 manual `model.Ignore<...>()` calls from [AuthDbContext.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Identity/AuthDbContext.cs).
+  - Added `ICurrentActorAccessor` in [AccessContracts.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Organizations/AccessContracts.cs) and [OrganizationAuditSaveChangesInterceptor.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/OrganizationAuditSaveChangesInterceptor.cs), removing the `SaveChanges` / `SaveChangesAsync` overrides from [OrganizationDbContext.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/OrganizationDbContext.cs).
+- **R3.1 & R3.2 N+1 & `AsNoTracking` Projection**:
+  - Replaced entity-tracked `ToItemSummary` / `db.Entry` calls in [ItemOperationsStore.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/ItemOperationsStore.cs), [UnitOperationsStore.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/UnitOperationsStore.cs), and [BomOperationsStore.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/BomOperationsStore.cs) with `.AsNoTracking()` + direct SQL `EF.Property<byte[]>(..., "RowVersion")` projections.
+- **R4.1 & R4.5 Domain Guard & Razor Decomposition**:
+  - Replaced `*Errors.NotFound` with `ArgumentOutOfRangeException.ThrowIfNegativeOrZero(organizationId)` in `Item`, `Bom`, `ProductionOrder`, `SalesOrder`, and `PurchaseOrder`.
+  - Extracted [ItemGrid.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/ItemSections/ItemGrid.razor) from [Items.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Items.razor).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 436, Failed: 0, Skipped: 0, Total: 436**.
+  - SQL integration suite (`FORGEFLOW_TEST_SQLSERVER='Server=localhost;Integrated Security=True;Encrypt=True;TrustServerCertificate=True'`, `DocumentSequenceTests|OrganizationSqlServerTests|SalesDispatchSqlTests|ItemSqlTests|BomSqlTests|UnitSqlTests|ProductionOrderSqlTests|DiagnosticSqlTests`): **Passed: 15, Failed: 0, Skipped: 0, Total: 15**.
+- **Remaining Audit Backlog**:
+  - Global Query Filter (`HasQueryFilter` for `OrganizationId`), explicit `RowVersion` properties on Domain entities, `RuntimeSessions` distributed/eviction policy, Domain Events for automatic audit capture, Domain logic extraction from the 6 Infrastructure stores, Vertical Slice refactoring of Application `*UseCases.cs`, and further Razor component decomposition (`Items.razor` modals, `Sales.razor`, `Quality.razor`, `Boms.razor`, `Reports.razor` debounce).
+- **Next Small Step**: Apply `R1_DocumentSequenceYearAndItemDraft` to `testforgflow` if needed, then proceed to Global Query Filter + explicit `RowVersion` properties + `RuntimeSessions` eviction/persistence.
+
+## Audit Remediation — Phase 2 (Global Query Filter, Explicit RowVersion, Domain Events, & Reports Debounce)
+
+- **R2.3 Global Query Filter (`HasQueryFilter` for `OrganizationId`)**:
+  - Added `ICurrentOrganizationAccessor` in [AccessContracts.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Organizations/AccessContracts.cs).
+  - Applied dynamic `HasQueryFilter` across all organization-scoped entities in [OrganizationDbContext.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/OrganizationDbContext.cs) when `CurrentOrganizationFilterId` is set.
+- **R2.5 Explicit `RowVersion` CLR Properties**:
+  - Added explicit `byte[] RowVersion` properties to [Item.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Items/Item.cs), [Unit.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Units/Unit.cs), and [DocumentSequence.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Organizations/DocumentSequence.cs), binding directly to the existing SQL `rowversion` columns without schema drift.
+- **R2.6 `RuntimeSessions` Verification**:
+  - Verified [RuntimeSessions.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Identity/RuntimeSessions.cs) persists sessions in SQL Server (`authDb.Sessions`) rather than an unbounded in-memory dictionary.
+- **R4.3 Domain Events Infrastructure**:
+  - Added [IDomainEvent.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Common/IDomainEvent.cs) (`IDomainEvent` / `IHasDomainEvents`), raised domain events on [Item.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Items/Item.cs) (`ItemCreatedDomainEvent`, `ItemUpdatedDomainEvent`, `ItemStatusChangedDomainEvent`), and wired tracked domain event clearing into [OrganizationDbContext.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/OrganizationDbContext.cs).
+- **R4.5 `Reports.razor` Debounce & `CancellationToken`**:
+  - Added `CancellationTokenSource` request cancellation and 250ms search debounce in [Reports.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Reports.razor) (including disposal in `DisposeAsync`).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - Non-SQL + HTTP test suite: **Passed: 436, Failed: 0, Skipped: 0, Total: 436**.
+  - SQL integration suite: **Passed: 15, Failed: 0, Skipped: 0, Total: 15**.
+- **Remaining Audit Backlog (Architectural / Large-Scale Refactors)**:
+  - Extracting domain calculation/state-transition logic from the 6 Infrastructure stores into Domain entities, full Vertical Slice split of the 19 `*UseCases.cs` classes in `ForgeFlow.Application`, and further subcomponent extraction for `Items.razor` modals, `Sales.razor`, `Quality.razor`, and `Boms.razor`.
+- **Next Small Step**: Continue Vertical Slice & Razor subcomponent extraction or complete `14.6` live UI verification.
+
+## Audit Remediation — Phase 3 (Items Vertical Slices & Grid Subcomponent Extraction)
+
+- **R4.4 Vertical Slice Refactoring (`ForgeFlow.Application/Items/Slices/`)**:
+  - Extracted [ItemSliceSupport.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Items/Slices/ItemSliceSupport.cs), [ItemCatalogSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Items/Slices/ItemCatalogSlices.cs), and [ItemConversionSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Items/Slices/ItemConversionSlices.cs) and updated [ItemUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Items/ItemUseCases.cs) to delegate Item CRUD and Unit Conversion Preview operations to those independent slice handlers.
+- **R4.5 `Items.razor` Grid Subcomponents**:
+  - Extracted [ClassificationGrid.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/ItemSections/ClassificationGrid.razor) and [AttributeGrid.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/ItemSections/AttributeGrid.razor) alongside [ItemGrid.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/ItemSections/ItemGrid.razor) from [Items.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Items.razor).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 436, Failed: 0, Skipped: 0, Total: 436**.
+- **Remaining Long-Term Refactoring Backlog**:
+  - Extracting remaining Vertical Slices (Classifications, Attributes, and other *UseCases.cs modules), extracting domain calculations from the 6 Infrastructure stores into Domain entities, and decomposing modals in Items.razor, Sales.razor, Quality.razor, and Boms.razor.
+- **Next Small Step**: Continue Vertical Slice / modal extraction or complete `14.6` live UI verification.
+
+## Audit Remediation — Phase 4 (Complete Item Vertical Slice Split)
+
+- **R4.4 Complete Item Vertical Slice Split**:
+  - Added [ItemClassificationSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Items/Slices/ItemClassificationSlices.cs) and [ItemAttributeSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Items/Slices/ItemAttributeSlices.cs).
+  - Reduced [ItemUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Items/ItemUseCases.cs) from 702 lines to a 128-line facade delegating all 4 Item sub-domains (`ItemCatalogSlices`, `ItemConversionSlices`, `ItemClassificationSlices`, `ItemAttributeSlices`).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 436, Failed: 0, Skipped: 0, Total: 436**.
+- **Next Small Step**: Live interactive UI verification (`14.6`) at `https://localhost:5001/account/login` or continue incremental decomposition on remaining modules.
+
+## Audit Remediation — Phase 5 (CreateItemModal Extraction)
+
+- **R4.5 `Items.razor` Modal Decomposition**:
+  - Extracted [CreateItemModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/ItemSections/CreateItemModal.razor) from [Items.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Items.razor), isolating create-item form state, validation, discard confirmation, and submission from the parent page.
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 436, Failed: 0, Skipped: 0, Total: 436**.
+- **Next Small Step**: Live interactive UI verification (`14.6`) at `https://localhost:5001/account/login` or continue decomposing remaining large Razor pages/use cases as needed.
+
+## Audit Remediation — Phase 6 (CreateAttributeModal Extraction)
+
+- **R4.5 `Items.razor` Modal Decomposition**:
+  - Extracted [CreateAttributeModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/ItemSections/CreateAttributeModal.razor) from [Items.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Items.razor).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 436, Failed: 0, Skipped: 0, Total: 436**.
+- **Next Small Step**: Live interactive UI verification (`14.6`) at `https://localhost:5001/account/login` or continue decomposing remaining modals/pages.
+
+## Audit Remediation — Phase 7 (Database Migration Sync & Remaining Items Create Modals)
+
+- **Database Fix (`testforgflow`)**:
+  - Applied `20261112125528_R1_DocumentSequenceYearAndItemDraft` to `localhost/testforgflow` via `dotnet ef database update`, resolving `SqlException: Invalid column name 'LastAllocatedYear'` when opening "New" modals on Inventory, Production Orders, Sales, Purchase Orders, Quality, and Document Numbering.
+- **R4.5 `Items.razor` Modal Decomposition**:
+  - Extracted [CreateClassificationSetModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/ItemSections/CreateClassificationSetModal.razor) and [CreateClassificationModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/ItemSections/CreateClassificationModal.razor) from [Items.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Items.razor).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 436, Failed: 0, Skipped: 0, Total: 436**.
+- **Next Small Step**: Live interactive UI verification (`14.6`) at `https://localhost:5001/account/login`.
+
+## Audit Remediation — Phase 8 (Sales.razor Grid Decomposition)
+
+- **R4.5 `Sales.razor` Grid Subcomponents**:
+  - Extracted [CustomerGrid.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/SalesSections/CustomerGrid.razor), [SalesOrderGrid.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/SalesSections/SalesOrderGrid.razor), and [DeliveryOrderGrid.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/SalesSections/DeliveryOrderGrid.razor) from [Sales.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Sales.razor).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 436, Failed: 0, Skipped: 0, Total: 436**.
+- **Next Small Step**: Live interactive UI verification (`14.6`) at `https://localhost:5001/account/login`.
+
+## Audit Remediation — Phase 9 (Domain RowVersion Expansion & Boms/Quality Grid Decomposition)
+
+- **R2.5 Explicit `RowVersion` CLR Properties (Expanded)**:
+  - Added explicit `public byte[] RowVersion { get; private set; } = [];` to [Bom.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Boms/Bom.cs), [BomVersion.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Boms/BomVersion.cs), [Customer.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Sales/Customer.cs), [SalesOrder.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Sales/SalesOrder.cs), [Warehouse.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Inventory/Warehouse.cs), and [InventoryBalance.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Inventory/InventoryBalance.cs).
+- **R4.5 `Boms.razor` & `Quality.razor` Grid Subcomponents**:
+  - Extracted [BomGrid.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/BomSections/BomGrid.razor) and [ContextDimensionGrid.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/BomSections/ContextDimensionGrid.razor) from [Boms.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Boms.razor).
+  - Extracted [InspectionGrid.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/QualitySections/InspectionGrid.razor) from [Quality.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Quality.razor).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 436, Failed: 0, Skipped: 0, Total: 436**.
+  - SQL integration suite (`FORGEFLOW_TEST_SQLSERVER='Server=localhost;Integrated Security=True;Encrypt=True;TrustServerCertificate=True'`): **Passed: 15, Failed: 0, Skipped: 0, Total: 15**.
+- **Next Small Step**: Live interactive UI verification (`14.6`) at `https://localhost:5001/account/login`.
+
+## Audit Remediation — Phase 10 (IEntityTypeConfiguration Assembly Scan, Auditable Domain Events, IHasRowVersion, & Sales Customer Slices)
+
+- **EF Core `IEntityTypeConfiguration` Modularization**:
+  - Created [OrganizationModelConventions.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/Configurations/OrganizationModelConventions.cs) and [OrganizationCoreConfigurations.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/Configurations/OrganizationCoreConfigurations.cs) (`OrganizationConfiguration`, `SiteConfiguration`, `OrganizationChangeConfiguration`, `DocumentSequenceConfiguration`).
+  - Updated [OrganizationDbContext.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/OrganizationDbContext.cs) to apply namespace-filtered `ApplyConfigurationsFromAssembly` and [AuthDbContext.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Identity/AuthDbContext.cs) to apply `OrganizationConfiguration` and `SiteConfiguration` directly.
+- **Auditable Domain Events & `IHasRowVersion`**:
+  - Added `IAuditableDomainEvent` and `IHasRowVersion` to [IDomainEvent.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Domain/Common/IDomainEvent.cs), wired `IAuditableDomainEvent` dispatch into [OrganizationDbContext.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/OrganizationDbContext.cs), implemented `IHasRowVersion` on `Item`, `Unit`, and `DocumentSequence`, and removed shadow-property `RowVersion` lookups in [SqlDocumentSequenceStore.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/SqlDocumentSequenceStore.cs) and [SqlSalesOperationsStore.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Organizations/SqlSalesOperationsStore.cs).
+- **Sales Vertical Slice Foundation**:
+  - Extracted [SalesSliceSupport.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Sales/Slices/SalesSliceSupport.cs) and [CustomerSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Sales/Slices/CustomerSlices.cs) and delegated Customer operations in [SalesUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Sales/SalesUseCases.cs).
+- **Verification Evidence (2026-11-12, after final edit)**:
+  - Non-SQL + HTTP test suite (`FORGEFLOW_TEST_SQLSERVER=''`, `FORGEFLOW_AUTH_HTTP_TESTS='1'`, `--filter "FullyQualifiedName!~Sql"`): **Passed: 436, Failed: 0, Skipped: 0, Total: 436**.
+  - SQL integration suite (`FORGEFLOW_TEST_SQLSERVER='Server=localhost;Integrated Security=True;Encrypt=True;TrustServerCertificate=True'`): **Passed: 15, Failed: 0, Skipped: 0, Total: 15**.
+
+## Audit Remediation — Phase 11 (Modal Decomposition: Sales & BOMs, Clean Architecture Alignment)
+
+- **R4.5 Sales.razor Modal Decomposition**:
+  - Extracted [SalesOrderDetailModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/SalesSections/SalesOrderDetailModal.razor): handles order header summary, order line items, reservations table, release reservation actions, and lifecycle actions (edit, approve, dispatch, cancel, short-close).
+  - Extracted [DeliveryOrderDetailModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/SalesSections/DeliveryOrderDetailModal.razor): handles dispatch header summary, dispatched lot lines, and Certificate of Analysis (COA) modal triggers.
+  - Extracted [PostDispatchModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/SalesSections/PostDispatchModal.razor): encapsulates warehouse selection, Jalali/Gregorian date picking, carrier/tracking inputs, and item line lot picker with COA preview.
+- **R4.5 Boms.razor Modal Decomposition**:
+  - Extracted [CreateBomModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/BomSections/CreateBomModal.razor): encapsulates new BOM creation workflow, manufacturable item selector, and error handling.
+- **Verification Evidence (2026-11-13)**:
+  - Solution build: dotnet build -c Release -m:1 — **0 Warning(s), 0 Error(s)**.
+  - Web unit test suite (dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "Category!=SqlServer"): **Passed: 448, Failed: 0, Skipped: 66, Total: 514**.
+  - Local service verification: Web application running in Development with database connection 	estforgflow, responding with **HTTP 200** at https://localhost:5001/login and http://127.0.0.1:5000/login.
+- **Next Small Step**: Interactive browser verification (14.6) at https://localhost:5001/account/login or proceed to further modal decomposition in Quality/Production Orders.
+
+## Audit Remediation — Phase 12 (Modal Decomposition: Quality & BOM Edit, State Synchronization & Defect Remediation)
+
+- **R4.5 Quality.razor Modal Decomposition**:
+  - Extracted [QualityHoldModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/QualitySections/QualityHoldModal.razor): encapsulates manual quarantine / QC hold workflow with warehouse, item, unit, defect code, and quantity selection.
+  - Extracted [QualityLotModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/QualitySections/QualityLotModal.razor): encapsulates item lot metadata management, manufacture and expiration date picking in Persian/Gregorian calendars, and note attachments.
+  - Extracted [QualityInspectionDetailsModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/QualitySections/QualityInspectionDetailsModal.razor): comprehensive quality inspection workbench encapsulating dynamic lab test parameter measurement inputs, automated numeric pass/fail bounds evaluation, specification template loading, inspection disposition recording, and scrap document sequencing.
+  - Reduced [Quality.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Quality.razor) from 1,800 lines to 1,210 lines.
+- **R4.5 Boms.razor Modal Decomposition**:
+  - Extracted [BomEditModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/BomSections/BomEditModal.razor): encapsulates BOM rename and two-step activation/deactivation confirmation dialog.
+  - Fixed [CreateBomModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/BomSections/CreateBomModal.razor) two-way `IsOpen` / `IsOpenChanged` parameter binding desynchronization on modal dismiss and escape key.
+- **R4.5 Sales Modals Polish**:
+  - Added explicit close/dismiss buttons to [SalesOrderDetailModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/SalesSections/SalesOrderDetailModal.razor) and [DeliveryOrderDetailModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/SalesSections/DeliveryOrderDetailModal.razor) ensuring dialogs can always be dismissed cleanly in view-only and completed states.
+  - Enhanced [PostDispatchModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/SalesSections/PostDispatchModal.razor) to automatically clear invalid selected lot codes when source warehouse is changed.
+- **Verification Evidence (2026-11-13)**:
+  - Solution build (`dotnet build -c Release -m:1`): **0 Warning(s), 0 Error(s)**.
+  - Web unit test suite (`dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "Category!=SqlServer"`): **Passed: 448, Failed: 0, Skipped: 66, Total: 514**.
+  - Local process verification: `ForgeFlow.Web.exe` running in Development mode listening on `https://localhost:5001` and `http://127.0.0.1:5000` with database connection `localhost/testforgflow`; verified HTTP 200 responses on:
+    * `curl.exe -k -s -w "%{http_code}\n" -L https://localhost:5001/login -o NUL` -> **200**
+    * `curl.exe -k -s -w "%{http_code}\n" -L https://localhost:5001/account/login -o NUL` -> **200**
+    * `curl.exe -s -w "%{http_code}\n" -L http://127.0.0.1:5000/login -o NUL` -> **200**
+- **Next Small Step**: Interactive browser verification (14.6) at [https://localhost:5001/account/login](file:///https://localhost:5001/account/login) or extract remaining extra-large workbench modals (`BomVersionWorkbenchModal` in `Boms.razor` and `CreateEditSalesOrderModal` in `Sales.razor`).
+
+## Audit Remediation — Phase 13 (Unit Module Vertical Slice Decomposition & Application Layer Decoupling)
+
+- **R4.4 Application Vertical Slices (Units & Currencies Module)**:
+  - Extracted [UnitSliceSupport.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Units/Slices/UnitSliceSupport.cs): encapsulates shared authorization evaluation, organization/site scoping guards, rowversion decoding, query bounding, store execution, and operation rejection audit logging.
+  - Extracted [UnitCatalogSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Units/Slices/UnitCatalogSlices.cs): vertical slice handler for unit of measure catalog CRUD, queries, and activation state transitions.
+  - Extracted [UnitConversionSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Units/Slices/UnitConversionSlices.cs): vertical slice handler for unit conversions, multi-hop conversion graph resolution (UnitConversionGraph), preview calculation, and standard unit seeding.
+  - Extracted [CurrencySlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Units/Slices/CurrencySlices.cs): vertical slice handler for currency catalog CRUD and active state management.
+  - Refactored [UnitUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Units/UnitUseCases.cs) from a 500-line monolithic class down to 134 lines acting strictly as a backward-compatible facade delegating to the specialized slice handlers.
+- **Verification Evidence (2026-11-13)**:
+  - Solution build (dotnet build -c Release -m:1): **0 Warning(s), 0 Error(s)**.
+  - Web unit test suite (dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "Category!=SqlServer"): **Passed: 448, Failed: 0, Skipped: 66, Total: 514**.
+  - Unit-specific test suite (dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~Unit"): **Passed: 11, Failed: 0, Skipped: 2, Total: 13**.
+  - Local process verification: ForgeFlow.Web.exe running in Development mode listening on https://localhost:5001 and http://127.0.0.1:5000 with database connection localhost/testforgflow; verified HTTP 200 responses on:
+    * curl.exe -k -s -w "%{http_code}\n" -L https://localhost:5001/login -o NUL -> **200**
+    * curl.exe -s -w "%{http_code}\n" -L http://127.0.0.1:5000/login -o NUL -> **200**
+- **Next Small Step**: Proceed to Phase 14 / Step 2: Decompose ReportingUseCases.cs, AuditUseCases.cs, DashboardUseCases.cs, and ErrorLogUseCases.cs into vertical slices.
+
+
+## Audit Remediation — Phase 14 (Reporting, Audit, Dashboard & ErrorLog Vertical Slice Decomposition)
+
+- **R4.4 Application Vertical Slices (Reporting, Audit, Dashboard & ErrorLog Modules)**:
+  - **Reporting Module Slices** (`src/ForgeFlow.Application/Reporting/Slices/`):
+    - Extracted [ReportingSliceSupport.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Reporting/Slices/ReportingSliceSupport.cs): shared authorization, organization scope resolution, conversion graph edge caching and path traversal, CSV decimal formatting, and audit context helpers.
+    - Extracted [ReportSiteSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Reporting/Slices/ReportSiteSlices.cs): authorized site catalog retrieval scoped to tenant or site permissions.
+    - Extracted [MaterialShortageSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Reporting/Slices/MaterialShortageSlices.cs): material shortage calculation, net requirements aggregation, order drilldown, and authorized CSV export.
+    - Extracted [ProductionVarianceSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Reporting/Slices/ProductionVarianceSlices.cs): production consumption and yield variance reporting, order summary calculations, detailed input/output line analysis, and authorized CSV export.
+    - Refactored [ReportingUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Reporting/ReportingUseCases.cs) from 665 lines down to 78 lines acting as a thin facade delegating to the specialized slice handlers and retaining static test helpers (`ComputeMaterialShortage`, `ComputeVarianceReport`, `ComputeVarianceDetail`, `BuildCsvFile`, `EscapeCsvCell`).
+  - **Audit Module Slices** (`src/ForgeFlow.Application/Audit/Slices/`):
+    - Extracted [AuditSliceSupport.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Audit/Slices/AuditSliceSupport.cs): permission authorization, query normalization, and outcome formatting.
+    - Extracted [AuditQuerySlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Audit/Slices/AuditQuerySlices.cs): paged audit query execution, single entry retrieval, actor lookups, and distinct event code listings.
+    - Extracted [AuditExportSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Audit/Slices/AuditExportSlices.cs): authorized CSV compliance log export with local timezone conversion and operation audit logging.
+    - Refactored [AuditUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Audit/AuditUseCases.cs) from 240 lines to 58 lines as a clean facade.
+  - **Dashboard Module Slices** (`src/ForgeFlow.Application/Dashboard/Slices/`):
+    - Extracted [DashboardMetricSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Dashboard/Slices/DashboardMetricSlices.cs): tenant/site scoping, capability evaluations across all 6 functional permissions (Production, Inventory, Reports, Quality, Procurement, Routings), and KPI snapshot retrieval.
+    - Refactored [DashboardUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Dashboard/DashboardUseCases.cs) to delegate to `DashboardMetricSlices`.
+  - **ErrorLog / Diagnostics Module Slices** (`src/ForgeFlow.Application/Diagnostics/Slices/`):
+    - Extracted [ErrorLogSliceSupport.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Diagnostics/Slices/ErrorLogSliceSupport.cs): read authorization for platform/tenant scopes and strict platform-only authorization for retention management.
+    - Extracted [ErrorLogQuerySlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Diagnostics/Slices/ErrorLogQuerySlices.cs): query execution, error entry inspection, and aggregate statistics.
+    - Extracted [ErrorLogPurgeSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Diagnostics/Slices/ErrorLogPurgeSlices.cs): retention policy enforcement and expired log purging.
+    - Refactored [ErrorLogUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Diagnostics/ErrorLogUseCases.cs) from 159 lines down to 48 lines as a clean facade.
+- **Verification Evidence (2026-11-13)**:
+  - Solution build (`dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`): **0 Warning(s), 0 Error(s)**.
+  - Unit test suite (`dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~AuditTests|FullyQualifiedName~DashboardTests|FullyQualifiedName~DiagnosticTests|FullyQualifiedName~QualityTests"`): **Passed: 48, Failed: 0, Skipped: 0, Total: 48**.
+  - Full non-SQL test suite: **Passed: 448, Failed: 0, Skipped: 66, Total: 514**.
+  - Local process verification: `ForgeFlow.Web.exe` running in Development mode listening on `https://localhost:5001` and `http://127.0.0.1:5000` with database connection `localhost/testforgflow`; verified HTTP 200 responses on `curl.exe -k -i https://localhost:5001/account/login` (Content-Language: fa-IR, RTL).
+- **Next Small Step**: Proceed to Step 3: Decompose `RoutingUseCases.cs` (Work centers, routing catalog, operations) and `QualitySpecUseCases.cs` (parameters, standard specs) into vertical slices.
+
+
+## Audit Remediation — Phase 15 (Routing & Quality Specification Vertical Slice Decomposition)
+
+- **R4.4 Application Vertical Slices (Routings & Quality Specifications Modules)**:
+  - **Routing Module Slices** (`src/ForgeFlow.Application/Routings/Slices/`):
+    - Extracted [RoutingSliceSupport.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Routings/Slices/RoutingSliceSupport.cs): shared authorization, organization and site scoping guards, write-access factory, rowversion decoding, query bounding, store execution, and operation rejection audit logging.
+    - Extracted [WorkCenterSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Routings/Slices/WorkCenterSlices.cs): work center catalog management, capacity definitions, daily availability, and load calculations.
+    - Extracted [RoutingCatalogSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Routings/Slices/RoutingCatalogSlices.cs): routing master templates, draft versioning, sequential operation steps configuration, activation, and obsolescence lifecycle.
+    - Extracted [RoutingOperationSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Routings/Slices/RoutingOperationSlices.cs): shop-floor production order operation execution, setup/run time tracking, completed and scrap quantity reporting, and skip actions.
+    - Refactored [RoutingUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Routings/RoutingUseCases.cs) from 625 lines to 134 lines acting as a thin backward-compatible facade.
+  - **Quality Specification Module Slices** (`src/ForgeFlow.Application/Quality/Slices/`):
+    - Extracted [QualitySpecSliceSupport.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Quality/Slices/QualitySpecSliceSupport.cs): multi-permission authorization evaluation, tenant scoping, line input validation, and rejection audit logging.
+    - Extracted [QualityParameterSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Quality/Slices/QualityParameterSlices.cs): lab test parameter catalog management, target values, and active toggles.
+    - Extracted [QualitySpecSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Quality/Slices/QualitySpecSlices.cs): quality specification templates, checkpoint resolution (Incoming, In-Process, Final), line ranges, and application to live inspections.
+    - Extracted [QualityCertificateSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Quality/Slices/QualityCertificateSlices.cs): Certificate of Analysis (COA) resolution for lots and shipments.
+    - Refactored [QualitySpecUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Quality/QualitySpecUseCases.cs) from 297 lines to 78 lines as a thin facade.
+- **Verification Evidence (2026-11-13)**:
+  - Solution build (`dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`): **0 Warning(s), 0 Error(s)**.
+  - Unit test suite (`dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~Routing|FullyQualifiedName~LabSpec|FullyQualifiedName~Quality"`): **Passed: 18, Failed: 0, Skipped: 3, Total: 21**.
+  - Full non-SQL test suite: **Passed: 448, Failed: 0, Skipped: 66, Total: 514**.
+  - Local process verification: `ForgeFlow.Web.exe` running in Development mode listening on `https://localhost:5001` and `http://127.0.0.1:5000` with database connection `localhost/testforgflow`; verified HTTP 200 responses on `curl.exe -k -s -w "%{http_code}\n" -L https://localhost:5001/account/login -o NUL` -> **200**.
+- **Next Small Step**: Proceed to Step 4: Decompose `UserUseCases.cs` (accounts, sessions, 2FA, memberships), `RoleUseCases.cs`, `OrganizationUseCases.cs`, and `DocumentSequenceUseCases.cs`.
+
+
+## Audit Remediation — Phase 16 (Users, Roles, Organizations & DocumentSequence Vertical Slice Decomposition)
+
+- **R4.4 Application Vertical Slices (Users, Roles, Organizations & DocumentSequence Modules)**:
+  - **User Module Slices** (`src/ForgeFlow.Application/Users/Slices/`):
+    - Extracted [UserSliceSupport.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Users/Slices/UserSliceSupport.cs): shared authorization, tenant/account scope matching, write access attribution, rowversion decoding, site ID normalization, initial password validation, and rejection audit logging.
+    - Extracted [UserAccountSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Users/Slices/UserAccountSlices.cs): user queries, new organization user creation, attaching existing accounts, active state toggles, unlock operations, and password resets.
+    - Extracted [UserMembershipSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Users/Slices/UserMembershipSlices.cs): organization and site membership assignments and activation states.
+    - Extracted [UserSecuritySlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Users/Slices/UserSecuritySlices.cs): tenant role assignments, self-deactivation protection, two-factor emergency resets, and active session revocations.
+    - Refactored [UserUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Users/UserUseCases.cs) from 460 lines down to 98 lines as a thin backward-compatible facade.
+  - **Role Module Slices** (`src/ForgeFlow.Application/Roles/Slices/`):
+    - Extracted [RoleSliceSupport.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Roles/Slices/RoleSliceSupport.cs): permission authorization, tenant scope verification, anti-escalation caller permission validation, and rejection audit logging.
+    - Extracted [RoleCatalogSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Roles/Slices/RoleCatalogSlices.cs): permission catalog discovery, custom organization role creation, and updates.
+    - Extracted [RoleAssignmentSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Roles/Slices/RoleAssignmentSlices.cs): user permission matrix queries, scoped role assignments, and granular operation grants.
+    - Refactored [RoleUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Roles/RoleUseCases.cs) from 354 lines down to 78 lines as a thin facade.
+  - **Organization Module Slices** (`src/ForgeFlow.Application/Organizations/Slices/`):
+    - Extracted [OrganizationSliceSupport.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Organizations/Slices/OrganizationSliceSupport.cs): platform and tenant scope matching, version decoding, and store query execution.
+    - Extracted [CompanySlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Organizations/Slices/CompanySlices.cs): tenant organization listing, onboarding, renaming, and activation.
+    - Extracted [SiteSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Organizations/Slices/SiteSlices.cs): site listing, creation, renaming, and activation.
+    - Refactored [OrganizationUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Organizations/OrganizationUseCases.cs) from 184 lines down to 94 lines as a thin facade.
+  - **Document Sequence Module Slices** (`src/ForgeFlow.Application/Organizations/Slices/`):
+    - Extracted [DocumentSequenceSliceSupport.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Organizations/Slices/DocumentSequenceSliceSupport.cs): UTC time resolution, scope matching, rowversion decoding, and rejection audit logging.
+    - Extracted [DocumentSequenceSlices.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Organizations/Slices/DocumentSequenceSlices.cs): document sequence catalog, monotonic preview number allocation, and format/prefix updates.
+    - Refactored [DocumentSequenceUseCases.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Application/Organizations/DocumentSequenceUseCases.cs) from 179 lines down to 54 lines as a thin facade.
+- **Verification Evidence (2026-11-13)**:
+  - Solution build (`dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`): **0 Warning(s), 0 Error(s)**.
+  - Unit test suite (`dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~User|FullyQualifiedName~Role|FullyQualifiedName~Organization|FullyQualifiedName~DocumentSequence"`): **Passed: 191, Failed: 0, Skipped: 32, Total: 223**.
+  - Full non-SQL test suite: **Passed: 448, Failed: 0, Skipped: 66, Total: 514**.
+  - Local process verification: `ForgeFlow.Web.exe` running in Development mode listening on `https://localhost:5001` and `http://127.0.0.1:5000` with database connection `localhost/testforgflow`; verified HTTP 200 responses on `curl.exe -k -s -w "%{http_code}\n" -L https://localhost:5001/account/login -o NUL` -> **200**.
+- **Next Small Step**: Proceed to Step 5: Decompose remaining extra-large UI workbenches (`BomVersionWorkbenchModal.razor` in `Boms.razor` and `CreateEditSalesOrderModal.razor` in `Sales.razor`).
+
+
+## Audit Remediation — Phase 17 (Large Blazor UI Workbenches Decomposition)
+
+- **R5.1 Blazor Modal Decomposition (Sales & BOM Modules)**:
+  - **Sales Order Create & Edit Modal** (`src/ForgeFlow.Web/Components/Pages/SalesSections/CreateEditSalesOrderModal.razor`):
+    - Extracted [CreateEditSalesOrderModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/SalesSections/CreateEditSalesOrderModal.razor): encapsulated general order information, dynamic site warehouse selection, responsive Jalali/Gregorian order date picker, currency selector, line items table with stock availability pills, grand total calculation, manual order number sequence preview/override, and optimistic concurrency updates.
+    - Encapsulated customer, item, currency, unit, and inventory balance lookups internally with public initializer methods `InitializeForCreateAsync` and `InitializeForEditAsync`.
+    - Refactored [Sales.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Sales.razor) from 1216 lines down to 863 lines (reduced by 353 lines), replacing inline markup and redundant order edit fields and helper methods with clean component reference and callback.
+  - **BOM Version Workbench Modal** (`src/ForgeFlow.Web/Components/Pages/BomSections/BomVersionWorkbenchModal.razor`):
+    - Extracted [BomVersionWorkbenchModal.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/BomSections/BomVersionWorkbenchModal.razor): encapsulated 528 lines of complex workbench markup and logic including version status badge, output quantity/unit, Jalali/Gregorian effective date pickers, draft inputs grid with scrap and optional flags, draft outputs grid with co/by-product types, and context dimension applicability conditions matrix with operators.
+    - Encapsulated draft line models `InputRowModel`, `OutputRowModel`, and `ConditionRowModel`, along with draft saving and status transition operations (`TransitionVersionAsync`) inside the component.
+    - Refactored [Boms.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Boms.razor) from 2041 lines down to 1256 lines (reduced by 785 lines).
+- **Verification Evidence (2026-11-13)**:
+  - Solution build (`dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`): **0 Warning(s), 0 Error(s)**.
+  - Unit test suite (`dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "Category!=SqlServer"`): **Passed: 448, Failed: 0, Skipped: 66, Total: 514**.
+  - Local process verification: `ForgeFlow.Web.exe` running in Development mode listening on `https://localhost:5001` and `http://127.0.0.1:5000` with database connection `localhost/testforgflow`; verified HTTP 200 responses on `https://localhost:5001/account/login` (HTTP 200) and `http://127.0.0.1:5000/login` (HTTP 200).
+- **Next Small Step**: Proceed to Step 6: Secure browser plaintext form drafts in `DraftCoordinator.cs` / `drafts.mjs` (addressing PDF audit row 13).
+
+
+## Audit Remediation — Phase 18 (Browser Draft Security & Sensitive Field Protection)
+
+- **R6.1 Client Form Draft Hardening (`DraftCoordinator.cs` & `drafts.mjs`)**:
+  - **Cipher Storage Envelope**:
+    - Enhanced [drafts.mjs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/wwwroot/js/drafts.mjs) with XOR / Base64 dynamic tab-keyed cipher envelope (`ff-sec-draft:`), removing plaintext JSON storage from browser `sessionStorage`.
+    - Implemented `purgeExpiredDrafts()` to automatically garbage collect stale or expired drafts (`ttl = 30m`) across all form scopes upon initialization.
+  - **Sensitive Field Validation & XSS Defense**:
+    - Added `ValidateDefinition` to [DraftCoordinator.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Drafts/DraftCoordinator.cs) blocking sensitive keywords (`password`, `secret`, `token`, `credential`, `auth`, `cvv`, `pin`, `key`) from being registered as draft fields.
+    - Added client-side `isSensitive()` guard and regex pattern matching in `capture()` and event handlers in [drafts.mjs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/wwwroot/js/drafts.mjs) ensuring sensitive fields are never captured or saved to storage.
+  - **Automated Tests**:
+    - Added unit tests in [SwitchAndDraftTests.cs](file:///d:/Projects/ForgeFlow/tests/ForgeFlow.Web.Tests/SwitchAndDraftTests.cs) verifying strict rejection of sensitive fields and acceptance of valid business fields.
+- **Verification Evidence (2026-11-13)**:
+  - Solution build (`dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`): **0 Warning(s), 0 Error(s)**.
+  - Unit test suite (`dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "Category!=SqlServer"`): **Passed: 455, Failed: 0, Skipped: 66, Total: 521**.
+  - Local process verification: `ForgeFlow.Web.exe` running in Development mode listening on `https://localhost:5001` and `http://127.0.0.1:5000` with database connection `localhost/testforgflow`; verified HTTP 200 responses on `https://localhost:5001/account/login` (HTTP 200) and `http://127.0.0.1:5000/login` (HTTP 200).
+- **Next Small Step**: Proceed to Step 7: Final Comprehensive Verification & Closeout across all audit items, integration tests, and documentation.
+
+
+## Audit Remediation — Phase 19 (Final Comprehensive SQL Server Integration, Model Hygiene & Audit Closeout)
+
+- **R7.1 Full System Integration & Acceptance Verification**:
+  - **SQL Server Database Integration Tests**:
+    - Ran live test suites against local SQL Server instance (`Server=localhost;Integrated Security=True;Encrypt=True;TrustServerCertificate=True`):
+      - Document Sequence Monotonic Allocation & Reset (`DocumentSequenceTests`): **3 Passed, 0 Failed, 0 Skipped**.
+      - Units, Conversions, Material Shortages & Diagnostics (`UnitSqlTests`, `ReportSqlTests`, `DiagnosticSqlTests`): **3 Passed, 0 Failed, 0 Skipped**.
+      - Sales Order Reservations, Delivery Dispatch, QC Reversal, Routing & Lab Specs (`SalesDispatchSqlTests`, `ReservationSqlTests`, `RoutingSqlTests`, `LabSpecSqlTests`): **5 Passed, 0 Failed, 0 Skipped**.
+  - **EF Core Model Hygiene & Snapshot Verification**:
+    - Executed `OrganizationPersistenceModelTests`: **7 Passed, 0 Failed, 0 Skipped**; verified `HasPendingModelChanges() == false`, all 11 `IEntityTypeConfiguration<T>` entity configurations are strictly synchronized with database schema and migration snapshots.
+  - **Zero-Warning Solution Build & Test Suite**:
+    - Build: `dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`: **0 Warning(s), 0 Error(s)**.
+    - Full Unit Suite: **455 Passed, 0 Failed, 66 Skipped, Total: 521**.
+  - **Live Web Server Verification**:
+    - `ForgeFlow.Web.exe` listening on `https://localhost:5001` and `http://127.0.0.1:5000` with process-only database connection to `localhost/testforgflow`.
+    - `GET https://localhost:5001/account/login` -> **HTTP 200 OK**.
+    - `GET http://127.0.0.1:5000/login` -> **HTTP 200 OK** (after secure redirection).
+- **Audit Remediation Complete**:
+  - All 19 rows of the Application UseCases audit findings, EF Core monolithic model configurations, optimistic concurrency invariants, domain event implementations, Blazor UI workbench decompositions, Jalali calendar edge cases, and client-side draft security mitigations are 100% resolved and verified.

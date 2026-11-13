@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
-using System.Globalization;
 using ForgeFlow.Application.Common;
 using ForgeFlow.Application.Diagnostics;
+using ForgeFlow.Application.Organizations.Slices;
 
 namespace ForgeFlow.Application.Organizations;
 
@@ -45,140 +45,54 @@ public interface IOrganizationOperationsStore
     Task<OrganizationResult<SiteDetails>> UpdateSite(long organizationId, long id, byte[] version, OrganizationMutation mutation, string? name, OrganizationWriteAccess access, CancellationToken ct);
 }
 
-/// <summary>No trusted adapters means denial before any store access. AUTH-01 supplies real adapters later.</summary>
-public sealed class OrganizationUseCases(IOrganizationOperationsStore store,
-    ITrustedActorAccessor? actors = null, IOrganizationPermissionEvaluator? permissions = null,
-    IUserOperationRecorder? operationRecorder = null, IOperationContextAccessor? opContext = null)
+/// <summary>
+/// Secured facade for organization tenant companies and sites.
+/// Delegates business logic to specialized vertical slices in <see cref="ForgeFlow.Application.Organizations.Slices"/>.
+/// </summary>
+public sealed class OrganizationUseCases
 {
-    private async ValueTask<(TrustedActor? Actor, string? Error)> Authorize(OrganizationScope? scope, string permission, CancellationToken ct)
+    private readonly CompanySlices companySlices;
+    private readonly SiteSlices siteSlices;
+
+    public OrganizationUseCases(
+        IOrganizationOperationsStore store,
+        ITrustedActorAccessor? actors = null,
+        IOrganizationPermissionEvaluator? permissions = null,
+        IUserOperationRecorder? operationRecorder = null,
+        IOperationContextAccessor? opContext = null)
     {
-        if (actors is null) return (null, OrganizationAccessErrors.ActorRequired);
-        var actor = await actors.ResolveAsync(ct);
-        if (actor is null) return (null, OrganizationAccessErrors.ActorRequired);
-        if (scope is null) return (actor, OrganizationAccessErrors.ScopeRequired);
-        if (permissions is null || !(await permissions.EvaluateAsync(actor, scope, permission, ct)).IsAllowed)
-            return (actor, OrganizationAccessErrors.AccessDenied);
-        return (actor, null);
+        var support = new OrganizationSliceSupport(actors, permissions, operationRecorder, opContext);
+        companySlices = new CompanySlices(store, support);
+        siteSlices = new SiteSlices(store, support);
     }
 
-    private OrganizationWriteAccess Access(TrustedActor actor, OrganizationScope scope, string permission) => new(actor, async ct =>
-    {
-        var current = await Authorize(scope, permission, ct);
-        return current.Error is null && current.Actor!.ActorId == actor.ActorId
-            && current.Actor.Provenance == actor.Provenance && current.Actor.ProvenanceReference == actor.ProvenanceReference;
-    });
+    public Task<OrganizationResult<OrganizationPage<OrganizationDetails>>> ListOrganizations(OrganizationScope? scope, OrganizationListQuery query, CancellationToken ct = default)
+        => companySlices.ListOrganizationsAsync(scope, query, ct);
 
-    private static bool OrganizationMatches(OrganizationScope? scope, long id) => scope is OrganizationScope.Organization org && org.OrganizationId == id;
-    private static bool SiteMatches(OrganizationScope? scope, long orgId, long? siteId = null) => scope switch
-    {
-        OrganizationScope.Organization org => org.OrganizationId == orgId,
-        OrganizationScope.Site site => site.OrganizationId == orgId && (siteId is null || site.SiteId == siteId),
-        _ => false
-    };
-    private static byte[]? Version(string? raw)
-    {
-        if (raw is null) return null;
-        try { var bytes = Convert.FromBase64String(raw); return bytes.Length == 8 ? bytes : null; }
-        catch (FormatException) { return null; }
-    }
-    private static OrganizationListQuery Bound(OrganizationListQuery query) => query with
-    { Page = Math.Clamp(query.Page, 1, 1_000_000), PageSize = Math.Clamp(query.PageSize, 1, 100), Search = query.Search?.Trim() };
+    public Task<OrganizationResult<OrganizationDetails>> GetOrganization(OrganizationScope? scope, long id, CancellationToken ct = default)
+        => companySlices.GetOrganizationAsync(scope, id, ct);
 
-    private static async Task<OrganizationResult<T>> Read<T>(Func<Task<OrganizationResult<T>>> query)
-    {
-        try { return await query(); }
-        catch (OrganizationStoreUnavailableException) { return OrganizationResult<T>.Failure(OrganizationAccessErrors.PersistenceUnavailable); }
-    }
+    public Task<OrganizationResult<OrganizationPage<SiteDetails>>> ListSites(OrganizationScope? scope, long organizationId, OrganizationListQuery query, CancellationToken ct = default)
+        => siteSlices.ListSitesAsync(scope, organizationId, query, ct);
 
-    public async Task<OrganizationResult<OrganizationPage<OrganizationDetails>>> ListOrganizations(OrganizationScope? scope, OrganizationListQuery query, CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, OrganizationPermissions.OrganizationsRead, ct);
-        if (auth.Error is not null) return OrganizationResult<OrganizationPage<OrganizationDetails>>.Failure(auth.Error);
-        if (scope is not OrganizationScope.Organization org) return OrganizationResult<OrganizationPage<OrganizationDetails>>.Failure(OrganizationAccessErrors.AccessDenied);
-        return await Read(async () => OrganizationResult<OrganizationPage<OrganizationDetails>>.Success(await store.ListOrganizations(org.OrganizationId, Bound(query), ct)));
-    }
-    public async Task<OrganizationResult<OrganizationDetails>> GetOrganization(OrganizationScope? scope, long id, CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, OrganizationPermissions.OrganizationsRead, ct);
-        if (auth.Error is not null) return OrganizationResult<OrganizationDetails>.Failure(auth.Error);
-        if (!OrganizationMatches(scope, id)) return OrganizationResult<OrganizationDetails>.Failure("Organization.NotFound");
-        return await Read(async () => {
-            var value = await store.GetOrganization(id, ct);
-            return value is null ? OrganizationResult<OrganizationDetails>.Failure("Organization.NotFound") : OrganizationResult<OrganizationDetails>.Success(value);
-        });
-    }
-    public async Task<OrganizationResult<OrganizationPage<SiteDetails>>> ListSites(OrganizationScope? scope, long organizationId, OrganizationListQuery query, CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, OrganizationPermissions.SitesRead, ct);
-        if (auth.Error is not null) return OrganizationResult<OrganizationPage<SiteDetails>>.Failure(auth.Error);
-        if (!SiteMatches(scope, organizationId)) return OrganizationResult<OrganizationPage<SiteDetails>>.Failure("Site.NotFound");
-        return await Read(async () => OrganizationResult<OrganizationPage<SiteDetails>>.Success(await store.ListSites(organizationId, (scope as OrganizationScope.Site)?.SiteId, Bound(query), ct)));
-    }
-    public async Task<OrganizationResult<SiteDetails>> GetSite(OrganizationScope? scope, long organizationId, long id, CancellationToken ct = default)
-    {
-        var auth = await Authorize(scope, OrganizationPermissions.SitesRead, ct);
-        if (auth.Error is not null) return OrganizationResult<SiteDetails>.Failure(auth.Error);
-        if (!SiteMatches(scope, organizationId, id)) return OrganizationResult<SiteDetails>.Failure("Site.NotFound");
-        return await Read(async () => {
-            var value = await store.GetSite(organizationId, id, ct);
-            return value is null ? OrganizationResult<SiteDetails>.Failure("Site.NotFound") : OrganizationResult<SiteDetails>.Success(value);
-        });
-    }
-    public async Task<OrganizationResult<OrganizationDetails>> CreateOrganization(OrganizationScope? scope, CreateOrganization request, CancellationToken ct = default)
-    {
-        var permission = OrganizationPermissions.OrganizationsCreate;
-        var auth = await Authorize(scope, permission, ct);
-        OrganizationResult<OrganizationDetails> res;
-        if (auth.Error is not null) res = OrganizationResult<OrganizationDetails>.Failure(auth.Error);
-        else if (scope is not OrganizationScope.Platform) res = OrganizationResult<OrganizationDetails>.Failure(OrganizationAccessErrors.AccessDenied);
-        else res = await store.CreateOrganization(request, Access(auth.Actor!, scope, permission), ct);
-        return await OperationAuditHelper.RecordIfRejectedAsync(res, operationRecorder, opContext,
-            UserOperationCatalog.OrganizationActionRejected, auth.Actor, scope, null, null, "Organization", request.Code, new { Action = "CreateOrganization" });
-    }
-    public async Task<OrganizationResult<SiteDetails>> CreateSite(OrganizationScope? scope, CreateSite request, CancellationToken ct = default)
-    {
-        var permission = OrganizationPermissions.SitesCreate;
-        var auth = await Authorize(scope, permission, ct);
-        OrganizationResult<SiteDetails> res;
-        if (auth.Error is not null) res = OrganizationResult<SiteDetails>.Failure(auth.Error);
-        else if (!OrganizationMatches(scope, request.OrganizationId)) res = OrganizationResult<SiteDetails>.Failure("Site.NotFound");
-        else res = await store.CreateSite(request, Access(auth.Actor!, scope!, permission), ct);
-        return await OperationAuditHelper.RecordIfRejectedAsync(res, operationRecorder, opContext,
-            UserOperationCatalog.SiteActionRejected, auth.Actor, scope, request.OrganizationId, null, "Site", request.Code, new { Action = "CreateSite" });
-    }
+    public Task<OrganizationResult<SiteDetails>> GetSite(OrganizationScope? scope, long organizationId, long id, CancellationToken ct = default)
+        => siteSlices.GetSiteAsync(scope, organizationId, id, ct);
+
+    public Task<OrganizationResult<OrganizationDetails>> CreateOrganization(OrganizationScope? scope, CreateOrganization request, CancellationToken ct = default)
+        => companySlices.CreateOrganizationAsync(scope, request, ct);
+
+    public Task<OrganizationResult<SiteDetails>> CreateSite(OrganizationScope? scope, CreateSite request, CancellationToken ct = default)
+        => siteSlices.CreateSiteAsync(scope, request, ct);
+
     public Task<OrganizationResult<OrganizationDetails>> RenameOrganization(OrganizationScope? scope, RenameOrganization request, CancellationToken ct = default)
-        => ChangeOrganization(scope, request.Id, request.ExpectedRowVersion, OrganizationMutation.Rename, request.Name, ct);
-    public Task<OrganizationResult<OrganizationDetails>> SetOrganizationActive(OrganizationScope? scope, SetOrganizationActive request, CancellationToken ct = default)
-        => ChangeOrganization(scope, request.Id, request.ExpectedRowVersion, request.IsActive ? OrganizationMutation.Activate : OrganizationMutation.Deactivate, null, ct);
-    public Task<OrganizationResult<SiteDetails>> RenameSite(OrganizationScope? scope, RenameSite request, CancellationToken ct = default)
-        => ChangeSite(scope, request.OrganizationId, request.Id, request.ExpectedRowVersion, OrganizationMutation.Rename, request.Name, ct);
-    public Task<OrganizationResult<SiteDetails>> SetSiteActive(OrganizationScope? scope, SetSiteActive request, CancellationToken ct = default)
-        => ChangeSite(scope, request.OrganizationId, request.Id, request.ExpectedRowVersion, request.IsActive ? OrganizationMutation.Activate : OrganizationMutation.Deactivate, null, ct);
+        => companySlices.RenameOrganizationAsync(scope, request, ct);
 
-    private async Task<OrganizationResult<OrganizationDetails>> ChangeOrganization(OrganizationScope? scope, long id, string? expected, OrganizationMutation mutation, string? name, CancellationToken ct)
-    {
-        var permission = mutation == OrganizationMutation.Rename ? OrganizationPermissions.OrganizationsUpdate : OrganizationPermissions.OrganizationsSetActive;
-        var auth = await Authorize(scope, permission, ct);
-        OrganizationResult<OrganizationDetails> res;
-        if (auth.Error is not null) res = OrganizationResult<OrganizationDetails>.Failure(auth.Error);
-        else if (!OrganizationMatches(scope, id)) res = OrganizationResult<OrganizationDetails>.Failure("Organization.NotFound");
-        else if (Version(expected) is not byte[] version) res = OrganizationResult<OrganizationDetails>.Failure(OrganizationAccessErrors.ConcurrencyConflict);
-        else res = await store.UpdateOrganization(id, version, mutation, name, Access(auth.Actor!, scope!, permission), ct);
-        return await OperationAuditHelper.RecordIfRejectedAsync(res, operationRecorder, opContext,
-            UserOperationCatalog.OrganizationActionRejected, auth.Actor, scope, id, null, "Organization",
-            id.ToString(CultureInfo.InvariantCulture), new { Action = mutation.ToString() });
-    }
-    private async Task<OrganizationResult<SiteDetails>> ChangeSite(OrganizationScope? scope, long orgId, long id, string? expected, OrganizationMutation mutation, string? name, CancellationToken ct)
-    {
-        var permission = mutation == OrganizationMutation.Rename ? OrganizationPermissions.SitesUpdate : OrganizationPermissions.SitesSetActive;
-        var auth = await Authorize(scope, permission, ct);
-        OrganizationResult<SiteDetails> res;
-        if (auth.Error is not null) res = OrganizationResult<SiteDetails>.Failure(auth.Error);
-        else if (!SiteMatches(scope, orgId, id)) res = OrganizationResult<SiteDetails>.Failure("Site.NotFound");
-        else if (Version(expected) is not byte[] version) res = OrganizationResult<SiteDetails>.Failure(OrganizationAccessErrors.ConcurrencyConflict);
-        else res = await store.UpdateSite(orgId, id, version, mutation, name, Access(auth.Actor!, scope!, permission), ct);
-        return await OperationAuditHelper.RecordIfRejectedAsync(res, operationRecorder, opContext,
-            UserOperationCatalog.SiteActionRejected, auth.Actor, scope, orgId, id > 0 ? id : null, "Site",
-            id.ToString(CultureInfo.InvariantCulture), new { Action = mutation.ToString() });
-    }
+    public Task<OrganizationResult<OrganizationDetails>> SetOrganizationActive(OrganizationScope? scope, SetOrganizationActive request, CancellationToken ct = default)
+        => companySlices.SetOrganizationActiveAsync(scope, request, ct);
+
+    public Task<OrganizationResult<SiteDetails>> RenameSite(OrganizationScope? scope, RenameSite request, CancellationToken ct = default)
+        => siteSlices.RenameSiteAsync(scope, request, ct);
+
+    public Task<OrganizationResult<SiteDetails>> SetSiteActive(OrganizationScope? scope, SetSiteActive request, CancellationToken ct = default)
+        => siteSlices.SetSiteActiveAsync(scope, request, ct);
 }

@@ -1,3 +1,5 @@
+using System.Numerics;
+
 namespace ForgeFlow.Domain.Units;
 
 public sealed record UnitConversionEdge(long FromUnitId, long ToUnitId, decimal Factor, bool IsItemSpecific = false);
@@ -60,19 +62,20 @@ public static class UnitConversionGraph
         }
 
         // Build bidirectional adjacency list tracking exact rational (Num / Den) multipliers per edge.
-        var adjacency = new Dictionary<long, List<(long NextUnitId, decimal Num, decimal Den, bool IsItemSpecific)>>();
+        var adjacency = new Dictionary<long, List<(long NextUnitId, BigInteger Num, BigInteger Den, bool IsItemSpecific)>>();
         foreach (var edge in directed.Values.OrderByDescending(e => e.IsItemSpecific).ThenBy(e => e.FromUnitId).ThenBy(e => e.ToUnitId))
         {
-            AddNeighbor(adjacency, edge.FromUnitId, edge.ToUnitId, edge.Factor, 1m, edge.IsItemSpecific);
-            AddNeighbor(adjacency, edge.ToUnitId, edge.FromUnitId, 1m, edge.Factor, edge.IsItemSpecific);
+            var (factorNum, factorDen) = DecimalToRational(edge.Factor);
+            AddNeighbor(adjacency, edge.FromUnitId, edge.ToUnitId, factorNum, factorDen, edge.IsItemSpecific);
+            AddNeighbor(adjacency, edge.ToUnitId, edge.FromUnitId, factorDen, factorNum, edge.IsItemSpecific);
         }
 
         if (!adjacency.ContainsKey(fromUnitId) || !adjacency.ContainsKey(toUnitId))
             throw new UnitRuleException(UnitErrors.ConversionPathNotFound);
 
-        var visited = new Dictionary<long, (decimal Num, decimal Den, int Hops, bool UsedItemEdge)>
+        var visited = new Dictionary<long, (BigInteger Num, BigInteger Den, int Hops, bool UsedItemEdge)>
         {
-            [fromUnitId] = (1m, 1m, 0, false)
+            [fromUnitId] = (BigInteger.One, BigInteger.One, 0, false)
         };
         var queue = new Queue<long>();
         queue.Enqueue(fromUnitId);
@@ -97,14 +100,15 @@ public static class UnitConversionGraph
                 }
                 else
                 {
-                    var existingRatio = existing.Num / existing.Den;
-                    var candidateRatio = nextNum / nextDen;
+                    var existingRatio = RationalToDecimal(existing.Num, existing.Den);
+                    var candidateRatio = RationalToDecimal(nextNum, nextDen);
                     if (existing.UsedItemEdge == candidateItem && !WithinTolerance(existingRatio, candidateRatio))
                         throw new UnitRuleException(UnitErrors.ConversionConflictingPath);
 
                     if (!existing.UsedItemEdge && candidateItem && candidateHops <= existing.Hops)
                     {
                         visited[nextUnitId] = (nextNum, nextDen, candidateHops, true);
+                        queue.Enqueue(nextUnitId);
                     }
                 }
             }
@@ -113,36 +117,74 @@ public static class UnitConversionGraph
         if (!visited.TryGetValue(toUnitId, out var resolved))
             throw new UnitRuleException(UnitErrors.ConversionPathNotFound);
 
-        var exactFactor = resolved.Num / resolved.Den;
+        var exactFactor = RationalToDecimal(resolved.Num, resolved.Den);
         var roundedFactor = decimal.Round(exactFactor, UnitText.MaxPrecisionScale, MidpointRounding.AwayFromZero);
         var convertedQty = 0m;
         if (includeQuantity)
         {
-            var exactQty = (quantity * resolved.Num) / resolved.Den;
+            var (qtyNum, qtyDen) = DecimalToRational(quantity);
+            var (prodNum, prodDen) = MultiplyRational(qtyNum, qtyDen, resolved.Num, resolved.Den);
+            var exactQty = RationalToDecimal(prodNum, prodDen);
             convertedQty = decimal.Round(exactQty, UnitText.MaxPrecisionScale, MidpointRounding.AwayFromZero);
         }
 
         return new(roundedFactor, resolved.Hops, convertedQty);
     }
 
-    private static (decimal Num, decimal Den) MultiplyRational(decimal numA, decimal denA, decimal numB, decimal denB)
+    private static (BigInteger Num, BigInteger Den) MultiplyRational(BigInteger numA, BigInteger denA, BigInteger numB, BigInteger denB)
+        => Reduce(numA * numB, denA * denB);
+
+    private static (BigInteger Num, BigInteger Den) DecimalToRational(decimal value)
     {
-        try
+        var bits = decimal.GetBits(value);
+        var low = (uint)bits[0];
+        var mid = (uint)bits[1];
+        var high = (uint)bits[2];
+        var flags = bits[3];
+        var scale = (flags >> 16) & 0x7F;
+        var negative = (flags & unchecked((int)0x80000000)) != 0;
+
+        var mantissa = ((BigInteger)high << 64) | ((BigInteger)mid << 32) | low;
+        if (negative) mantissa = -mantissa;
+        return Reduce(mantissa, BigInteger.Pow(10, scale));
+    }
+
+    private static (BigInteger Num, BigInteger Den) Reduce(BigInteger num, BigInteger den)
+    {
+        if (num.IsZero) return (BigInteger.Zero, BigInteger.One);
+        if (den < 0) { num = -num; den = -den; }
+        var gcd = BigInteger.GreatestCommonDivisor(BigInteger.Abs(num), den);
+        return gcd > BigInteger.One ? (num / gcd, den / gcd) : (num, den);
+    }
+
+    private static decimal RationalToDecimal(BigInteger num, BigInteger den)
+    {
+        if (num.IsZero) return 0m;
+        if (BigInteger.Abs(num) <= (BigInteger)decimal.MaxValue && den <= (BigInteger)decimal.MaxValue)
+            return (decimal)num / (decimal)den;
+
+        var sign = num.Sign;
+        var absNum = BigInteger.Abs(num);
+        for (var scale = 18; scale >= 0; scale -= 6)
         {
-            return (checked(numA * numB), checked(denA * denB));
+            var factor = BigInteger.Pow(10, scale);
+            var (q, r) = BigInteger.DivRem(absNum * factor, den);
+            if (r * 2 >= den) q += 1;
+            if (q <= (BigInteger)decimal.MaxValue)
+            {
+                var res = (decimal)q / (decimal)factor;
+                return sign < 0 ? -res : res;
+            }
         }
-        catch (OverflowException)
-        {
-            return ((numA / denA) * (numB / denB), 1m);
-        }
+        return (decimal)(num / den);
     }
 
     private static void AddNeighbor(
-        Dictionary<long, List<(long NextUnitId, decimal Num, decimal Den, bool IsItemSpecific)>> adjacency,
+        Dictionary<long, List<(long NextUnitId, BigInteger Num, BigInteger Den, bool IsItemSpecific)>> adjacency,
         long from,
         long to,
-        decimal num,
-        decimal den,
+        BigInteger num,
+        BigInteger den,
         bool isItemSpecific)
     {
         if (!adjacency.TryGetValue(from, out var list))

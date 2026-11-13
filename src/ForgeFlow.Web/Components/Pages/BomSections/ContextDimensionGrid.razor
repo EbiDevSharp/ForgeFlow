@@ -1,0 +1,54 @@
+@using ForgeFlow.Application.Boms
+@using ForgeFlow.Web.Roles
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-grid-card">
+    <div class="read-grid">
+        <BitDataGrid @ref="grid" TItem="ContextDimensionSummary" OnRead="OnRead" Pageable="true" PageSize="25"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                     AriaLabelledBy="boms-title" WrapCellText="true" Resizable="true">
+            <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+            <Columns>
+                <BitDataGridColumn TItem="ContextDimensionSummary" Title="@Text["ReadCode"]">
+                    <Template Context="row"><bdi dir="ltr">@row.Code</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ContextDimensionSummary" Title="@Text["ReadName"]">
+                    <Template Context="row">@RolePermissionLocalization.ContextDimensionDisplayName(row.Code, row.Name, Text)</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ContextDimensionSummary" Title="@Text["ReadStatus"]">
+                    <Template Context="row">
+                        <span class="read-badge @(row.IsActive ? "active" : "inactive")">@(row.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])</span>
+                    </Template>
+                </BitDataGridColumn>
+                @if (CanManage)
+                {
+                    <BitDataGridColumn TItem="ContextDimensionSummary" Title="@Text["ReadActions"]">
+                        <Template Context="row">
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                       Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]" title="@Text["ReadEdit"]"
+                                       OnClick="() => OnOpenEdit.InvokeAsync(row)" />
+                        </Template>
+                    </BitDataGridColumn>
+                }
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private BitDataGrid<ContextDimensionSummary>? grid;
+
+    [Parameter, EditorRequired] public Func<BitDataGridReadRequest, Task<BitDataGridReadResult<ContextDimensionSummary>>> OnRead { get; set; } = default!;
+    [Parameter, EditorRequired] public int[] PageSizeOptions { get; set; } = [];
+    [Parameter, EditorRequired] public BitDataGridStrings GridStrings { get; set; } = default!;
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public BitIconInfo? EditIcon { get; set; }
+    [Parameter] public EventCallback<ContextDimensionSummary> OnOpenEdit { get; set; }
+
+    public async Task RefreshFromFirstPageAsync()
+    {
+        if (grid is null) return;
+        if (grid.CurrentPage <= 1) await grid.RefreshAsync();
+        else await grid.GoToPageAsync(1);
+    }
+}

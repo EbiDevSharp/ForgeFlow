@@ -16,14 +16,14 @@ public sealed class ItemOperationsStore(Func<IDbContextFactory<OrganizationDbCon
 
     public Task<OrganizationPage<ItemSummary>> ListItems(long organizationId, ItemListQuery query, CancellationToken ct) => Read(async db =>
     {
-        var joined = from i in db.Items
-                     join u in db.Units on new { i.OrganizationId, UnitId = i.BaseUnitId } equals new { u.OrganizationId, UnitId = u.Id }
+        var joined = from i in db.Items.AsNoTracking()
+                     join u in db.Units.AsNoTracking() on new { i.OrganizationId, UnitId = i.BaseUnitId } equals new { u.OrganizationId, UnitId = u.Id }
                      where i.OrganizationId == organizationId && (query.IncludeInactive || i.IsActive)
                      select new { i, u };
 
         if (query.ClassificationId is long clsId && clsId > 0)
         {
-            var matchingIds = db.ItemClassifications
+            var matchingIds = db.ItemClassifications.AsNoTracking()
                 .Where(ic => ic.OrganizationId == organizationId && ic.ClassificationId == clsId)
                 .Select(ic => ic.ItemId);
             joined = joined.Where(x => matchingIds.Contains(x.i.Id));
@@ -43,22 +43,69 @@ public sealed class ItemOperationsStore(Func<IDbContextFactory<OrganizationDbCon
             .ThenBy(x => x.i.Id)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
+            .Select(x => new
+            {
+                x.i.Id,
+                x.i.OrganizationId,
+                x.i.Code,
+                x.i.Name,
+                x.i.Description,
+                x.i.BaseUnitId,
+                BaseUnitCode = x.u.Code,
+                BaseUnitName = x.u.Name,
+                BaseUnitSymbol = x.u.Symbol,
+                x.i.CanBePurchased,
+                x.i.CanBeManufactured,
+                x.i.CanBeSold,
+                x.i.CanBeConsumed,
+                x.i.IsActive,
+                RowVersion = EF.Property<byte[]>(x.i, "RowVersion"),
+                x.i.RequiresLotTracking,
+                x.i.QualityControlMode
+            })
             .ToListAsync(ct);
 
-        var items = page.Select(x => ToItemSummary(db, x.i, x.u)).ToArray();
+        var items = page.Select(x => new ItemSummary(
+            x.Id, x.OrganizationId, x.Code, x.Name, x.Description,
+            x.BaseUnitId, x.BaseUnitCode, x.BaseUnitName, x.BaseUnitSymbol,
+            x.CanBePurchased, x.CanBeManufactured, x.CanBeSold, x.CanBeConsumed,
+            x.IsActive, Convert.ToBase64String(x.RowVersion), x.RequiresLotTracking, x.QualityControlMode)).ToArray();
         return new OrganizationPage<ItemSummary>(items, count, query.Page, query.PageSize);
     }, ct);
 
     public Task<IReadOnlyList<ItemSummary>> ListActiveItems(long organizationId, CancellationToken ct) => Read<IReadOnlyList<ItemSummary>>(async db =>
     {
-        var rows = await (from i in db.Items
-                          join u in db.Units on new { i.OrganizationId, UnitId = i.BaseUnitId } equals new { u.OrganizationId, UnitId = u.Id }
+        var rows = await (from i in db.Items.AsNoTracking()
+                          join u in db.Units.AsNoTracking() on new { i.OrganizationId, UnitId = i.BaseUnitId } equals new { u.OrganizationId, UnitId = u.Id }
                           where i.OrganizationId == organizationId && i.IsActive
                           orderby i.Code, i.Id
-                          select new { i, u })
+                          select new
+                          {
+                              i.Id,
+                              i.OrganizationId,
+                              i.Code,
+                              i.Name,
+                              i.Description,
+                              i.BaseUnitId,
+                              BaseUnitCode = u.Code,
+                              BaseUnitName = u.Name,
+                              BaseUnitSymbol = u.Symbol,
+                              i.CanBePurchased,
+                              i.CanBeManufactured,
+                              i.CanBeSold,
+                              i.CanBeConsumed,
+                              i.IsActive,
+                              RowVersion = EF.Property<byte[]>(i, "RowVersion"),
+                              i.RequiresLotTracking,
+                              i.QualityControlMode
+                          })
             .ToListAsync(ct);
 
-        return rows.Select(x => ToItemSummary(db, x.i, x.u)).ToArray();
+        return rows.Select(x => new ItemSummary(
+            x.Id, x.OrganizationId, x.Code, x.Name, x.Description,
+            x.BaseUnitId, x.BaseUnitCode, x.BaseUnitName, x.BaseUnitSymbol,
+            x.CanBePurchased, x.CanBeManufactured, x.CanBeSold, x.CanBeConsumed,
+            x.IsActive, Convert.ToBase64String(x.RowVersion), x.RequiresLotTracking, x.QualityControlMode)).ToArray();
     }, ct);
 
     public Task<ItemDetails?> GetItem(long organizationId, long id, CancellationToken ct)
@@ -759,10 +806,29 @@ public sealed class ItemOperationsStore(Func<IDbContextFactory<OrganizationDbCon
 
     private static async Task<ItemDetails?> BuildItemDetailsAsync(OrganizationDbContext db, long organizationId, long id, CancellationToken ct)
     {
-        var row = await (from i in db.Items
-                         join u in db.Units on new { i.OrganizationId, UnitId = i.BaseUnitId } equals new { u.OrganizationId, UnitId = u.Id }
+        var row = await (from i in db.Items.AsNoTracking()
+                         join u in db.Units.AsNoTracking() on new { i.OrganizationId, UnitId = i.BaseUnitId } equals new { u.OrganizationId, UnitId = u.Id }
                          where i.OrganizationId == organizationId && i.Id == id
-                         select new { i, u })
+                         select new
+                         {
+                             i.Id,
+                             i.OrganizationId,
+                             i.Code,
+                             i.Name,
+                             i.Description,
+                             i.BaseUnitId,
+                             BaseUnitCode = u.Code,
+                             BaseUnitName = u.Name,
+                             BaseUnitSymbol = u.Symbol,
+                             i.CanBePurchased,
+                             i.CanBeManufactured,
+                             i.CanBeSold,
+                             i.CanBeConsumed,
+                             i.IsActive,
+                             RowVersion = EF.Property<byte[]>(i, "RowVersion"),
+                             i.RequiresLotTracking,
+                             i.QualityControlMode
+                         })
             .SingleOrDefaultAsync(ct);
         if (row is null) return null;
 
@@ -774,12 +840,28 @@ public sealed class ItemOperationsStore(Func<IDbContextFactory<OrganizationDbCon
                                      select new ItemClassificationSummary(c.Id, s.Id, s.Code, s.Name, c.Code, c.Name))
             .ToListAsync(ct);
 
-        var conversions = await (from c in db.ItemUnitConversions
-                                 join f in db.Units on new { c.OrganizationId, UnitId = c.FromUnitId } equals new { f.OrganizationId, UnitId = f.Id }
-                                 join t in db.Units on new { c.OrganizationId, UnitId = c.ToUnitId } equals new { t.OrganizationId, UnitId = t.Id }
+        var conversions = await (from c in db.ItemUnitConversions.AsNoTracking()
+                                 join f in db.Units.AsNoTracking() on new { c.OrganizationId, UnitId = c.FromUnitId } equals new { f.OrganizationId, UnitId = f.Id }
+                                 join t in db.Units.AsNoTracking() on new { c.OrganizationId, UnitId = c.ToUnitId } equals new { t.OrganizationId, UnitId = t.Id }
                                  where c.OrganizationId == organizationId && c.ItemId == id
                                  orderby f.Code, t.Code, c.Id
-                                 select new { c, f, t })
+                                 select new
+                                 {
+                                     c.Id,
+                                     c.OrganizationId,
+                                     c.ItemId,
+                                     c.FromUnitId,
+                                     FromCode = f.Code,
+                                     FromName = f.Name,
+                                     FromSymbol = f.Symbol,
+                                     c.ToUnitId,
+                                     ToCode = t.Code,
+                                     ToName = t.Name,
+                                     ToSymbol = t.Symbol,
+                                     c.Factor,
+                                     c.IsActive,
+                                     RowVersion = EF.Property<byte[]>(c, "RowVersion")
+                                 })
             .ToListAsync(ct);
 
         var attrs = await (from ad in db.AttributeDefinitions.AsNoTracking()
@@ -804,44 +886,29 @@ public sealed class ItemOperationsStore(Func<IDbContextFactory<OrganizationDbCon
             .ToListAsync(ct);
 
         return new ItemDetails(
-            ToItemSummary(db, row.i, row.u),
+            new ItemSummary(
+                row.Id, row.OrganizationId, row.Code, row.Name, row.Description,
+                row.BaseUnitId, row.BaseUnitCode, row.BaseUnitName, row.BaseUnitSymbol,
+                row.CanBePurchased, row.CanBeManufactured, row.CanBeSold, row.CanBeConsumed,
+                row.IsActive, Convert.ToBase64String(row.RowVersion), row.RequiresLotTracking, row.QualityControlMode),
             classifications,
             conversions.Select(x => new ItemUnitConversionSummary(
-                x.c.Id,
-                x.c.OrganizationId,
-                x.c.ItemId,
-                x.c.FromUnitId,
-                x.f.Code,
-                x.f.Name,
-                x.f.Symbol,
-                x.c.ToUnitId,
-                x.t.Code,
-                x.t.Name,
-                x.t.Symbol,
-                x.c.Factor,
-                x.c.IsActive,
-                Convert.ToBase64String(db.Entry(x.c).Property<byte[]>("RowVersion").CurrentValue!))).ToArray(),
+                x.Id,
+                x.OrganizationId,
+                x.ItemId,
+                x.FromUnitId,
+                x.FromCode,
+                x.FromName,
+                x.FromSymbol,
+                x.ToUnitId,
+                x.ToCode,
+                x.ToName,
+                x.ToSymbol,
+                x.Factor,
+                x.IsActive,
+                Convert.ToBase64String(x.RowVersion))).ToArray(),
             attrs);
     }
-
-    private static ItemSummary ToItemSummary(OrganizationDbContext db, Item i, Unit baseUnit) => new(
-        i.Id,
-        i.OrganizationId,
-        i.Code,
-        i.Name,
-        i.Description,
-        i.BaseUnitId,
-        baseUnit.Code,
-        baseUnit.Name,
-        baseUnit.Symbol,
-        i.CanBePurchased,
-        i.CanBeManufactured,
-        i.CanBeSold,
-        i.CanBeConsumed,
-        i.IsActive,
-        Convert.ToBase64String(db.Entry(i).Property<byte[]>("RowVersion").CurrentValue!),
-        i.RequiresLotTracking,
-        i.QualityControlMode);
 
     private static ClassificationSetSummary ToSetSummary(OrganizationDbContext db, ClassificationSet s) => new(
         s.Id,

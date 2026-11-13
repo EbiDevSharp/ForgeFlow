@@ -1,4 +1,5 @@
 using System.Globalization;
+using ForgeFlow.Domain.Common;
 
 namespace ForgeFlow.Domain.Organizations;
 
@@ -23,7 +24,7 @@ public enum DocumentYearMode : byte
 }
 
 /// <summary>Organization-scoped configurable auto-numbering sequence for operational documents.</summary>
-public sealed class DocumentSequence
+public sealed class DocumentSequence : IHasRowVersion
 {
     public const int MaxPrefixLength = 12;
     public const int MinPaddingDigits = 3;
@@ -71,8 +72,10 @@ public sealed class DocumentSequence
     public DocumentYearMode YearMode { get; private set; }
     public byte PaddingDigits { get; private set; }
     public long NextNumber { get; private set; }
+    public int? LastAllocatedYear { get; private set; }
     public bool AllowManualOverride { get; private set; }
     public bool IsActive { get; private set; } = true;
+    public byte[] RowVersion { get; private set; } = [];
 
     public static DocumentSequence CreateDefault(long organizationId, DocumentSequenceType documentType)
     {
@@ -115,6 +118,9 @@ public sealed class DocumentSequence
             return false;
         }
 
+        if (YearMode != nextYear)
+            LastAllocatedYear = null;
+
         Prefix = nextPrefix;
         Separator = nextSep;
         YearMode = nextYear;
@@ -124,14 +130,34 @@ public sealed class DocumentSequence
         return true;
     }
 
-    public string FormatPreview(DateTime utcNow) => FormatNumber(NextNumber, utcNow);
+    public string FormatPreview(DateTime utcNow)
+    {
+        var currentYear = GetYearFor(utcNow);
+        var effectiveNext = currentYear.HasValue && LastAllocatedYear.HasValue && LastAllocatedYear.Value != currentYear.Value
+            ? 1
+            : NextNumber;
+        return FormatNumber(effectiveNext, utcNow);
+    }
 
     public string AllocateNextNumber(DateTime utcNow)
     {
+        var currentYear = GetYearFor(utcNow);
+        if (currentYear.HasValue && LastAllocatedYear.HasValue && LastAllocatedYear.Value != currentYear.Value)
+            NextNumber = 1;
+        if (currentYear.HasValue)
+            LastAllocatedYear = currentYear.Value;
+
         var formatted = FormatNumber(NextNumber, utcNow);
         NextNumber++;
         return formatted;
     }
+
+    private int? GetYearFor(DateTime utcNow) => YearMode switch
+    {
+        DocumentYearMode.Gregorian => utcNow.Year,
+        DocumentYearMode.Persian => PersianCal.GetYear(utcNow),
+        _ => null
+    };
 
     public string FormatNumber(long sequenceNumber, DateTime utcNow)
     {

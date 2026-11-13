@@ -1,0 +1,118 @@
+@using ForgeFlow.Application.Boms
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Web.Roles
+@inject BomUseCases BomService
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged" Title="@Text["BomCreateHeading"]" Width="560px" MaxWidth="calc(100vw - 24px)"
+           Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]"
+           OnDismissing="OnDismissing">
+    <Body>
+        <div class="audit-modal-body">
+            <p class="write-hint">@Text["BomCreateHint"]</p>
+            <div class="write-field">
+                <label for="bom-create-code">@Text["ReadCode"]</label>
+                <input id="bom-create-code" type="text" dir="ltr" maxlength="32" @bind="code" disabled="@saving" />
+            </div>
+            <div class="write-field">
+                <label for="bom-create-name">@Text["ReadName"]</label>
+                <input id="bom-create-name" type="text" maxlength="200" @bind="name" disabled="@saving" />
+            </div>
+            <div class="write-field">
+                <label for="bom-create-item">@Text["BomPrimaryItemLabel"]</label>
+                <select id="bom-create-item" @bind="primaryItemId" disabled="@saving">
+                    @foreach (var item in ManufacturableItems)
+                    {
+                        <option value="@item.Id">@item.Code — @item.Name (@item.BaseUnitSymbol)</option>
+                    }
+                </select>
+            </div>
+            @if (error is not null)
+            {
+                <p role="alert" class="write-error">@Text[error]</p>
+            }
+            <div class="write-actions">
+                <BitButton IsEnabled="@(!saving)" OnClick="SubmitAsync">
+                    @(saving ? Text["WriteSaving"] : Text["BomCreateButton"])
+                </BitButton>
+                <BitButton Variant="BitVariant.Outline" OnClick="CloseAsync">@Text["WriteCancel"]</BitButton>
+            </div>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    private bool saving;
+    private string? error;
+    private string code = string.Empty;
+    private string name = string.Empty;
+    private long primaryItemId;
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter, EditorRequired] public BitDialogClassStyles DialogClasses { get; set; } = default!;
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public IReadOnlyList<ItemSummary> ManufacturableItems { get; set; } = [];
+    [Parameter] public EventCallback<long> OnCreated { get; set; }
+
+    public void Open()
+    {
+        code = string.Empty;
+        name = string.Empty;
+        primaryItemId = ManufacturableItems.FirstOrDefault()?.Id ?? 0;
+        error = null;
+        IsOpen = true;
+        IsOpenChanged.InvokeAsync(true);
+        StateHasChanged();
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || saving) return;
+        saving = true;
+        error = null;
+        try
+        {
+            var res = await BomService.CreateBom(CurrentScope, new CreateBomRequest(CurrentOrgId, code, name, primaryItemId));
+            if (!res.Succeeded || res.Value is null)
+            {
+                error = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+
+            IsOpen = false;
+            await IsOpenChanged.InvokeAsync(false);
+            await OnCreated.InvokeAsync(res.Value.Summary.Id);
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task OnIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    private async Task CloseAsync()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+
+    private void OnDismissing(BitDialogDismissArgs args)
+    {
+        if (saving)
+        {
+            args.Cancel = true;
+            return;
+        }
+        IsOpen = false;
+        IsOpenChanged.InvokeAsync(false);
+    }
+}

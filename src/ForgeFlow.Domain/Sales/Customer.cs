@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Sales;
 
 /// <summary>Organization-shared customer master.</summary>
-public sealed class Customer
+public sealed class Customer : IHasRowVersion
 {
     private Customer()
     {
@@ -46,6 +48,7 @@ public sealed class Customer
     public string? TaxCode { get; private set; }
     public string? Notes { get; private set; }
     public bool IsActive { get; private set; } = true;
+    public byte[] RowVersion { get; private set; } = [];
 
     public static Customer Create(
         long organizationId,

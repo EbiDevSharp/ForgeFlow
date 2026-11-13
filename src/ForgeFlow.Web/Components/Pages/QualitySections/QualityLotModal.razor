@@ -1,0 +1,155 @@
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Quality
+@using ForgeFlow.Web.Roles
+@inject QualityUseCases QualityService
+@inject IStringLocalizer<SharedResources> Text
+@inject CulturePolicy Culture
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses"
+           IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged"
+           Title="@Text["QcLotUpsertTitle"]" AriaLabel="@Text["QcLotUpsertTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true"
+           OnDismissing="OnDismissing">
+    <Body>
+        <div class="audit-modal-body">
+            @if (lotError is not null)
+            {
+                <p role="alert" class="write-error">@Text[lotError]</p>
+            }
+            <div class="po-form-grid">
+                <div class="write-field">
+                    <label for="qc-lot-item">@Text["BomLineItemColumn"]</label>
+                    <select id="qc-lot-item" @bind="lotEditItemId" disabled="@(editingLot is not null)">
+                        <option value="0">@Text["InvSelectItemOption"]</option>
+                        @foreach (var it in ActiveItems)
+                        {
+                            <option value="@it.Id">@it.Code — @it.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="write-field">
+                    <label for="qc-lot-code">@Text["InvLotCodeLabel"]</label>
+                    <input id="qc-lot-code" type="text" maxlength="32" @bind="lotEditCode" disabled="@(editingLot is not null)" />
+                </div>
+                <div class="write-field">
+                    <label>@Text["QcLotMfgDateLabel"]</label>
+                    <BitDatePicker @bind-Value="lotMfgDateOffset" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                                   ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowClearButton="true" ShowGoToToday="true"
+                                   GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                                   NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon" NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+                </div>
+                <div class="write-field">
+                    <label>@Text["QcLotExpDateLabel"]</label>
+                    <BitDatePicker @bind-Value="lotExpDateOffset" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                                   ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowClearButton="true" ShowGoToToday="true"
+                                   GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                                   NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon" NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+                </div>
+                <div class="write-field po-field-full">
+                    <label for="qc-lot-notes">@Text["PoNotesLabel"]</label>
+                    <textarea id="qc-lot-notes" rows="2" maxlength="500" @bind="lotEditNotes"></textarea>
+                </div>
+            </div>
+            <div class="po-dialog-footer">
+                <BitButton IsEnabled="@(!modalBusy && lotEditItemId > 0 && !string.IsNullOrWhiteSpace(lotEditCode))" OnClick="SubmitLotMetadataAsync">
+                    @Text["WriteSave"]
+                </BitButton>
+                <BitButton Variant="BitVariant.Outline" OnClick="CloseAsync">@Text["WriteCancel"]</BitButton>
+            </div>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
+    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
+    private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
+    private static readonly BitIconInfo NextNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-next");
+    private static readonly BitIconInfo PrevNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-prev");
+    private static readonly BitIconInfo NextYearIcon = BitIconInfo.Css("ff-icon ff-icon--double-chevron-next");
+    private static readonly BitIconInfo PrevYearIcon = BitIconInfo.Css("ff-icon ff-icon--double-chevron-prev");
+
+    private bool modalBusy;
+    private string? lotError;
+    private ItemLotSummary? editingLot;
+    private long lotEditItemId;
+    private string lotEditCode = string.Empty;
+    private DateTimeOffset? lotMfgDateOffset;
+    private DateTimeOffset? lotExpDateOffset;
+    private string? lotEditNotes;
+
+    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter, EditorRequired] public BitDialogClassStyles DialogClasses { get; set; } = default!;
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public IReadOnlyList<ItemSummary> ActiveItems { get; set; } = [];
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    public void Open(ItemLotSummary? lot)
+    {
+        lotError = null;
+        editingLot = lot;
+        lotEditItemId = lot?.ItemId ?? ActiveItems.FirstOrDefault()?.Id ?? 0;
+        lotEditCode = lot?.LotCode ?? string.Empty;
+        lotMfgDateOffset = lot?.ManufactureDate is DateOnly m ? new DateTimeOffset(m.Year, m.Month, m.Day, 0, 0, 0, TimeSpan.Zero) : null;
+        lotExpDateOffset = lot?.ExpirationDate is DateOnly e ? new DateTimeOffset(e.Year, e.Month, e.Day, 0, 0, 0, TimeSpan.Zero) : null;
+        lotEditNotes = lot?.Notes;
+        IsOpen = true;
+        IsOpenChanged.InvokeAsync(true);
+        StateHasChanged();
+    }
+
+    private async Task OnIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    private async Task SubmitLotMetadataAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || modalBusy) return;
+        modalBusy = true;
+        lotError = null;
+        try
+        {
+            DateOnly? mfg = lotMfgDateOffset.HasValue ? DateOnly.FromDateTime(lotMfgDateOffset.Value.Date) : null;
+            DateOnly? exp = lotExpDateOffset.HasValue ? DateOnly.FromDateTime(lotExpDateOffset.Value.Date) : null;
+            var res = await QualityService.UpsertItemLotMetadata(CurrentScope, new UpsertItemLotMetadataRequest(
+                CurrentOrgId, lotEditItemId, lotEditCode, mfg, exp, lotEditNotes, editingLot?.RowVersion));
+            if (!res.Succeeded)
+            {
+                lotError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            IsOpen = false;
+            await IsOpenChanged.InvokeAsync(false);
+            await OnSaved.InvokeAsync();
+        }
+        finally
+        {
+            modalBusy = false;
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+
+    private void OnDismissing(BitDialogDismissArgs args)
+    {
+        if (modalBusy)
+        {
+            args.Cancel = true;
+            return;
+        }
+        IsOpen = false;
+        IsOpenChanged.InvokeAsync(false);
+    }
+}

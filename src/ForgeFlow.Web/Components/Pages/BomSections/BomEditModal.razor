@@ -1,0 +1,156 @@
+@using ForgeFlow.Application.Boms
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Web.Roles
+@inject BomUseCases BomService
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged" Title="@Text["BomEditHeading"]" Width="520px" MaxWidth="calc(100vw - 24px)"
+           Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]"
+           OnDismissing="OnDismissing">
+    <Body>
+        @if (selectedBom is not null)
+        {
+            <div class="audit-modal-body">
+                <div class="audit-meta-card">
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["ReadCode"]</span>
+                        <bdi class="audit-meta-val" dir="ltr">@selectedBom.Summary.Code</bdi>
+                    </div>
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["BomPrimaryItemLabel"]</span>
+                        <span class="audit-meta-val"><bdi dir="ltr">@selectedBom.Summary.PrimaryOutputItemCode</bdi> — @selectedBom.Summary.PrimaryOutputItemName</span>
+                    </div>
+                </div>
+                <div class="write-field">
+                    <label for="bom-edit-name">@Text["ReadName"]</label>
+                    <input id="bom-edit-name" type="text" maxlength="200" @bind="editBomName" disabled="@saving" />
+                </div>
+                @if (error is not null)
+                {
+                    <p role="alert" class="write-error">@Text[error]</p>
+                }
+                <div class="write-actions">
+                    <BitButton IsEnabled="@(!saving)" OnClick="SubmitUpdateBomAsync">
+                        @(saving ? Text["WriteSaving"] : Text["WriteSave"])
+                    </BitButton>
+                    @if (confirmToggle is null)
+                    {
+                        <BitButton Variant="BitVariant.Outline" IsEnabled="@(!saving)"
+                                   OnClick="() => confirmToggle = !selectedBom.Summary.IsActive">
+                            @(selectedBom.Summary.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
+                        </BitButton>
+                    }
+                    else
+                    {
+                        <BitButton Variant="BitVariant.Outline" IsEnabled="@(!saving)" OnClick="ConfirmToggleBomAsync">
+                            @(confirmToggle == true ? Text["WriteConfirmActivate", selectedBom.Summary.Name] : Text["WriteConfirmDeactivate", selectedBom.Summary.Name])
+                        </BitButton>
+                        <BitButton Variant="BitVariant.Text" OnClick="() => confirmToggle = null">@Text["WriteCancel"]</BitButton>
+                    }
+                    <BitButton Variant="BitVariant.Text" OnClick="CloseAsync">@Text["ReadClose"]</BitButton>
+                </div>
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+@code {
+    private bool saving;
+    private string? error;
+    private string editBomName = string.Empty;
+    private bool? confirmToggle;
+    private BomDetails? selectedBom;
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter, EditorRequired] public BitDialogClassStyles DialogClasses { get; set; } = default!;
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public EventCallback OnUpdated { get; set; }
+
+    public void Open(BomDetails bom)
+    {
+        selectedBom = bom;
+        editBomName = bom.Summary.Name;
+        confirmToggle = null;
+        error = null;
+        IsOpen = true;
+        IsOpenChanged.InvokeAsync(true);
+        StateHasChanged();
+    }
+
+    private async Task OnIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    private async Task SubmitUpdateBomAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || selectedBom is null || saving) return;
+        saving = true;
+        error = null;
+        try
+        {
+            var res = await BomService.UpdateBom(CurrentScope,
+                new UpdateBomRequest(CurrentOrgId, selectedBom.Summary.Id, editBomName, selectedBom.Summary.RowVersion));
+            if (!res.Succeeded)
+            {
+                error = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            selectedBom = res.Value;
+            IsOpen = false;
+            await IsOpenChanged.InvokeAsync(false);
+            await OnUpdated.InvokeAsync();
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task ConfirmToggleBomAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || selectedBom is null || confirmToggle is null || saving) return;
+        saving = true;
+        error = null;
+        try
+        {
+            var res = await BomService.SetBomActive(CurrentScope,
+                new SetBomActiveRequest(CurrentOrgId, selectedBom.Summary.Id, confirmToggle.Value, selectedBom.Summary.RowVersion));
+            if (!res.Succeeded)
+            {
+                error = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            selectedBom = res.Value;
+            confirmToggle = null;
+            IsOpen = false;
+            await IsOpenChanged.InvokeAsync(false);
+            await OnUpdated.InvokeAsync();
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task CloseAsync()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
+
+    private void OnDismissing(BitDialogDismissArgs args)
+    {
+        if (saving)
+        {
+            args.Cancel = true;
+            return;
+        }
+        IsOpen = false;
+        IsOpenChanged.InvokeAsync(false);
+    }
+}

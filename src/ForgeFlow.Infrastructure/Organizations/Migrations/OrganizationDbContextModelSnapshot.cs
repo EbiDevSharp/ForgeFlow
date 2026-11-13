@@ -1333,8 +1333,6 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
 
                     b.ToTable("Item", "organization", t =>
                         {
-                            t.HasCheckConstraint("CK_Item_Capability", "[CanBePurchased] = 1 OR [CanBeManufactured] = 1 OR [CanBeSold] = 1 OR [CanBeConsumed] = 1");
-
                             t.HasCheckConstraint("CK_Item_Code", "DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'");
 
                             t.HasCheckConstraint("CK_Item_Metadata", "[CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))");
@@ -1544,6 +1542,9 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
+
+                    b.Property<int?>("LastAllocatedYear")
+                        .HasColumnType("int");
 
                     b.Property<long>("NextNumber")
                         .HasColumnType("bigint");
@@ -5490,3 +5491,4 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
         }
     }
 }
+

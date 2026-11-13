@@ -1,9 +1,15 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Sales;
 
 /// <summary>Site-scoped Sales Order managing customer orders, approvals, reservations, and partial/full dispatches.</summary>
-public sealed class SalesOrder
+public sealed class SalesOrder : IHasRowVersion, IHasDomainEvents
 {
     private readonly List<SalesOrderLine> _lines = [];
+    private readonly List<IDomainEvent> _domainEvents = [];
+
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void ClearDomainEvents() => _domainEvents.Clear();
 
     private SalesOrder()
     {
@@ -23,8 +29,7 @@ public sealed class SalesOrder
         string? shippingAddressSnapshot,
         string? notes)
     {
-        if (organizationId <= 0)
-            throw new SalesRuleException(SalesErrors.NotFound);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(organizationId);
         if (siteId <= 0)
             throw new SalesRuleException(SalesErrors.SiteInvalid);
         if (customerId <= 0)
@@ -61,6 +66,7 @@ public sealed class SalesOrder
     public DateTime? ApprovedAtUtc { get; private set; }
     public DateTime? ClosedAtUtc { get; private set; }
     public DateTime? CancelledAtUtc { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
 
     public IReadOnlyList<SalesOrderLine> Lines => _lines;
 
@@ -137,6 +143,7 @@ public sealed class SalesOrder
 
         Status = SalesOrderStatus.Approved;
         ApprovedAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
+        _domainEvents.Add(new SalesOrderApprovedDomainEvent(OrganizationId, SiteId, OrderNumber, ApprovedAtUtc.Value));
     }
 
     public void ApplyDispatches(IReadOnlyList<(long LineId, decimal DispatchedBaseDelta)> dispatches)
@@ -188,6 +195,7 @@ public sealed class SalesOrder
 
         Status = SalesOrderStatus.Closed;
         ClosedAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
+        _domainEvents.Add(new SalesOrderClosedDomainEvent(OrganizationId, SiteId, OrderNumber, ClosedAtUtc.Value));
     }
 
     public void Cancel(string? reason, DateTime utcNow)
@@ -201,5 +209,13 @@ public sealed class SalesOrder
         CancellationReason = SalesText.RequiredReason(reason);
         Status = SalesOrderStatus.Cancelled;
         CancelledAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
+        _domainEvents.Add(new SalesOrderCancelledDomainEvent(OrganizationId, SiteId, OrderNumber, CancellationReason, CancelledAtUtc.Value));
     }
+
+    public decimal CalculateTotalAmount()
+        => _lines.Sum(l => l.OrderedQuantity * (l.UnitPrice ?? 0m));
 }
+
+public sealed record SalesOrderApprovedDomainEvent(long OrganizationId, long SiteId, string OrderNumber, DateTime OccurredAtUtc) : IDomainEvent;
+public sealed record SalesOrderClosedDomainEvent(long OrganizationId, long SiteId, string OrderNumber, DateTime OccurredAtUtc) : IDomainEvent;
+public sealed record SalesOrderCancelledDomainEvent(long OrganizationId, long SiteId, string OrderNumber, string Reason, DateTime OccurredAtUtc) : IDomainEvent;

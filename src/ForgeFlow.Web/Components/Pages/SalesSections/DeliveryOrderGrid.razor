@@ -1,0 +1,61 @@
+@using ForgeFlow.Application.Sales
+@using ForgeFlow.Domain.Sales
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-grid-card">
+    <div class="read-grid">
+        <BitDataGrid @ref="grid" TItem="DeliveryOrderSummary" OnRead="OnRead" Pageable="true" PageSize="25"
+                     Resizable="true" WrapCellText="true"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["SalesTabDispatches"]">
+            <Columns>
+                <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["SalesDispatchNumber"]" Width="125px">
+                    <Template Context="d"><bdi dir="ltr">@d.DispatchNumber</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["SalesOrderNumber"]" Width="120px">
+                    <Template Context="d"><bdi dir="ltr">@d.SalesOrderNumber</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["SalesCustomerColumn"]" MinWidth="140">
+                    <Template Context="d"><bdi dir="ltr">@d.CustomerCode</bdi> — @d.CustomerName</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["InvWarehouseLabel"]" Width="115px">
+                    <Template Context="d"><bdi dir="ltr">@d.WarehouseCode</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["SalesDispatchDate"]" Width="104px">
+                    <Template Context="d"><bdi dir="ltr">@Format.Date(d.DispatchDate)</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["PoStatusColumn"]" Width="105px">
+                    <Template Context="d">
+                        <span class="write-status-badge @(d.Status == DeliveryOrderStatus.Posted ? "is-active" : "is-inactive")">
+                            @(d.Status == DeliveryOrderStatus.Posted ? Text["SalesDispatchPosted"] : Text["SalesDispatchReversed"])
+                        </span>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="DeliveryOrderSummary" Title="@Text["ReadActions"]" Width="160px">
+                    <Template Context="d">
+                        <div class="read-row-actions">
+                            <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnOpenDetail.InvokeAsync(d.Id)">@Text["ReadDetails"]</BitButton>
+                            @if (CanDispatch && d.Status == DeliveryOrderStatus.Posted)
+                            {
+                                <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnReverse.InvokeAsync(d)">@Text["SalesReverseButton"]</BitButton>
+                            }
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private BitDataGrid<DeliveryOrderSummary>? grid;
+
+    [Parameter, EditorRequired] public Func<BitDataGridReadRequest, Task<BitDataGridReadResult<DeliveryOrderSummary>>> OnRead { get; set; } = default!;
+    [Parameter, EditorRequired] public int[] PageSizeOptions { get; set; } = [];
+    [Parameter, EditorRequired] public BitDataGridStrings GridStrings { get; set; } = default!;
+    [Parameter] public bool CanDispatch { get; set; }
+    [Parameter] public EventCallback<long> OnOpenDetail { get; set; }
+    [Parameter] public EventCallback<DeliveryOrderSummary> OnReverse { get; set; }
+
+    public Task RefreshAsync() => grid?.RefreshAsync() ?? Task.CompletedTask;
+}

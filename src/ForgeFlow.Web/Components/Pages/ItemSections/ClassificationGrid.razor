@@ -1,0 +1,70 @@
+@using ForgeFlow.Application.Items
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-grid-card">
+    <div class="read-grid">
+        <BitDataGrid @ref="grid" TItem="ClassificationSummary" OnRead="OnRead" Pageable="true" PageSize="25"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                     AriaLabelledBy="items-title" WrapCellText="true" Resizable="true">
+            <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+            <Columns>
+                <BitDataGridColumn TItem="ClassificationSummary" Title="@Text["ClassificationSetLabel"]">
+                    <Template Context="row">@row.ClassificationSetName</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ClassificationSummary" Title="@Text["ReadCode"]">
+                    <Template Context="row"><bdi dir="ltr">@row.Code</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ClassificationSummary" Title="@Text["ReadName"]">
+                    <Template Context="row">@row.Name</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ClassificationSummary" Title="@Text["ClassificationParentLabel"]">
+                    <Template Context="row">@(row.ParentClassificationName ?? "—")</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ClassificationSummary" Title="@Text["ReadStatus"]">
+                    <Template Context="row">
+                        <span class="read-badge @(row.IsActive ? "active" : "inactive")">
+                            @Text[row.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ClassificationSummary" Title="@Text["ReadActions"]">
+                    <Template Context="row">
+                        <div class="read-row-actions">
+                            <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                           IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                           OnClick="() => OnOpenModal.InvokeAsync((row.Id, false))" />
+                            </BitTooltip>
+                            @if (CanManage)
+                            {
+                                <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                               Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                               OnClick="() => OnOpenModal.InvokeAsync((row.Id, true))" />
+                                </BitTooltip>
+                            }
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private BitDataGrid<ClassificationSummary>? grid;
+
+    [Parameter, EditorRequired] public Func<BitDataGridReadRequest, Task<BitDataGridReadResult<ClassificationSummary>>> OnRead { get; set; } = default!;
+    [Parameter, EditorRequired] public int[] PageSizeOptions { get; set; } = [];
+    [Parameter, EditorRequired] public BitDataGridStrings GridStrings { get; set; } = default!;
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public BitIconInfo? EditIcon { get; set; }
+    [Parameter] public EventCallback<(long Id, bool Edit)> OnOpenModal { get; set; }
+
+    public async Task RefreshAsync()
+    {
+        if (grid is null) return;
+        if (grid.CurrentPage <= 1) await grid.RefreshAsync();
+        else await grid.GoToPageAsync(1);
+    }
+}

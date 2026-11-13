@@ -1,0 +1,80 @@
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Domain.Items
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-grid-card">
+    <div class="read-grid">
+        <BitDataGrid @ref="grid" TItem="ItemSummary" OnRead="OnRead" Pageable="true" PageSize="25"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                     AriaLabelledBy="items-title" WrapCellText="true" Resizable="true">
+            <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+            <Columns>
+                <BitDataGridColumn TItem="ItemSummary" Title="@Text["ReadCode"]">
+                    <Template Context="row"><bdi dir="ltr">@row.Code</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ItemSummary" Title="@Text["ReadName"]">
+                    <Template Context="row">@row.Name</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ItemSummary" Title="@Text["ItemBaseUnitLabel"]">
+                    <Template Context="row">@row.BaseUnitName (<bdi dir="ltr">@row.BaseUnitSymbol</bdi>)</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ItemSummary" Title="@Text["ItemCapabilitiesLabel"]">
+                    <Template Context="row">
+                        <div class="cap-badge-row">
+                            @if (row.CanBePurchased) { <span class="cap-badge">@Text["ItemCapPurchase"]</span> }
+                            @if (row.CanBeManufactured) { <span class="cap-badge">@Text["ItemCapManufacture"]</span> }
+                            @if (row.CanBeSold) { <span class="cap-badge">@Text["ItemCapSell"]</span> }
+                            @if (row.CanBeConsumed) { <span class="cap-badge">@Text["ItemCapConsume"]</span> }
+                            @if (row.RequiresLotTracking) { <span class="cap-badge">@Text["ItemLotTrackedBadge"]</span> }
+                            @if (row.QualityControlMode != QualityControlMode.None) { <span class="cap-badge">@Text["ItemQcRequiredBadge"]</span> }
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ItemSummary" Title="@Text["ReadStatus"]">
+                    <Template Context="row">
+                        <span class="read-badge @(row.IsActive ? "active" : "inactive")">
+                            @Text[row.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ItemSummary" Title="@Text["ReadActions"]">
+                    <Template Context="row">
+                        <div class="read-row-actions">
+                            <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                           IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                           OnClick="() => OnOpenModal.InvokeAsync((row.Id, false))" />
+                            </BitTooltip>
+                            @if (CanManage)
+                            {
+                                <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                               Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                               OnClick="() => OnOpenModal.InvokeAsync((row.Id, true))" />
+                                </BitTooltip>
+                            }
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private BitDataGrid<ItemSummary>? grid;
+
+    [Parameter, EditorRequired] public Func<BitDataGridReadRequest, Task<BitDataGridReadResult<ItemSummary>>> OnRead { get; set; } = default!;
+    [Parameter, EditorRequired] public int[] PageSizeOptions { get; set; } = [];
+    [Parameter, EditorRequired] public BitDataGridStrings GridStrings { get; set; } = default!;
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public BitIconInfo? EditIcon { get; set; }
+    [Parameter] public EventCallback<(long Id, bool Edit)> OnOpenModal { get; set; }
+
+    public async Task RefreshAsync()
+    {
+        if (grid is null) return;
+        if (grid.CurrentPage <= 1) await grid.RefreshAsync();
+        else await grid.GoToPageAsync(1);
+    }
+}

@@ -45,7 +45,8 @@ public sealed class UnitOperationsStore(Func<IDbContextFactory<OrganizationDbCon
 
     public Task<OrganizationPage<UnitSummary>> ListUnits(long organizationId, UnitListQuery query, CancellationToken ct) => Read(async db =>
     {
-        var rows = db.Units.Where(u => u.OrganizationId == organizationId && (query.IncludeInactive || u.IsActive));
+        var rows = db.Units.AsNoTracking()
+            .Where(u => u.OrganizationId == organizationId && (query.IncludeInactive || u.IsActive));
         if (query.Dimension.HasValue)
             rows = rows.Where(u => u.Dimension == query.Dimension.Value);
         if (!string.IsNullOrEmpty(query.Search))
@@ -55,26 +56,33 @@ public sealed class UnitOperationsStore(Func<IDbContextFactory<OrganizationDbCon
         var page = await rows.OrderBy(u => u.Code).ThenBy(u => u.Id)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
+            .Select(u => new { u, RowVersion = EF.Property<byte[]>(u, "RowVersion") })
             .ToListAsync(ct);
 
-        return new OrganizationPage<UnitSummary>(page.Select(u => ToSummary(db, u)).ToArray(), count, query.Page, query.PageSize);
+        return new OrganizationPage<UnitSummary>(
+            page.Select(r => new UnitSummary(r.u.Id, r.u.OrganizationId, r.u.Code, r.u.Name, r.u.Symbol, r.u.Dimension, r.u.PrecisionScale, r.u.IsActive, Convert.ToBase64String(r.RowVersion))).ToArray(),
+            count, query.Page, query.PageSize);
     }, ct);
 
     public Task<IReadOnlyList<UnitSummary>> ListActiveUnits(long organizationId, CancellationToken ct) => Read<IReadOnlyList<UnitSummary>>(async db =>
     {
-        var units = await db.Units
+        var units = await db.Units.AsNoTracking()
             .Where(u => u.OrganizationId == organizationId && u.IsActive)
             .OrderBy(u => u.Code)
             .ThenBy(u => u.Id)
+            .Select(u => new { u, RowVersion = EF.Property<byte[]>(u, "RowVersion") })
             .ToListAsync(ct);
 
-        return units.Select(u => ToSummary(db, u)).ToArray();
+        return units.Select(r => new UnitSummary(r.u.Id, r.u.OrganizationId, r.u.Code, r.u.Name, r.u.Symbol, r.u.Dimension, r.u.PrecisionScale, r.u.IsActive, Convert.ToBase64String(r.RowVersion))).ToArray();
     }, ct);
 
     public Task<UnitSummary?> GetUnit(long organizationId, long id, CancellationToken ct) => Read(async db =>
     {
-        var unit = await db.Units.SingleOrDefaultAsync(u => u.OrganizationId == organizationId && u.Id == id, ct);
-        return unit is null ? null : ToSummary(db, unit);
+        var row = await db.Units.AsNoTracking()
+            .Where(u => u.OrganizationId == organizationId && u.Id == id)
+            .Select(u => new { u, RowVersion = EF.Property<byte[]>(u, "RowVersion") })
+            .SingleOrDefaultAsync(ct);
+        return row is null ? null : new UnitSummary(row.u.Id, row.u.OrganizationId, row.u.Code, row.u.Name, row.u.Symbol, row.u.Dimension, row.u.PrecisionScale, row.u.IsActive, Convert.ToBase64String(row.RowVersion));
     }, ct);
 
     public Task<OrganizationResult<UnitSummary>> CreateUnit(CreateUnitRequest request, OrganizationWriteAccess access, CancellationToken ct)
@@ -432,8 +440,11 @@ public sealed class UnitOperationsStore(Func<IDbContextFactory<OrganizationDbCon
 
     public Task<CurrencySummary?> GetCurrency(long organizationId, long id, CancellationToken ct) => Read(async db =>
     {
-        var cur = await db.Currencies.SingleOrDefaultAsync(c => c.OrganizationId == organizationId && c.Id == id, ct);
-        return cur is null ? null : ToCurrencySummary(db, cur);
+        var row = await db.Currencies.AsNoTracking()
+            .Where(c => c.OrganizationId == organizationId && c.Id == id)
+            .Select(c => new { c, RowVersion = EF.Property<byte[]>(c, "RowVersion") })
+            .SingleOrDefaultAsync(ct);
+        return row is null ? null : new CurrencySummary(row.c.Id, row.c.OrganizationId, row.c.Code, row.c.Name, row.c.Symbol, row.c.PrecisionScale, row.c.IsActive, Convert.ToBase64String(row.RowVersion));
     }, ct);
 
     public Task<OrganizationResult<CurrencySummary>> CreateCurrency(CreateCurrencyRequest request, OrganizationWriteAccess access, CancellationToken ct)
@@ -604,7 +615,9 @@ public sealed class UnitOperationsStore(Func<IDbContextFactory<OrganizationDbCon
         => db.Database.ExecuteSqlInterpolatedAsync($"SELECT [Id] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {id}", ct);
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
-        => ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);
+        => entity is ForgeFlow.Domain.Common.IHasRowVersion hasVersion && hasVersion.RowVersion.Length > 0
+            ? hasVersion.RowVersion.SequenceEqual(version)
+            : ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);
 
     private static bool Unavailable(Exception exception) => exception switch
     {

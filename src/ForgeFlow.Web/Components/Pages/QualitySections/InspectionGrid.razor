@@ -1,0 +1,104 @@
+@using ForgeFlow.Application.Quality
+@using ForgeFlow.Domain.Quality
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-grid-card">
+    <div class="read-grid">
+        <BitDataGrid @ref="grid" TItem="QualityInspectionSummary" OnRead="OnRead" Pageable="true" PageSize="25"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                     AriaLabelledBy="qc-title" WrapCellText="true" Resizable="true">
+            <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+            <Columns>
+                <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["QcNumberColumn"]">
+                    <Template Context="q">
+                        <div>
+                            <div class="read-primary-cell"><bdi dir="ltr">@q.InspectionNumber</bdi></div>
+                            <div class="read-sub-cell"><span dir="ltr">@q.SiteCode / @q.WarehouseCode</span></div>
+                            @if (!string.IsNullOrWhiteSpace(q.CertificateNumber))
+                            {
+                                <div class="read-sub-cell" dir="ltr">@Text["QcCertNumberShort"]: @q.CertificateNumber</div>
+                            }
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["BomLineItemColumn"]">
+                    <Template Context="q">
+                        <div>
+                            <div class="read-primary-cell"><span dir="ltr">@q.ItemCode</span> — @q.ItemName</div>
+                            @if (!string.IsNullOrEmpty(q.LotCode))
+                            {
+                                <div class="read-sub-cell">
+                                    <a class="qc-lot-link" href="@($"/traceability?itemId={q.ItemId}&lotCode={Uri.EscapeDataString(q.LotCode)}")" dir="ltr">@q.LotCode</a>
+                                </div>
+                            }
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["QcSourceColumn"]">
+                    <Template Context="q">
+                        <div>
+                            <div class="read-primary-cell">@SourceLabel(q.SourceType)</div>
+                            @if (!string.IsNullOrEmpty(q.SourceDocumentNumber))
+                            {
+                                <div class="read-sub-cell" dir="ltr">@q.SourceDocumentNumber</div>
+                            }
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["QcQuantitiesColumn"]">
+                    <Template Context="q">
+                        <div>
+                            <div class="read-primary-cell" dir="ltr">@Format.Number(q.InspectedBaseQuantity) @q.BaseUnitSymbol</div>
+                            <div class="read-sub-cell" dir="ltr">
+                                @Text["QcQtyBreakdown", Format.Number(q.AcceptedBaseQuantity), Format.Number(q.RejectedBaseQuantity), Format.Number(q.RemainingBlockedBaseQuantity)]
+                            </div>
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["ReadStatus"]">
+                    <Template Context="q">
+                        <span class="read-badge @StatusBadgeClass(q.Status)">@StatusLabel(q.Status)</span>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualityInspectionSummary" Title="@Text["ReadActions"]">
+                    <Template Context="q">
+                        <div class="read-row-actions">
+                            <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                           IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                           OnClick="() => OnOpenDetails.InvokeAsync(q.Id)" />
+                            </BitTooltip>
+                            @if (!string.IsNullOrWhiteSpace(q.LotCode))
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OnOpenCoa.InvokeAsync((q.ItemId, q.LotCode))">
+                                    @Text["QcCoaBtn"]
+                                </BitButton>
+                            }
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private BitDataGrid<QualityInspectionSummary>? grid;
+
+    [Parameter, EditorRequired] public Func<BitDataGridReadRequest, Task<BitDataGridReadResult<QualityInspectionSummary>>> OnRead { get; set; } = default!;
+    [Parameter, EditorRequired] public int[] PageSizeOptions { get; set; } = [];
+    [Parameter, EditorRequired] public BitDataGridStrings GridStrings { get; set; } = default!;
+    [Parameter, EditorRequired] public Func<QualityInspectionSourceType, string> SourceLabel { get; set; } = default!;
+    [Parameter, EditorRequired] public Func<QualityInspectionStatus, string> StatusBadgeClass { get; set; } = default!;
+    [Parameter, EditorRequired] public Func<QualityInspectionStatus, string> StatusLabel { get; set; } = default!;
+    [Parameter] public EventCallback<long> OnOpenDetails { get; set; }
+    [Parameter] public EventCallback<(long ItemId, string LotCode)> OnOpenCoa { get; set; }
+
+    public async Task RefreshAsync(bool fromFirstPage)
+    {
+        if (grid is null) return;
+        if (fromFirstPage && grid.CurrentPage > 1) await grid.GoToPageAsync(1);
+        else await grid.RefreshAsync();
+    }
+}

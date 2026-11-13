@@ -141,11 +141,10 @@ public static class BomResolutionEngine
     {
         signature = string.Empty;
 
-        // Day 9 Change 5: Missing context dimension NEVER matches, even for NotEquals / NotIn.
-        if (!context.TryGetValue(cond.DimensionCode, out var actualValue))
-            return false;
-
         var dim = cond.DimensionCode.Trim().ToUpperInvariant();
+        // Day 9 Change 5: Missing context dimension NEVER matches, even for NotEquals / NotIn.
+        if (!context.TryGetValue(dim, out var actualValue))
+            return false;
         switch (cond.Operator)
         {
             case ApplicabilityOperator.Equals:
@@ -170,7 +169,11 @@ public static class BomResolutionEngine
             case ApplicabilityOperator.NotIn:
             {
                 var items = ParseSetValues(cond.Value);
-                if (items.Count == 0) return false;
+                if (items.Count == 0)
+                {
+                    signature = $"{dim}:NIN:";
+                    return true;
+                }
                 signature = $"{dim}:NIN:{string.Join(",", items.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).Select(x => x.ToUpperInvariant()))}";
                 return !items.Contains(actualValue);
             }

@@ -28,9 +28,20 @@ public sealed class DocumentSequenceTests
 
         var persian = DocumentSequence.Create(1, DocumentSequenceType.DeliveryOrder, "do", "-", DocumentYearMode.Persian, 4, 42, false);
         Assert.Equal("DO-1405-0042", persian.FormatPreview(utc));
+        Assert.Equal("DO-1405-0042", persian.AllocateNextNumber(utc));
+        Assert.Equal("DO-1405-0043", persian.FormatPreview(utc));
+
+        var persianNextYear = new DateTime(2027, 3, 22, 10, 0, 0, DateTimeKind.Utc); // 1406-01-02
+        Assert.Equal("DO-1406-0001", persian.FormatPreview(persianNextYear));
+        Assert.Equal("DO-1406-0001", persian.AllocateNextNumber(persianNextYear));
+        Assert.Equal("DO-1406-0002", persian.FormatPreview(persianNextYear));
 
         var gregorian = DocumentSequence.Create(1, DocumentSequenceType.PurchaseOrder, "po", "_", DocumentYearMode.Gregorian, 6, 7, true);
         Assert.Equal("PO_2026_000007", gregorian.FormatPreview(utc));
+        Assert.Equal("PO_2026_000007", gregorian.AllocateNextNumber(utc));
+        var gregNextYear = new DateTime(2027, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        Assert.Equal("PO_2027_000001", gregorian.FormatPreview(gregNextYear));
+        Assert.Equal("PO_2027_000001", gregorian.AllocateNextNumber(gregNextYear));
 
         Assert.Throws<DocumentSequenceRuleException>(() => DocumentSequence.Create(1, DocumentSequenceType.SalesOrder, "-BAD", "-", DocumentYearMode.None, 5, 1, false));
         Assert.Throws<DocumentSequenceRuleException>(() => DocumentSequence.Create(1, DocumentSequenceType.SalesOrder, "SO", "/", DocumentYearMode.None, 5, 1, false));

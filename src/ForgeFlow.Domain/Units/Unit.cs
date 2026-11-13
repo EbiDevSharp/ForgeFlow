@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Units;
 
 /// <summary>Organization-owned Unit of Measure aggregate.</summary>
-public sealed class Unit
+public sealed class Unit : IHasRowVersion
 {
     private Unit()
     {
@@ -36,6 +38,7 @@ public sealed class Unit
     public UnitDimension Dimension { get; private set; }
     public byte PrecisionScale { get; private set; }
     public bool IsActive { get; private set; } = true;
+    public byte[] RowVersion { get; private set; } = [];
 
     public static Unit Create(long organizationId, string? code, string? name, string? symbol, UnitDimension dimension, byte precisionScale)
         => new(organizationId, code, name, symbol, dimension, precisionScale);

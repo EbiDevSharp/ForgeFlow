@@ -1070,7 +1070,7 @@
     }
 
     private static DateTimeOffset? ToOffset(DateOnly d) =>
-        new(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero);
+        d == default ? null : new(d.Year, d.Month, d.Day, 0, 0, 0, TimeSpan.Zero);
 
     private static DateOnly FromOffset(DateTimeOffset? value, DateOnly fallback) =>
         value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : fallback;

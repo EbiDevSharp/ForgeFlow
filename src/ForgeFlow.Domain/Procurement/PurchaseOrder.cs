@@ -1,9 +1,15 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Procurement;
 
 /// <summary>Site-scoped Purchase Order managing vendor ordering, approvals, and partial/full goods receipts.</summary>
-public sealed class PurchaseOrder
+public sealed class PurchaseOrder : IHasRowVersion, IHasDomainEvents
 {
     private readonly List<PurchaseOrderLine> _lines = [];
+    private readonly List<IDomainEvent> _domainEvents = [];
+
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void ClearDomainEvents() => _domainEvents.Clear();
 
     private PurchaseOrder()
     {
@@ -22,8 +28,7 @@ public sealed class PurchaseOrder
         string? currencyCode,
         string? notes)
     {
-        if (organizationId <= 0)
-            throw new ProcurementRuleException(ProcurementErrors.NotFound);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(organizationId);
         if (siteId <= 0)
             throw new ProcurementRuleException(ProcurementErrors.SiteInvalid);
         if (supplierId <= 0)
@@ -58,6 +63,7 @@ public sealed class PurchaseOrder
     public DateTime? ApprovedAtUtc { get; private set; }
     public DateTime? ClosedAtUtc { get; private set; }
     public DateTime? CancelledAtUtc { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
 
     public IReadOnlyList<PurchaseOrderLine> Lines => _lines;
 
@@ -131,6 +137,7 @@ public sealed class PurchaseOrder
 
         Status = PurchaseOrderStatus.Approved;
         ApprovedAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
+        _domainEvents.Add(new PurchaseOrderApprovedDomainEvent(OrganizationId, SiteId, OrderNumber, ApprovedAtUtc.Value));
     }
 
     public void ApplyReceipts(IReadOnlyList<(long LineId, decimal ReceivedBaseDelta)> receipts)
@@ -215,6 +222,7 @@ public sealed class PurchaseOrder
 
         Status = PurchaseOrderStatus.Closed;
         ClosedAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
+        _domainEvents.Add(new PurchaseOrderClosedDomainEvent(OrganizationId, SiteId, OrderNumber, ClosedAtUtc.Value));
     }
 
     public void Cancel(string? reason, DateTime utcNow)
@@ -229,5 +237,13 @@ public sealed class PurchaseOrder
         CancellationReason = ProcurementText.RequiredReason(reason);
         Status = PurchaseOrderStatus.Cancelled;
         CancelledAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
+        _domainEvents.Add(new PurchaseOrderCancelledDomainEvent(OrganizationId, SiteId, OrderNumber, CancellationReason, CancelledAtUtc.Value));
     }
+
+    public decimal CalculateTotalEstimatedAmount()
+        => _lines.Sum(l => l.OrderedQuantity * (l.UnitPrice ?? 0m));
 }
+
+public sealed record PurchaseOrderApprovedDomainEvent(long OrganizationId, long SiteId, string OrderNumber, DateTime OccurredAtUtc) : IDomainEvent;
+public sealed record PurchaseOrderClosedDomainEvent(long OrganizationId, long SiteId, string OrderNumber, DateTime OccurredAtUtc) : IDomainEvent;
+public sealed record PurchaseOrderCancelledDomainEvent(long OrganizationId, long SiteId, string OrderNumber, string Reason, DateTime OccurredAtUtc) : IDomainEvent;

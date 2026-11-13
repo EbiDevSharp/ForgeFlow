@@ -1,0 +1,156 @@
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Items
+@using ForgeFlow.Web.Roles
+@inject ItemUseCases ItemService
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="isOpen"
+           OnDismissing="OnDismissing"
+           Title="@Text["ItemCreateTitle"]" AriaLabel="@Text["ItemCreateTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            <form class="write-panel" @onsubmit:preventDefault>
+                <div class="read-field">
+                    <label for="create-item-code">@Text["ReadCode"]</label>
+                    <input id="create-item-code" @bind="code" @bind:event="oninput" maxlength="32"
+                           disabled="@saving" aria-describedby="create-item-code-hint" />
+                    <span id="create-item-code-hint" class="write-hint">@Text["CreateCodeHint"]</span>
+                </div>
+                <div class="read-field">
+                    <label for="create-item-name">@Text["ReadName"]</label>
+                    <input id="create-item-name" @bind="name" @bind:event="oninput" maxlength="200" disabled="@saving" />
+                </div>
+                <div class="read-field">
+                    <label for="create-item-desc">@Text["ItemDescriptionLabel"]</label>
+                    <input id="create-item-desc" @bind="description" @bind:event="oninput" maxlength="500" disabled="@saving" />
+                </div>
+                <div class="read-field">
+                    <label for="create-item-unit">@Text["ItemBaseUnitLabel"]</label>
+                    <select id="create-item-unit" @bind="baseUnitId" disabled="@saving">
+                        @foreach (var u in ActiveUnits)
+                        {
+                            <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
+                        }
+                    </select>
+                </div>
+                <div class="perm-group">
+                    <div class="perm-group-header">
+                        <span>@Text["ItemCapabilitiesLabel"]</span>
+                    </div>
+                    <div class="perm-grid">
+                        <label class="perm-check"><input type="checkbox" @bind="capPurchase" disabled="@saving" /><span>@Text["ItemCapPurchase"]</span></label>
+                        <label class="perm-check"><input type="checkbox" @bind="capManufacture" disabled="@saving" /><span>@Text["ItemCapManufacture"]</span></label>
+                        <label class="perm-check"><input type="checkbox" @bind="capSell" disabled="@saving" /><span>@Text["ItemCapSell"]</span></label>
+                        <label class="perm-check"><input type="checkbox" @bind="capConsume" disabled="@saving" /><span>@Text["ItemCapConsume"]</span></label>
+                    </div>
+                </div>
+                <label class="perm-check">
+                    <input type="checkbox" @bind="requiresLotTracking" disabled="@saving" />
+                    <span>@Text["ItemRequiresLotTrackingLabel"]</span>
+                </label>
+                <div class="read-field">
+                    <label for="create-item-qc">@Text["ItemQcModeLabel"]</label>
+                    <select id="create-item-qc" @bind="qualityControlMode" disabled="@saving">
+                        <option value="@QualityControlMode.None">@Text["ItemQcModeNone"]</option>
+                        <option value="@QualityControlMode.IncomingReceipts">@Text["ItemQcModeIncoming"]</option>
+                        <option value="@QualityControlMode.ProductionReceipts">@Text["ItemQcModeProduction"]</option>
+                        <option value="@QualityControlMode.AllReceipts">@Text["ItemQcModeAll"]</option>
+                    </select>
+                </div>
+
+                @if (discardConfirm)
+                {
+                    <div class="write-confirm" role="alertdialog" aria-labelledby="create-item-discard-text">
+                        <p id="create-item-discard-text">@Text["WriteDiscardConfirm"]</p>
+                        <div class="write-actions">
+                            <BitButton Size="BitSize.Small" OnClick="ConfirmDiscard">@Text["WriteDiscard"]</BitButton>
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => discardConfirm = false">@Text["WriteKeepEditing"]</BitButton>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="write-actions">
+                        <BitButton Size="BitSize.Small"
+                                   IsEnabled="@(!saving && !string.IsNullOrWhiteSpace(code) && !string.IsNullOrWhiteSpace(name) && baseUnitId > 0)"
+                                   OnClick="SubmitAsync">@Text["CreateSubmit"]</BitButton>
+                    </div>
+                }
+
+                @if (saving) { <p role="status">@Text["WriteSaving"]</p> }
+                @if (error is not null) { <p role="alert" class="write-error">@Text[error]</p> }
+            </form>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    private bool isOpen, discardConfirm, saving;
+    private string code = string.Empty, name = string.Empty, description = string.Empty;
+    private long baseUnitId;
+    private bool capPurchase = true, capManufacture, capSell, capConsume, requiresLotTracking;
+    private QualityControlMode qualityControlMode = QualityControlMode.None;
+    private string? error;
+
+    [Parameter, EditorRequired] public BitDialogClassStyles DialogClasses { get; set; } = default!;
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public EventCallback<string> OnCreated { get; set; }
+
+    public void Open()
+    {
+        code = string.Empty;
+        name = string.Empty;
+        description = string.Empty;
+        if (ActiveUnits.Count > 0 && baseUnitId == 0) baseUnitId = ActiveUnits[0].Id;
+        capPurchase = true;
+        capManufacture = capSell = capConsume = requiresLotTracking = false;
+        qualityControlMode = QualityControlMode.None;
+        error = null;
+        discardConfirm = false;
+        isOpen = true;
+        StateHasChanged();
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || saving) return;
+        saving = true;
+        error = null;
+        try
+        {
+            var res = await ItemService.CreateItem(CurrentScope, new CreateItemRequest(
+                CurrentOrgId, code, name, description, baseUnitId,
+                capPurchase, capManufacture, capSell, capConsume,
+                requiresLotTracking, qualityControlMode));
+            if (!res.Succeeded || res.Value is null)
+            {
+                error = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            isOpen = false;
+            await OnCreated.InvokeAsync(res.Value.Summary.Code);
+        }
+        finally { saving = false; }
+    }
+
+    private void OnDismissing(BitDialogDismissArgs args)
+    {
+        if (saving) return;
+        if (string.IsNullOrWhiteSpace(code) && string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(description))
+            return;
+        args.Cancel = true;
+        discardConfirm = true;
+    }
+
+    private void ConfirmDiscard()
+    {
+        discardConfirm = false;
+        isOpen = false;
+    }
+}

@@ -1,0 +1,65 @@
+@using ForgeFlow.Application.Sales
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-grid-card">
+    <div class="read-grid">
+        <BitDataGrid @ref="grid" TItem="CustomerSummary" OnRead="OnRead" Pageable="true" PageSize="25"
+                     Resizable="true" WrapCellText="true"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["SalesTabCustomers"]">
+            <Columns>
+                <BitDataGridColumn TItem="CustomerSummary" Title="@Text["ReadCode"]" Width="120px">
+                    <Template Context="c"><bdi dir="ltr">@c.Code</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="CustomerSummary" Title="@Text["ReadName"]" MinWidth="160">
+                    <Template Context="c">@c.Name</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="CustomerSummary" Title="@Text["SupContactLabel"]" Width="140px">
+                    <Template Context="c">@(c.ContactName ?? "—")</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="CustomerSummary" Title="@Text["ProfilePhoneLabel"]" Width="130px">
+                    <Template Context="c"><bdi dir="ltr">@(c.Phone ?? "—")</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="CustomerSummary" Title="@Text["SalesCustomerTaxCode"]" Width="120px">
+                    <Template Context="c"><bdi dir="ltr">@(c.TaxCode ?? "—")</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="CustomerSummary" Title="@Text["PoStatusColumn"]" Width="100px">
+                    <Template Context="c">
+                        <span class="write-status-badge @(c.IsActive ? "is-active" : "is-inactive")">
+                            @(c.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
+                        </span>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="CustomerSummary" Title="@Text["ReadActions"]" Width="150px">
+                    <Template Context="c">
+                        @if (CanManageCustomers)
+                        {
+                            <div class="read-row-actions">
+                                <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnEdit.InvokeAsync(c)">@Text["ReadEdit"]</BitButton>
+                                <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnToggleActive.InvokeAsync(c)">
+                                    @(c.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
+                                </BitButton>
+                            </div>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </Template>
+                </BitDataGridColumn>
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private BitDataGrid<CustomerSummary>? grid;
+
+    [Parameter, EditorRequired] public Func<BitDataGridReadRequest, Task<BitDataGridReadResult<CustomerSummary>>> OnRead { get; set; } = default!;
+    [Parameter, EditorRequired] public int[] PageSizeOptions { get; set; } = [];
+    [Parameter, EditorRequired] public BitDataGridStrings GridStrings { get; set; } = default!;
+    [Parameter] public bool CanManageCustomers { get; set; }
+    [Parameter] public EventCallback<CustomerSummary> OnEdit { get; set; }
+    [Parameter] public EventCallback<CustomerSummary> OnToggleActive { get; set; }
+
+    public Task RefreshAsync() => grid?.RefreshAsync() ?? Task.CompletedTask;
+}

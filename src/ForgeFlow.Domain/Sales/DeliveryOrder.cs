@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Sales;
 
 /// <summary>Site-scoped Dispatch / Delivery Order picking non-quarantined, non-expired lots with Lot COA snapshots.</summary>
-public sealed class DeliveryOrder
+public sealed class DeliveryOrder : IHasRowVersion
 {
     private readonly List<DeliveryOrderLine> _lines = [];
 
@@ -58,6 +60,7 @@ public sealed class DeliveryOrder
     public DateTime PostedAtUtc { get; private set; }
     public DateTime? ReversedAtUtc { get; private set; }
     public string? ReversalReason { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
 
     public IReadOnlyList<DeliveryOrderLine> Lines => _lines;
 

@@ -132,8 +132,7 @@ public sealed class SqlSalesOperationsStore(
         db.Customers.Add(customer);
         await db.SaveInOperation(access.Actor, ct);
 
-        return OrganizationResult<CustomerSummary>.Success(
-            ToCustomerSummary(customer, (byte[])db.Entry(customer).Property("RowVersion").CurrentValue!));
+        return OrganizationResult<CustomerSummary>.Success(ToCustomerSummary(customer, customer.RowVersion));
     }, ct);
 
     public Task<OrganizationResult<CustomerSummary>> UpdateCustomer(
@@ -158,8 +157,7 @@ public sealed class SqlSalesOperationsStore(
         if (customer.Update(request.Name, request.ContactName, request.Phone, request.Email, request.ShippingAddress, request.TaxCode, request.Notes))
             await db.SaveInOperation(access.Actor, ct);
 
-        return OrganizationResult<CustomerSummary>.Success(
-            ToCustomerSummary(customer, (byte[])db.Entry(customer).Property("RowVersion").CurrentValue!));
+        return OrganizationResult<CustomerSummary>.Success(ToCustomerSummary(customer, customer.RowVersion));
     }, ct);
 
     public Task<OrganizationResult<CustomerSummary>> SetCustomerActive(
@@ -184,8 +182,7 @@ public sealed class SqlSalesOperationsStore(
         if (customer.SetActive(isActive))
             await db.SaveInOperation(access.Actor, ct);
 
-        return OrganizationResult<CustomerSummary>.Success(
-            ToCustomerSummary(customer, (byte[])db.Entry(customer).Property("RowVersion").CurrentValue!));
+        return OrganizationResult<CustomerSummary>.Success(ToCustomerSummary(customer, customer.RowVersion));
     }, ct);
 
     public Task<OrganizationPage<SalesOrderSummary>> ListSalesOrders(
@@ -1313,7 +1310,9 @@ public sealed class SqlSalesOperationsStore(
     }
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
-        => ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);
+        => entity is ForgeFlow.Domain.Common.IHasRowVersion hasVersion && hasVersion.RowVersion.Length > 0
+            ? hasVersion.RowVersion.SequenceEqual(version)
+            : ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);
 
     private static bool IsUniqueConflict(DbUpdateException ex)
         => ex.InnerException is SqlException sql && sql.Number is 2601 or 2627;

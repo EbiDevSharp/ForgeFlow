@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Boms;
 
 /// <summary>Versioned manufacturing structure for a BOM. Approved/Active/historical versions are structurally immutable.</summary>
-public sealed class BomVersion
+public sealed class BomVersion : IHasRowVersion
 {
     private BomVersion() { }
 
@@ -45,6 +47,7 @@ public sealed class BomVersion
     public DateOnly EffectiveFromDate { get; private set; }
     public DateOnly? EffectiveToDate { get; private set; }
     public string? Notes { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
 
     public static BomVersion CreateDraft(
         long organizationId,

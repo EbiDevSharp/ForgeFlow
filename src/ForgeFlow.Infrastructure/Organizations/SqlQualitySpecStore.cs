@@ -614,7 +614,9 @@ public sealed class SqlQualitySpecStore(
     }
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
-        => ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);
+        => entity is ForgeFlow.Domain.Common.IHasRowVersion hasVersion && hasVersion.RowVersion.Length > 0
+            ? hasVersion.RowVersion.SequenceEqual(version)
+            : ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);
 
     private static bool IsUniqueConflict(DbUpdateException ex)
         => ex.InnerException is SqlException sql && sql.Number is 2601 or 2627;
