@@ -2,6 +2,20 @@
 
 ## Slice 11 — Unified Business Partners & ERP Manufacturing Lifecycle Navigation Structure (2026-11-14)
 
+### 4. Local One-Click Setup & Migration Automation Tooling
+- **ForgeFlow.Setup (	ools/ForgeFlow.Setup/)**:
+  - Automated database provisioning and schema migration runner independent of design-time factories or external tools.
+  - Verifies SQL Server connection and ensures target database (default 	estforgflow) exists.
+  - Sequentially applies all pending migrations for DiagnosticsDbContext (schema diag), AuthDbContext (schema uth), and OrganizationDbContext (default schema).
+  - Inspects BootstrapState; on fresh installations, automatically bootstraps initial organization (ORG1), factory site (SITE1), and system administrator (dmin / Admin@123456!).
+  - Preserves existing accounts and organizations if already initialized.
+- **Runners (un-local.bat & un-local.ps1)**:
+  - Windows batch file and PowerShell script for single-click execution.
+  - Verifies .NET 10 SDK presence.
+  - Configures default local SQL connection with override support via %ConnectionStrings__ForgeFlow%.
+  - Ensures local HTTPS developer certificates are trusted.
+  - Executes ForgeFlow.Setup, opens default browser at https://localhost:5001, and starts Web host in Development.
+
 ### 3. Business Partner Auto-Code Preview & Numbering Migration Hotfix
 - **Database Schema Migration**:
   - Applied migration 20261114184650_BusinessPartnersAndRoles to localhost/testforgflow:
