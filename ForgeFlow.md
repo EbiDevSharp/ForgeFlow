@@ -4511,3 +4511,37 @@ ode d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs **4/4 PASS**
     - `GET http://127.0.0.1:5000/login` -> **HTTP 200 OK** (after secure redirection).
 - **Audit Remediation Complete**:
   - All 19 rows of the Application UseCases audit findings, EF Core monolithic model configurations, optimistic concurrency invariants, domain event implementations, Blazor UI workbench decompositions, Jalali calendar edge cases, and client-side draft security mitigations are 100% resolved and verified.
+
+
+## Phase 20 (Shared Permission Accordion Component & Role Management Modal Alignment)
+
+- **Reusable Component (`PermissionAccordionPanel.razor`)**:
+  - Extracted shared permission accordion panel component ([PermissionAccordionPanel.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Layout/PermissionAccordionPanel.razor)) reusable across `Users.razor` and `Roles.razor` matching the reference UI.
+  - Implements: summary card (`.pm-summary`) with full/dual/single progress bars and permission counts (`PermSummaryCount`, `PermSummaryBreakdown`, `PermSummaryFullAccess`), search filter input (`.pm-search`), filter category buttons (`.pm-filter-group` for All, Granted, Direct, Changes), collapsible accordion modules (`.pa-group` / `.pa-group-header` / `.pa-group-body`) with localized page titles, progress mini-bars, item counts, bulk operations (`PermSelectAllEditable`, `PermClearDirect`), permission operation cards (`.pa-op-card`) with auto-read permission dependency resolution (`ToggleOperationWithAutoRead`), lock indicators for role-inherited permissions (`PermBadgeRole`), dirty pills (`PermBadgeNew`, `PermChangesBadge`), and bottom legend (`.pm-legend`).
+  - Supports flexible slots (`HeaderContent`, `StatusContent`, `FooterContent`) for page-specific headers, scoped site selectors, role chip management, name inputs, and save/cancel actions.
+- **Pages Refactored**:
+  - `src/ForgeFlow.Web/Components/Pages/Users.razor`: Replaced inline accordion markup with `<PermissionAccordionPanel>`, preserving user role badges, site scope selector, and direct permission editing.
+  - `src/ForgeFlow.Web/Components/Pages/Roles.razor`: Refactored both Create Role and Edit/Detail Role modals to use `<PermissionAccordionPanel>`, eliminating ~330 lines of duplicate UI markup while preserving all private reflection test hooks (`createSelectedPerms`, `editSelectedPerms`, `pendingDraft`, `createName`, etc.).
+- **Localization & Contract Validation**:
+  - `tests/ForgeFlow.Web.Tests/ResourceContractTests.cs`: Preserved bidirectional contract validation across `SharedResources.en-US.resx` and `SharedResources.fa-IR.resx`.
+- **Verification Evidence (2026-11-14)**:
+  - Solution build (`dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1`): **0 Warning(s), 0 Error(s)**.
+  - Role management tests (`dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~Role"`): **48 Passed, 8 Skipped, 0 Failed**.
+  - User management tests (`dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~User"`): **62 Passed, 11 Skipped, 0 Failed**.
+  - Resource contract tests (`dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~ResourceContractTests"`): **13 Passed, 0 Skipped, 0 Failed**.
+  - Unit test suite (`dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "Category!=SqlServer"`): **Passed: 455, Failed: 0, Skipped: 66, Total: 521**.
+  - Local process verification per `AGENTS.md`: `ForgeFlow.Web.dll` running in Development mode (`task-369`) at `https://localhost:5001` with process-only database connection to `localhost/testforgflow`; verified HTTP 200 response on `https://localhost:5001/account/login` (HTTP 200, length 16855).
+- **Next Small Step**: Await user acceptance of the redesigned Roles and Users permission accordion modals.
+
+- **User Feedback Remediation (Roles & Permissions UX Polish)**:
+  - Eliminated mouse waiting cursor (`cursor: wait`): configured `.pa-op-card.is-readonly` and `.pa-op-card:disabled.is-readonly` to use `cursor: default` so inspecting permissions in view mode never shows a spinning cursor.
+  - Eliminated modal layout jump when toggling filters: added `min-height: min(74vh, 600px)` to `.pa-modal` and removed wrapping `<form>` element so dialog height remains steady when 0 or few items match.
+  - Initialized `initialCreatePerms` in `Roles.razor` so the "Changes" (`تغییرات`) filter accurately reflects dirty selections during role creation.
+  - Removed discard confirmation prompt (`WriteDiscardConfirm` / `createDiscardConfirm`) so clicking Cancel or Close dismisses the dialog immediately without intrusive popups.
+  - Compacted Role modal header: aligned role name into modal title (`{Title} — {RoleDisplayName}`), replaced bulky `<dl class="read-detail">` with a compact `.pa-roles-bar` taking only ~36px height matching `Users.razor`, and removed `ShowOnFocus="true"` from grid buttons so action tooltips do not linger on modal open.
+  - Verified: Release build 0 warnings/0 errors, 455 unit tests passed, Development web listening on `https://localhost:5001` with `GET /account/login` returning HTTP 200.
+
+- **Progress Bar Invariant Formatting Fix (fa-IR Culture Slash Bug)**:
+  - Fixed CSS progress bar widths dropping in Persian culture: under `fa-IR`, `double.ToString()` produces `/` as decimal separator (e.g. `33/3%` instead of `33.3%`), causing browsers to drop invalid CSS width syntax for 1/3 and 2/3 states.
+  - Implemented `PctCss(double value)` using `CultureInfo.InvariantCulture` (`{value:0.#}%`), ensuring CSS percentages are always emitted with invariant period separator (`33.3%`, `66.7%`, `12.5%`, etc.) across all mini progress bars and summary bars in both `Users.razor` and `Roles.razor`.
+  - Verified: Release build 0 warnings/0 errors, 455 unit tests passed, Development web listening on `https://localhost:5001` with `GET /account/login` returning HTTP 200.

@@ -715,262 +715,123 @@ else
 <Body>
 @if (permSnapshot is not null)
 {
+    var pendingCount = PendingDirectChangesCount;
     var allGroups = ActiveScopeGroups;
     var totalOps = allGroups.Sum(g => g.Operations.Count);
     var viaRoleCount = allGroups.Sum(g => g.Operations.Count(op => roleGrantedPerms.Contains(op.PermissionCode)));
-    var directCount = allGroups.Sum(g => g.Operations.Count(op => !roleGrantedPerms.Contains(op.PermissionCode) && directSelectedPerms.Contains(op.PermissionCode)));
-    var grantedTotal = viaRoleCount + directCount;
     var isFullViaRole = totalOps > 0 && viaRoleCount == totalOps;
-    var rolePct = totalOps > 0 ? Math.Round(viaRoleCount * 100.0 / totalOps, 1) : 0;
-    var directPct = totalOps > 0 ? Math.Round(directCount * 100.0 / totalOps, 1) : 0;
-    var pendingCount = PendingDirectChangesCount;
-    var filteredGroups = FilteredAccordionGroups;
 
-    <div class="pa-modal">
-        @if (isFullViaRole)
-        {
-            <div class="pm-summary pm-summary--full">
-                <div class="pm-summary-top">
-                    <strong class="pm-summary-title">@Text["PermSummaryFullAccess"]</strong>
-                    <span class="pm-summary-sub">@Text["PermSummaryCount", grantedTotal, totalOps]</span>
-                </div>
-                <div class="pm-progress"><span class="pm-progress-fill is-full" style="width: 100%"></span></div>
-            </div>
-        }
-        else
-        {
-            <div class="pm-summary">
-                <div class="pm-summary-top">
-                    <strong class="pm-summary-title">@Text["PermSummaryCount", grantedTotal, totalOps]</strong>
-                    <span class="pm-summary-sub">@Text["PermSummaryBreakdown", viaRoleCount, directCount]</span>
-                </div>
-                <div class="pa-progress-dual">
-                    <span class="pa-progress-role" style="width: @($"{rolePct}%")"></span>
-                    <span class="pa-progress-direct" style="width: @($"{directPct}%")"></span>
-                </div>
-            </div>
-        }
-
-        <div class="pa-roles-bar">
-            @if (permUserSites.Count > 0)
-            {
-                <div class="pa-scope-wrap">
-                    <label class="visually-hidden" for="user-perm-scope">@Text["UserPermScopeLabel"]</label>
-                    <select id="user-perm-scope" class="um-select" value="@permSiteId" @onchange="ChangePermTargetScope" disabled="@permSaving">
-                        <option value="0">@Text["UserPermScopeOrg"]</option>
-                        @foreach (var s in permUserSites)
-                        {
-                            <option value="@s.SiteId">@Text["UserPermScopeSite", s.SiteCode, s.SiteName]</option>
-                        }
-                    </select>
-                </div>
-            }
-            <div class="pa-role-chips">
-                <span class="pm-role-prefix">@Text["PermRolesLabel"]</span>
-                @foreach (var ra in ScopedRoleAssignmentsForTarget.Where(x => x.IsActive))
+    <PermissionAccordionPanel
+        Descriptors="@TargetDescriptors"
+        SelectedPerms="@directSelectedPerms"
+        RoleGrantedPerms="@roleGrantedPerms"
+        InitialPerms="@initialDirectPerms"
+        RoleGrantingNames="@roleGrantingNamesByCode"
+        CanEdit="@scopeCanAssignPermissions"
+        IsSaving="@permSaving"
+        OnChanged="@(() => { permSaved = false; StateHasChanged(); })">
+        <HeaderContent>
+            <div class="pa-roles-bar">
+                @if (permUserSites.Count > 0)
                 {
-                    var roleLabel = RolePermissionLocalization.RoleDisplayName(ra.RoleName, ra.IsSystem, Text);
-                    var canRemove = scopeCanAssignRoles && !(ra.RoleId == PermissionCatalog.OrganizationAdministratorRoleId && permSnapshot.UserId == currentActorId);
-                    <span class="pa-role-chip">
-                        <span>@roleLabel</span>
-                        @if (canRemove)
-                        {
-                            <button type="button" class="pa-role-chip-x"
-                                    aria-label="@Text["PermRemoveRoleAria", roleLabel]"
-                                    disabled="@permSaving"
-                                    @onclick="() => ToggleRoleAssignment(ra)">×</button>
-                        }
-                    </span>
+                    <div class="pa-scope-wrap">
+                        <label class="visually-hidden" for="user-perm-scope">@Text["UserPermScopeLabel"]</label>
+                        <select id="user-perm-scope" class="um-select" value="@permSiteId" @onchange="ChangePermTargetScope" disabled="@permSaving">
+                            <option value="0">@Text["UserPermScopeOrg"]</option>
+                            @foreach (var s in permUserSites)
+                            {
+                                <option value="@s.SiteId">@Text["UserPermScopeSite", s.SiteCode, s.SiteName]</option>
+                            }
+                        </select>
+                    </div>
                 }
-                @if (scopeCanAssignRoles && AssignableRolesForTarget.Count > 0)
-                {
-                    @if (!permAddRoleOpen)
+                <div class="pa-role-chips">
+                    <span class="pm-role-prefix">@Text["PermRolesLabel"]</span>
+                    @foreach (var ra in ScopedRoleAssignmentsForTarget.Where(x => x.IsActive))
                     {
-                        <button type="button" class="pa-add-role-btn" disabled="@permSaving" @onclick="() => permAddRoleOpen = true">
-                            @Text["PermAddRoleChipBtn"]
-                        </button>
-                    }
-                    else
-                    {
-                        <span class="pa-add-role-inline">
-                            <label class="visually-hidden" for="user-assign-role">@Text["UserAssignRoleLabel"]</label>
-                            <select id="user-assign-role" class="um-select pa-role-select" @bind="selectedRoleIdToAssign" disabled="@permSaving">
-                                @foreach (var r in AssignableRolesForTarget)
-                                {
-                                    <option value="@r.Id">@RolePermissionLocalization.RoleDisplayName(r.Name, r.IsSystem, Text)</option>
-                                }
-                            </select>
-                            <BitButton Size="BitSize.Small" IsEnabled="@(!permSaving && selectedRoleIdToAssign > 0)" OnClick="SubmitAssignRole">
-                                @Text["UserAssignRoleButton"]
-                            </BitButton>
-                            <button type="button" class="pa-role-chip-x" aria-label="@Text["WriteCancel"]" @onclick="() => permAddRoleOpen = false">×</button>
+                        var roleLabel = RolePermissionLocalization.RoleDisplayName(ra.RoleName, ra.IsSystem, Text);
+                        var canRemove = scopeCanAssignRoles && !(ra.RoleId == PermissionCatalog.OrganizationAdministratorRoleId && permSnapshot.UserId == currentActorId);
+                        <span class="pa-role-chip">
+                            <span>@roleLabel</span>
+                            @if (canRemove)
+                            {
+                                <button type="button" class="pa-role-chip-x"
+                                        aria-label="@Text["PermRemoveRoleAria", roleLabel]"
+                                        disabled="@permSaving"
+                                        @onclick="() => ToggleRoleAssignment(ra)">×</button>
+                            }
                         </span>
                     }
-                }
-            </div>
-        </div>
-
-        <div class="pm-toolbar">
-            <div class="pm-filter-group" role="group">
-                <button type="button" class="pm-filter-btn @(permFilter == "all" ? "is-active" : string.Empty)"
-                        @onclick='() => permFilter = "all"'>@Text["PermFilterAll"]</button>
-                <button type="button" class="pm-filter-btn @(permFilter == "granted" ? "is-active" : string.Empty)"
-                        @onclick='() => permFilter = "granted"'>@Text["PermFilterGranted"]</button>
-                <button type="button" class="pm-filter-btn @(permFilter == "direct" ? "is-active" : string.Empty)"
-                        @onclick='() => permFilter = "direct"'>@Text["PermFilterDirect"]</button>
-                <button type="button" class="pm-filter-btn @(permFilter == "dirty" ? "is-active" : string.Empty)"
-                        @onclick='() => permFilter = "dirty"'>@Text["PermFilterChanges"]</button>
-            </div>
-            <input type="search" class="pm-search pa-search" placeholder="@Text["PermSearchPageOrOpPlaceholder"]"
-                   @bind="permSearch" @bind:event="oninput" />
-        </div>
-
-        <div class="pa-accordion-scroll">
-            @if (filteredGroups.Count == 0)
-            {
-                <div class="pm-empty-row">@Text["PermEmptyFilterResult"]</div>
-            }
-            else
-            {
-                @foreach (var grp in filteredGroups)
-                {
-                    var module = grp.Module;
-                    var ops = grp.Operations;
-                    var rowRoleCount = ops.Count(op => roleGrantedPerms.Contains(op.PermissionCode));
-                    var rowDirectCount = ops.Count(op => !roleGrantedPerms.Contains(op.PermissionCode) && directSelectedPerms.Contains(op.PermissionCode));
-                    var rowGranted = rowRoleCount + rowDirectCount;
-                    var rowDirtyCount = ops.Count(op => !roleGrantedPerms.Contains(op.PermissionCode) && (directSelectedPerms.Contains(op.PermissionCode) != initialDirectPerms.Contains(op.PermissionCode)));
-                    var rowRolePct = ops.Count > 0 ? Math.Round(rowRoleCount * 100.0 / ops.Count, 1) : 0;
-                    var rowDirectPct = ops.Count > 0 ? Math.Round(rowDirectCount * 100.0 / ops.Count, 1) : 0;
-                    var isExpanded = expandedPermModules.Contains(module);
-                    var hasEditable = ops.Any(op => !roleGrantedPerms.Contains(op.PermissionCode));
-
-                    <div class="pa-group @(rowGranted == 0 ? "is-dimmed" : string.Empty) @(isExpanded ? "is-open" : string.Empty)">
-                        <button type="button" class="pa-group-header" aria-expanded="@(isExpanded ? "true" : "false")"
-                                @onclick="() => ToggleAccordionModule(module)">
-                            <span class="pa-group-title-wrap">
-                                <span class="pa-chevron @(isExpanded ? "is-open" : string.Empty)" aria-hidden="true">›</span>
-                                <span class="pa-group-title">@Text[RolePermissionLocalization.PageTitleKey(module)]</span>
-                                @if (rowDirtyCount > 0)
-                                {
-                                    <span class="pa-dirty-pill">@Text["PermChangesBadge", rowDirtyCount]</span>
-                                }
-                            </span>
-                            <span class="pa-group-meta">
-                                <span class="pa-mini-bar">
-                                    <span class="pa-progress-role" style="width: @($"{rowRolePct}%")"></span>
-                                    <span class="pa-progress-direct" style="width: @($"{rowDirectPct}%")"></span>
-                                </span>
-                                <span class="pa-group-count">@Text["PermAccordionRowCount", rowGranted, ops.Count]</span>
-                            </span>
-                        </button>
-
-                        @if (isExpanded)
+                    @if (scopeCanAssignRoles && AssignableRolesForTarget.Count > 0)
+                    {
+                        @if (!permAddRoleOpen)
                         {
-                            <div class="pa-group-body">
-                                @if (scopeCanAssignPermissions && hasEditable)
-                                {
-                                    <div class="pa-group-actions">
-                                        <button type="button" class="pa-action-link is-primary" disabled="@permSaving"
-                                                @onclick="() => SelectAllEditableInModule(ops)">
-                                            @Text["PermSelectAllEditable"]
-                                        </button>
-                                        <button type="button" class="pa-action-link" disabled="@permSaving"
-                                                @onclick="() => ClearDirectInModule(ops)">
-                                            @Text["PermClearDirect"]
-                                        </button>
-                                    </div>
-                                }
-                                <div class="pa-op-grid">
-                                    @foreach (var cell in ops)
-                                    {
-                                        var code = cell.PermissionCode;
-                                        var viaRole = roleGrantedPerms.Contains(code);
-                                        var isDirect = directSelectedPerms.Contains(code);
-                                        var wasDirect = initialDirectPerms.Contains(code);
-                                        var isDirty = !viaRole && (isDirect != wasDirect);
-                                        var isNewlyAdded = isDirty && isDirect;
-                                        var opLabel = Text[RolePermissionLocalization.OperationLabelKey(code)].Value;
-                                        var tip = viaRole ? FormatRoleTooltip(code) : opLabel;
-                                        var cardCls = viaRole ? "is-role" : isDirty ? "is-dirty" : isDirect ? "is-direct" : "is-none";
-                                        var descriptor = TargetDescriptors.FirstOrDefault(d => d.Code == code);
-
-                                        <button type="button"
-                                                class="pa-op-card @cardCls"
-                                                title="@tip"
-                                                disabled="@(permSaving || viaRole || !scopeCanAssignPermissions || descriptor is null)"
-                                                @onclick="() => { if (descriptor is not null) ToggleDirectOperation(descriptor, !isDirect); }">
-                                            <span class="pm-cell pm-cell--sm @(viaRole ? "is-role" : isDirect ? "is-direct" : "is-none") @(isDirty ? "is-dirty" : string.Empty)">
-                                                @if (viaRole || isDirect)
-                                                {
-                                                    <span class="pm-check-glyph" aria-hidden="true">✓</span>
-                                                }
-                                            </span>
-                                            <span class="pa-op-label">@opLabel</span>
-                                            @if (viaRole)
-                                            {
-                                                <span class="pa-op-badge is-role">🔒 @Text["PermBadgeRole"]</span>
-                                            }
-                                            else if (isNewlyAdded)
-                                            {
-                                                <span class="pa-op-badge is-new">@Text["PermBadgeNew"]</span>
-                                            }
-                                        </button>
-                                    }
-                                </div>
-                            </div>
+                            <button type="button" class="pa-add-role-btn" disabled="@permSaving" @onclick="() => permAddRoleOpen = true">
+                                @Text["PermAddRoleChipBtn"]
+                            </button>
                         }
+                        else
+                        {
+                            <span class="pa-add-role-inline">
+                                <label class="visually-hidden" for="user-assign-role">@Text["UserAssignRoleLabel"]</label>
+                                <select id="user-assign-role" class="um-select pa-role-select" @bind="selectedRoleIdToAssign" disabled="@permSaving">
+                                    @foreach (var r in AssignableRolesForTarget)
+                                    {
+                                        <option value="@r.Id">@RolePermissionLocalization.RoleDisplayName(r.Name, r.IsSystem, Text)</option>
+                                    }
+                                </select>
+                                <BitButton Size="BitSize.Small" IsEnabled="@(!permSaving && selectedRoleIdToAssign > 0)" OnClick="SubmitAssignRole">
+                                    @Text["UserAssignRoleButton"]
+                                </BitButton>
+                                <button type="button" class="pa-role-chip-x" aria-label="@Text["WriteCancel"]" @onclick="() => permAddRoleOpen = false">×</button>
+                            </span>
+                        }
+                    }
+                </div>
+            </div>
+        </HeaderContent>
+        <StatusContent>
+            @if (permSaving) { <p role="status">@Text["WriteSaving"]</p> }
+            @if (permSaved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+            @if (permError is not null)
+            {
+                <p role="alert" class="write-error">@Text[permError]</p>
+                @if (permError is "WriteConflict" or "WriteOutcomeUnknown")
+                {
+                    <div class="write-actions">
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadPermissionsDialog">@Text["WriteReload"]</BitButton>
                     </div>
                 }
             }
-        </div>
-
-        <div class="pm-legend">
-            <span class="pm-legend-item"><span class="pm-cell pm-cell--sm is-role"><span class="pm-check-glyph" aria-hidden="true">✓</span></span>@Text["PermLegendRole"]</span>
-            <span class="pm-legend-item"><span class="pm-cell pm-cell--sm is-direct"><span class="pm-check-glyph" aria-hidden="true">✓</span></span>@Text["PermLegendDirect"]</span>
-            <span class="pm-legend-item"><span class="pm-cell pm-cell--sm is-direct is-dirty"><span class="pm-check-glyph" aria-hidden="true">✓</span></span>@Text["PermLegendUnsaved"]</span>
-            <span class="pm-legend-item"><span class="pm-cell pm-cell--sm is-none"></span>@Text["PermLegendNone"]</span>
-        </div>
-
-        @if (permSaving) { <p role="status">@Text["WriteSaving"]</p> }
-        @if (permSaved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
-        @if (permError is not null)
-        {
-            <p role="alert" class="write-error">@Text[permError]</p>
-            @if (permError is "WriteConflict" or "WriteOutcomeUnknown")
-            {
-                <div class="write-actions">
-                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadPermissionsDialog">@Text["WriteReload"]</BitButton>
-                </div>
-            }
-        }
-
-        <div class="um-modal-footer pm-footer">
-            @if (isFullViaRole || !scopeCanAssignPermissions)
-            {
-                <span></span>
-                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => permOpen = false">@Text["ReadClose"]</BitButton>
-            }
-            else
-            {
-                <div class="pm-unsaved">
-                    @if (pendingCount > 0)
-                    {
-                        <span>@Text["PermUnsavedChangesCount", pendingCount]</span>
-                    }
-                </div>
-                <div class="um-footer-actions">
-                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!permSaving)" OnClick="() => permOpen = false">
-                        @Text["WriteCancel"]
-                    </BitButton>
-                    <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" Size="BitSize.Small"
-                               IsEnabled="@(!permSaving && pendingCount > 0)" OnClick="SubmitDirectPermissions">
-                        @Text["UserPermSaveButton"]
-                    </BitButton>
-                </div>
-            }
-        </div>
-    </div>
+        </StatusContent>
+        <FooterContent>
+            <div class="um-modal-footer pm-footer">
+                @if (isFullViaRole || !scopeCanAssignPermissions)
+                {
+                    <span></span>
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => permOpen = false">@Text["ReadClose"]</BitButton>
+                }
+                else
+                {
+                    <div class="pm-unsaved">
+                        @if (pendingCount > 0)
+                        {
+                            <span>@Text["PermUnsavedChangesCount", pendingCount]</span>
+                        }
+                    </div>
+                    <div class="um-footer-actions">
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!permSaving)" OnClick="() => permOpen = false">
+                            @Text["WriteCancel"]
+                        </BitButton>
+                        <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" Size="BitSize.Small"
+                                   IsEnabled="@(!permSaving && pendingCount > 0)" OnClick="SubmitDirectPermissions">
+                            @Text["UserPermSaveButton"]
+                        </BitButton>
+                    </div>
+                }
+            </div>
+        </FooterContent>
+    </PermissionAccordionPanel>
 }
 </Body>
 </BitDialog>

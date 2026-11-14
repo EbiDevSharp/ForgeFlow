@@ -100,14 +100,14 @@ else
                     <BitDataGridColumn TItem="RoleSummary" Title="@Text["ReadActions"]">
                         <Template Context="row">
                             <div class="read-row-actions">
-                                <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                <BitTooltip Text="@Text["ReadDetails"]">
                                     <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
                                                IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
                                                OnClick="() => Detail(row.Id)" />
                                 </BitTooltip>
                                 @if (scopeCanManageRoles && !row.IsSystem)
                                 {
-                                    <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                    <BitTooltip Text="@Text["ReadEdit"]">
                                         <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
                                                    Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
                                                    OnClick="() => Edit(row.Id)" />
@@ -123,112 +123,70 @@ else
 }
 </section>
 
-<BitDialog Width="560px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailOpen"
-           Title="@Text[editMode ? "RoleEditTitle" : "RoleDetailTitle"]"
-           AriaLabel="@Text[editMode ? "RoleEditTitle" : "RoleDetailTitle"]"
+<BitDialog Width="700px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailOpen"
+           Title="@(selected is null ? Text[editMode ? "RoleEditTitle" : "RoleDetailTitle"] : $"{Text[editMode ? "RoleEditTitle" : "RoleDetailTitle"]} — {RolePermissionLocalization.RoleDisplayName(selected.Name, selected.IsSystem, Text)}")"
+           AriaLabel="@(selected is null ? Text[editMode ? "RoleEditTitle" : "RoleDetailTitle"] : $"{Text[editMode ? "RoleEditTitle" : "RoleDetailTitle"]} — {RolePermissionLocalization.RoleDisplayName(selected.Name, selected.IsSystem, Text)}")"
            CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
            AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
 <Body>
 @if (selected is not null)
 {
-    <div class="write-panel">
-        @if (selected.IsSystem)
-        {
-            <p class="write-hint">@Text["RoleSystemNotice"]</p>
-        }
+    var canEditOps = editMode && !selected.IsSystem && selected.IsActive && scopeCanManageRoles;
 
-        @if (!editMode || selected.IsSystem)
-        {
-            <dl class="read-detail">
-                <dt>@Text["RoleNameLabel"]</dt>
-                <dd>@RolePermissionLocalization.RoleDisplayName(selected.Name, selected.IsSystem, Text)</dd>
-                <dt>@Text["RoleTypeColumn"]</dt>
-                <dd>
-                    <span class="read-badge @(selected.IsSystem ? "system" : "role")">
-                        @Text[selected.IsSystem ? "RoleSystemBadge" : "RoleCustomBadge"]
-                    </span>
-                </dd>
-                <dt>@Text["ReadStatus"]</dt>
-                <dd>
-                    <span class="read-badge @(selected.IsActive ? "active" : "inactive")">
-                        @Text[selected.IsActive ? "ReadActive" : "ReadInactiveStatus"]
-                    </span>
-                </dd>
-            </dl>
-        }
-        else
-        {
-            <div class="read-field">
-                <label for="edit-role-name">@Text["RoleNameLabel"]</label>
-                <input id="edit-role-name" @bind="editName" @bind:event="oninput" maxlength="128"
-                       disabled="@(!selected.IsActive || saving)" aria-describedby="edit-role-name-hint" />
-                <span id="edit-role-name-hint" class="write-hint">@Text["RoleNameHint"]</span>
-            </div>
-        }
-
-        <div class="write-section">
-            <p class="write-section-title">@Text["RolePermissionsColumn"]</p>
-            @{
-                var canEditOps = editMode && !selected.IsSystem && selected.IsActive && scopeCanManageRoles;
-                var editModuleOps = RolePermissionLocalization.OrganizationScopePermissions.Where(x => x.Module == editSelectedModule).ToList();
-                var allChecked = editModuleOps.All(x => editSelectedPerms.Contains(x.Code));
-            }
-            <div class="read-field">
-                <label for="edit-role-module">@Text["PermPageSelectLabel"]</label>
-                <select id="edit-role-module" value="@((byte)editSelectedModule)" @onchange="ChangeEditModule">
-                    @foreach (var module in RolePermissionLocalization.TenantModules)
-                    {
-                        var ops = RolePermissionLocalization.OrganizationScopePermissions.Where(x => x.Module == module).ToList();
-                        var selectedCount = ops.Count(x => editSelectedPerms.Contains(x.Code));
-                        <option value="@((byte)module)">
-                            @Text["PermModuleSummary", Text[RolePermissionLocalization.PageTitleKey(module)], selectedCount, ops.Count]
-                        </option>
-                    }
-                </select>
-            </div>
-            <div class="perm-group">
-                <div class="perm-group-header">
-                    <span>@Text[RolePermissionLocalization.PageTitleKey(editSelectedModule)]</span>
-                    @if (canEditOps)
-                    {
-                        <label class="perm-check">
-                            <input type="checkbox" checked="@allChecked" disabled="@saving"
-                                   @onchange="e => ToggleEditModuleAll(editSelectedModule, e.Value is bool b && b)" />
-                            <span>@Text["PermSelectAllPage"]</span>
-                        </label>
-                    }
-                </div>
-                <div class="perm-grid">
-                    @foreach (var op in editModuleOps)
-                    {
-                        var isChecked = editSelectedPerms.Contains(op.Code);
-                        <label class="perm-check">
-                            <input type="checkbox" checked="@isChecked"
-                                   disabled="@(!canEditOps || saving)"
-                                   @onchange="e => ToggleEditOperation(op, e.Value is bool b && b)" />
-                            <span>@Text[RolePermissionLocalization.OperationLabelKey(op.Code)]</span>
-                        </label>
-                    }
-                </div>
-            </div>
-        </div>
-
-        @if (editMode && !selected.IsSystem && scopeCanManageRoles)
-        {
-            <div class="write-actions">
-                @if (selected.IsActive)
+    <PermissionAccordionPanel
+        Descriptors="@RolePermissionLocalization.OrganizationScopePermissions"
+        SelectedPerms="@editSelectedPerms"
+        InitialPerms="@initialEditPerms"
+        CanEdit="@canEditOps"
+        IsSaving="@saving"
+        OnChanged="@(() => { saved = false; StateHasChanged(); })">
+        <HeaderContent>
+            <div class="pa-roles-bar">
+                @if (selected.IsSystem)
                 {
-                    <BitButton Size="BitSize.Small" IsEnabled="@(!saving && !string.IsNullOrWhiteSpace(editName))"
-                               OnClick="SubmitUpdateRole">@Text["WriteSave"]</BitButton>
-                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
-                               OnClick="() => confirmToggleActive = false">@Text["WriteDeactivate"]</BitButton>
+                    <p class="write-hint" style="margin: 0; font-size: .8125rem;">@Text["RoleSystemNotice"]</p>
+                }
+                @if (!editMode || selected.IsSystem)
+                {
+                    <div class="pa-role-chips">
+                        <span class="pm-role-prefix">@Text["RoleTypeColumn"]:</span>
+                        <span class="read-badge @(selected.IsSystem ? "system" : "role")">
+                            @Text[selected.IsSystem ? "RoleSystemBadge" : "RoleCustomBadge"]
+                        </span>
+                        <span class="pm-role-prefix" style="margin-inline-start: 12px;">@Text["ReadStatus"]:</span>
+                        <span class="read-badge @(selected.IsActive ? "active" : "inactive")">
+                            @Text[selected.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </div>
                 }
                 else
                 {
-                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
-                               OnClick="() => confirmToggleActive = true">@Text["WriteActivate"]</BitButton>
+                    <div class="pa-role-input-wrap">
+                        <label class="visually-hidden" for="edit-role-name">@Text["RoleNameLabel"]</label>
+                        <input id="edit-role-name" class="um-input pa-role-input" @bind="editName" @bind:event="oninput" maxlength="128"
+                               placeholder="@Text["RoleNameLabel"]"
+                               disabled="@(!selected.IsActive || saving)" aria-describedby="edit-role-name-hint" />
+                        <span id="edit-role-name-hint" class="write-hint" style="margin: 0; font-size: .75rem; white-space: nowrap;">@Text["RoleNameHint"]</span>
+                        <span class="read-badge @(selected.IsActive ? "active" : "inactive")">
+                            @Text[selected.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </div>
                 }
             </div>
+        </HeaderContent>
+        <StatusContent>
+            @if (saving) { <p role="status">@Text["WriteSaving"]</p> }
+            @if (saved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+            @if (writeError is not null)
+            {
+                <p role="alert" class="write-error">@Text[writeError]</p>
+                @if (writeError is "WriteConflict" or "WriteOutcomeUnknown")
+                {
+                    <div class="write-actions">
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadSelected">@Text["WriteReload"]</BitButton>
+                    </div>
+                }
+            }
 
             @if (confirmToggleActive is bool targetActive)
             {
@@ -240,100 +198,107 @@ else
                     </div>
                 </div>
             }
-        }
-
-        @if (saving) { <p role="status">@Text["WriteSaving"]</p> }
-        @if (saved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
-        @if (writeError is not null)
-        {
-            <p role="alert" class="write-error">@Text[writeError]</p>
-            @if (writeError is "WriteConflict" or "WriteOutcomeUnknown")
-            {
-                <div class="write-actions">
-                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadSelected">@Text["WriteReload"]</BitButton>
-                </div>
-            }
-        }
-    </div>
+        </StatusContent>
+        <FooterContent>
+            <div class="um-modal-footer pm-footer">
+                @if (!editMode || selected.IsSystem)
+                {
+                    <span></span>
+                    <div class="um-footer-actions">
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => detailOpen = false">
+                            @Text["ReadClose"]
+                        </BitButton>
+                        @if (scopeCanManageRoles && !selected.IsSystem)
+                        {
+                            <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" Size="BitSize.Small" OnClick="() => editMode = true">
+                                @Text["ReadEdit"]
+                            </BitButton>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="pm-unsaved">
+                        @if (HasEditChangesCount > 0)
+                        {
+                            <span>@Text["PermUnsavedChangesCount", HasEditChangesCount]</span>
+                        }
+                    </div>
+                    <div class="um-footer-actions">
+                        @if (selected.IsActive)
+                        {
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                                       OnClick="() => confirmToggleActive = false">
+                                @Text["WriteDeactivate"]
+                            </BitButton>
+                        }
+                        else
+                        {
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                                       OnClick="() => confirmToggleActive = true">
+                                @Text["WriteActivate"]
+                            </BitButton>
+                        }
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)" OnClick="() => detailOpen = false">
+                            @Text["WriteCancel"]
+                        </BitButton>
+                        @if (selected.IsActive)
+                        {
+                            <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" Size="BitSize.Small"
+                                       IsEnabled="@(!saving && !string.IsNullOrWhiteSpace(editName) && (HasEditChangesCount > 0 || editName != selected.Name))"
+                                       OnClick="SubmitUpdateRole">
+                                @Text["WriteSave"]
+                            </BitButton>
+                        }
+                    </div>
+                }
+            </div>
+        </FooterContent>
+    </PermissionAccordionPanel>
 }
 </Body>
 </BitDialog>
 
-<BitDialog Width="560px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createOpen"
+<BitDialog Width="700px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createOpen"
            OnDismissing="OnCreateDismissing"
            Title="@Text["RoleCreateTitle"]" AriaLabel="@Text["RoleCreateTitle"]"
            CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
            AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
 <Body>
-<form class="write-panel" @onsubmit:preventDefault>
-    <div class="read-field">
-        <label for="create-role-name">@Text["RoleNameLabel"]</label>
-        <input id="create-role-name" value="@createName" @oninput="OnCreateNameInput" maxlength="128"
-               disabled="@creating" aria-describedby="create-role-name-hint" />
-        <span id="create-role-name-hint" class="write-hint">@Text["RoleNameHint"]</span>
-    </div>
-
-    <div class="write-section">
-        <p class="write-section-title">@Text["RolePermissionsColumn"]</p>
-        @{
-            var createModuleOps = RolePermissionLocalization.OrganizationScopePermissions.Where(x => x.Module == createSelectedModule).ToList();
-            var createAllChecked = createModuleOps.All(x => createSelectedPerms.Contains(x.Code));
-        }
-        <div class="read-field">
-            <label for="create-role-module">@Text["PermPageSelectLabel"]</label>
-            <select id="create-role-module" value="@((byte)createSelectedModule)" @onchange="ChangeCreateModule">
-                @foreach (var module in RolePermissionLocalization.TenantModules)
-                {
-                    var ops = RolePermissionLocalization.OrganizationScopePermissions.Where(x => x.Module == module).ToList();
-                    var selectedCount = ops.Count(x => createSelectedPerms.Contains(x.Code));
-                    <option value="@((byte)module)">
-                        @Text["PermModuleSummary", Text[RolePermissionLocalization.PageTitleKey(module)], selectedCount, ops.Count]
-                    </option>
-                }
-            </select>
-        </div>
-        <div class="perm-group">
-            <div class="perm-group-header">
-                <span>@Text[RolePermissionLocalization.PageTitleKey(createSelectedModule)]</span>
-                <label class="perm-check">
-                    <input type="checkbox" checked="@createAllChecked" disabled="@creating"
-                           @onchange="e => ToggleCreateModuleAll(createSelectedModule, e.Value is bool b && b)" />
-                    <span>@Text["PermSelectAllPage"]</span>
-                </label>
+    <PermissionAccordionPanel
+        Descriptors="@RolePermissionLocalization.OrganizationScopePermissions"
+        SelectedPerms="@createSelectedPerms"
+        InitialPerms="@initialCreatePerms"
+        CanEdit="@(!creating)"
+        IsSaving="@creating"
+        OnChanged="@(() => StateHasChanged())">
+        <HeaderContent>
+            <div class="pa-roles-bar">
+                <div class="pa-role-input-wrap">
+                    <label class="visually-hidden" for="create-role-name">@Text["RoleNameLabel"]</label>
+                    <input id="create-role-name" class="um-input pa-role-input" value="@createName" @oninput="OnCreateNameInput" maxlength="128"
+                           placeholder="@Text["RoleNameLabel"]"
+                           disabled="@creating" aria-describedby="create-role-name-hint" />
+                    <span id="create-role-name-hint" class="write-hint" style="margin: 0; font-size: .75rem; white-space: nowrap;">@Text["RoleNameHint"]</span>
+                </div>
             </div>
-            <div class="perm-grid">
-                @foreach (var op in createModuleOps)
-                {
-                    var isChecked = createSelectedPerms.Contains(op.Code);
-                    <label class="perm-check">
-                        <input type="checkbox" checked="@isChecked" disabled="@creating"
-                               @onchange="e => ToggleCreateOperation(op, e.Value is bool b && b)" />
-                        <span>@Text[RolePermissionLocalization.OperationLabelKey(op.Code)]</span>
-                    </label>
-                }
+        </HeaderContent>
+        <StatusContent>
+            @if (creating) { <p role="status">@Text["WriteSaving"]</p> }
+            @if (createError is not null) { <p role="alert" class="write-error">@Text[createError]</p> }
+        </StatusContent>
+        <FooterContent>
+            <div class="um-modal-footer pm-footer">
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!creating)" OnClick="CloseCreate">
+                    @Text["WriteCancel"]
+                </BitButton>
+                <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" Size="BitSize.Small"
+                           IsEnabled="@(!creating && !string.IsNullOrWhiteSpace(createName))" OnClick="SubmitCreate">
+                    @Text["RoleCreateSubmit"]
+                </BitButton>
             </div>
-        </div>
-    </div>
-
-    <div class="write-actions">
-        <BitButton Size="BitSize.Small" IsEnabled="@(!creating && !string.IsNullOrWhiteSpace(createName))" OnClick="SubmitCreate">
-            @Text["RoleCreateSubmit"]
-        </BitButton>
-    </div>
-
-    @if (createDiscardConfirm)
-    {
-        <div class="write-confirm" role="alertdialog" aria-labelledby="create-role-discard-text">
-            <p id="create-role-discard-text">@Text["WriteDiscardConfirm"]</p>
-            <div class="write-actions">
-                <BitButton Size="BitSize.Small" OnClick="ConfirmCreateDiscard">@Text["WriteDiscard"]</BitButton>
-                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CancelCreateDiscard">@Text["WriteKeepEditing"]</BitButton>
-            </div>
-        </div>
-    }
-    @if (creating) { <p role="status">@Text["WriteSaving"]</p> }
-    @if (createError is not null) { <p role="alert" class="write-error">@Text[createError]</p> }
-</form>
+        </FooterContent>
+    </PermissionAccordionPanel>
 </Body>
 </BitDialog>
 
@@ -366,24 +331,21 @@ else
     private bool saving, saved;
     private bool? confirmToggleActive;
     private readonly HashSet<string> editSelectedPerms = new(StringComparer.Ordinal);
-    private PermissionModule editSelectedModule = PermissionModule.Organizations;
+    private readonly HashSet<string> initialEditPerms = new(StringComparer.Ordinal);
 
-    private bool createOpen, creating, createDiscardConfirm, draftInitialized;
+    private bool createOpen, creating, draftInitialized;
     private string? createName, createError;
     private readonly HashSet<string> createSelectedPerms = new(StringComparer.Ordinal);
-    private PermissionModule createSelectedModule = PermissionModule.Organizations;
+    private readonly HashSet<string> initialCreatePerms = new(StringComparer.Ordinal);
     private DraftDefinition? pendingDraft;
 
-    private void ChangeEditModule(ChangeEventArgs e)
-    {
-        if (byte.TryParse(e.Value?.ToString(), out var raw) && Enum.IsDefined((PermissionModule)raw))
-            editSelectedModule = (PermissionModule)raw;
-    }
+    private int HasEditChangesCount => RolePermissionLocalization.OrganizationScopePermissions.Count(x =>
+        editSelectedPerms.Contains(x.Code) != initialEditPerms.Contains(x.Code));
 
-    private void ChangeCreateModule(ChangeEventArgs e)
+    private void CloseCreate()
     {
-        if (byte.TryParse(e.Value?.ToString(), out var raw) && Enum.IsDefined((PermissionModule)raw))
-            createSelectedModule = (PermissionModule)raw;
+        if (creating) return;
+        createOpen = false;
     }
 
     private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
@@ -583,28 +545,18 @@ else
         selected = details;
         editName = details.Name;
         editSelectedPerms.Clear();
+        initialEditPerms.Clear();
         foreach (var code in details.Permissions)
+        {
             editSelectedPerms.Add(code);
+            initialEditPerms.Add(code);
+        }
     }
 
     private async Task ReloadSelected()
     {
         if (selected is null) return;
         await OpenRoleDialog(selected.Id, editMode);
-    }
-
-    private void ToggleEditOperation(PermissionDescriptor descriptor, bool isChecked)
-    {
-        saved = false;
-        RolePermissionLocalization.ToggleOperationWithAutoRead(
-            editSelectedPerms, descriptor, isChecked, RolePermissionLocalization.OrganizationScopePermissions);
-    }
-
-    private void ToggleEditModuleAll(PermissionModule module, bool isChecked)
-    {
-        saved = false;
-        RolePermissionLocalization.ToggleModuleAll(
-            editSelectedPerms, module, isChecked, RolePermissionLocalization.OrganizationScopePermissions);
     }
 
     private async Task SubmitUpdateRole()
@@ -689,8 +641,8 @@ else
         await ClearActiveDraftAsync();
         createName = string.Empty;
         createError = null;
-        createDiscardConfirm = false;
         createSelectedPerms.Clear();
+        initialCreatePerms.Clear();
         detailOpen = false;
         createOpen = true;
         if (currentActorId > 0)
@@ -705,37 +657,24 @@ else
         createName = e.Value?.ToString() ?? string.Empty;
     }
 
-    private void ToggleCreateOperation(PermissionDescriptor descriptor, bool isChecked)
-    {
-        RolePermissionLocalization.ToggleOperationWithAutoRead(
-            createSelectedPerms, descriptor, isChecked, RolePermissionLocalization.OrganizationScopePermissions);
-    }
-
-    private void ToggleCreateModuleAll(PermissionModule module, bool isChecked)
-    {
-        RolePermissionLocalization.ToggleModuleAll(
-            createSelectedPerms, module, isChecked, RolePermissionLocalization.OrganizationScopePermissions);
-    }
-
     private void OnCreateDismissing(BitDialogDismissArgs args)
     {
-        if (creating || CreateDirty)
+        if (creating)
         {
             args.Cancel = true;
-            if (!creating) createDiscardConfirm = true;
+            return;
         }
+        createOpen = false;
     }
 
     private async Task ConfirmCreateDiscard()
     {
-        createDiscardConfirm = false;
         createName = string.Empty;
         createSelectedPerms.Clear();
+        initialCreatePerms.Clear();
         createOpen = false;
         await ClearActiveDraftAsync();
     }
-
-    private void CancelCreateDiscard() => createDiscardConfirm = false;
 
     private async Task SubmitCreate()
     {

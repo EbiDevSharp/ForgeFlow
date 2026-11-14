@@ -1,0 +1,303 @@
+@using System.Globalization
+@using ForgeFlow.Domain.Roles
+@using ForgeFlow.Web.Roles
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="pa-modal">
+    @if (isFull)
+    {
+        <div class="pm-summary pm-summary--full">
+            <div class="pm-summary-top">
+                <strong class="pm-summary-title">@Text["PermSummaryFullAccess"]</strong>
+                <span class="pm-summary-sub">@Text["PermSummaryCount", grantedTotal, totalOps]</span>
+            </div>
+            <div class="pm-progress"><span class="pm-progress-fill is-full" style="width: 100%"></span></div>
+        </div>
+    }
+    else if (hasRoleBreakdown)
+    {
+        <div class="pm-summary">
+            <div class="pm-summary-top">
+                <strong class="pm-summary-title">@Text["PermSummaryCount", grantedTotal, totalOps]</strong>
+                <span class="pm-summary-sub">@Text["PermSummaryBreakdown", viaRoleCount, directCount]</span>
+            </div>
+            <div class="pa-progress-dual">
+                <span class="pa-progress-role" style="width: @PctCss(rolePct)"></span>
+                <span class="pa-progress-direct" style="width: @PctCss(directPct)"></span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="pm-summary">
+            <div class="pm-summary-top">
+                <strong class="pm-summary-title">@Text["PermSummaryCount", grantedTotal, totalOps]</strong>
+                <span class="pm-summary-sub">@($"{Math.Round(directPct)}%")</span>
+            </div>
+            <div class="pm-progress"><span class="pm-progress-fill" style="width: @PctCss(directPct)"></span></div>
+        </div>
+    }
+
+    @if (HeaderContent is not null)
+    {
+        @HeaderContent
+    }
+
+    <div class="pm-toolbar">
+        <div class="pm-filter-group" role="group">
+            <button type="button" class="pm-filter-btn @(filter == "all" ? "is-active" : string.Empty)"
+                    @onclick='() => filter = "all"'>@Text["PermFilterAll"]</button>
+            <button type="button" class="pm-filter-btn @(filter == "granted" ? "is-active" : string.Empty)"
+                    @onclick='() => filter = "granted"'>@Text["PermFilterGranted"]</button>
+            @if (hasRoleBreakdown)
+            {
+                <button type="button" class="pm-filter-btn @(filter == "direct" ? "is-active" : string.Empty)"
+                        @onclick='() => filter = "direct"'>@Text["PermFilterDirect"]</button>
+            }
+            @if (CanEdit)
+            {
+                <button type="button" class="pm-filter-btn @(filter == "dirty" ? "is-active" : string.Empty)"
+                        @onclick='() => filter = "dirty"'>@Text["PermFilterChanges"]</button>
+            }
+        </div>
+        <input type="search" class="pm-search pa-search" placeholder="@Text["PermSearchPageOrOpPlaceholder"]"
+               @bind="searchTerm" @bind:event="oninput" />
+    </div>
+
+    <div class="pa-accordion-scroll">
+        @if (FilteredModules.Count == 0)
+        {
+            <div class="pm-empty-row">@Text["PermEmptyFilterResult"]</div>
+        }
+        else
+        {
+            @foreach (var module in FilteredModules)
+            {
+                var ops = DescriptorsByModule[module];
+                var rowRoleCount = RoleGrantedPerms is null ? 0 : ops.Count(op => RoleGrantedPerms.Contains(op.Code));
+                var rowDirectCount = ops.Count(op => (RoleGrantedPerms == null || !RoleGrantedPerms.Contains(op.Code)) && SelectedPerms.Contains(op.Code));
+                var rowGranted = rowRoleCount + rowDirectCount;
+                var rowDirtyCount = InitialPerms is null ? 0 : ops.Count(op => (RoleGrantedPerms == null || !RoleGrantedPerms.Contains(op.Code)) && (SelectedPerms.Contains(op.Code) != InitialPerms.Contains(op.Code)));
+                var rowRolePct = ops.Count > 0 ? Math.Round(rowRoleCount * 100.0 / ops.Count, 1) : 0;
+                var rowDirectPct = ops.Count > 0 ? Math.Round(rowDirectCount * 100.0 / ops.Count, 1) : 0;
+                var isExpanded = expandedModules.Contains(module);
+                var hasEditable = ops.Any(op => RoleGrantedPerms == null || !RoleGrantedPerms.Contains(op.Code));
+
+                <div class="pa-group @(rowGranted == 0 ? "is-dimmed" : string.Empty) @(isExpanded ? "is-open" : string.Empty)">
+                    <button type="button" class="pa-group-header" aria-expanded="@(isExpanded ? "true" : "false")"
+                            @onclick="() => ToggleModule(module)">
+                        <span class="pa-group-title-wrap">
+                            <span class="pa-chevron @(isExpanded ? "is-open" : string.Empty)" aria-hidden="true">›</span>
+                            <span class="pa-group-title">@Text[RolePermissionLocalization.PageTitleKey(module)]</span>
+                            @if (CanEdit && rowDirtyCount > 0)
+                            {
+                                <span class="pa-dirty-pill">@Text["PermChangesBadge", rowDirtyCount]</span>
+                            }
+                        </span>
+                        <span class="pa-group-meta">
+                            <span class="pa-mini-bar">
+                                @if (hasRoleBreakdown)
+                                {
+                                    <span class="pa-progress-role" style="width: @PctCss(rowRolePct)"></span>
+                                    <span class="pa-progress-direct" style="width: @PctCss(rowDirectPct)"></span>
+                                }
+                                else
+                                {
+                                    <span class="pm-progress-fill" style="width: @PctCss(rowDirectPct)"></span>
+                                }
+                            </span>
+                            <span class="pa-group-count">@Text["PermAccordionRowCount", rowGranted, ops.Count]</span>
+                        </span>
+                    </button>
+
+                    @if (isExpanded)
+                    {
+                        <div class="pa-group-body">
+                            @if (CanEdit && hasEditable)
+                            {
+                                <div class="pa-group-actions">
+                                    <button type="button" class="pa-action-link is-primary" disabled="@IsDisabled"
+                                            @onclick="() => SelectAllInModule(ops)">
+                                        @Text["PermSelectAllEditable"]
+                                    </button>
+                                    <button type="button" class="pa-action-link" disabled="@IsDisabled"
+                                            @onclick="() => ClearInModule(ops)">
+                                        @Text["PermClearDirect"]
+                                    </button>
+                                </div>
+                            }
+                            <div class="pa-op-grid">
+                                @foreach (var cell in ops)
+                                {
+                                    var code = cell.Code;
+                                    var viaRole = RoleGrantedPerms is not null && RoleGrantedPerms.Contains(code);
+                                    var isDirect = SelectedPerms.Contains(code);
+                                    var wasDirect = InitialPerms is not null && InitialPerms.Contains(code);
+                                    var isDirty = CanEdit && !viaRole && (isDirect != wasDirect);
+                                    var isNewlyAdded = isDirty && isDirect;
+                                    var opLabel = Text[RolePermissionLocalization.OperationLabelKey(code)].Value;
+                                    var tip = viaRole ? FormatRoleTooltip(code) : opLabel;
+                                    var cardCls = viaRole ? "is-role" : isDirty ? "is-dirty" : isDirect ? "is-direct" : "is-none";
+
+                                    <button type="button"
+                                            class="pa-op-card @cardCls @(!CanEdit ? "is-readonly" : string.Empty)"
+                                            title="@tip"
+                                            disabled="@(IsDisabled || viaRole || !CanEdit)"
+                                            @onclick="() => ToggleOperation(cell, !isDirect)">
+                                        <span class="pm-cell pm-cell--sm @(viaRole ? "is-role" : isDirect ? "is-direct" : "is-none") @(isDirty ? "is-dirty" : string.Empty)">
+                                            @if (viaRole || isDirect)
+                                            {
+                                                <span class="pm-check-glyph" aria-hidden="true">✓</span>
+                                            }
+                                        </span>
+                                        <span class="pa-op-label">@opLabel</span>
+                                        @if (viaRole)
+                                        {
+                                            <span class="pa-op-badge is-role">🔒 @Text["PermBadgeRole"]</span>
+                                        }
+                                        else if (isNewlyAdded)
+                                        {
+                                            <span class="pa-op-badge is-new">@Text["PermBadgeNew"]</span>
+                                        }
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+
+    <div class="pm-legend">
+        @if (hasRoleBreakdown)
+        {
+            <span class="pm-legend-item"><span class="pm-cell pm-cell--sm is-role"><span class="pm-check-glyph" aria-hidden="true">✓</span></span>@Text["PermLegendRole"]</span>
+        }
+        <span class="pm-legend-item"><span class="pm-cell pm-cell--sm is-direct"><span class="pm-check-glyph" aria-hidden="true">✓</span></span>@Text["PermLegendDirect"]</span>
+        @if (CanEdit)
+        {
+            <span class="pm-legend-item"><span class="pm-cell pm-cell--sm is-direct is-dirty"><span class="pm-check-glyph" aria-hidden="true">✓</span></span>@Text["PermLegendUnsaved"]</span>
+        }
+        <span class="pm-legend-item"><span class="pm-cell pm-cell--sm is-none"></span>@Text["PermLegendNone"]</span>
+    </div>
+
+    @if (StatusContent is not null)
+    {
+        @StatusContent
+    }
+
+    @if (FooterContent is not null)
+    {
+        @FooterContent
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<PermissionDescriptor> Descriptors { get; set; } = [];
+    [Parameter, EditorRequired] public HashSet<string> SelectedPerms { get; set; } = [];
+    [Parameter] public IReadOnlySet<string>? RoleGrantedPerms { get; set; }
+    [Parameter] public IReadOnlySet<string>? InitialPerms { get; set; }
+    [Parameter] public IReadOnlyDictionary<string, IReadOnlyList<string>>? RoleGrantingNames { get; set; }
+    [Parameter] public bool CanEdit { get; set; } = true;
+    [Parameter] public bool IsSaving { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public RenderFragment? HeaderContent { get; set; }
+    [Parameter] public RenderFragment? StatusContent { get; set; }
+    [Parameter] public RenderFragment? FooterContent { get; set; }
+
+    private string? searchTerm;
+    private string filter = "all";
+    private readonly HashSet<PermissionModule> expandedModules = [];
+
+    private bool IsDisabled => IsSaving;
+    private bool hasRoleBreakdown => RoleGrantedPerms is not null && RoleGrantedPerms.Count > 0;
+
+    private Dictionary<PermissionModule, List<PermissionDescriptor>> DescriptorsByModule =>
+        Descriptors.GroupBy(d => d.Module).ToDictionary(g => g.Key, g => g.ToList());
+
+    private int totalOps => Descriptors.Count;
+    private int viaRoleCount => RoleGrantedPerms is null ? 0 : Descriptors.Count(d => RoleGrantedPerms.Contains(d.Code));
+    private int directCount => Descriptors.Count(d => (RoleGrantedPerms == null || !RoleGrantedPerms.Contains(d.Code)) && SelectedPerms.Contains(d.Code));
+    private int grantedTotal => viaRoleCount + directCount;
+    private bool isFull => totalOps > 0 && grantedTotal == totalOps;
+    private double rolePct => totalOps > 0 ? Math.Round(viaRoleCount * 100.0 / totalOps, 1) : 0;
+    private double directPct => totalOps > 0 ? Math.Round(directCount * 100.0 / totalOps, 1) : 0;
+
+    private IReadOnlyList<PermissionModule> FilteredModules
+    {
+        get
+        {
+            var term = searchTerm?.Trim();
+            var list = new List<PermissionModule>();
+            var modules = RolePermissionLocalization.TenantModules.Where(m => DescriptorsByModule.ContainsKey(m));
+            foreach (var module in modules)
+            {
+                var ops = DescriptorsByModule[module];
+                if (!string.IsNullOrEmpty(term))
+                {
+                    var pageTitle = Text[RolePermissionLocalization.PageTitleKey(module)].Value;
+                    var pageMatches = pageTitle.Contains(term, StringComparison.OrdinalIgnoreCase);
+                    var opMatches = ops.Any(op =>
+                        Text[RolePermissionLocalization.OperationLabelKey(op.Code)].Value.Contains(term, StringComparison.OrdinalIgnoreCase));
+                    if (!pageMatches && !opMatches)
+                        continue;
+                }
+
+                if (filter == "granted" && !ops.Any(op => (RoleGrantedPerms != null && RoleGrantedPerms.Contains(op.Code)) || SelectedPerms.Contains(op.Code)))
+                    continue;
+                if (filter == "direct" && !ops.Any(op => (RoleGrantedPerms == null || !RoleGrantedPerms.Contains(op.Code)) && SelectedPerms.Contains(op.Code)))
+                    continue;
+                if (filter == "dirty" && !ops.Any(op => (RoleGrantedPerms == null || !RoleGrantedPerms.Contains(op.Code)) && (InitialPerms != null && SelectedPerms.Contains(op.Code) != InitialPerms.Contains(op.Code))))
+                    continue;
+
+                list.Add(module);
+            }
+            return list;
+        }
+    }
+
+    public void ToggleModule(PermissionModule module)
+    {
+        if (!expandedModules.Add(module))
+            expandedModules.Remove(module);
+    }
+
+    public void CollapseAll() => expandedModules.Clear();
+
+    private async Task ToggleOperation(PermissionDescriptor descriptor, bool isChecked)
+    {
+        RolePermissionLocalization.ToggleOperationWithAutoRead(SelectedPerms, descriptor, isChecked, Descriptors);
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task SelectAllInModule(IReadOnlyList<PermissionDescriptor> ops)
+    {
+        foreach (var op in ops)
+        {
+            if (RoleGrantedPerms is not null && RoleGrantedPerms.Contains(op.Code)) continue;
+            RolePermissionLocalization.ToggleOperationWithAutoRead(SelectedPerms, op, true, Descriptors);
+        }
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task ClearInModule(IReadOnlyList<PermissionDescriptor> ops)
+    {
+        foreach (var op in ops)
+        {
+            if (RoleGrantedPerms is not null && RoleGrantedPerms.Contains(op.Code)) continue;
+            SelectedPerms.Remove(op.Code);
+        }
+        await OnChanged.InvokeAsync();
+    }
+
+    private string FormatRoleTooltip(string permissionCode)
+    {
+        if (RoleGrantingNames is null || !RoleGrantingNames.TryGetValue(permissionCode, out var rawNames) || rawNames.Count == 0)
+            return Text[RolePermissionLocalization.OperationLabelKey(permissionCode)].Value;
+        var localizedNames = rawNames.Select(n => RolePermissionLocalization.RoleDisplayName(n, n is "OrganizationAdministrator" or "SiteOperator" or "DeploymentProvisioner", Text));
+        return Text["PermTooltipViaRole", string.Join("، ", localizedNames)].Value;
+    }
+
+    private static string PctCss(double value) => $"{value.ToString("0.#", CultureInfo.InvariantCulture)}%";
+}

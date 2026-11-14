@@ -654,7 +654,7 @@ public sealed class ResourceContractTests
              "CurrencyCreateButton", "CurrencyEditTitle", "CurrencyDetailTitle", "UnitErrorCurrencyInactive",
              "InvResStatusActive", "InvResStatusPartial", "InvResStatusConsumed", "InvResStatusReleased",
              "InvResErrorInvalidState", "InvResErrorExceedsAvailable", "InvResErrorOrderState", "PoResSavedNotice",
-             "ChangePasswordLink", "MyPreferencesMenuSubtitle", "SecurityRowPasskeySoonBadge"]);
+             "ChangePasswordLink", "MyPreferencesMenuSubtitle", "SecurityRowPasskeySoonBadge", "PermModuleSummary", "PermPageSelectLabel", "PermSelectAllPage"]);
         used[nameof(SharedResources)].UnionWith(ForgeFlow.Application.Audit.AuditEventCatalog.All.Select(d => d.ResourceKey));
         Assert.Equal(Contracts[nameof(SharedResources)].Keys.Order(), used[nameof(SharedResources)].Order());
     }
