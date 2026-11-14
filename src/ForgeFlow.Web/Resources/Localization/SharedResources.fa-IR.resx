@@ -1597,7 +1597,7 @@
     <value>موجودی فعلی</value>
   </data>
   <data name="InvTabMovements" xml:space="preserve">
-    <value>اسناد و گردش کالا</value>
+    <value>اسناد انبار</value>
   </data>
   <data name="InvTabWarehouses" xml:space="preserve">
     <value>انبارها</value>
@@ -2588,7 +2588,11 @@
   <data name="DashViewAll" xml:space="preserve"><value>مشاهده همه</value></data>
   <data name="DashOverdueBadge" xml:space="preserve"><value>عقب‌افتاده</value></data>
   <data name="DashNoShortages" xml:space="preserve"><value>کسری باز برای سفارش‌های تولید وجود ندارد.</value></data>
-  <data name="InvTabReservations" xml:space="preserve"><value>رزروها</value></data>
+  <data name="InvTabReservations" xml:space="preserve"><value>رزرو موجودی</value></data>
+  <data name="QcMenuInspections" xml:space="preserve"><value>بازرسی و قرنطینه</value></data>
+  <data name="QcMenuSpecs" xml:space="preserve"><value>مشخصات و الگوهای بازرسی</value></data>
+  <data name="QcMenuParameters" xml:space="preserve"><value>پارامترهای آزمایشگاهی</value></data>
+  <data name="QcMenuLots" xml:space="preserve"><value>ردیابی لات و تاریخ انقضا</value></data>
   <data name="InvReservedShort" xml:space="preserve"><value>رزرو: {0}</value></data>
   <data name="InvResOpenOnlyLabel" xml:space="preserve"><value>فقط رزروهای باز</value></data>
   <data name="InvResOrderColumn" xml:space="preserve"><value>سفارش تولید</value></data>
@@ -2849,14 +2853,10 @@
   <data name="PermUnsavedChangesCount" xml:space="preserve"><value>{0} تغییر ذخیره‌نشده</value></data>
   <data name="PermEmptyFilterResult" xml:space="preserve"><value>صفحه‌ای با این فیلتر یافت نشد.</value></data>
   <data name="SalesDispatch" xml:space="preserve"><value>فروش و ارسال</value></data>
-  <data name="SalesDispatchCaption" xml:space="preserve"><value>مدیریت مشتریان، سفارش‌های فروش، رزرو موجودی و حواله‌های خروج با بررسی کیفیت و گواهی آنالیز (COA).</value></data>
+  <data name="SalesDispatchCaption" xml:space="preserve"><value>مدیریت سفارش‌های فروش، رزرو موجودی و حواله‌های خروج با بررسی کیفیت و گواهی آنالیز (COA).</value></data>
   <data name="SalesTabOrders" xml:space="preserve"><value>سفارش‌های فروش</value></data>
   <data name="SalesTabDispatches" xml:space="preserve"><value>حواله‌های خروج</value></data>
-  <data name="SalesTabCustomers" xml:space="preserve"><value>مشتریان</value></data>
-  <data name="SalesCustomerCreateButton" xml:space="preserve"><value>مشتری جدید</value></data>
-  <data name="SalesCustomerEditTitle" xml:space="preserve"><value>ویرایش مشتری</value></data>
   <data name="SalesCustomerColumn" xml:space="preserve"><value>مشتری</value></data>
-  <data name="SalesCustomerTaxCode" xml:space="preserve"><value>کد اقتصادی / مالیاتی</value></data>
   <data name="SalesShippingAddress" xml:space="preserve"><value>نشانی ارسال</value></data>
   <data name="SalesOrderCreateButton" xml:space="preserve"><value>سفارش فروش جدید</value></data>
   <data name="SalesOrderEditTitle" xml:space="preserve"><value>ویرایش پیش‌نویس سفارش فروش</value></data>

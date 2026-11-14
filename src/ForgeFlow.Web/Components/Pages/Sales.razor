@@ -33,13 +33,7 @@
         @if (!initialLoading && pageError is null && available.Count > 0)
         {
             <div class="read-head-actions">
-                @if (activeTab == TabCustomers && scopeCanManageCustomers)
-                {
-                    <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateCustomerModal">
-                        @Text["SalesCustomerCreateButton"]
-                    </BitButton>
-                }
-                else if (activeTab == TabOrders && scopeCanManageOrders)
+                @if (activeTab == TabOrders && scopeCanManageOrders)
                 {
                     <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateOrderModalAsync">
                         @Text["SalesOrderCreateButton"]
@@ -78,9 +72,6 @@
             <button type="button" role="tab" aria-selected="@(activeTab == TabDispatches)"
                     class="read-tab-btn @(activeTab == TabDispatches ? "active" : string.Empty)"
                     @onclick="() => SwitchTabAsync(TabDispatches)">@Text["SalesTabDispatches"]</button>
-            <button type="button" role="tab" aria-selected="@(activeTab == TabCustomers)"
-                    class="read-tab-btn @(activeTab == TabCustomers ? "active" : string.Empty)"
-                    @onclick="() => SwitchTabAsync(TabCustomers)">@Text["SalesTabCustomers"]</button>
         </div>
 
         <div class="read-toolbar-card">
@@ -97,7 +88,7 @@
                 </div>
             }
 
-            @if (activeTab != TabCustomers && CurrentScope is OrganizationScope.Organization && authorizedSites.Count > 1)
+            @if (CurrentScope is OrganizationScope.Organization && authorizedSites.Count > 1)
             {
                 <div class="read-field">
                     <label for="sales-site-filter">@Text["PoSiteColumn"]</label>
@@ -109,14 +100,6 @@
                         }
                     </select>
                 </div>
-            }
-
-            @if (activeTab == TabCustomers)
-            {
-                <label class="read-inactive">
-                    <input type="checkbox" checked="@includeInactiveCustomers" @onchange="ToggleInactiveCustomersAsync" />
-                    <span>@Text["ReadInactive"]</span>
-                </label>
             }
             else if (activeTab == TabOrders)
             {
@@ -140,17 +123,7 @@
             </div>
         </div>
 
-        @if (activeTab == TabCustomers)
-        {
-            <CustomerGrid @ref="customerGrid"
-                          OnRead="ReadCustomersAsync"
-                          PageSizeOptions="@PageSizeOptions"
-                          GridStrings="@GridStrings"
-                          CanManageCustomers="@scopeCanManageCustomers"
-                          OnEdit="OpenEditCustomerModal"
-                          OnToggleActive="ToggleCustomerActiveAsync" />
-        }
-        else if (activeTab == TabOrders)
+        @if (activeTab == TabOrders)
         {
             <SalesOrderGrid @ref="orderGrid"
                             OnRead="ReadOrdersAsync"
@@ -175,55 +148,6 @@
     }
 </section>
 
-@* Customer Modal *@
-<ForgeFormDialog Width="620px" @bind-IsOpen="customerModalOpen"
-                 Title="@(editingCustomerId.HasValue ? Text["SalesCustomerEditTitle"] : Text["SalesCustomerCreateButton"])"
-                 CloseTitle="@Text["ReadClose"]">
-    <ChildContent>
-        @if (customerModalError is not null)
-        {
-            <p role="alert" class="write-error">@customerModalError</p>
-        }
-        <div class="write-modal-grid">
-        <div class="write-field">
-            <label for="cust-code">@Text["ReadCode"]</label>
-            <input id="cust-code" type="text" @bind="custCode" maxlength="32" disabled="@editingCustomerId.HasValue" dir="ltr" />
-        </div>
-        <div class="write-field">
-            <label for="cust-name">@Text["ReadName"]</label>
-            <input id="cust-name" type="text" @bind="custName" maxlength="150" />
-        </div>
-        <div class="write-field">
-            <label for="cust-contact">@Text["SupContactLabel"]</label>
-            <input id="cust-contact" type="text" @bind="custContact" maxlength="120" />
-        </div>
-        <div class="write-field">
-            <label for="cust-phone">@Text["ProfilePhoneLabel"]</label>
-            <input id="cust-phone" type="text" @bind="custPhone" maxlength="32" dir="ltr" />
-        </div>
-        <div class="write-field">
-            <label for="cust-email">@Text["ProfileEmailLabel"]</label>
-            <input id="cust-email" type="email" @bind="custEmail" maxlength="200" dir="ltr" />
-        </div>
-        <div class="write-field">
-            <label for="cust-tax">@Text["SalesCustomerTaxCode"]</label>
-            <input id="cust-tax" type="text" @bind="custTaxCode" maxlength="40" dir="ltr" />
-        </div>
-        <div class="write-field write-field-span">
-            <label for="cust-addr">@Text["SalesShippingAddress"]</label>
-            <input id="cust-addr" type="text" @bind="custAddress" maxlength="500" />
-        </div>
-        <div class="write-field write-field-span">
-            <label for="cust-notes">@Text["PoNotesLabel"]</label>
-            <input id="cust-notes" type="text" @bind="custNotes" maxlength="1000" />
-        </div>
-        </div>
-    </ChildContent>
-    <FooterActions>
-        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => customerModalOpen = false">@Text["WriteCancel"]</BitButton>
-        <BitButton Size="BitSize.Small" IsEnabled="!customerSaving" OnClick="SaveCustomerAsync">@(customerSaving ? Text["WriteSaving"] : Text["WriteSave"])</BitButton>
-    </FooterActions>
-</ForgeFormDialog>
 
 @* Create/Edit Sales Order Modal *@
 <CreateEditSalesOrderModal @ref="createEditOrderModal"
@@ -333,7 +257,6 @@
 @code {
     private const string TabOrders = "orders";
     private const string TabDispatches = "dispatches";
-    private const string TabCustomers = "customers";
 
     private enum ReasonMode { CancelOrder, ReverseDispatch }
 
@@ -360,37 +283,19 @@
     private OrganizationScope? CurrentScope => available.ElementAtOrDefault(scopeIndex);
     private long CurrentOrgId => CurrentScope switch { OrganizationScope.Organization o => o.OrganizationId, OrganizationScope.Site s => s.OrganizationId, _ => 0 };
 
-    private bool scopeCanManageCustomers;
     private bool scopeCanManageOrders;
     private bool scopeCanDispatch;
 
     private IReadOnlyList<SiteDetails> authorizedSites = [];
     private long siteFilter;
     private string orderStatusFilter = string.Empty;
-    private bool includeInactiveCustomers;
     private string search = string.Empty;
 
-    private CustomerGrid? customerGrid;
     private SalesOrderGrid? orderGrid;
     private DeliveryOrderGrid? dispatchGrid;
 
     // Reference lists
     private List<WarehouseSummary> siteWarehouses = [];
-
-    // Customer modal
-    private bool customerModalOpen;
-    private bool customerSaving;
-    private string? customerModalError;
-    private long? editingCustomerId;
-    private string? editingCustomerVersion;
-    private string custCode = string.Empty;
-    private string custName = string.Empty;
-    private string? custContact;
-    private string? custPhone;
-    private string? custEmail;
-    private string? custTaxCode;
-    private string? custAddress;
-    private string? custNotes;
 
     // Order modal
     private CreateEditSalesOrderModal? createEditOrderModal;
@@ -486,8 +391,6 @@
         var actor = await Actors.ResolveAsync(default);
         if (actor is null) return;
 
-        scopeCanManageCustomers = CurrentScope is OrganizationScope.Organization
-            && (await Permissions.EvaluateAsync(actor, CurrentScope, SalesPermissions.ManageCustomers, default)).IsAllowed;
         scopeCanManageOrders = (await Permissions.EvaluateAsync(actor, CurrentScope, SalesPermissions.ManageOrders, default)).IsAllowed;
         scopeCanDispatch = (await Permissions.EvaluateAsync(actor, CurrentScope, SalesPermissions.Dispatch, default)).IsAllowed;
 
@@ -525,12 +428,6 @@
         await RefreshCurrentGridAsync();
     }
 
-    private async Task ToggleInactiveCustomersAsync(ChangeEventArgs e)
-    {
-        includeInactiveCustomers = e.Value is bool b && b;
-        await RefreshCurrentGridAsync();
-    }
-
     private Task ApplySearchAsync() => RefreshCurrentGridAsync();
 
     private static long ScopeOrgId(OrganizationScope? scope) => scope switch
@@ -542,22 +439,9 @@
 
     private Task RefreshCurrentGridAsync() => activeTab switch
     {
-        TabCustomers => customerGrid?.RefreshAsync() ?? Task.CompletedTask,
         TabDispatches => dispatchGrid?.RefreshAsync() ?? Task.CompletedTask,
         _ => orderGrid?.RefreshAsync() ?? Task.CompletedTask
     };
-
-    private async Task<BitDataGridReadResult<CustomerSummary>> ReadCustomersAsync(BitDataGridReadRequest req)
-    {
-        if (CurrentScope is null) return new([], 0);
-        var size = Math.Clamp(req.Take ?? 25, 1, 100);
-        var page = (req.Skip / size) + 1;
-        var res = await SalesService.ListCustomers(CurrentScope, CurrentOrgId,
-            new CustomerListQuery(search, includeInactiveCustomers, page, size), req.CancellationToken);
-        return res.Succeeded
-            ? new(res.Value!.Items.ToList(), res.Value.Total)
-            : new([], 0);
-    }
 
     private async Task<BitDataGridReadResult<SalesOrderSummary>> ReadOrdersAsync(BitDataGridReadRequest req)
     {
@@ -584,74 +468,6 @@
             : new([], 0);
     }
 
-    private void OpenCreateCustomerModal()
-    {
-        editingCustomerId = null;
-        editingCustomerVersion = null;
-        custCode = string.Empty;
-        custName = string.Empty;
-        custContact = null;
-        custPhone = null;
-        custEmail = null;
-        custTaxCode = null;
-        custAddress = null;
-        custNotes = null;
-        customerModalError = null;
-        customerModalOpen = true;
-    }
-
-    private void OpenEditCustomerModal(CustomerSummary c)
-    {
-        editingCustomerId = c.Id;
-        editingCustomerVersion = c.RowVersion;
-        custCode = c.Code;
-        custName = c.Name;
-        custContact = c.ContactName;
-        custPhone = c.Phone;
-        custEmail = c.Email;
-        custTaxCode = c.TaxCode;
-        custAddress = c.ShippingAddress;
-        custNotes = c.Notes;
-        customerModalError = null;
-        customerModalOpen = true;
-    }
-
-    private async Task SaveCustomerAsync()
-    {
-        if (CurrentScope is null) return;
-        customerSaving = true;
-        customerModalError = null;
-        try
-        {
-            var res = editingCustomerId.HasValue
-                ? await SalesService.UpdateCustomer(CurrentScope, CurrentOrgId, editingCustomerId.Value,
-                    new UpdateCustomerRequest(custName, custContact, custPhone, custEmail, custAddress, custTaxCode, custNotes),
-                    editingCustomerVersion)
-                : await SalesService.CreateCustomer(CurrentScope,
-                    new CreateCustomerRequest(CurrentOrgId, custCode, custName, custContact, custPhone, custEmail, custAddress, custTaxCode, custNotes));
-
-            if (!res.Succeeded)
-            {
-                customerModalError = MapError(res.Error!.Code);
-                return;
-            }
-            customerModalOpen = false;
-            pageNotice = Text["WriteSaved"];
-            await RefreshCurrentGridAsync();
-        }
-        finally { customerSaving = false; }
-    }
-
-    private async Task ToggleCustomerActiveAsync(CustomerSummary c)
-    {
-        if (CurrentScope is null) return;
-        var res = await SalesService.SetCustomerActive(CurrentScope, CurrentOrgId, c.Id, !c.IsActive, c.RowVersion);
-        if (res.Succeeded)
-        {
-            pageNotice = Text["WriteSaved"];
-            await RefreshCurrentGridAsync();
-        }
-    }
 
     private async Task OpenCreateOrderModalAsync()
     {

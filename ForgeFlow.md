@@ -4627,3 +4627,41 @@ ode d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs **4/4 PASS**
   - Fixed CSS progress bar widths dropping in Persian culture: under `fa-IR`, `double.ToString()` produces `/` as decimal separator (e.g. `33/3%` instead of `33.3%`), causing browsers to drop invalid CSS width syntax for 1/3 and 2/3 states.
   - Implemented `PctCss(double value)` using `CultureInfo.InvariantCulture` (`{value:0.#}%`), ensuring CSS percentages are always emitted with invariant period separator (`33.3%`, `66.7%`, `12.5%`, etc.) across all mini progress bars and summary bars in both `Users.razor` and `Roles.razor`.
   - Verified: Release build 0 warnings/0 errors, 455 unit tests passed, Development web listening on `https://localhost:5001` with `GET /account/login` returning HTTP 200.
+
+
+## Phase 21 (Quality Control 4-Level Menu Architecture, Inventory Tab Alignment, and Sales Customer Tab Elimination)
+
+- **Quality Control Menu & Deep Linking (`MainLayout.razor` & `Quality.razor`)**:
+  - Re-architected Quality Control navigation items in `MainLayout.razor` to present the 4 standard ERP quality control capabilities:
+    1. **بازرسی و قرنطینه** (`/quality?tab=inspections`): ثبت بازرسی ورودی، حین تولید و محصول نهایی، تأیید، رد و قرنطینه کالا.
+    2. **مشخصات و الگوهای بازرسی** (`/quality?tab=specs`): تعریف استانداردها، چک‌لیست‌ها، معیارهای پذیرش و نقاط کنترل.
+    3. **پارامترهای آزمایشگاهی** (`/quality?tab=parameters`): تعریف پارامترها، واحد اندازه‌گیری، محدوده مجاز و روش آزمون.
+    4. **ردیابی لات و تاریخ تولید و انقضا** (`/quality?tab=lots`): مدیریت Batch/Lot، تاریخ تولید، انقضا و سوابق ردیابی محصول.
+  - Added `[SupplyParameterFromQuery(Name = "tab")]` query parameter support in `Quality.razor` allowing direct deep-linking into any of the 4 tabs from the sidebar menu or external links.
+  - Synchronized tab order constants in `Quality.razor` (`TabInspections = 0`, `TabSpecs = 1`, `TabParameters = 2`, `TabLots = 3`).
+- **Inventory Page Tab Alignment (`Inventory.razor`)**:
+  - Re-ordered and renamed the 4 tabs in `Inventory.razor` to match standard warehouse flow:
+    1. **انبارها** (`TabWarehouses = 0`)
+    2. **موجودی فعلی** (`TabBalances = 1`)
+    3. **اسناد انبار** (`TabMovements = 2`, renamed from "اسناد و گردش کالا" to "اسناد انبار")
+    4. **رزرو موجودی** (`TabReservations = 3`, renamed from "رزروها" to "رزرو موجودی")
+  - Set default active tab to `TabWarehouses`.
+- **Sales Page Customer Tab Elimination (`Sales.razor`)**:
+  - Removed the redundant Customers tab (`TabCustomers`) and customer creation/management UI from `Sales.razor`, as customer management is now unified under `BusinessPartners.razor` (`/business-partners`).
+  - Retained `TabOrders` (سفارش‌های فروش) and `TabDispatches` (حواله و تحویل محصول).
+  - Deleted obsolete `CustomerGrid.razor` component from `src/ForgeFlow.Web/Components/Pages/SalesSections/`.
+  - Removed unused Customer modal markup, methods, and state fields from `Sales.razor`.
+- **Localization & Contract Synchronization**:
+  - Updated `SharedResources.fa-IR.resx` and `SharedResources.en-US.resx` with new keys `QcMenuInspections`, `QcMenuSpecs`, `QcMenuParameters`, and `QcMenuLots`.
+  - Updated `InvTabMovements` ("اسناد انبار" / "Warehouse Documents") and `InvTabReservations` ("رزرو موجودی" / "Stock Reservations").
+  - Removed retired keys `SalesTabCustomers`, `SalesCustomerCreateButton`, `SalesCustomerEditTitle`, and `SalesCustomerTaxCode`.
+  - Synchronized `tests/ForgeFlow.Web.Tests/ResourceContractTests.cs` and updated `tests/ForgeFlow.Web.Tests/RoleManagementPageTests.cs` to assert the 4 Quality sub-links.
+- **Verification Evidence (2026-11-15)**:
+  - Solution build (`dotnet build ForgeFlow.slnx -c Release --no-restore -m:1`): **0 Warning(s), 0 Error(s)**.
+  - Role management tests (`dotnet test ... --filter "FullyQualifiedName~RoleManagementPageTests"`): **9 Passed, 0 Failed**.
+  - Resource contract tests (`dotnet test ... --filter "FullyQualifiedName~ResourceContractTests"`): **13 Passed, 0 Failed**.
+  - Full test suite (`dotnet test ... --filter "Category!=SqlServer"`): **455 Passed, 0 Failed, 66 Skipped, Total: 521**.
+  - Quality, Sales, and Inventory tests (`dotnet test ... --filter "FullyQualifiedName~Quality|FullyQualifiedName~Sales|FullyQualifiedName~Inventory"`): **18 Passed, 0 Failed, 3 Skipped**.
+  - Local process verification: `ForgeFlow.Web.dll` running in Development mode (`task-1518`) at `https://localhost:5001`; verified HTTP 200 response on `https://localhost:5001/account/login`.
+- **Next Small Step**: Await user review and confirmation.
+

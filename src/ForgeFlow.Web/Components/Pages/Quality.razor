@@ -81,15 +81,15 @@
             <button type="button" role="tab" aria-selected="@(activeTab == TabInspections)"
                     class="read-tab-btn @(activeTab == TabInspections ? "active" : string.Empty)"
                     @onclick="() => SwitchTabAsync(TabInspections)">@Text["QcTabInspections"]</button>
-            <button type="button" role="tab" aria-selected="@(activeTab == TabLots)"
-                    class="read-tab-btn @(activeTab == TabLots ? "active" : string.Empty)"
-                    @onclick="() => SwitchTabAsync(TabLots)">@Text["QcTabLots"]</button>
-            <button type="button" role="tab" aria-selected="@(activeTab == TabParameters)"
-                    class="read-tab-btn @(activeTab == TabParameters ? "active" : string.Empty)"
-                    @onclick="() => SwitchTabAsync(TabParameters)">@Text["QcTabParameters"]</button>
             <button type="button" role="tab" aria-selected="@(activeTab == TabSpecs)"
                     class="read-tab-btn @(activeTab == TabSpecs ? "active" : string.Empty)"
                     @onclick="() => SwitchTabAsync(TabSpecs)">@Text["QcTabSpecs"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabParameters)"
+                    class="read-tab-btn @(activeTab == TabParameters ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabParameters)">@Text["QcTabParameters"]</button>
+            <button type="button" role="tab" aria-selected="@(activeTab == TabLots)"
+                    class="read-tab-btn @(activeTab == TabLots ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabLots)">@Text["QcTabLots"]</button>
         </div>
 
         <div class="read-toolbar-card">
@@ -611,11 +611,12 @@
 
 @code {
     [Parameter] public long? OrganizationId { get; set; }
+    [SupplyParameterFromQuery(Name = "tab")] public string? TabQuery { get; set; }
 
     private const int TabInspections = 0;
-    private const int TabLots = 1;
+    private const int TabSpecs = 1;
     private const int TabParameters = 2;
-    private const int TabSpecs = 3;
+    private const int TabLots = 3;
     private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
     private static readonly BitDialogClassStyles DialogClasses = new()
     {
@@ -745,7 +746,21 @@
         AnnouncementPage = Text["GridPagerPage"]
     };
 
-    protected override async Task OnParametersSetAsync() => await ReloadScopeAsync();
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(TabQuery))
+        {
+            var target = TabQuery.ToLowerInvariant() switch
+            {
+                "specs" or "spec" => TabSpecs,
+                "parameters" or "params" => TabParameters,
+                "lots" or "lot" => TabLots,
+                _ => TabInspections
+            };
+            activeTab = target;
+        }
+        await ReloadScopeAsync();
+    }
 
     private async Task ReloadScopeAsync()
     {

@@ -318,7 +318,7 @@ public sealed class RoleManagementPageTests
         Assert.Equal(["/business-partners", "/items", "/units", "/work-centers", "/boms", "/routings"], navSections[1].Items.Select(c => c.Url).ToArray());
         Assert.Equal(["/purchase-orders"], navSections[2].Items.Select(c => c.Url).ToArray());
         Assert.Equal(["/production-orders", "/inventory"], navSections[3].Items.Select(c => c.Url).ToArray());
-        Assert.Equal(["/quality"], navSections[4].Items.Select(c => c.Url).ToArray());
+        Assert.Equal(["/quality?tab=inspections", "/quality?tab=specs", "/quality?tab=parameters", "/quality?tab=lots"], navSections[4].Items.Select(c => c.Url).ToArray());
         Assert.Equal(["/sales"], navSections[5].Items.Select(c => c.Url).ToArray());
         Assert.Equal(["/traceability", "/reports"], navSections[6].Items.Select(c => c.Url).ToArray());
         Assert.Equal(["/organizations"], navSections[7].Items.Select(c => c.Url).ToArray());

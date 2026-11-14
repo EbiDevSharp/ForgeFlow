@@ -1597,7 +1597,7 @@
     <value>On-hand balances</value>
   </data>
   <data name="InvTabMovements" xml:space="preserve">
-    <value>Stock ledger</value>
+    <value>Warehouse Documents</value>
   </data>
   <data name="InvTabWarehouses" xml:space="preserve">
     <value>Warehouses</value>
@@ -2588,7 +2588,11 @@
   <data name="DashViewAll" xml:space="preserve"><value>View all</value></data>
   <data name="DashOverdueBadge" xml:space="preserve"><value>Overdue</value></data>
   <data name="DashNoShortages" xml:space="preserve"><value>No open material shortages detected.</value></data>
-  <data name="InvTabReservations" xml:space="preserve"><value>Reservations</value></data>
+  <data name="InvTabReservations" xml:space="preserve"><value>Stock Reservations</value></data>
+  <data name="QcMenuInspections" xml:space="preserve"><value>Inspection &amp; Quarantine</value></data>
+  <data name="QcMenuSpecs" xml:space="preserve"><value>Inspection Specifications</value></data>
+  <data name="QcMenuParameters" xml:space="preserve"><value>Lab Parameters</value></data>
+  <data name="QcMenuLots" xml:space="preserve"><value>Lot Traceability &amp; Expiry</value></data>
   <data name="InvReservedShort" xml:space="preserve"><value>Reserved: {0}</value></data>
   <data name="InvResOpenOnlyLabel" xml:space="preserve"><value>Open reservations only</value></data>
   <data name="InvResOrderColumn" xml:space="preserve"><value>Production Order</value></data>
@@ -2849,14 +2853,10 @@
   <data name="PermUnsavedChangesCount" xml:space="preserve"><value>{0} unsaved change(s)</value></data>
   <data name="PermEmptyFilterResult" xml:space="preserve"><value>No pages match the current filter.</value></data>
   <data name="SalesDispatch" xml:space="preserve"><value>Sales &amp; Dispatch</value></data>
-  <data name="SalesDispatchCaption" xml:space="preserve"><value>Manage customers, sales orders, stock reservations, and lot-tracked dispatches with COA verification.</value></data>
+  <data name="SalesDispatchCaption" xml:space="preserve"><value>Manage sales orders, stock reservations, and lot-tracked dispatches with COA verification.</value></data>
   <data name="SalesTabOrders" xml:space="preserve"><value>Sales Orders</value></data>
   <data name="SalesTabDispatches" xml:space="preserve"><value>Dispatches</value></data>
-  <data name="SalesTabCustomers" xml:space="preserve"><value>Customers</value></data>
-  <data name="SalesCustomerCreateButton" xml:space="preserve"><value>New customer</value></data>
-  <data name="SalesCustomerEditTitle" xml:space="preserve"><value>Edit customer</value></data>
   <data name="SalesCustomerColumn" xml:space="preserve"><value>Customer</value></data>
-  <data name="SalesCustomerTaxCode" xml:space="preserve"><value>Tax ID</value></data>
   <data name="SalesShippingAddress" xml:space="preserve"><value>Shipping address</value></data>
   <data name="SalesOrderCreateButton" xml:space="preserve"><value>New sales order</value></data>
   <data name="SalesOrderEditTitle" xml:space="preserve"><value>Edit draft sales order</value></data>

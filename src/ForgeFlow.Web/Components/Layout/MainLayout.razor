@@ -610,7 +610,12 @@
         {
             var items = new List<NavItemDescriptor>();
             if (qualityScopes.Count > 0)
-                items.Add(new(Text["QualityControl"], "ff-icon--quality", "/quality"));
+            {
+                items.Add(new(Text["QcMenuInspections"], "ff-icon--quality", "/quality?tab=inspections"));
+                items.Add(new(Text["QcMenuSpecs"], "ff-icon--audit", "/quality?tab=specs"));
+                items.Add(new(Text["QcMenuParameters"], "ff-icon--settings", "/quality?tab=parameters"));
+                items.Add(new(Text["QcMenuLots"], "ff-icon--trace", "/quality?tab=lots"));
+            }
             return items;
         }
     }

@@ -71,15 +71,15 @@
     else
     {
         <div class="read-tab-bar" role="tablist" aria-label="@Text["Inventory"]">
+            <button type="button" role="tab" aria-selected="@(activeTab == TabWarehouses)"
+                    class="read-tab-btn @(activeTab == TabWarehouses ? "active" : string.Empty)"
+                    @onclick="() => SwitchTabAsync(TabWarehouses)">@Text["InvTabWarehouses"]</button>
             <button type="button" role="tab" aria-selected="@(activeTab == TabBalances)"
                     class="read-tab-btn @(activeTab == TabBalances ? "active" : string.Empty)"
                     @onclick="() => SwitchTabAsync(TabBalances)">@Text["InvTabBalances"]</button>
             <button type="button" role="tab" aria-selected="@(activeTab == TabMovements)"
                     class="read-tab-btn @(activeTab == TabMovements ? "active" : string.Empty)"
                     @onclick="() => SwitchTabAsync(TabMovements)">@Text["InvTabMovements"]</button>
-            <button type="button" role="tab" aria-selected="@(activeTab == TabWarehouses)"
-                    class="read-tab-btn @(activeTab == TabWarehouses ? "active" : string.Empty)"
-                    @onclick="() => SwitchTabAsync(TabWarehouses)">@Text["InvTabWarehouses"]</button>
             <button type="button" role="tab" aria-selected="@(activeTab == TabReservations)"
                     class="read-tab-btn @(activeTab == TabReservations ? "active" : string.Empty)"
                     @onclick="() => SwitchTabAsync(TabReservations)">@Text["InvTabReservations"]</button>
@@ -737,9 +737,9 @@
     [Parameter] public long? OrganizationId { get; set; }
     [SupplyParameterFromQuery(Name = "poId")] public long? QueryPoId { get; set; }
 
-    private const int TabBalances = 0;
-    private const int TabMovements = 1;
-    private const int TabWarehouses = 2;
+    private const int TabWarehouses = 0;
+    private const int TabBalances = 1;
+    private const int TabMovements = 2;
     private const int TabReservations = 3;
 
     private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
@@ -767,7 +767,7 @@
     private BitDataGrid<WarehouseSummary>? whGrid;
     private BitDataGrid<StockReservationSummary>? resGrid;
 
-    private int activeTab = TabBalances;
+    private int activeTab = TabWarehouses;
     private bool initialLoading = true;
     private string? pageError;
     private string? pageNotice;
