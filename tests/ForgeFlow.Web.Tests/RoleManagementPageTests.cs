@@ -297,7 +297,7 @@ public sealed class RoleManagementPageTests
     }
 
     [Fact]
-    public void MainLayout_orders_navigation_into_five_clean_sections()
+    public void MainLayout_orders_navigation_into_erp_sections()
     {
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
         var layout = new MainLayout();
@@ -309,19 +309,27 @@ public sealed class RoleManagementPageTests
         typeof(MainLayout).GetProperty("Text", flags)!.SetValue(layout, localizer);
 
         var scope = new List<OrganizationScope> { new OrganizationScope.Organization(1) };
-        foreach (var field in new[] { "unitScopes", "itemScopes", "bomScopes", "routingScopes", "procurementScopes", "inventoryScopes", "productionOrderScopes", "qualityScopes", "reportScopes", "orgScopes" })
+        foreach (var field in new[] { "businessPartnerScopes", "unitScopes", "itemScopes", "bomScopes", "routingScopes", "procurementScopes", "inventoryScopes", "productionOrderScopes", "qualityScopes", "salesScopes", "reportScopes", "orgScopes" })
             typeof(MainLayout).GetField(field, flags)!.SetValue(layout, scope);
 
         var navSections = (IReadOnlyList<MainLayout.NavSectionDescriptor>)typeof(MainLayout).GetProperty("NavSections", flags)!.GetValue(layout)!;
-        Assert.Equal(5, navSections.Count);
+        Assert.Equal(8, navSections.Count);
         Assert.Null(navSections[0].Title);
-        Assert.Equal(["/production-orders", "/boms", "/work-centers", "/routings", "/quality"], navSections[1].Items.Select(c => c.Url).ToArray());
-        Assert.Equal(["/inventory", "/traceability", "/purchase-orders", "/suppliers", "/items", "/units"], navSections[2].Items.Select(c => c.Url).ToArray());
+        Assert.Equal(["/business-partners", "/items", "/units", "/work-centers", "/boms", "/routings"], navSections[1].Items.Select(c => c.Url).ToArray());
+        Assert.Equal(["/purchase-orders"], navSections[2].Items.Select(c => c.Url).ToArray());
+        Assert.Equal(["/production-orders", "/inventory"], navSections[3].Items.Select(c => c.Url).ToArray());
+        Assert.Equal(["/quality"], navSections[4].Items.Select(c => c.Url).ToArray());
+        Assert.Equal(["/sales"], navSections[5].Items.Select(c => c.Url).ToArray());
+        Assert.Equal(["/traceability", "/reports"], navSections[6].Items.Select(c => c.Url).ToArray());
+        Assert.Equal(["/organizations"], navSections[7].Items.Select(c => c.Url).ToArray());
         Assert.Equal(
             [
+                localizer["MasterDataNavGroup"].Value,
+                localizer["ProcurementNavGroup"].Value,
                 localizer["ProductionNavGroup"].Value,
-                localizer["InventoryNavGroup"].Value,
-                localizer["ReportsNavGroup"].Value,
+                localizer["QualityNavGroup"].Value,
+                localizer["SalesNavGroup"].Value,
+                localizer["TraceabilityReportingNavGroup"].Value,
                 localizer["AdminNavGroup"].Value
             ],
             navSections.Skip(1).Select(x => x.Title!).ToArray());

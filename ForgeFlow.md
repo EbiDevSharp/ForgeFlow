@@ -1,4 +1,72 @@
-# Slice index and shared boundaries — 01 design
+﻿# Slice index and shared boundaries — 01 design
+
+## Slice 11 — Unified Business Partners & ERP Manufacturing Lifecycle Navigation Structure (2026-11-14)
+
+### 3. Business Partner Auto-Code Preview & Numbering Migration Hotfix
+- **Database Schema Migration**:
+  - Applied migration 20261114184650_BusinessPartnersAndRoles to localhost/testforgflow:
+    - Updated CK_DocumentSequence_Type to [DocumentType] BETWEEN 1 AND 10.
+    - Updated CK_OrganizationChange_Event constraint to allow BusinessPartner.* and DocumentSequence.* events.
+    - Created [organization].[BusinessPartner], [organization].[BusinessPartnerRoleDefinition], and [organization].[BusinessPartnerRoleAssignment] tables with system seed roles (Supplier, Customer, Contractor).
+- **Business Partner Creation Code Allocation (BusinessPartners.razor)**:
+  - Replaced manual override/locked indicator (Text["DocSeqOverrideLocked"]) with dynamic first-valid preview allocation matching standard ERP pages.
+  - Injected DocumentSequenceUseCases SeqService.
+  - In OpenCreateModal, asynchronous preview retrieval: wait SeqService.GetPreview(CurrentScope, CurrentOrgId, DocumentSequenceType.BusinessPartner).
+  - Form code input displays @formCode with class="proc-input-readonly" and disabled dir="ltr".
+  - On submit, SqlBusinessPartnerStore.Create performs atomic monotonic allocation and records audit trail.
+- **Document Numbering Error Localization (DocumentNumbering.razor)**:
+  - Replaced raw unlocalized DocumentSequenceErrors.PersistenceUnavailable with standardized ReadError resx key.
+
+### 1. Unified Business Partners ("طرف تجاری") & Dynamic Roles
+- **Domain (src/ForgeFlow.Domain/BusinessPartners/)**:
+  - PersonType: Enum Legal = 1 (شخص حقوقی) and Natural = 2 (شخص حقیقی).
+  - BusinessPartnerRoleDefinition: Seeded role entities (1 = Supplier / تامین‌کننده, 2 = Customer / مشتری, 3 = Contractor / پیمانکار), extensible for future business roles.
+  - BusinessPartnerRoleAssignment: Composite assignment entity (OrganizationId, BusinessPartnerId, RoleId) with DeleteBehavior.NoAction.
+  - BusinessPartner: Aggregate root entity managing partner lifecycle, code, full name, company name, national code / legal national ID, economic code, contact numbers (mobile, phone), email, website, country, province, city, address, notes, and active status.
+  - DocumentSequence: Added DocumentSequenceType.BusinessPartner = 10 with default prefix "BP".
+  - PermissionCatalog: Added PermissionModule.BusinessPartners = 18 with BusinessPartners.Read (OrganizationOrSite) and BusinessPartners.Manage (OrganizationOnly).
+  - Added BusinessPartnerErrors, BusinessPartnerRuleException, and validation routines (BusinessPartnerText).
+- **Application (src/ForgeFlow.Application/BusinessPartners/)**:
+  - BusinessPartnerContracts.cs: DTOs (BusinessPartnerSummary, BusinessPartnerDetail, CreateBusinessPartnerRequest, UpdateBusinessPartnerRequest, BusinessPartnerListQuery, BusinessPartnerRoleDto).
+  - IBusinessPartnerStore.cs: Interface for partner persistence, auto-number allocation, and role queries.
+  - BusinessPartnerUseCases.cs: Full application service with actor authorization, scope validation, tenant protection, and audit rejection logging via AuditEventCatalog.Op(UserOperationCatalog.BusinessPartnerActionRejected).
+  - AuditEventCatalog.cs: Added BusinessPartner.Created, BusinessPartner.Updated, BusinessPartner.Activated, BusinessPartner.Deactivated, and Op(UserOperationCatalog.BusinessPartnerActionRejected).
+  - DiagnosticContracts.cs: Added UserOperationCatalog.BusinessPartnerActionRejected.
+- **Infrastructure (src/ForgeFlow.Infrastructure/)**:
+  - OrganizationModel.cs: Added BusinessPartner.* to the OrganizationChangeEventSql check constraint.
+  - OrganizationCoreConfigurations.cs: Updated check constraint CK_DocumentSequence_Type to [DocumentType] BETWEEN 1 AND 10.
+  - BusinessPartnerConfigurations.cs: EF entity configurations for BusinessPartner, BusinessPartnerRoleDefinition, and BusinessPartnerRoleAssignment with strict DeleteBehavior.NoAction across all FKs.
+  - OrganizationDbContext.cs: DbSets, entity tracking, parent organization active check, and audit change generator for BusinessPartner and BusinessPartnerRoleAssignment.
+  - SqlBusinessPartnerStore.cs: EF Core implementation with atomic sequence allocation (SqlDocumentSequenceStore.AllocateAsync) and backward-compatible synchronization with Supplier and Customer tables.
+  - EF Core migration 20261114184650_BusinessPartnersAndRoles.cs checked in and OrganizationDbContextModelSnapshot.cs updated.
+- **Web & ERP Navigation Architecture (src/ForgeFlow.Web/)**:
+  - Re-architected sidebar navigation in MainLayout.razor into the 7 standard ERP manufacturing lifecycle groups:
+    1. **تعاریف و اطلاعات پایه (MasterDataNavGroup)**: /business-partners (طرف‌های تجاری), /items (کالاها), /units (واحدهای سنجش), /work-centers (مراکز کاری), /boms (ساختار محصول), /routings (مسیرهای تولید).
+    2. **تامین و خرید مواد اولیه (ProcurementNavGroup)**: /purchase-orders (سفارشات خرید).
+    3. **برنامه‌ریزی و اجرای تولید (ProductionNavGroup)**: /production-orders (سفارشات تولید), /inventory (موجودی و انبار).
+    4. **کنترل کیفیت (QualityNavGroup)**: /quality (کنترل کیفیت).
+    5. **فروش و تحویل محصول (SalesNavGroup)**: /sales (فروش و تحویل).
+    6. **ردیابی، تحلیل و گزارش‌گیری (TraceabilityReportingNavGroup)**: /traceability (ردیابی بهر), /reports (گزارش‌ها و تحلیل‌ها).
+    7. **تنظیمات مدیر (AdminNavGroup)**: /organizations, /sites, /users, /roles, /numbering-rules, /audit, /errors.
+  - BusinessPartners.razor created at /business-partners and /organizations/{OrganizationId:long}/business-partners:
+    - Role filter dropdown (All, Supplier, Customer, Contractor), search, inactive toggle.
+    - BitDataGrid with server-side paging.
+    - Complete ForgeFormDialog matching user specifications: Person type toggle (Legal / Natural), dynamic commercial role checkboxes, locked/auto-allocated business partner code, conditional fields (Company Name & National Legal ID for Legal vs Full Name & National Code for Natural), economic code, contact info (mobile, phone, email, website), address info (country, province, city, address), and notes.
+    - Active/Inactive toggle dialog (WriteConfirmDeactivate / WriteConfirmActivate) allowing deactivation of indebted partners.
+    - Partner detail modal.
+  - Direct navigation /suppliers updated in Suppliers.razor to automatically redirect to /business-partners.
+  - Updated RoleManagementPageTests.cs (MainLayout_orders_navigation_into_erp_sections) asserting all 8 nav sections and URLs.
+
+### 2. Actual verification
+- dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1 — **PASS** (0 warnings, 0 errors).
+- dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "Category!=SqlServer" — **455 passed, 0 failed, 66 skipped** (521 total).
+- dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~ResourceContractTests" — **13 passed, 0 failed** (full bidirectional parity).
+- dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~RoleManagementPageTests" — **9 passed, 0 failed**.
+- dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~RoleDomainTests" — **12 passed, 0 failed**.
+- dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~OrganizationPersistenceModelTests" — **7 passed, 0 failed** (HasPendingModelChanges() == false, 51 entity types verified).
+- Development Web running at https://localhost:5001:
+  - GET /account/login -> HTTP 200 (Content-Language: fa-IR, prerendered HTML with Blazor script assets).
+  - Anonymous GET /business-partners -> HTTP 302 redirect to /account/login.
 
 ## Slice 05 — Sub-slice `05B` (Item Catalog, Classifications, Capabilities & Attributes) Implemented — awaiting SQL & live UI review (2026-11-10)
 

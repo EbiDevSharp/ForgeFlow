@@ -2,6 +2,8 @@
 @layout ForgeFlow.Web.Components.Layout.LoginLayout
 @inject IStringLocalizer<SharedResources> Text
 @inject CulturePolicy Culture
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Navigation
 
 <PageTitle>@Text["LoginTitle"]</PageTitle>
 <section class="auth-page" aria-labelledby="login-title">
@@ -64,6 +66,15 @@
 </section>
 
 @code {
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo("/", replace: true);
+        }
+    }
+
     private static readonly BitTextFieldClassStyles LoginFieldClasses = new()
     {
         Root = "login-field",

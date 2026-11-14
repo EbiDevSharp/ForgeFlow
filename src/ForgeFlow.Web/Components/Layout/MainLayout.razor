@@ -288,6 +288,7 @@
             salesScopes = await ReadScopes.LoadSalesScopesAsync();
             docSequenceScopes = await ReadScopes.LoadDocumentSequenceScopesAsync();
             diagnosticScopes = await ReadScopes.LoadDiagnosticScopesAsync();
+            businessPartnerScopes = await ReadScopes.LoadBusinessPartnerScopesAsync();
         }
         catch
         {
@@ -308,6 +309,7 @@
             salesScopes = [];
             docSequenceScopes = [];
             diagnosticScopes = [];
+            businessPartnerScopes = [];
         }
         StateHasChanged();
     }
@@ -499,6 +501,7 @@
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> salesScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> docSequenceScopes = [];
     private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> diagnosticScopes = [];
+    private IReadOnlyList<ForgeFlow.Application.Organizations.OrganizationScope> businessPartnerScopes = [];
 
     private List<NavSectionDescriptor> cachedNavSections = [];
     private string? navSignature;
@@ -513,7 +516,7 @@
                 roleScopes.Count, ",", auditScopes.Count, ",", unitScopes.Count, ",",
                 itemScopes.Count, ",", bomScopes.Count, ",", routingScopes.Count, ",", productionOrderScopes.Count, ",",
                 inventoryScopes.Count, ",", reportScopes.Count, ",", qualityScopes.Count, ",",
-                procurementScopes.Count, ",", salesScopes.Count, ",", docSequenceScopes.Count, ",", diagnosticScopes.Count);
+                procurementScopes.Count, ",", salesScopes.Count, ",", docSequenceScopes.Count, ",", diagnosticScopes.Count, ",", businessPartnerScopes.Count);
             if (string.Equals(navSignature, sig, StringComparison.Ordinal))
                 return cachedNavSections;
 
@@ -522,17 +525,29 @@
                 new("home", null, "ff-icon--home", [new(Text["Home"], "ff-icon--home", "/")])
             };
 
+            var masterData = MasterDataItems;
+            if (masterData.Count > 0)
+                sections.Add(new("masterData", Text["MasterDataNavGroup"], "ff-icon--catalog", masterData));
+
+            var procurement = ProcurementItems;
+            if (procurement.Count > 0)
+                sections.Add(new("procurement", Text["ProcurementNavGroup"], "ff-icon--procurement", procurement));
+
             var production = ProductionItems;
             if (production.Count > 0)
                 sections.Add(new("production", Text["ProductionNavGroup"], "ff-icon--production", production));
 
-            var inventory = InventoryItems;
-            if (inventory.Count > 0)
-                sections.Add(new("inventory", Text["InventoryNavGroup"], "ff-icon--inventory", inventory));
+            var quality = QualityItems;
+            if (quality.Count > 0)
+                sections.Add(new("quality", Text["QualityNavGroup"], "ff-icon--quality", quality));
 
-            var reports = ReportItems;
-            if (reports.Count > 0)
-                sections.Add(new("reports", Text["ReportsNavGroup"], "ff-icon--reports", reports));
+            var sales = SalesItems;
+            if (sales.Count > 0)
+                sections.Add(new("sales", Text["SalesNavGroup"], "ff-icon--sales", sales));
+
+            var analytics = AnalyticsItems;
+            if (analytics.Count > 0)
+                sections.Add(new("analytics", Text["TraceabilityReportingNavGroup"], "ff-icon--reports", analytics));
 
             var admin = AdminItems;
             if (admin.Count > 0)
@@ -544,6 +559,38 @@
         }
     }
 
+    private List<NavItemDescriptor> MasterDataItems
+    {
+        get
+        {
+            var items = new List<NavItemDescriptor>();
+            if (businessPartnerScopes.Count > 0)
+                items.Add(new(Text["BusinessPartners"], "ff-icon--suppliers", "/business-partners"));
+            if (itemScopes.Count > 0)
+                items.Add(new(Text["Items"], "ff-icon--items", "/items"));
+            if (unitScopes.Count > 0)
+                items.Add(new(Text["Units"], "ff-icon--units", "/units"));
+            if (routingScopes.Count > 0)
+                items.Add(new(Text["WorkCenters"], "ff-icon--work-centers", "/work-centers"));
+            if (bomScopes.Count > 0)
+                items.Add(new(Text["Boms"], "ff-icon--boms", "/boms"));
+            if (routingScopes.Count > 0)
+                items.Add(new(Text["Routings"], "ff-icon--routings", "/routings"));
+            return items;
+        }
+    }
+
+    private List<NavItemDescriptor> ProcurementItems
+    {
+        get
+        {
+            var items = new List<NavItemDescriptor>();
+            if (procurementScopes.Count > 0)
+                items.Add(new(Text["PurchaseOrders"], "ff-icon--purchase-orders", "/purchase-orders"));
+            return items;
+        }
+    }
+
     private List<NavItemDescriptor> ProductionItems
     {
         get
@@ -551,48 +598,41 @@
             var items = new List<NavItemDescriptor>();
             if (productionOrderScopes.Count > 0)
                 items.Add(new(Text["ProductionOrders"], "ff-icon--production", "/production-orders"));
-            if (bomScopes.Count > 0)
-                items.Add(new(Text["Boms"], "ff-icon--boms", "/boms"));
-            if (routingScopes.Count > 0)
-            {
-                items.Add(new(Text["WorkCenters"], "ff-icon--work-centers", "/work-centers"));
-                items.Add(new(Text["Routings"], "ff-icon--routings", "/routings"));
-            }
+            if (inventoryScopes.Count > 0)
+                items.Add(new(Text["Inventory"], "ff-icon--inventory", "/inventory"));
+            return items;
+        }
+    }
+
+    private List<NavItemDescriptor> QualityItems
+    {
+        get
+        {
+            var items = new List<NavItemDescriptor>();
             if (qualityScopes.Count > 0)
                 items.Add(new(Text["QualityControl"], "ff-icon--quality", "/quality"));
             return items;
         }
     }
 
-    private List<NavItemDescriptor> InventoryItems
+    private List<NavItemDescriptor> SalesItems
     {
         get
         {
             var items = new List<NavItemDescriptor>();
-            if (inventoryScopes.Count > 0)
-                items.Add(new(Text["Inventory"], "ff-icon--inventory", "/inventory"));
-            if (qualityScopes.Count > 0)
-                items.Add(new(Text["LotTraceability"], "ff-icon--trace", "/traceability"));
-            if (procurementScopes.Count > 0)
-            {
-                items.Add(new(Text["PurchaseOrders"], "ff-icon--purchase-orders", "/purchase-orders"));
-                items.Add(new(Text["Suppliers"], "ff-icon--suppliers", "/suppliers"));
-            }
             if (salesScopes.Count > 0)
                 items.Add(new(Text["SalesDispatch"], "ff-icon--sales", "/sales"));
-            if (itemScopes.Count > 0)
-                items.Add(new(Text["Items"], "ff-icon--items", "/items"));
-            if (unitScopes.Count > 0)
-                items.Add(new(Text["Units"], "ff-icon--units", "/units"));
             return items;
         }
     }
 
-    private List<NavItemDescriptor> ReportItems
+    private List<NavItemDescriptor> AnalyticsItems
     {
         get
         {
             var items = new List<NavItemDescriptor>();
+            if (qualityScopes.Count > 0)
+                items.Add(new(Text["LotTraceability"], "ff-icon--trace", "/traceability"));
             if (reportScopes.Count > 0)
                 items.Add(new(Text["Reports"], "ff-icon--reports", "/reports"));
             return items;

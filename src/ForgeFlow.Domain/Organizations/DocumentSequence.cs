@@ -13,7 +13,8 @@ public enum DocumentSequenceType : byte
     InventoryTransaction = 6,
     InventoryReversal = 7,
     QualityInspection = 8,
-    QualityScrap = 9
+    QualityScrap = 9,
+    BusinessPartner = 10
 }
 
 public enum DocumentYearMode : byte
@@ -187,6 +188,7 @@ public sealed class DocumentSequence : IHasRowVersion
         DocumentSequenceType.InventoryReversal => "REV",
         DocumentSequenceType.QualityInspection => "QC",
         DocumentSequenceType.QualityScrap => "QS",
+        DocumentSequenceType.BusinessPartner => "BP",
         _ => "DOC"
     };
 

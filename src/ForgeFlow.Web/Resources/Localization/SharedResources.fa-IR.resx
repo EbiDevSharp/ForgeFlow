@@ -184,7 +184,7 @@
     <value>سازمان‌ها</value>
   </data>
   <data name="AdminNavGroup" xml:space="preserve">
-    <value>مدیریت</value>
+    <value>تنظیمات مدیر</value>
   </data>
   <data name="ReadName" xml:space="preserve">
     <value>نام</value>
@@ -1393,7 +1393,7 @@
     <value>حساب کاربری</value>
   </data>
   <data name="ProductionNavGroup" xml:space="preserve">
-    <value>تولید</value>
+    <value>برنامه‌ریزی و اجرای تولید</value>
   </data>
   <data name="ProductionOrders" xml:space="preserve">
     <value>سفارش‌های تولید</value>
@@ -1575,9 +1575,6 @@
   <data name="PoPostInventoryBtn" xml:space="preserve">
     <value>مصرف / رسید انبار</value>
   </data>
-  <data name="InventoryNavGroup" xml:space="preserve">
-    <value>انبار و موجودی</value>
-  </data>
   <data name="Inventory" xml:space="preserve">
     <value>انبار و گردش کالا</value>
   </data>
@@ -1757,9 +1754,6 @@
   </data>
   <data name="Reports" xml:space="preserve">
     <value>گزارش‌ها</value>
-  </data>
-  <data name="ReportsNavGroup" xml:space="preserve">
-    <value>تحلیل و گزارش</value>
   </data>
   <data name="ReportsCaption" xml:space="preserve">
     <value>گزارش کسری مواد اولیه و مغایرت مصرف و بازده تولید.</value>
@@ -2944,4 +2938,54 @@
   <data name="AuditEv_DocumentSequenceCreated" xml:space="preserve"><value>ایجاد الگوی شماره‌گذاری</value></data>
   <data name="AuditEv_DocumentSequenceUpdated" xml:space="preserve"><value>ویرایش الگوی شماره‌گذاری</value></data>
   <data name="AuditEv_DocumentSequenceActionRejected" xml:space="preserve"><value>رد عملیات شماره‌گذاری</value></data>
+  <data name="MasterDataNavGroup" xml:space="preserve"><value>تعاریف و اطلاعات پایه</value></data>
+  <data name="ProcurementNavGroup" xml:space="preserve"><value>تامین و خرید مواد اولیه</value></data>
+  <data name="QualityNavGroup" xml:space="preserve"><value>کنترل کیفیت</value></data>
+  <data name="SalesNavGroup" xml:space="preserve"><value>فروش و تحویل محصول</value></data>
+  <data name="TraceabilityReportingNavGroup" xml:space="preserve"><value>ردیابی، تحلیل و گزارش‌گیری</value></data>
+  <data name="BusinessPartners" xml:space="preserve"><value>طرف‌های تجاری</value></data>
+  <data name="BusinessPartnersCaption" xml:space="preserve"><value>مدیریت و تعریف طرف‌های تجاری، مشتریان، تأمین‌کنندگان و پیمانکاران سازمان</value></data>
+  <data name="DocSeqTypeBusinessPartner" xml:space="preserve"><value>طرف تجاری</value></data>
+  <data name="PermPageBusinessPartners" xml:space="preserve"><value>طرف‌های تجاری</value></data>
+  <data name="PermOpManageBusinessPartners" xml:space="preserve"><value>مدیریت طرف‌های تجاری</value></data>
+  <data name="AuditEv_BusinessPartnerCreated" xml:space="preserve"><value>ایجاد طرف تجاری</value></data>
+  <data name="AuditEv_BusinessPartnerUpdated" xml:space="preserve"><value>ویرایش طرف تجاری</value></data>
+  <data name="AuditEv_BusinessPartnerActivated" xml:space="preserve"><value>فعال‌سازی طرف تجاری</value></data>
+  <data name="AuditEv_BusinessPartnerDeactivated" xml:space="preserve"><value>غیرفعال‌سازی طرف تجاری</value></data>
+  <data name="AuditEv_BusinessPartnerActionRejected" xml:space="preserve"><value>رد عملیات طرف تجاری</value></data>
+  <data name="BpPersonType" xml:space="preserve"><value>نوع شخصیت</value></data>
+  <data name="BpPersonLegal" xml:space="preserve"><value>شخص حقوقی</value></data>
+  <data name="BpPersonNatural" xml:space="preserve"><value>شخص حقیقی</value></data>
+  <data name="BpRolesLabel" xml:space="preserve"><value>نقش تجاری</value></data>
+  <data name="BpRoleSupplier" xml:space="preserve"><value>تأمین‌کننده</value></data>
+  <data name="BpRoleCustomer" xml:space="preserve"><value>مشتری</value></data>
+  <data name="BpRoleContractor" xml:space="preserve"><value>پیمانکار</value></data>
+  <data name="BpGeneralInfo" xml:space="preserve"><value>اطلاعات عمومی</value></data>
+  <data name="BpFullName" xml:space="preserve"><value>نام و نام خانوادگی</value></data>
+  <data name="BpNationalCode" xml:space="preserve"><value>کد ملی</value></data>
+  <data name="BpCode" xml:space="preserve"><value>کد طرف تجاری</value></data>
+  <data name="BpEconomicCode" xml:space="preserve"><value>شماره اقتصادی</value></data>
+  <data name="BpCompanyName" xml:space="preserve"><value>نام شرکت</value></data>
+  <data name="BpNationalLegalId" xml:space="preserve"><value>شناسه ملی</value></data>
+  <data name="BpContactInfo" xml:space="preserve"><value>اطلاعات تماس</value></data>
+  <data name="BpMobile" xml:space="preserve"><value>شماره موبایل</value></data>
+  <data name="BpPhone" xml:space="preserve"><value>تلفن ثابت</value></data>
+  <data name="BpEmail" xml:space="preserve"><value>ایمیل</value></data>
+  <data name="BpWebsite" xml:space="preserve"><value>وب‌سایت</value></data>
+  <data name="BpAddressInfo" xml:space="preserve"><value>اطلاعات آدرس</value></data>
+  <data name="BpCountryProvince" xml:space="preserve"><value>کشور و استان</value></data>
+  <data name="BpCityAddress" xml:space="preserve"><value>شهر و آدرس</value></data>
+  <data name="BpCity" xml:space="preserve"><value>شهر</value></data>
+  <data name="BpCountry" xml:space="preserve"><value>کشور</value></data>
+  <data name="BpProvince" xml:space="preserve"><value>استان</value></data>
+  <data name="BpAddress" xml:space="preserve"><value>آدرس</value></data>
+  <data name="BpCreateButton" xml:space="preserve"><value>طرف تجاری جدید</value></data>
+  <data name="BpCreateTitle" xml:space="preserve"><value>طرف تجاری جدید</value></data>
+  <data name="BpEditTitle" xml:space="preserve"><value>ویرایش طرف تجاری</value></data>
+  <data name="BpDetailTitle" xml:space="preserve"><value>مشخصات طرف تجاری</value></data>
+  <data name="BpRoleRequired" xml:space="preserve"><value>حداقل یک نقش تجاری باید انتخاب شود.</value></data>
+  <data name="BpConfirmDeactivate" xml:space="preserve"><value>آیا از غیرفعال‌سازی «{0}» اطمینان دارید؟</value></data>
+  <data name="BpConfirmActivate" xml:space="preserve"><value>آیا از فعال‌سازی «{0}» اطمینان دارید؟</value></data>
+  <data name="BpAllRoles" xml:space="preserve"><value>همه نقش‌ها</value></data>
+  <data name="BpFilterRole" xml:space="preserve"><value>فیلتر بر اساس نقش</value></data>
 </root>

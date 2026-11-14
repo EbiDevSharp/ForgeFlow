@@ -136,6 +136,10 @@ public static class AuditEventCatalog
         Biz("Customer.Updated"),
         Biz("Customer.Activated"),
         Biz("Customer.Deactivated"),
+        Biz("BusinessPartner.Created"),
+        Biz("BusinessPartner.Updated"),
+        Biz("BusinessPartner.Activated"),
+        Biz("BusinessPartner.Deactivated"),
         Biz("SalesOrder.Created"),
         Biz("SalesOrder.Updated"),
         Biz("SalesOrder.Approved"),
@@ -198,7 +202,8 @@ public static class AuditEventCatalog
         Op(UserOperationCatalog.ProcurementActionRejected),
         Op(UserOperationCatalog.RoutingActionRejected),
         Op(UserOperationCatalog.SalesActionRejected),
-        Op(UserOperationCatalog.DocumentSequenceActionRejected)
+        Op(UserOperationCatalog.DocumentSequenceActionRejected),
+        Op(UserOperationCatalog.BusinessPartnerActionRejected)
     ];
 
     private static readonly Dictionary<string, AuditEventDescriptor> ByCode =

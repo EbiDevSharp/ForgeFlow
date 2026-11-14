@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Encodings.Web;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Boms;
+using ForgeFlow.Domain.BusinessPartners;
 using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.Items;
 using ForgeFlow.Domain.Organizations;
@@ -92,6 +93,9 @@ public sealed class OrganizationDbContext(
     public DbSet<DeliveryOrder> DeliveryOrders => Set<DeliveryOrder>();
     public DbSet<DeliveryOrderLine> DeliveryOrderLines => Set<DeliveryOrderLine>();
     public DbSet<DocumentSequence> DocumentSequences => Set<DocumentSequence>();
+    public DbSet<BusinessPartner> BusinessPartners => Set<BusinessPartner>();
+    public DbSet<BusinessPartnerRoleDefinition> BusinessPartnerRoleDefinitions => Set<BusinessPartnerRoleDefinition>();
+    public DbSet<BusinessPartnerRoleAssignment> BusinessPartnerRoleAssignments => Set<BusinessPartnerRoleAssignment>();
     public DbSet<OrganizationChange> OrganizationChanges => Set<OrganizationChange>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -308,7 +312,7 @@ public sealed class OrganizationDbContext(
                 or Supplier or PurchaseOrder or PurchaseOrderLine
                 or WorkCenter or Routing or RoutingOperation or ProductionOrderOperation
                 or Customer or SalesOrder or SalesOrderLine or DeliveryOrder or DeliveryOrderLine
-                or DocumentSequence))
+                or DocumentSequence or BusinessPartner or BusinessPartnerRoleAssignment))
             {
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             }
@@ -316,7 +320,7 @@ public sealed class OrganizationDbContext(
                 or BomInput or BomOutput or BomApplicability or BomApplicabilityCondition
                 or ProductionOrderInput or ProductionOrderOutput or ProductionOrderContext
                 or QualityInspectionLine or QualitySpecLine or PurchaseOrderLine or SalesOrderLine
-                or RoutingOperation or ProductionOrderOperation))
+                or RoutingOperation or ProductionOrderOperation or BusinessPartnerRoleAssignment))
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             if (entry.State == EntityState.Modified)
             {
@@ -362,6 +366,7 @@ public sealed class OrganizationDbContext(
                     DeliveryOrder => new[] { "Status", "ReversedAtUtc", "ReversalReason" },
                     DeliveryOrderLine => Array.Empty<string>(),
                     DocumentSequence => new[] { "Prefix", "Separator", "YearMode", "PaddingDigits", "NextNumber", "LastAllocatedYear", "AllowManualOverride", "IsActive" },
+                    BusinessPartner => new[] { "PersonType", "Name", "FirstName", "LastName", "NationalCode", "CompanyName", "NationalLegalId", "EconomicCode", "Mobile", "Phone", "Email", "Website", "Country", "Province", "City", "Address", "PostalCode", "Notes", "IsActive" },
                     _ => new[] { "Name", "IsActive" }
                 };
                 if (entry.Properties.Any(p => p.IsModified && !allowedProps.Contains(p.Metadata.Name, StringComparer.Ordinal)))
@@ -421,6 +426,8 @@ public sealed class OrganizationDbContext(
         DeliveryOrder dlo => dlo.OrganizationId,
         DeliveryOrderLine dlol => dlol.OrganizationId,
         DocumentSequence ds => ds.OrganizationId,
+        BusinessPartner bp => bp.OrganizationId,
+        BusinessPartnerRoleAssignment bpra => bpra.OrganizationId,
         _ => throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied)
     };
 
@@ -784,6 +791,27 @@ public sealed class OrganizationDbContext(
             {
                 yield return new PendingChange(entry, "Customer.Updated",
                     JsonSerializer.Serialize(new { cust.Code, cust.Name, cust.ContactName, cust.Phone, cust.Email }, AuditJson));
+            }
+            yield break;
+        }
+
+        if (entry.Entity is BusinessPartner bp)
+        {
+            if (entry.State == EntityState.Added)
+            {
+                yield return new PendingChange(entry, "BusinessPartner.Created",
+                    JsonSerializer.Serialize(new { bp.Code, bp.Name, PersonTypeName = bp.PersonType.ToString(), bp.IsActive }, AuditJson));
+                yield break;
+            }
+            if (entry.Property("IsActive").IsModified)
+            {
+                yield return new PendingChange(entry, bp.IsActive ? "BusinessPartner.Activated" : "BusinessPartner.Deactivated",
+                    JsonSerializer.Serialize(new { bp.Code, bp.IsActive }, AuditJson));
+            }
+            if (entry.Properties.Any(p => p.IsModified && p.Metadata.Name is not ("IsActive" or "UpdatedAtUtc" or "UpdatedByActorId")))
+            {
+                yield return new PendingChange(entry, "BusinessPartner.Updated",
+                    JsonSerializer.Serialize(new { bp.Code, bp.Name, bp.Mobile, bp.Phone, bp.Email }, AuditJson));
             }
             yield break;
         }
@@ -1447,6 +1475,15 @@ public sealed class OrganizationDbContext(
                     || e.Entity is Routing or RoutingOperation or ProductionOrderOperation));
             if (routingChanged && !effectiveActive)
                 throw new InvalidOperationException(RoutingErrors.ParentOrganizationInactive);
+
+            var bpChanged = entries.Any(e => (e.Entity is BusinessPartner || e.Entity is BusinessPartnerRoleAssignment)
+                && ResolveEntityOrganizationId(e.Entity) == orgId
+                && (e.State == EntityState.Added
+                    || e.State == EntityState.Deleted
+                    || (e.Entity is BusinessPartner bp && (bp.IsActive || e.Properties.Any(p => p.IsModified && p.Metadata.Name != "IsActive")))
+                    || e.Entity is BusinessPartnerRoleAssignment));
+            if (bpChanged && !effectiveActive)
+                throw new InvalidOperationException("BusinessPartner.ParentOrganizationInactive");
         }
     }
 }

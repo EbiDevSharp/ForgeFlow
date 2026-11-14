@@ -205,7 +205,7 @@ public sealed class ResourceContractTests
             ["PoErrorTransitionInvalid"] = 0, ["PoErrorActualQtyInvalid"] = 0,
             ["PoErrorCancelReasonInvalid"] = 0, ["PoErrorNotesInvalid"] = 0,
             ["PoPostInventoryBtn"] = 0,
-            ["InventoryNavGroup"] = 0, ["Inventory"] = 0, ["InventoryCaption"] = 0,
+            ["Inventory"] = 0, ["InventoryCaption"] = 0,
             ["PermPageInventory"] = 0, ["PermOpManageInventory"] = 0,
             ["InvWarehouseCreateBtn"] = 0, ["InvPostMovementBtn"] = 0,
             ["InvTabBalances"] = 0, ["InvTabMovements"] = 0, ["InvTabWarehouses"] = 0,
@@ -226,7 +226,7 @@ public sealed class ResourceContractTests
             ["InvErrorLinesRequired"] = 0, ["InvErrorQuantityInvalid"] = 0, ["InvErrorLotCodeInvalid"] = 0,
             ["InvErrorDestWarehouseInvalid"] = 0, ["InvErrorTransferSameWarehouse"] = 0, ["InvErrorOrderInvalid"] = 0,
             ["InvErrorOrderStateInvalid"] = 0, ["InvErrorInsufficientStock"] = 0, ["InvErrorIdempotencyInvalid"] = 0,
-            ["Reports"] = 0, ["ReportsNavGroup"] = 0, ["ReportsCaption"] = 0,
+            ["Reports"] = 0, ["ReportsCaption"] = 0,
             ["PermPageReports"] = 0, ["PermOpExportReports"] = 0,
             ["RptErrorOrderNotFound"] = 0, ["RptErrorExportInvalid"] = 0,
             ["RptTabShortage"] = 0, ["RptTabVariance"] = 0, ["RptExportCsvBtn"] = 0,
@@ -510,7 +510,21 @@ public sealed class ResourceContractTests
             ["DocSeqTypeDeliveryOrder"] = 0, ["DocSeqTypePurchaseOrder"] = 0, ["DocSeqTypePurchaseReceipt"] = 0,
             ["DocSeqTypeProductionOrder"] = 0, ["DocSeqTypeInventoryTxn"] = 0, ["DocSeqTypeInventoryRev"] = 0,
             ["DocSeqTypeQualityInsp"] = 0, ["DocSeqTypeQualityScrap"] = 0,
-            ["PermPageDocumentSequences"] = 0, ["PermOpManageDocSequences"] = 0
+            ["PermPageDocumentSequences"] = 0, ["PermOpManageDocSequences"] = 0,
+            ["MasterDataNavGroup"] = 0, ["ProcurementNavGroup"] = 0, ["QualityNavGroup"] = 0, ["SalesNavGroup"] = 0,
+            ["TraceabilityReportingNavGroup"] = 0,
+            ["BusinessPartners"] = 0, ["BusinessPartnersCaption"] = 0, ["DocSeqTypeBusinessPartner"] = 0,
+            ["PermPageBusinessPartners"] = 0, ["PermOpManageBusinessPartners"] = 0,
+            ["BpPersonType"] = 0, ["BpPersonLegal"] = 0, ["BpPersonNatural"] = 0,
+            ["BpRolesLabel"] = 0, ["BpRoleSupplier"] = 0, ["BpRoleCustomer"] = 0, ["BpRoleContractor"] = 0,
+            ["BpGeneralInfo"] = 0, ["BpFullName"] = 0, ["BpNationalCode"] = 0, ["BpCode"] = 0,
+            ["BpEconomicCode"] = 0, ["BpCompanyName"] = 0, ["BpNationalLegalId"] = 0,
+            ["BpContactInfo"] = 0, ["BpMobile"] = 0, ["BpPhone"] = 0, ["BpEmail"] = 0, ["BpWebsite"] = 0,
+            ["BpAddressInfo"] = 0, ["BpCountryProvince"] = 0, ["BpCityAddress"] = 0, ["BpCity"] = 0,
+            ["BpCountry"] = 0, ["BpProvince"] = 0, ["BpAddress"] = 0,
+            ["BpCreateButton"] = 0, ["BpCreateTitle"] = 0, ["BpEditTitle"] = 0, ["BpDetailTitle"] = 0,
+            ["BpRoleRequired"] = 0, ["BpConfirmDeactivate"] = 1, ["BpConfirmActivate"] = 1,
+            ["BpAllRoles"] = 0, ["BpFilterRole"] = 0
         }.Concat(ForgeFlow.Application.Audit.AuditEventCatalog.All.ToDictionary(d => d.ResourceKey, _ => 0))
          .ToDictionary(kv => kv.Key, kv => kv.Value)
     };
@@ -642,6 +656,7 @@ public sealed class ResourceContractTests
              "PermPageProcurement", "PermOpManageSuppliers", "PermOpManageOrders", "PermOpReceiveOrders",
              "PermPageSales", "PermOpManageCustomers", "PermOpDispatchSales",
              "PermPageDocumentSequences", "PermOpManageDocSequences",
+             "PermPageBusinessPartners", "PermOpManageBusinessPartners",
              "PermPageRoutings", "PermOpManageRoutings", "PermOpExecuteOperations",
              "ProcErrorSupplierInactive", "ProcErrorContactInvalid", "ProcErrorAddressInvalid",
              "ProcErrorCurrencyInvalid", "ProcErrorEmptyOrder", "ProcErrorDuplicateItem",

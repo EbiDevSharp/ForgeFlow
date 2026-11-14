@@ -507,6 +507,230 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ForgeFlow.Domain.BusinessPartners.BusinessPartner", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<string>("CompanyName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long>("CreatedByActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("EconomicCode")
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LastName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Mobile")
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NationalCode")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("NationalLegalId")
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<long>("OrganizationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte>("PersonType")
+                        .HasColumnType("tinyint");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<string>("PostalCode")
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Province")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2(7)");
+
+                    b.Property<long?>("UpdatedByActorId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_BusinessPartner");
+
+                    b.HasAlternateKey("OrganizationId", "Id")
+                        .HasName("AK_BusinessPartner_Org_Id");
+
+                    b.HasIndex("OrganizationId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BusinessPartner_Org_Code");
+
+                    b.HasIndex("OrganizationId", "IsActive", "Code", "Id")
+                        .HasDatabaseName("IX_BusinessPartner_Org_IsActive_Code");
+
+                    b.ToTable("BusinessPartner", "organization", t =>
+                        {
+                            t.HasCheckConstraint("CK_BusinessPartner_Code", "DATALENGTH([Code]) BETWEEN 1 AND 32 AND DATALENGTH([Code]) = LEN([Code]) AND [Code] COLLATE Latin1_General_100_BIN2 NOT LIKE '%[^A-Z0-9_-]%' AND LEFT([Code], 1) COLLATE Latin1_General_100_BIN2 LIKE '[A-Z0-9]'");
+
+                            t.HasCheckConstraint("CK_BusinessPartner_Metadata", "[CreatedByActorId] > 0 AND (([UpdatedAtUtc] IS NULL AND [UpdatedByActorId] IS NULL) OR ([UpdatedAtUtc] IS NOT NULL AND [UpdatedByActorId] IS NOT NULL AND [UpdatedByActorId] > 0 AND [UpdatedAtUtc] >= [CreatedAtUtc]))");
+
+                            t.HasCheckConstraint("CK_BusinessPartner_Name", "DATALENGTH([Name]) BETWEEN 2 AND 400 AND DATALENGTH([Name]) = DATALENGTH(LTRIM(RTRIM([Name]))) AND DATALENGTH(LTRIM(RTRIM([Name]))) > 0");
+
+                            t.HasCheckConstraint("CK_BusinessPartner_PersonType", "[PersonType] BETWEEN 1 AND 2");
+                        });
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.BusinessPartners.BusinessPartnerRoleAssignment", b =>
+                {
+                    b.Property<long>("BusinessPartnerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("RoleId")
+                        .HasColumnType("int");
+
+                    b.Property<long>("OrganizationId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("BusinessPartnerId", "RoleId")
+                        .HasName("PK_BusinessPartnerRoleAssignment");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("RoleId");
+
+                    b.ToTable("BusinessPartnerRoleAssignment", "organization");
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.BusinessPartners.BusinessPartnerRoleDefinition", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_BusinessPartnerRoleDefinition");
+
+                    b.ToTable("BusinessPartnerRoleDefinition", "organization");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Code = "SUPPLIER",
+                            DisplayOrder = 1,
+                            IsActive = true,
+                            IsSystem = true,
+                            Name = "Supplier"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Code = "CUSTOMER",
+                            DisplayOrder = 2,
+                            IsActive = true,
+                            IsSystem = true,
+                            Name = "Customer"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Code = "CONTRACTOR",
+                            DisplayOrder = 3,
+                            IsActive = true,
+                            IsSystem = true,
+                            Name = "Contractor"
+                        });
+                });
+
             modelBuilder.Entity("ForgeFlow.Domain.Inventory.InventoryBalance", b =>
                 {
                     b.Property<long>("Id")
@@ -1598,7 +1822,7 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
 
                             t.HasCheckConstraint("CK_DocumentSequence_Padding", "[PaddingDigits] BETWEEN 3 AND 8");
 
-                            t.HasCheckConstraint("CK_DocumentSequence_Type", "[DocumentType] BETWEEN 1 AND 9");
+                            t.HasCheckConstraint("CK_DocumentSequence_Type", "[DocumentType] BETWEEN 1 AND 10");
 
                             t.HasCheckConstraint("CK_DocumentSequence_YearMode", "[YearMode] BETWEEN 0 AND 2");
                         });
@@ -4226,7 +4450,7 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                         {
                             t.HasCheckConstraint("CK_OrganizationChange_Actor", "[ActorId] > 0");
 
-                            t.HasCheckConstraint("CK_OrganizationChange_Event", "DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Currency.Created','Currency.Updated','Currency.Activated','Currency.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved','ItemLot.Updated','QualityParameter.Created','QualityParameter.Updated','QualityParameter.Activated','QualityParameter.Deactivated','QualitySpec.Created','QualitySpec.Updated','QualitySpec.Activated','QualitySpec.Deactivated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated','Customer.Created','Customer.Updated','Customer.Activated','Customer.Deactivated','DocumentSequence.Created','DocumentSequence.Updated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','InventoryReservation.Created','InventoryReservation.Consumed','InventoryReservation.Released','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled','WorkCenter.Created','WorkCenter.Updated','WorkCenter.Activated','WorkCenter.Deactivated','Routing.Created','Routing.Updated','Routing.OperationsSaved','Routing.Activated','Routing.Obsoleted','ProductionOrderOperation.Started','ProductionOrderOperation.Paused','ProductionOrderOperation.Completed','ProductionOrderOperation.Skipped','SalesOrder.Created','SalesOrder.Updated','SalesOrder.Approved','SalesOrder.Dispatched','SalesOrder.Closed','SalesOrder.Cancelled','DeliveryOrder.Posted','DeliveryOrder.Reversed')))");
+                            t.HasCheckConstraint("CK_OrganizationChange_Event", "DATALENGTH([EventCode]) = LEN([EventCode]) AND (([SiteId] IS NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Organization.Created','Organization.Renamed','Organization.Activated','Organization.Deactivated','Unit.Created','Unit.Updated','Unit.Activated','Unit.Deactivated','UnitConversion.Created','UnitConversion.Updated','UnitConversion.Activated','UnitConversion.Deactivated','Currency.Created','Currency.Updated','Currency.Activated','Currency.Deactivated','Item.Created','Item.Updated','Item.Activated','Item.Deactivated','ClassificationSet.Created','Classification.Created','Classification.Updated','Classification.Activated','Classification.Deactivated','ItemClassification.Updated','ItemUnitConversion.Created','ItemUnitConversion.Updated','ItemUnitConversion.Activated','ItemUnitConversion.Deactivated','AttributeDefinition.Created','AttributeDefinition.Updated','AttributeDefinition.Activated','AttributeDefinition.Deactivated','ItemAttributeValue.Updated','ContextDimension.Created','ContextDimension.Updated','ContextDimension.Activated','ContextDimension.Deactivated','Bom.Created','Bom.Renamed','Bom.Activated','Bom.Deactivated','BomVersion.Created','BomVersion.Updated','BomVersion.StatusChanged','BomVersion.LinesSaved','BomVersion.ApplicabilitySaved','ItemLot.Updated','QualityParameter.Created','QualityParameter.Updated','QualityParameter.Activated','QualityParameter.Deactivated','QualitySpec.Created','QualitySpec.Updated','QualitySpec.Activated','QualitySpec.Deactivated','Supplier.Created','Supplier.Updated','Supplier.Activated','Supplier.Deactivated','Customer.Created','Customer.Updated','Customer.Activated','Customer.Deactivated','BusinessPartner.Created','BusinessPartner.Updated','BusinessPartner.Activated','BusinessPartner.Deactivated','DocumentSequence.Created','DocumentSequence.Updated')) OR ([SiteId] IS NOT NULL AND [EventCode] COLLATE Latin1_General_100_BIN2 IN ('Site.Created','Site.Renamed','Site.Activated','Site.Deactivated','ProductionOrder.Created','ProductionOrder.Updated','ProductionOrder.Refreshed','ProductionOrder.Released','ProductionOrder.Started','ProductionOrder.Completed','ProductionOrder.Cancelled','Warehouse.Created','Warehouse.Updated','Warehouse.Activated','Warehouse.Deactivated','InventoryTransaction.Posted','InventoryTransaction.Reversed','InventoryReservation.Created','InventoryReservation.Consumed','InventoryReservation.Released','QualityInspection.Created','QualityInspection.Updated','QualityInspection.Disposed','QualityInspection.Cancelled','PurchaseOrder.Created','PurchaseOrder.Updated','PurchaseOrder.Approved','PurchaseOrder.Received','PurchaseOrder.Closed','PurchaseOrder.Cancelled','WorkCenter.Created','WorkCenter.Updated','WorkCenter.Activated','WorkCenter.Deactivated','Routing.Created','Routing.Updated','Routing.OperationsSaved','Routing.Activated','Routing.Obsoleted','ProductionOrderOperation.Started','ProductionOrderOperation.Paused','ProductionOrderOperation.Completed','ProductionOrderOperation.Skipped','SalesOrder.Created','SalesOrder.Updated','SalesOrder.Approved','SalesOrder.Dispatched','SalesOrder.Closed','SalesOrder.Cancelled','DeliveryOrder.Posted','DeliveryOrder.Reversed')))");
 
                             t.HasCheckConstraint("CK_OrganizationChange_Json", "ISJSON([ChangesJson]) = 1");
                         });
@@ -4361,6 +4585,42 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("FK_ContextDimension_Organization");
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.BusinessPartners.BusinessPartner", b =>
+                {
+                    b.HasOne("ForgeFlow.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_BusinessPartner_Organization");
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.BusinessPartners.BusinessPartnerRoleAssignment", b =>
+                {
+                    b.HasOne("ForgeFlow.Domain.BusinessPartners.BusinessPartner", null)
+                        .WithMany("Roles")
+                        .HasForeignKey("BusinessPartnerId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_BusinessPartnerRoleAssignment_BusinessPartner");
+
+                    b.HasOne("ForgeFlow.Domain.Organizations.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_BusinessPartnerRoleAssignment_Organization");
+
+                    b.HasOne("ForgeFlow.Domain.BusinessPartners.BusinessPartnerRoleDefinition", "RoleDefinition")
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_BusinessPartnerRoleAssignment_RoleDefinition");
+
+                    b.Navigation("RoleDefinition");
                 });
 
             modelBuilder.Entity("ForgeFlow.Domain.Inventory.InventoryBalance", b =>
@@ -5453,6 +5713,11 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                         .HasConstraintName("FK_OrganizationChange_Site");
                 });
 
+            modelBuilder.Entity("ForgeFlow.Domain.BusinessPartners.BusinessPartner", b =>
+                {
+                    b.Navigation("Roles");
+                });
+
             modelBuilder.Entity("ForgeFlow.Domain.Organizations.Organization", b =>
                 {
                     b.Navigation("Sites");
@@ -5491,4 +5756,3 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
         }
     }
 }
-

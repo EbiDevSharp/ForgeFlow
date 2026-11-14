@@ -1,0 +1,840 @@
+@page "/business-partners"
+@page "/organizations/{OrganizationId:long}/business-partners"
+@using ForgeFlow.Application.BusinessPartners
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Domain.BusinessPartners
+@using ForgeFlow.Domain.Organizations
+@inject BusinessPartnerUseCases BpService
+@inject DocumentSequenceUseCases SeqService
+@inject ForgeFlow.Web.Organizations.ReadScopes Scopes
+@inject ITrustedActorAccessor Actors
+@inject IOrganizationPermissionEvaluator Permissions
+@inject CulturePolicy Culture
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<PageTitle>@Text["BusinessPartners"] - @Text["AppTitle"]</PageTitle>
+
+<section class="organization-reader" aria-labelledby="bp-title">
+    <div class="read-page-head">
+        <div>
+            <h1 id="bp-title">@Text["BusinessPartners"]</h1>
+            <p class="write-hint">@Text["BusinessPartnersCaption"]</p>
+        </div>
+        @if (!initialLoading && pageError is null && available.Count > 0 && scopeCanManage)
+        {
+            <div class="read-head-actions">
+                <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreateModal">
+                    @Text["BpCreateButton"]
+                </BitButton>
+            </div>
+        }
+    </div>
+
+    @if (pageNotice is not null)
+    {
+        <p role="status" class="read-page-notice write-saved">@pageNotice</p>
+    }
+
+    @if (initialLoading)
+    {
+        <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
+    }
+    else if (pageError is not null)
+    {
+        <div class="read-state" role="alert">
+            <p>@Text[pageError]</p>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadScopeAsync">@Text["WriteReload"]</BitButton>
+        </div>
+    }
+    else if (available.Count == 0)
+    {
+        <p role="status" class="read-empty">@Text["ReadDenied"]</p>
+    }
+    else
+    {
+        <div class="read-toolbar-card">
+            @if (available.Count > 1)
+            {
+                <div class="read-field">
+                    <label for="bp-scope">@Text["ReadScope"]</label>
+                    <select id="bp-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
+                        @for (var i = 0; i < available.Count; i++)
+                        {
+                            <option value="@i">@ScopeLabel(available[i])</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="read-field">
+                <label for="bp-role-filter">@Text["BpFilterRole"]</label>
+                <select id="bp-role-filter" aria-label="@Text["BpFilterRole"]" value="@roleFilter" @onchange="ChangeRoleFilterAsync">
+                    <option value="0">@Text["BpAllRoles"]</option>
+                    <option value="1">@Text["BpRoleSupplier"]</option>
+                    <option value="2">@Text["BpRoleCustomer"]</option>
+                    <option value="3">@Text["BpRoleContractor"]</option>
+                </select>
+            </div>
+
+            <label class="read-inactive">
+                <input type="checkbox" checked="@includeInactive" @onchange="ToggleInactiveAsync" />
+                <span>@Text["ReadInactive"]</span>
+            </label>
+
+            <div class="read-field">
+                <label for="bp-search">@Text["ReadSearch"]</label>
+                <input id="bp-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="64" placeholder="@Text["ReadSearch"]" />
+            </div>
+        </div>
+
+        <div class="read-grid-card">
+            <div class="read-grid">
+                <BitDataGrid @ref="grid" TItem="BusinessPartnerSummary" OnRead="ReadPartnersAsync" Pageable="true" PageSize="25"
+                             Resizable="true" WrapCellText="true"
+                             PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["BusinessPartners"]">
+                    <Columns>
+                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["ReadCode"]" Width="120px">
+                            <Template Context="p"><bdi dir="ltr">@p.Code</bdi></Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["ReadName"]" MinWidth="180">
+                            <Template Context="p">
+                                <div class="read-primary-cell">@p.Name</div>
+                                @if (p.PersonType == PersonType.Legal && !string.IsNullOrWhiteSpace(p.NationalLegalId))
+                                {
+                                    <div class="read-sub-cell"><bdi dir="ltr">@Text["BpNationalLegalId"]: @p.NationalLegalId</bdi></div>
+                                }
+                                else if (p.PersonType == PersonType.Natural && !string.IsNullOrWhiteSpace(p.NationalCode))
+                                {
+                                    <div class="read-sub-cell"><bdi dir="ltr">@Text["BpNationalCode"]: @p.NationalCode</bdi></div>
+                                }
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["BpPersonType"]" Width="110px">
+                            <Template Context="p">
+                                <span class="read-badge">@(p.PersonType == PersonType.Legal ? Text["BpPersonLegal"] : Text["BpPersonNatural"])</span>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["BpRolesLabel"]" MinWidth="140">
+                            <Template Context="p">
+                                <div class="pa-roles-bar" style="gap:4px;flex-wrap:wrap">
+                                    @foreach (var rId in p.RoleIds)
+                                    {
+                                        <span class="pa-role-chip">@RoleName(rId)</span>
+                                    }
+                                </div>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["ProfilePhoneLabel"]" Width="130px">
+                            <Template Context="p">
+                                <bdi dir="ltr">@(string.IsNullOrWhiteSpace(p.Mobile) ? (string.IsNullOrWhiteSpace(p.Phone) ? "—" : p.Phone) : p.Mobile)</bdi>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["ProfileEmailLabel"]" Width="150px">
+                            <Template Context="p">
+                                <bdi dir="ltr">@(string.IsNullOrWhiteSpace(p.Email) ? "—" : p.Email)</bdi>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["ReadStatus"]" Width="100px">
+                            <Template Context="p">
+                                <span class="read-badge @(p.IsActive ? "active" : "inactive")">
+                                    @(p.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
+                                </span>
+                            </Template>
+                        </BitDataGridColumn>
+                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["ReadActions"]" Width="140px">
+                            <Template Context="p">
+                                <div class="read-row-actions">
+                                    <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                   IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                                   OnClick="() => OpenDetailModal(p)" />
+                                    </BitTooltip>
+                                    @if (scopeCanManage)
+                                    {
+                                        <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                       IconName="Edit" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                                       OnClick="() => OpenEditModal(p)" />
+                                        </BitTooltip>
+                                        var toggleLabel = Text[p.IsActive ? "WriteDeactivate" : "WriteActivate"];
+                                        <BitTooltip Text="@toggleLabel" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                                                       Class="@($"read-detail-action {(p.IsActive ? "read-action-deactivate" : "read-action-activate")}")"
+                                                       Icon="@(p.IsActive ? DeactivateIcon : ActivateIcon)" IconOnly="true"
+                                                       aria-label="@toggleLabel"
+                                                       OnClick="() => OpenToggleActiveConfirm(p)" />
+                                        </BitTooltip>
+                                    }
+                                </div>
+                            </Template>
+                        </BitDataGridColumn>
+                    </Columns>
+                </BitDataGrid>
+            </div>
+        </div>
+    }
+
+    @* Create / Edit Form Modal *@
+    <ForgeFormDialog Width="700px" @bind-IsOpen="formModalOpen"
+                     Title="@(editingPartnerId.HasValue ? Text["BpEditTitle"] : Text["BpCreateTitle"])"
+                     CloseTitle="@Text["ReadClose"]">
+        <ChildContent>
+            @if (modalError is not null)
+            {
+                <p role="alert" class="write-error">@modalError</p>
+            }
+
+            <div class="proc-po-sections">
+                @* 1. Person Type *@
+                <div class="proc-po-section">
+                    <div class="proc-po-section-title">@Text["BpPersonType"]</div>
+                    <div style="display:flex;gap:1.5rem;align-items:center;padding:0.25rem 0">
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+                            <input type="radio" name="personTypeRadio" checked="@(formPersonType == PersonType.Legal)" @onchange="() => OnPersonTypeChanged(PersonType.Legal)" />
+                            <span>@Text["BpPersonLegal"]</span>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+                            <input type="radio" name="personTypeRadio" checked="@(formPersonType == PersonType.Natural)" @onchange="() => OnPersonTypeChanged(PersonType.Natural)" />
+                            <span>@Text["BpPersonNatural"]</span>
+                        </label>
+                    </div>
+                </div>
+
+                @* 2. Commercial Roles *@
+                <div class="proc-po-section">
+                    <div class="proc-po-section-title">@Text["BpRolesLabel"]</div>
+                    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;padding:0.25rem 0">
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+                            <input type="checkbox" checked="@roleSupplier" @onchange="e => roleSupplier = (bool)(e.Value ?? false)" />
+                            <span>@Text["BpRoleSupplier"]</span>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+                            <input type="checkbox" checked="@roleCustomer" @onchange="e => roleCustomer = (bool)(e.Value ?? false)" />
+                            <span>@Text["BpRoleCustomer"]</span>
+                        </label>
+                        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+                            <input type="checkbox" checked="@roleContractor" @onchange="e => roleContractor = (bool)(e.Value ?? false)" />
+                            <span>@Text["BpRoleContractor"]</span>
+                        </label>
+                    </div>
+                </div>
+
+                @* 3. General Information *@
+                <div class="proc-po-section">
+                    <div class="proc-po-section-title">@Text["BpGeneralInfo"]</div>
+                    <div class="proc-po-general-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+                        <div class="proc-po-field">
+                            <label for="bp-form-code">@Text["BpCode"]</label>
+                            <input id="bp-form-code" type="text" class="proc-input-readonly" value="@formCode" disabled dir="ltr" />
+                        </div>
+                        <div class="proc-po-field">
+                            <label for="bp-form-economic">@Text["BpEconomicCode"]</label>
+                            <input id="bp-form-economic" type="text" maxlength="30" @bind="formEconomicCode" dir="ltr" />
+                        </div>
+
+                        @if (formPersonType == PersonType.Legal)
+                        {
+                            <div class="proc-po-field" style="grid-column:span 2">
+                                <label for="bp-form-company">@Text["BpCompanyName"] <span class="proc-req-star" aria-hidden="true">*</span></label>
+                                <input id="bp-form-company" type="text" maxlength="200" @bind="formCompanyName" />
+                            </div>
+                            <div class="proc-po-field">
+                                <label for="bp-form-legid">@Text["BpNationalLegalId"]</label>
+                                <input id="bp-form-legid" type="text" maxlength="30" @bind="formNationalLegalId" dir="ltr" />
+                            </div>
+                            <div class="proc-po-field">
+                                <label for="bp-form-fullname">@Text["BpFullName"] (@Text["SupContactLabel"])</label>
+                                <input id="bp-form-fullname" type="text" maxlength="200" @bind="formName" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="proc-po-field" style="grid-column:span 2">
+                                <label for="bp-form-natname">@Text["BpFullName"] <span class="proc-req-star" aria-hidden="true">*</span></label>
+                                <input id="bp-form-natname" type="text" maxlength="200" @bind="formName" />
+                            </div>
+                            <div class="proc-po-field">
+                                <label for="bp-form-natcode">@Text["BpNationalCode"]</label>
+                                <input id="bp-form-natcode" type="text" maxlength="20" @bind="formNationalCode" dir="ltr" />
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                @* 4. Contact Information *@
+                <div class="proc-po-section">
+                    <div class="proc-po-section-title">@Text["BpContactInfo"]</div>
+                    <div class="proc-po-general-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+                        <div class="proc-po-field">
+                            <label for="bp-form-mobile">@Text["BpMobile"]</label>
+                            <input id="bp-form-mobile" type="tel" maxlength="32" @bind="formMobile" dir="ltr" />
+                        </div>
+                        <div class="proc-po-field">
+                            <label for="bp-form-phone">@Text["BpPhone"]</label>
+                            <input id="bp-form-phone" type="tel" maxlength="32" @bind="formPhone" dir="ltr" />
+                        </div>
+                        <div class="proc-po-field">
+                            <label for="bp-form-email">@Text["BpEmail"]</label>
+                            <input id="bp-form-email" type="email" maxlength="256" @bind="formEmail" dir="ltr" />
+                        </div>
+                        <div class="proc-po-field">
+                            <label for="bp-form-web">@Text["BpWebsite"]</label>
+                            <input id="bp-form-web" type="url" maxlength="200" @bind="formWebsite" dir="ltr" />
+                        </div>
+                    </div>
+                </div>
+
+                @* 5. Address Information *@
+                <div class="proc-po-section">
+                    <div class="proc-po-section-title">@Text["BpAddressInfo"] (@Text["BpCountryProvince"] - @Text["BpCityAddress"])</div>
+                    <div class="proc-po-general-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+                        <div class="proc-po-field">
+                            <label for="bp-form-country">@Text["BpCountry"]</label>
+                            <input id="bp-form-country" type="text" maxlength="100" @bind="formCountry" />
+                        </div>
+                        <div class="proc-po-field">
+                            <label for="bp-form-prov">@Text["BpProvince"]</label>
+                            <input id="bp-form-prov" type="text" maxlength="100" @bind="formProvince" />
+                        </div>
+                        <div class="proc-po-field">
+                            <label for="bp-form-city">@Text["BpCity"]</label>
+                            <input id="bp-form-city" type="text" maxlength="100" @bind="formCity" />
+                        </div>
+                        <div class="proc-po-field" style="grid-column:span 2">
+                            <label for="bp-form-addr">@Text["BpAddress"]</label>
+                            <textarea id="bp-form-addr" rows="2" maxlength="500" @bind="formAddress"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </ChildContent>
+        <FooterActions>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => formModalOpen = false">
+                @Text["WriteCancel"]
+            </BitButton>
+            <BitButton Size="BitSize.Small" IsEnabled="!saving" OnClick="SavePartnerAsync">
+                @(saving ? Text["WriteSaving"] : Text["WriteSave"])
+            </BitButton>
+        </FooterActions>
+    </ForgeFormDialog>
+
+    @* Detail Modal *@
+    <BitDialog Width="640px" MaxWidth="calc(100vw - 24px)" Classes="@DetailDialogClasses" @bind-IsOpen="detailModalOpen"
+               Title="@Text["BpDetailTitle"]" AriaLabel="@Text["BpDetailTitle"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            @if (detailItem is not null)
+            {
+                <div class="read-detail">
+                    <dl class="read-detail-grid">
+                        <dt>@Text["ReadCode"]</dt>
+                        <dd><bdi dir="ltr">@detailItem.Code</bdi></dd>
+
+                        <dt>@Text["BpPersonType"]</dt>
+                        <dd>@(detailItem.PersonType == PersonType.Legal ? Text["BpPersonLegal"] : Text["BpPersonNatural"])</dd>
+
+                        <dt>@Text["BpRolesLabel"]</dt>
+                        <dd>
+                            <div class="pa-roles-bar" style="gap:4px;flex-wrap:wrap">
+                                @foreach (var r in detailItem.Roles)
+                                {
+                                    <span class="pa-role-chip">@r.Name</span>
+                                }
+                            </div>
+                        </dd>
+
+                        <dt>@Text["ReadName"]</dt>
+                        <dd>@detailItem.Name</dd>
+
+                        @if (detailItem.PersonType == PersonType.Legal)
+                        {
+                            <dt>@Text["BpCompanyName"]</dt>
+                            <dd>@(detailItem.CompanyName ?? "—")</dd>
+
+                            <dt>@Text["BpNationalLegalId"]</dt>
+                            <dd><bdi dir="ltr">@(detailItem.NationalLegalId ?? "—")</bdi></dd>
+                        }
+                        else
+                        {
+                            <dt>@Text["BpNationalCode"]</dt>
+                            <dd><bdi dir="ltr">@(detailItem.NationalCode ?? "—")</bdi></dd>
+                        }
+
+                        <dt>@Text["BpEconomicCode"]</dt>
+                        <dd><bdi dir="ltr">@(detailItem.EconomicCode ?? "—")</bdi></dd>
+
+                        <dt>@Text["BpMobile"]</dt>
+                        <dd><bdi dir="ltr">@(detailItem.Mobile ?? "—")</bdi></dd>
+
+                        <dt>@Text["BpPhone"]</dt>
+                        <dd><bdi dir="ltr">@(detailItem.Phone ?? "—")</bdi></dd>
+
+                        <dt>@Text["BpEmail"]</dt>
+                        <dd><bdi dir="ltr">@(detailItem.Email ?? "—")</bdi></dd>
+
+                        <dt>@Text["BpWebsite"]</dt>
+                        <dd><bdi dir="ltr">@(detailItem.Website ?? "—")</bdi></dd>
+
+                        <dt>@Text["BpCountryProvince"]</dt>
+                        <dd>@($"{detailItem.Country} {detailItem.Province}".Trim())</dd>
+
+                        <dt>@Text["BpCityAddress"]</dt>
+                        <dd>@($"{detailItem.City} - {detailItem.Address}".Trim(' ', '-'))</dd>
+
+                        <dt>@Text["ReadStatus"]</dt>
+                        <dd>
+                            <span class="read-badge @(detailItem.IsActive ? "active" : "inactive")">
+                                @(detailItem.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
+                            </span>
+                        </dd>
+                    </dl>
+                </div>
+            }
+        </Body>
+    </BitDialog>
+
+    @* Toggle Active Confirmation Dialog *@
+    <BitDialog Width="440px" MaxWidth="calc(100vw - 24px)" Classes="@DetailDialogClasses" @bind-IsOpen="confirmToggleOpen"
+               Title="@Text[targetIsActive ? "WriteDeactivate" : "WriteActivate"]"
+               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+        <Body>
+            <div class="write-dialog-body">
+                @if (targetIsActive)
+                {
+                    <p>@Text["BpConfirmDeactivate", targetName]</p>
+                }
+                else
+                {
+                    <p>@Text["BpConfirmActivate", targetName]</p>
+                }
+                <div class="write-actions">
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => confirmToggleOpen = false">
+                        @Text["WriteCancel"]
+                    </BitButton>
+                    <BitButton Size="BitSize.Small"
+                               Class="@(targetIsActive ? "write-danger-btn" : string.Empty)"
+                               IsEnabled="@(!toggling)"
+                               OnClick="ExecuteToggleActiveAsync">
+                        @Text[targetIsActive ? "WriteDeactivate" : "WriteActivate"]
+                    </BitButton>
+                </div>
+            </div>
+        </Body>
+    </BitDialog>
+</section>
+
+@code {
+    [Parameter] public long? OrganizationId { get; set; }
+
+    private BitDataGrid<BusinessPartnerSummary>? grid;
+    private List<OrganizationScope> available = [];
+    private int scopeIndex;
+    private bool scopeCanManage;
+    private bool initialLoading = true;
+    private string? pageError;
+    private string? pageNotice;
+    private string search = string.Empty;
+    private bool includeInactive;
+    private int roleFilter;
+
+    // Form modal state
+    private bool formModalOpen;
+    private bool saving;
+    private string? modalError;
+    private long? editingPartnerId;
+    private string? editingRowVersion;
+    private string formCode = string.Empty;
+    private PersonType formPersonType = PersonType.Legal;
+    private bool roleSupplier = true;
+    private bool roleCustomer;
+    private bool roleContractor;
+    private string formName = string.Empty;
+    private string formCompanyName = string.Empty;
+    private string formNationalCode = string.Empty;
+    private string formNationalLegalId = string.Empty;
+    private string formEconomicCode = string.Empty;
+    private string formMobile = string.Empty;
+    private string formPhone = string.Empty;
+    private string formEmail = string.Empty;
+    private string formWebsite = string.Empty;
+    private string formCountry = "ایران";
+    private string formProvince = string.Empty;
+    private string formCity = string.Empty;
+    private string formAddress = string.Empty;
+
+    // Detail modal state
+    private bool detailModalOpen;
+    private BusinessPartnerDetail? detailItem;
+
+    // Toggle active state
+    private bool confirmToggleOpen;
+    private bool toggling;
+    private long targetId;
+    private string targetName = string.Empty;
+    private string? targetVersion;
+    private bool targetIsActive;
+
+    private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
+
+    private BitDataGridStrings GridStrings => new()
+    {
+        GridLabel = Text["BusinessPartners"],
+        EmptyText = Text["ReadEmpty"],
+        NoMatchesText = Text["ReadEmpty"],
+        LoadingText = Text["ReadLoading"],
+        PagerRangeFormat = Text["GridPagerRange"],
+        PagerPageFormat = Text["GridPagerPage"],
+        PerPageFormat = Text["GridPerPage"],
+        RowsPerPageLabel = Text["GridRowsPerPage"],
+        FirstPageLabel = Text["GridFirstPage"],
+        PreviousPageLabel = Text["GridPreviousPage"],
+        NextPageLabel = Text["GridNextPage"],
+        LastPageLabel = Text["GridLastPage"],
+        AnnouncementPage = Text["GridPagerPage"]
+    };
+
+    private static readonly BitDialogClassStyles DetailDialogClasses = new()
+    {
+        Container = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
+
+    private const string DeactivateIcon = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'></circle><line x1='4.93' y1='4.93' x2='19.07' y2='19.07'></line></svg>";
+    private const string ActivateIcon = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 6 12 12 16 14'></polyline></svg>";
+
+    private OrganizationScope? CurrentScope => available.Count > scopeIndex ? available[scopeIndex] : null;
+    private long CurrentOrgId => CurrentScope switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site s => s.OrganizationId,
+        _ => 0
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadScopesAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (OrganizationId.HasValue && available.Count > 0)
+        {
+            var match = available.FindIndex(s => s is OrganizationScope.Organization o && o.OrganizationId == OrganizationId.Value);
+            if (match >= 0 && match != scopeIndex)
+            {
+                scopeIndex = match;
+                await EvaluateManagePermissionAsync();
+                await RefreshGridAsync();
+            }
+        }
+    }
+
+    private async Task LoadScopesAsync()
+    {
+        initialLoading = true;
+        pageError = null;
+        try
+        {
+            var loaded = await Scopes.LoadBusinessPartnerScopesAsync();
+            available = loaded.ToList();
+            if (OrganizationId.HasValue && available.Count > 0)
+            {
+                var match = available.FindIndex(s => s is OrganizationScope.Organization o && o.OrganizationId == OrganizationId.Value);
+                if (match >= 0) scopeIndex = match;
+            }
+            await EvaluateManagePermissionAsync();
+        }
+        catch (Exception)
+        {
+            pageError = "ReadError";
+        }
+        finally
+        {
+            initialLoading = false;
+        }
+    }
+
+    private async Task EvaluateManagePermissionAsync()
+    {
+        var scope = CurrentScope;
+        if (scope is null) { scopeCanManage = false; return; }
+        var actor = await Actors.ResolveAsync(default);
+        if (actor is null) { scopeCanManage = false; return; }
+        scopeCanManage = (await Permissions.EvaluateAsync(actor, scope, BusinessPartnerPermissions.Manage, default)).IsAllowed;
+    }
+
+    private async Task ChangeScopeAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var idx) && idx >= 0 && idx < available.Count)
+        {
+            scopeIndex = idx;
+            await EvaluateManagePermissionAsync();
+            await RefreshGridAsync();
+        }
+    }
+
+    private async Task ChangeRoleFilterAsync(ChangeEventArgs e)
+    {
+        roleFilter = int.TryParse(e.Value?.ToString(), out var r) ? r : 0;
+        await RefreshGridAsync();
+    }
+
+    private async Task ToggleInactiveAsync(ChangeEventArgs e)
+    {
+        includeInactive = e.Value is bool b && b;
+        await RefreshGridAsync();
+    }
+
+    private async Task ApplySearchAsync() => await RefreshGridAsync();
+
+    private async Task ReloadScopeAsync() => await LoadScopesAsync();
+
+    private Task RefreshGridAsync() => grid?.RefreshAsync() ?? Task.CompletedTask;
+
+    private async Task<BitDataGridReadResult<BusinessPartnerSummary>> ReadPartnersAsync(BitDataGridReadRequest req)
+    {
+        var scope = CurrentScope;
+        if (scope is null) return new([], 0);
+        var size = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / size) + 1;
+        var res = await BpService.List(
+            scope,
+            CurrentOrgId,
+            new BusinessPartnerListQuery(search, roleFilter > 0 ? roleFilter : null, includeInactive, page, size),
+            req.CancellationToken);
+
+        if (!res.Succeeded)
+            return new([], 0);
+
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private void OnPersonTypeChanged(PersonType type)
+    {
+        formPersonType = type;
+    }
+
+    private async Task OpenCreateModal()
+    {
+        editingPartnerId = null;
+        editingRowVersion = null;
+        formPersonType = PersonType.Legal;
+        roleSupplier = true;
+        roleCustomer = false;
+        roleContractor = false;
+        formName = string.Empty;
+        formCompanyName = string.Empty;
+        formNationalCode = string.Empty;
+        formNationalLegalId = string.Empty;
+        formEconomicCode = string.Empty;
+        formMobile = string.Empty;
+        formPhone = string.Empty;
+        formEmail = string.Empty;
+        formWebsite = string.Empty;
+        formCountry = "ایران";
+        formProvince = string.Empty;
+        formCity = string.Empty;
+        formAddress = string.Empty;
+        modalError = null;
+
+        var prevRes = CurrentScope is not null
+            ? await SeqService.GetPreview(CurrentScope, CurrentOrgId, DocumentSequenceType.BusinessPartner)
+            : null;
+        formCode = prevRes is { Succeeded: true } ? prevRes.Value!.NextPreview : string.Empty;
+
+        formModalOpen = true;
+    }
+
+    private async Task OpenEditModal(BusinessPartnerSummary p)
+    {
+        modalError = null;
+        var detailRes = await BpService.Get(CurrentScope, CurrentOrgId, p.Id);
+        if (!detailRes.Succeeded || detailRes.Value is null)
+        {
+            pageNotice = Text["ReadError"];
+            return;
+        }
+
+        var d = detailRes.Value;
+        editingPartnerId = d.Id;
+        editingRowVersion = d.RowVersion;
+        formCode = d.Code;
+        formPersonType = d.PersonType;
+        roleSupplier = d.Roles.Any(r => r.Id == 1);
+        roleCustomer = d.Roles.Any(r => r.Id == 2);
+        roleContractor = d.Roles.Any(r => r.Id == 3);
+        formName = d.Name;
+        formCompanyName = d.CompanyName ?? string.Empty;
+        formNationalCode = d.NationalCode ?? string.Empty;
+        formNationalLegalId = d.NationalLegalId ?? string.Empty;
+        formEconomicCode = d.EconomicCode ?? string.Empty;
+        formMobile = d.Mobile ?? string.Empty;
+        formPhone = d.Phone ?? string.Empty;
+        formEmail = d.Email ?? string.Empty;
+        formWebsite = d.Website ?? string.Empty;
+        formCountry = d.Country ?? string.Empty;
+        formProvince = d.Province ?? string.Empty;
+        formCity = d.City ?? string.Empty;
+        formAddress = d.Address ?? string.Empty;
+        formModalOpen = true;
+    }
+
+    private async Task SavePartnerAsync()
+    {
+        var roleIds = new List<int>();
+        if (roleSupplier) roleIds.Add(1);
+        if (roleCustomer) roleIds.Add(2);
+        if (roleContractor) roleIds.Add(3);
+
+        if (roleIds.Count == 0)
+        {
+            modalError = Text["BpRoleRequired"];
+            return;
+        }
+
+        saving = true;
+        modalError = null;
+        try
+        {
+            if (editingPartnerId.HasValue)
+            {
+                var updateReq = new UpdateBusinessPartnerRequest(
+                    formPersonType,
+                    formPersonType == PersonType.Legal ? (string.IsNullOrWhiteSpace(formCompanyName) ? formName : formCompanyName) : formName,
+                    null,
+                    null,
+                    formNationalCode,
+                    formCompanyName,
+                    formNationalLegalId,
+                    formEconomicCode,
+                    formMobile,
+                    formPhone,
+                    formEmail,
+                    formWebsite,
+                    formCountry,
+                    formProvince,
+                    formCity,
+                    formAddress,
+                    null,
+                    null,
+                    roleIds);
+
+                var res = await BpService.Update(CurrentScope, CurrentOrgId, editingPartnerId.Value, editingRowVersion, updateReq);
+                if (!res.Succeeded)
+                {
+                    modalError = MapError(res.Error!.Code);
+                    return;
+                }
+            }
+            else
+            {
+                var createReq = new CreateBusinessPartnerRequest(
+                    CurrentOrgId,
+                    null, // auto allocate
+                    formPersonType,
+                    formPersonType == PersonType.Legal ? (string.IsNullOrWhiteSpace(formCompanyName) ? formName : formCompanyName) : formName,
+                    null,
+                    null,
+                    formNationalCode,
+                    formCompanyName,
+                    formNationalLegalId,
+                    formEconomicCode,
+                    formMobile,
+                    formPhone,
+                    formEmail,
+                    formWebsite,
+                    formCountry,
+                    formProvince,
+                    formCity,
+                    formAddress,
+                    null,
+                    null,
+                    roleIds);
+
+                var res = await BpService.Create(CurrentScope, createReq);
+                if (!res.Succeeded)
+                {
+                    modalError = MapError(res.Error!.Code);
+                    return;
+                }
+            }
+
+            formModalOpen = false;
+            pageNotice = Text["WriteSaved"];
+            await RefreshGridAsync();
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task OpenDetailModal(BusinessPartnerSummary p)
+    {
+        var res = await BpService.Get(CurrentScope, CurrentOrgId, p.Id);
+        if (res.Succeeded)
+        {
+            detailItem = res.Value;
+            detailModalOpen = true;
+        }
+    }
+
+    private void OpenToggleActiveConfirm(BusinessPartnerSummary p)
+    {
+        targetId = p.Id;
+        targetName = p.Name;
+        targetVersion = p.RowVersion;
+        targetIsActive = p.IsActive;
+        confirmToggleOpen = true;
+    }
+
+    private async Task ExecuteToggleActiveAsync()
+    {
+        toggling = true;
+        try
+        {
+            var res = await BpService.SetActive(CurrentScope, CurrentOrgId, targetId, targetVersion, !targetIsActive);
+            if (res.Succeeded)
+            {
+                confirmToggleOpen = false;
+                pageNotice = Text["WriteSaved"];
+                await RefreshGridAsync();
+            }
+        }
+        finally
+        {
+            toggling = false;
+        }
+    }
+
+    private string RoleName(int id) => id switch
+    {
+        1 => Text["BpRoleSupplier"],
+        2 => Text["BpRoleCustomer"],
+        3 => Text["BpRoleContractor"],
+        _ => id.ToString()
+    };
+
+    private string ScopeLabel(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o => Text["ReadOrganizationScope", o.OrganizationId],
+        OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
+        _ => string.Empty
+    };
+
+    private string MapError(string code) => code switch
+    {
+        BusinessPartnerErrors.DuplicateCode => Text["CreateCodeDuplicate"],
+        BusinessPartnerErrors.CodeInvalid => Text["CreateCodeInvalid"],
+        BusinessPartnerErrors.NameInvalid => Text["WriteNameInvalid"],
+        BusinessPartnerErrors.Conflict => Text["WriteConflict"],
+        BusinessPartnerErrors.RoleRequired => Text["BpRoleRequired"],
+        _ => Text["WriteUnavailable"]
+    };
+}

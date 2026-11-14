@@ -67,7 +67,7 @@ internal sealed class DocumentSequenceConfiguration : IEntityTypeConfiguration<D
     {
         docSeq.ToTable("DocumentSequence", Schema, table =>
         {
-            table.HasCheckConstraint("CK_DocumentSequence_Type", "[DocumentType] BETWEEN 1 AND 9");
+            table.HasCheckConstraint("CK_DocumentSequence_Type", "[DocumentType] BETWEEN 1 AND 10");
             table.HasCheckConstraint("CK_DocumentSequence_YearMode", "[YearMode] BETWEEN 0 AND 2");
             table.HasCheckConstraint("CK_DocumentSequence_Padding", "[PaddingDigits] BETWEEN 3 AND 8");
             table.HasCheckConstraint("CK_DocumentSequence_NextNumber", "[NextNumber] >= 1");

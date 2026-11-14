@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ForgeFlow.Application.Boms;
+using ForgeFlow.Application.BusinessPartners;
 using ForgeFlow.Application.Dashboard;
 using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Inventory;
@@ -143,6 +144,15 @@ public static class OrganizationPersistenceRegistration
                 () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
                 provider.GetService<IErrorLogRecorder>(),
                 provider.GetService<IOperationContextAccessor>()),
+            provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
+            provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>(),
+            provider.GetService<TimeProvider>()));
+        services.AddScoped<IBusinessPartnerStore>(provider => new SqlBusinessPartnerStore(
+            () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+            provider.GetService<IErrorLogRecorder>(),
+            provider.GetService<IOperationContextAccessor>()));
+        services.AddScoped<BusinessPartnerUseCases>(provider => new BusinessPartnerUseCases(
+            provider.GetRequiredService<IBusinessPartnerStore>(),
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
             provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>(),
             provider.GetService<TimeProvider>()));

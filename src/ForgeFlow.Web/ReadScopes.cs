@@ -86,6 +86,12 @@ public sealed class ReadScopes(IServiceScopeFactory scopes, ITrustedActorAccesso
     public Task<IReadOnlyList<OrganizationScope>> LoadDocumentSequenceScopesAsync() =>
         LoadOrganizationPermissionScopesAsync(DocumentSequencePermissions.Read);
 
+    public Task<IReadOnlyList<OrganizationScope>> LoadBusinessPartnerScopesAsync() =>
+        LoadOrganizationOrSitePermissionScopesAsync(ForgeFlow.Application.BusinessPartners.BusinessPartnerPermissions.Read);
+
+    public Task<IReadOnlyList<OrganizationScope>> LoadBusinessPartnerManageScopesAsync() =>
+        LoadOrganizationPermissionScopesAsync(ForgeFlow.Application.BusinessPartners.BusinessPartnerPermissions.Manage);
+
     public async Task<IReadOnlyList<OrganizationScope>> LoadDashboardScopesAsync()
     {
         var actor = await actors.ResolveAsync(default);
@@ -112,6 +118,7 @@ public sealed class ReadScopes(IServiceScopeFactory scopes, ITrustedActorAccesso
             ForgeFlow.Application.Procurement.ProcurementPermissions.ProcurementRead,
             ForgeFlow.Application.Routings.RoutingPermissions.RoutingsRead,
             ForgeFlow.Application.Sales.SalesPermissions.SalesRead,
+            ForgeFlow.Application.BusinessPartners.BusinessPartnerPermissions.Read,
             OrganizationPermissions.SitesRead
         ];
         var result = new List<OrganizationScope>();

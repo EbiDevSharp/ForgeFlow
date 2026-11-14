@@ -10,6 +10,7 @@
 @inject CulturePolicy Culture
 @inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
+@inject NavigationManager Navigation
 
 <PageTitle>@Text["Suppliers"] - @Text["AppTitle"]</PageTitle>
 
@@ -327,6 +328,12 @@
         LastPageLabel = Text["GridLastPage"],
         AnnouncementPage = Text["GridPagerPage"]
     };
+
+    protected override void OnInitialized()
+    {
+        var target = OrganizationId.HasValue ? $"/organizations/{OrganizationId.Value}/business-partners" : "/business-partners";
+        Navigation.NavigateTo(target, replace: true);
+    }
 
     protected override async Task OnParametersSetAsync() => await ReloadScopeAsync();
 

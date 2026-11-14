@@ -244,7 +244,7 @@
         }
         catch
         {
-            pageError = DocumentSequenceErrors.PersistenceUnavailable;
+            pageError = "ReadError";
         }
         finally
         {
@@ -332,6 +332,7 @@
         DocumentSequenceType.InventoryReversal => Text["DocSeqTypeInventoryRev"],
         DocumentSequenceType.QualityInspection => Text["DocSeqTypeQualityInsp"],
         DocumentSequenceType.QualityScrap => Text["DocSeqTypeQualityScrap"],
+        DocumentSequenceType.BusinessPartner => Text["DocSeqTypeBusinessPartner"],
         _ => t.ToString()
     };
 

@@ -24,7 +24,7 @@ public sealed class OrganizationPersistenceModelTests
     {
         using var db = OfflineContext();
         var model = db.GetService<IDesignTimeModel>().Model;
-        Assert.Equal(48, model.GetEntityTypes().Count());
+        Assert.Equal(51, model.GetEntityTypes().Count());
         var org = model.FindEntityType(typeof(Organization))!;
         var site = model.FindEntityType(typeof(Site))!;
         var unit = model.FindEntityType(typeof(Unit))!;
@@ -119,9 +119,12 @@ public sealed class OrganizationPersistenceModelTests
     public void Migration_snapshot_matches_the_model_and_generates_only_the_three_scoped_tables()
     {
         using var db = OfflineContext();
-        Assert.Equal(15, db.Database.GetMigrations().Count());
+        Assert.Equal(16, db.Database.GetMigrations().Count());
         Assert.False(db.Database.HasPendingModelChanges());
         var script = db.GetService<IMigrator>().GenerateScript();
+        Assert.Contains("CREATE TABLE [organization].[BusinessPartner]", script);
+        Assert.Contains("CREATE TABLE [organization].[BusinessPartnerRoleDefinition]", script);
+        Assert.Contains("CREATE TABLE [organization].[BusinessPartnerRoleAssignment]", script);
         Assert.Contains("CREATE TABLE [organization].[QualityParameter]", script);
         Assert.Contains("CREATE TABLE [organization].[QualitySpec]", script);
         Assert.Contains("CREATE TABLE [organization].[QualitySpecLine]", script);

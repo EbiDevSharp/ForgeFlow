@@ -39,7 +39,8 @@ public static class RolePermissionLocalization
         PermissionModule.Reports,
         PermissionModule.Quality,
         PermissionModule.Diagnostics,
-        PermissionModule.DocumentSequences
+        PermissionModule.DocumentSequences,
+        PermissionModule.BusinessPartners
     ];
 
     public static readonly IReadOnlyList<PermissionDescriptor> OrganizationScopePermissions =
@@ -71,12 +72,13 @@ public static class RolePermissionLocalization
         PermissionModule.Quality => "PermPageQuality",
         PermissionModule.Diagnostics => "PermPageDiagnostics",
         PermissionModule.DocumentSequences => "PermPageDocumentSequences",
+        PermissionModule.BusinessPartners => "PermPageBusinessPartners",
         _ => "PermPageOrganizations"
     };
 
     public static string OperationLabelKey(string permissionCode) => permissionCode switch
     {
-        "Organizations.Read" or "Sites.Read" or "Users.Read" or "Roles.Read" or "Audit.Read" or "Units.Read" or "Items.Read" or "Boms.Read" or "Routings.Read" or "Procurement.Read" or "Sales.Read" or "ProductionOrders.Read" or "Inventory.Read" or "Reports.Read" or "Quality.Read" or "DocumentSequences.Read" => "PermOpRead",
+        "Organizations.Read" or "Sites.Read" or "Users.Read" or "Roles.Read" or "Audit.Read" or "Units.Read" or "Items.Read" or "Boms.Read" or "Routings.Read" or "Procurement.Read" or "Sales.Read" or "ProductionOrders.Read" or "Inventory.Read" or "Reports.Read" or "Quality.Read" or "DocumentSequences.Read" or "BusinessPartners.Read" => "PermOpRead",
         "Organizations.Create" or "Sites.Create" or "Users.Create" => "PermOpCreate",
         "Organizations.Update" or "Sites.Update" => "PermOpUpdate",
         "Organizations.SetActive" or "Sites.SetActive" or "Users.SetActive" => "PermOpSetActive",
@@ -92,6 +94,7 @@ public static class RolePermissionLocalization
         "Boms.Manage" => "PermOpManageBoms",
         "Routings.Manage" => "PermOpManageRoutings",
         "Operations.Execute" => "PermOpExecuteOperations",
+        "BusinessPartners.Manage" => "PermOpManageBusinessPartners",
         "Procurement.ManageSuppliers" => "PermOpManageSuppliers",
         "Procurement.ManageOrders" or "Sales.ManageOrders" => "PermOpManageOrders",
         "Procurement.ReceiveOrders" => "PermOpReceiveOrders",

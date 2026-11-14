@@ -18,7 +18,8 @@ public enum PermissionModule : byte
     Procurement = 14,
     Routings = 15,
     Sales = 16,
-    DocumentSequences = 17
+    DocumentSequences = 17,
+    BusinessPartners = 18
 }
 
 public enum PermissionScopeApplicability : byte
@@ -103,7 +104,10 @@ public static class PermissionCatalog
         new("Sales.ManageOrders", PermissionModule.Sales, "ManageOrders", PermissionScopeApplicability.OrganizationOrSite),
         new("Sales.Dispatch", PermissionModule.Sales, "Dispatch", PermissionScopeApplicability.OrganizationOrSite),
         new("DocumentSequences.Read", PermissionModule.DocumentSequences, "Read", PermissionScopeApplicability.OrganizationOnly),
-        new("DocumentSequences.Manage", PermissionModule.DocumentSequences, "Manage", PermissionScopeApplicability.OrganizationOnly)
+        new("DocumentSequences.Manage", PermissionModule.DocumentSequences, "Manage", PermissionScopeApplicability.OrganizationOnly),
+
+        new("BusinessPartners.Read", PermissionModule.BusinessPartners, "Read", PermissionScopeApplicability.OrganizationOrSite),
+        new("BusinessPartners.Manage", PermissionModule.BusinessPartners, "Manage", PermissionScopeApplicability.OrganizationOnly)
     ];
 
     private static readonly Dictionary<string, PermissionDescriptor> ByCode =
