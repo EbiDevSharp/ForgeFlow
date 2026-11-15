@@ -96,6 +96,8 @@ public sealed class OrganizationDbContext(
     public DbSet<BusinessPartner> BusinessPartners => Set<BusinessPartner>();
     public DbSet<BusinessPartnerRoleDefinition> BusinessPartnerRoleDefinitions => Set<BusinessPartnerRoleDefinition>();
     public DbSet<BusinessPartnerRoleAssignment> BusinessPartnerRoleAssignments => Set<BusinessPartnerRoleAssignment>();
+    public DbSet<IranProvince> IranProvinces => Set<IranProvince>();
+    public DbSet<IranCity> IranCities => Set<IranCity>();
     public DbSet<OrganizationChange> OrganizationChanges => Set<OrganizationChange>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -279,6 +281,10 @@ public sealed class OrganizationDbContext(
         {
             if (entry.State == EntityState.Deleted)
                 continue;
+
+            if (entry.Metadata.FindProperty("CreatedAtUtc") is null)
+                continue;
+
             if (entry.State == EntityState.Added)
             {
                 entry.Property("CreatedAtUtc").CurrentValue = now;
@@ -369,7 +375,9 @@ public sealed class OrganizationDbContext(
                     BusinessPartner => new[] { "PersonType", "Name", "FirstName", "LastName", "NationalCode", "CompanyName", "NationalLegalId", "EconomicCode", "Mobile", "Phone", "Email", "Website", "Country", "Province", "City", "Address", "PostalCode", "Notes", "IsActive" },
                     _ => new[] { "Name", "IsActive" }
                 };
-                if (entry.Properties.Any(p => p.IsModified && !allowedProps.Contains(p.Metadata.Name, StringComparer.Ordinal)))
+                if (entry.Properties.Any(p => p.IsModified
+                    && p.Metadata.Name is not ("UpdatedAtUtc" or "UpdatedByActorId" or "RowVersion")
+                    && !allowedProps.Contains(p.Metadata.Name, StringComparer.Ordinal)))
                     throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);
             }
         }
@@ -1331,6 +1339,11 @@ public sealed class OrganizationDbContext(
                         After = new { IsActive = entry.Property("IsActive").CurrentValue }
                     }, AuditJson));
             }
+            yield break;
+        }
+
+        if (entry.Entity is not (Organization or Site))
+        {
             yield break;
         }
 

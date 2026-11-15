@@ -9,6 +9,20 @@ public static class BusinessPartnerText
     public const int MaxAddressLength = 500;
     public const int MaxNotesLength = 1000;
 
+    public static string NormalizeDigits(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        var chars = raw.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (chars[i] is >= '۰' and <= '۹')
+                chars[i] = (char)('0' + (chars[i] - '۰'));
+            else if (chars[i] is >= '٠' and <= '٩')
+                chars[i] = (char)('0' + (chars[i] - '٠'));
+        }
+        return new string(chars).Trim();
+    }
+
     public static string Code(string? raw, string errorCode)
     {
         var trimmed = raw?.Trim().ToUpperInvariant() ?? string.Empty;
@@ -49,19 +63,40 @@ public static class BusinessPartnerText
         return trimmed;
     }
 
-    public static string? OptionalPhone(string? raw, string errorCode)
+    public static string? OptionalNationalCode(string? raw)
     {
-        if (raw is null) return null;
-        var trimmed = raw.Trim();
-        if (trimmed.Length == 0) return null;
-        if (trimmed.Length > 32)
-            throw new BusinessPartnerRuleException(errorCode, ("maxLength", 32));
-        foreach (var ch in trimmed)
-        {
-            if (!(char.IsDigit(ch) || ch is '+' or '-' or ' ' or '(' or ')' or '.'))
-                throw new BusinessPartnerRuleException(errorCode);
-        }
-        return trimmed;
+        var normalized = NormalizeDigits(raw);
+        if (normalized.Length == 0) return null;
+        if (normalized.Length != 10 || !normalized.All(char.IsDigit))
+            throw new BusinessPartnerRuleException(BusinessPartnerErrors.NationalCodeInvalid);
+        return normalized;
+    }
+
+    public static string? OptionalDigits(string? raw, int maxLength, string errorCode)
+    {
+        var normalized = NormalizeDigits(raw);
+        if (normalized.Length == 0) return null;
+        if (normalized.Length > maxLength || !normalized.All(char.IsDigit))
+            throw new BusinessPartnerRuleException(errorCode, ("maxLength", maxLength));
+        return normalized;
+    }
+
+    public static string? OptionalMobile(string? raw)
+    {
+        var normalized = NormalizeDigits(raw);
+        if (normalized.Length == 0) return null;
+        if (normalized.Length != 11 || !normalized.StartsWith("09", StringComparison.Ordinal) || !normalized.All(char.IsDigit))
+            throw new BusinessPartnerRuleException(BusinessPartnerErrors.MobileInvalid);
+        return normalized;
+    }
+
+    public static string? OptionalPhone(string? raw)
+    {
+        var normalized = NormalizeDigits(raw);
+        if (normalized.Length == 0) return null;
+        if (normalized.Length > 32 || !normalized.StartsWith("0", StringComparison.Ordinal) || !normalized.All(char.IsDigit))
+            throw new BusinessPartnerRuleException(BusinessPartnerErrors.PhoneInvalid);
+        return normalized;
     }
 
     public static string? OptionalEmail(string? raw)

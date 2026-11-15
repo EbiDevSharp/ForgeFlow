@@ -1,5 +1,6 @@
 @page "/purchase-orders"
 @page "/organizations/{OrganizationId:long}/purchase-orders"
+@using ForgeFlow.Application.BusinessPartners
 @using ForgeFlow.Application.Inventory
 @using ForgeFlow.Application.Items
 @using ForgeFlow.Application.Organizations
@@ -175,7 +176,7 @@
                                 }
                             </Template>
                         </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ReadActions"]" Width="72px" MinWidth="66">
+                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ReadActions"]" Width="100px" MinWidth="90">
                             <Template Context="o">
                                 <div class="read-row-actions">
                                     <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
@@ -185,10 +186,11 @@
                                     </BitTooltip>
                                     @if (scopeCanReceive && o.Status is PurchaseOrderStatus.Approved or PurchaseOrderStatus.PartiallyReceived)
                                     {
-                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
-                                                   OnClick="() => OpenReceiveModalForOrderAsync(o.Id)">
-                                            @Text["ProcReceiveBtn"]
-                                        </BitButton>
+                                        <BitTooltip Text="@Text["ProcReceiveBtn"]" ShowOnFocus="true">
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                       Icon="@ReceiveIcon" IconOnly="true" aria-label="@Text["ProcReceiveBtn"]"
+                                                       OnClick="() => OpenReceiveModalForOrderAsync(o.Id)" />
+                                        </BitTooltip>
                                     }
                                 </div>
                             </Template>
@@ -220,14 +222,15 @@
                         <input id="proc-po-num" type="text" maxlength="32" class="@((isEditingDraft || !poAllowOverride) ? "proc-input-readonly" : string.Empty)" @bind="editOrderNumber" dir="ltr" readonly="@(isEditingDraft || !poAllowOverride)" />
                     </div>
                     <div class="proc-po-field">
-                        <label for="proc-po-sup">@Text["ProcSupplierLabel"] <span class="proc-req-star" aria-hidden="true">*</span></label>
-                        <select id="proc-po-sup" @bind="editSupplierId">
-                            <option value="0">@Text["ProcSelectSupplierPlaceholder"]</option>
-                            @foreach (var sup in activeSuppliers)
-                            {
-                                <option value="@sup.Id">@sup.Code — @sup.Name</option>
-                            }
-                        </select>
+                        <PartnerPicker @bind-Value="editSupplierId"
+                                       Role="PartnerLookupRole.Supplier"
+                                       Scope="CurrentScope"
+                                       OrganizationId="CurrentOrgId"
+                                       Label="@Text["ProcSupplierLabel"]"
+                                       Placeholder="@Text["ProcSelectSupplierPlaceholder"]"
+                                       InitialName="@editSupplierName"
+                                       InitialCode="@editSupplierCode"
+                                       Required="true" />
                     </div>
                     <div class="proc-po-field">
                         <label for="proc-po-site">@Text["PoSiteColumn"]</label>
@@ -661,6 +664,7 @@
         MidpointRounding.AwayFromZero);
 
     private static readonly BitIconInfo PlusIcon = BitIconInfo.Css("ff-icon ff-icon--plus");
+    private static readonly BitIconInfo ReceiveIcon = BitIconInfo.Css("ff-icon ff-icon--receive");
     private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
     private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
     private static readonly BitIconInfo NextNavIcon = BitIconInfo.Css("ff-icon ff-icon--chevron-next");
@@ -704,6 +708,8 @@
     private PurchaseOrderDetails? selectedOrder;
     private long editSiteId;
     private long editSupplierId;
+    private string editSupplierName = string.Empty;
+    private string editSupplierCode = string.Empty;
     private string editOrderNumber = string.Empty;
     private bool poAllowOverride;
     private long editTargetWarehouseId;
@@ -720,6 +726,7 @@
     private List<ReceiveLineRow> receiveLines = [];
 
     private OrganizationScope? CurrentScope => scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
+    private long CurrentOrgId => CurrentScope is not null ? ScopeOrganizationId(CurrentScope) : (OrganizationId ?? 0);
     private static long ScopeOrganizationId(OrganizationScope s) => s switch
     {
         OrganizationScope.Organization o => o.OrganizationId,
@@ -873,6 +880,8 @@
             ? siteScope.SiteId
             : authorizedSites.FirstOrDefault()?.Id ?? 0;
         editSupplierId = 0;
+        editSupplierName = string.Empty;
+        editSupplierCode = string.Empty;
         var prevRes = CurrentScope is not null
             ? await SeqService.GetPreview(CurrentScope, ScopeOrganizationId(CurrentScope), ForgeFlow.Domain.Organizations.DocumentSequenceType.PurchaseOrder)
             : null;
@@ -984,6 +993,8 @@
         isEditingDraft = true;
         editSiteId = s.SiteId;
         editSupplierId = s.SupplierId;
+        editSupplierName = s.SupplierName;
+        editSupplierCode = s.SupplierCode;
         editOrderNumber = s.OrderNumber;
         editTargetWarehouseId = s.TargetWarehouseId ?? 0;
         editCurrencyCode = s.CurrencyCode;

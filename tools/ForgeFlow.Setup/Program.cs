@@ -19,9 +19,13 @@ public static class Program
         Console.WriteLine();
 
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__ForgeFlow");
-        if (string.IsNullOrWhiteSpace(connectionString) && args.Length > 0 && !string.IsNullOrWhiteSpace(args[0]))
+        if (string.IsNullOrWhiteSpace(connectionString))
         {
-            connectionString = args[0];
+            var connArg = args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(connArg))
+            {
+                connectionString = connArg;
+            }
         }
 
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -91,18 +95,7 @@ public static class Program
             }
             Console.WriteLine("✔");
 
-            // 2. Auth schema
-            Console.Write(" - اعمال اسکیما و مایگریشن‌های احراز هویت و امنیت (AuthDbContext)... ");
-            var authOptions = new DbContextOptionsBuilder<AuthDbContext>()
-                .UseSqlServer(targetConnString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "auth"))
-                .Options;
-            await using (var authDb = new AuthDbContext(authOptions))
-            {
-                await authDb.Database.MigrateAsync();
-            }
-            Console.WriteLine("✔");
-
-            // 3. Organization schema
+            // 2. Organization schema
             Console.Write(" - اعمال اسکیما و مایگریشن‌های سازمانی و مدیریت کارخانه (OrganizationDbContext)... ");
             var orgOptions = new DbContextOptionsBuilder<OrganizationDbContext>()
                 .UseSqlServer(targetConnString)
@@ -110,6 +103,17 @@ public static class Program
             await using (var orgDb = new OrganizationDbContext(orgOptions))
             {
                 await orgDb.Database.MigrateAsync();
+            }
+            Console.WriteLine("✔");
+
+            // 3. Auth schema
+            Console.Write(" - اعمال اسکیما و مایگریشن‌های احراز هویت و امنیت (AuthDbContext)... ");
+            var authOptions = new DbContextOptionsBuilder<AuthDbContext>()
+                .UseSqlServer(targetConnString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "auth"))
+                .Options;
+            await using (var authDb = new AuthDbContext(authOptions))
+            {
+                await authDb.Database.MigrateAsync();
             }
             Console.WriteLine("✔");
 
@@ -179,6 +183,26 @@ public static class Program
             Console.WriteLine($"\n[خطا] راه‌اندازی اولیه با شکست مواجه شد: {ex.Message}");
             Console.ResetColor();
             return 3;
+        }
+
+        if (args.Any(a => string.Equals(a, "--seed-industrial", StringComparison.OrdinalIgnoreCase)))
+        {
+            Console.WriteLine();
+            Console.WriteLine("==================================================================");
+            Console.WriteLine("     اجرای سناریوی جامع صنعتی و کاتالوگ چندصنعتی (Industrial Seeder)");
+            Console.WriteLine("==================================================================");
+            try
+            {
+                await IndustrialDemoSeeder.SeedAsync(targetConnString);
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"\n[خطا] اجرای سناریوی صنعتی با شکست مواجه شد: {ex.Message}");
+                Console.WriteLine(ex.ToString());
+                Console.ResetColor();
+                return 4;
+            }
         }
 
         Console.ForegroundColor = ConsoleColor.Green;

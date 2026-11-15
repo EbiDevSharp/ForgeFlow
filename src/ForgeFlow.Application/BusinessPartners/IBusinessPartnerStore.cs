@@ -17,6 +17,13 @@ public interface IBusinessPartnerStore
     Task<IReadOnlyList<BusinessPartnerRoleDto>> ListRoleDefinitions(
         CancellationToken ct);
 
+    Task<IReadOnlyList<IranProvinceDto>> ListProvinces(
+        CancellationToken ct);
+
+    Task<IReadOnlyList<IranCityDto>> ListCities(
+        int? provinceId,
+        CancellationToken ct);
+
     Task<OrganizationResult<BusinessPartnerDetail>> Create(
         CreateBusinessPartnerRequest request,
         OrganizationWriteAccess access,
@@ -36,5 +43,16 @@ public interface IBusinessPartnerStore
         byte[] rowVersion,
         bool isActive,
         OrganizationWriteAccess access,
+        CancellationToken ct);
+
+    Task<OrganizationPage<PartnerLookupItem>> SearchLookup(
+        long organizationId,
+        PartnerLookupQuery query,
+        CancellationToken ct);
+
+    Task<PartnerLookupItem?> GetLookupItem(
+        long organizationId,
+        PartnerLookupRole role,
+        long targetId,
         CancellationToken ct);
 }

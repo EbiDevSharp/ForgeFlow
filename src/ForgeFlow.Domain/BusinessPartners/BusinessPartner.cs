@@ -51,12 +51,12 @@ public sealed class BusinessPartner : IHasRowVersion
 
         FirstName = BusinessPartnerText.OptionalText(firstName, 100, BusinessPartnerErrors.NameInvalid);
         LastName = BusinessPartnerText.OptionalText(lastName, 100, BusinessPartnerErrors.NameInvalid);
-        NationalCode = BusinessPartnerText.OptionalText(nationalCode, 20, BusinessPartnerErrors.NationalCodeInvalid);
+        NationalCode = BusinessPartnerText.OptionalNationalCode(nationalCode);
         CompanyName = BusinessPartnerText.OptionalText(companyName, 200, BusinessPartnerErrors.CompanyNameInvalid);
-        NationalLegalId = BusinessPartnerText.OptionalText(nationalLegalId, 30, BusinessPartnerErrors.NationalLegalIdInvalid);
-        EconomicCode = BusinessPartnerText.OptionalText(economicCode, 30, BusinessPartnerErrors.EconomicCodeInvalid);
-        Mobile = BusinessPartnerText.OptionalPhone(mobile, BusinessPartnerErrors.MobileInvalid);
-        Phone = BusinessPartnerText.OptionalPhone(phone, BusinessPartnerErrors.PhoneInvalid);
+        NationalLegalId = BusinessPartnerText.OptionalDigits(nationalLegalId, 30, BusinessPartnerErrors.NationalLegalIdInvalid);
+        EconomicCode = BusinessPartnerText.OptionalDigits(economicCode, 30, BusinessPartnerErrors.EconomicCodeInvalid);
+        Mobile = BusinessPartnerText.OptionalMobile(mobile);
+        Phone = BusinessPartnerText.OptionalPhone(phone);
         Email = BusinessPartnerText.OptionalEmail(email);
         Website = BusinessPartnerText.OptionalText(website, 200, BusinessPartnerErrors.WebsiteInvalid);
         Country = BusinessPartnerText.OptionalText(country, 100, BusinessPartnerErrors.AddressInvalid);
@@ -159,12 +159,12 @@ public sealed class BusinessPartner : IHasRowVersion
         var nextName = BusinessPartnerText.RequiredName(resolvedName);
         var nextFirst = BusinessPartnerText.OptionalText(firstName, 100, BusinessPartnerErrors.NameInvalid);
         var nextLast = BusinessPartnerText.OptionalText(lastName, 100, BusinessPartnerErrors.NameInvalid);
-        var nextNatCode = BusinessPartnerText.OptionalText(nationalCode, 20, BusinessPartnerErrors.NationalCodeInvalid);
+        var nextNatCode = BusinessPartnerText.OptionalNationalCode(nationalCode);
         var nextCompName = BusinessPartnerText.OptionalText(companyName, 200, BusinessPartnerErrors.CompanyNameInvalid);
-        var nextNatLegalId = BusinessPartnerText.OptionalText(nationalLegalId, 30, BusinessPartnerErrors.NationalLegalIdInvalid);
-        var nextEcon = BusinessPartnerText.OptionalText(economicCode, 30, BusinessPartnerErrors.EconomicCodeInvalid);
-        var nextMobile = BusinessPartnerText.OptionalPhone(mobile, BusinessPartnerErrors.MobileInvalid);
-        var nextPhone = BusinessPartnerText.OptionalPhone(phone, BusinessPartnerErrors.PhoneInvalid);
+        var nextNatLegalId = BusinessPartnerText.OptionalDigits(nationalLegalId, 30, BusinessPartnerErrors.NationalLegalIdInvalid);
+        var nextEcon = BusinessPartnerText.OptionalDigits(economicCode, 30, BusinessPartnerErrors.EconomicCodeInvalid);
+        var nextMobile = BusinessPartnerText.OptionalMobile(mobile);
+        var nextPhone = BusinessPartnerText.OptionalPhone(phone);
         var nextEmail = BusinessPartnerText.OptionalEmail(email);
         var nextWeb = BusinessPartnerText.OptionalText(website, 200, BusinessPartnerErrors.WebsiteInvalid);
         var nextCountry = BusinessPartnerText.OptionalText(country, 100, BusinessPartnerErrors.AddressInvalid);

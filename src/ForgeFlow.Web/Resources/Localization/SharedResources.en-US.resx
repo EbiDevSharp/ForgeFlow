@@ -1716,6 +1716,9 @@
   <data name="InvTypeReversal" xml:space="preserve">
     <value>Reversal</value>
   </data>
+  <data name="InvTypeSalesDispatch" xml:space="preserve">
+    <value>Sales Dispatch</value>
+  </data>
   <data name="InvErrorWarehouseInactive" xml:space="preserve">
     <value>The selected warehouse is inactive.</value>
   </data>
@@ -2988,4 +2991,52 @@
   <data name="BpConfirmActivate" xml:space="preserve"><value>Are you sure you want to activate {0}?</value></data>
   <data name="BpAllRoles" xml:space="preserve"><value>All Roles</value></data>
   <data name="BpFilterRole" xml:space="preserve"><value>Filter by Role</value></data>
+  <data name="BpFirstName" xml:space="preserve"><value>First Name</value></data>
+  <data name="BpLastName" xml:space="preserve"><value>Last Name</value></data>
+  <data name="BpContactFirstName" xml:space="preserve"><value>Contact First Name</value></data>
+  <data name="BpContactLastName" xml:space="preserve"><value>Contact Last Name</value></data>
+  <data name="BpContactPerson" xml:space="preserve"><value>Contact Person</value></data>
+  <data name="BpRolesHint" xml:space="preserve"><value>Select at least one option</value></data>
+  <data name="BpSelectProvince" xml:space="preserve"><value>Select Province</value></data>
+  <data name="BpSelectCity" xml:space="preserve"><value>Select City</value></data>
+  <data name="BpRequiredFieldHint" xml:space="preserve"><value>* Required field</value></data>
+  <data name="BpNationalCodeLengthError" xml:space="preserve"><value>National code must be exactly 10 digits.</value></data>
+  <data name="BpNationalLegalIdFormatError" xml:space="preserve"><value>National legal ID must contain digits only.</value></data>
+  <data name="BpEconomicCodeFormatError" xml:space="preserve"><value>Economic code must contain digits only.</value></data>
+  <data name="BpMobileFormatError" xml:space="preserve"><value>Mobile number must be 11 digits starting with 09.</value></data>
+  <data name="BpPhoneFormatError" xml:space="preserve"><value>Landline phone must be numeric and start with 0.</value></data>
+  <data name="BpFirstLastNameRequired" xml:space="preserve"><value>First name and last name are required.</value></data>
+  <data name="BpCompanyNameRequired" xml:space="preserve"><value>Company name is required.</value></data>
+  <data name="BpAddressPlaceholder" xml:space="preserve"><value>Street, No., Unit</value></data>
+  <data name="BpNationalCodePlaceholder" xml:space="preserve"><value>10 digits</value></data>
+  <data name="BpNationalLegalIdPlaceholder" xml:space="preserve"><value>11 digits</value></data>
+  <data name="BpMobilePlaceholder" xml:space="preserve"><value>09121234567</value></data>
+  <data name="BpPhonePlaceholder" xml:space="preserve"><value>02112345678</value></data>
+  <data name="BpEmailPlaceholder" xml:space="preserve"><value>name@example.com</value></data>
+  <data name="BpWebsitePlaceholder" xml:space="preserve"><value>https://</value></data>
+  <data name="PartnerPickerSelectSupplier" xml:space="preserve"><value>Select supplier...</value></data>
+  <data name="PartnerPickerSelectCustomer" xml:space="preserve"><value>Select customer...</value></data>
+  <data name="PartnerPickerSelectPartner" xml:space="preserve"><value>Select business partner...</value></data>
+  <data name="PartnerPickerSearchPlaceholder" xml:space="preserve"><value>Search name, code, city, mobile, or ID...</value></data>
+  <data name="PartnerPickerChange" xml:space="preserve"><value>Change</value></data>
+  <data name="PartnerPickerClear" xml:space="preserve"><value>Clear selection</value></data>
+  <data name="PartnerPickerEmpty" xml:space="preserve"><value>No matching records found.</value></data>
+  <data name="PartnerPickerTotalSuppliers" xml:space="preserve"><value>{0} suppliers</value></data>
+  <data name="PartnerPickerTotalCustomers" xml:space="preserve"><value>{0} customers</value></data>
+  <data name="PartnerPickerTotalPartners" xml:space="preserve"><value>{0} partners</value></data>
+  <data name="PartnerPickerCreateNewSupplier" xml:space="preserve"><value>+ New supplier</value></data>
+  <data name="PartnerPickerCreateNewCustomer" xml:space="preserve"><value>+ New customer</value></data>
+  <data name="PartnerPickerCreateNewPartner" xml:space="preserve"><value>+ New partner</value></data>
+  <data name="PartnerPickerPage" xml:space="preserve"><value>Page {0} of {1}</value></data>
+  <data name="PartnerPickerPrev" xml:space="preserve"><value>Previous</value></data>
+  <data name="PartnerPickerNext" xml:space="preserve"><value>Next</value></data>
+  <data name="PartnerPickerTitleSupplier" xml:space="preserve"><value>Select Supplier</value></data>
+  <data name="PartnerPickerTitleCustomer" xml:space="preserve"><value>Select Customer</value></data>
+  <data name="PartnerPickerTitlePartner" xml:space="preserve"><value>Select Business Partner</value></data>
+  <data name="BpSearchPlaceholder" xml:space="preserve"><value>Name, code, legal ID, or national ID</value></data>
+  <data name="BpAllPersonTypes" xml:space="preserve"><value>All</value></data>
+  <data name="BpPersonLegalTooltip" xml:space="preserve"><value>Legal Entity</value></data>
+  <data name="BpPersonNaturalTooltip" xml:space="preserve"><value>Natural Person</value></data>
+  <data name="BpAdaptiveLegal" xml:space="preserve"><value>Legal ID</value></data>
+  <data name="BpAdaptiveNatural" xml:space="preserve"><value>National ID</value></data>
 </root>

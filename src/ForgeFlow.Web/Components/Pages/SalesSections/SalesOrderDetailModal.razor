@@ -7,120 +7,156 @@
 
 <BitDialog Width="920px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses"
            IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
-           Title="@(Order?.Summary.OrderNumber ?? Text["SalesTabOrders"])" ShowCloseButton="true">
-    @if (Order is not null)
-    {
-        var s = Order.Summary;
-        <div class="proc-detail-wrap">
-            @if (DetailError is not null)
-            {
-                <p role="alert" class="write-modal-err">@DetailError</p>
-            }
-            <table class="ff-table">
-                <tbody>
-                    <tr>
-                        <th>@Text["SalesCustomerColumn"]</th><td><bdi dir="ltr">@s.CustomerCode</bdi> — @s.CustomerName</td>
-                        <th>@Text["PoStatusColumn"]</th><td>@OrderStatusLabel(s.Status)</td>
-                    </tr>
-                    <tr>
-                        <th>@Text["ProcOrderDateLabel"]</th><td dir="ltr">@Format.Date(s.OrderDate)</td>
-                        <th>@Text["SalesRequestedDate"]</th><td dir="ltr">@(s.RequestedDeliveryDate is DateOnly rd ? Format.Date(rd) : "—")</td>
-                    </tr>
-                    <tr>
-                        <th>@Text["SalesShippingAddress"]</th><td colspan="3">@(s.ShippingAddressSnapshot ?? "—")</td>
-                    </tr>
-                </tbody>
-            </table>
+           Title="@(Order?.Summary.OrderNumber ?? Text["SalesTabOrders"])"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (Order is not null)
+        {
+            var s = Order.Summary;
+            <div class="audit-modal-body">
+                <div class="audit-modal-title-row">
+                    <span class="audit-modal-code" dir="ltr">@s.OrderNumber — @s.CustomerName</span>
+                    <span class="read-badge @StatusBadgeClass(s.Status)">@OrderStatusLabel(s.Status)</span>
+                </div>
 
-            <h4>@Text["ProcLinesSection"]</h4>
-            <table class="ff-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>@Text["PoItemColumn"]</th>
-                        <th>@Text["ProcOrderedCol"]</th>
-                        <th>@Text["SalesDispatchedQty"]</th>
-                        <th>@Text["SalesRemainingQty"]</th>
-                        <th>@Text["ReadActions"]</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var l in Order.Lines)
+                @if (DetailError is not null)
+                {
+                    <p role="alert" class="write-error">@DetailError</p>
+                }
+
+                <div class="audit-meta-card">
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["SalesCustomerColumn"]</span>
+                        <span class="audit-meta-val"><bdi dir="ltr">@s.CustomerCode</bdi> — @s.CustomerName</span>
+                    </div>
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["ProcOrderDateLabel"]</span>
+                        <span class="audit-meta-val" dir="ltr">@Format.Date(s.OrderDate)</span>
+                    </div>
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["SalesRequestedDate"]</span>
+                        <span class="audit-meta-val" dir="ltr">@(s.RequestedDeliveryDate is DateOnly rd ? Format.Date(rd) : "—")</span>
+                    </div>
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["PoSiteColumn"]</span>
+                        <span class="audit-meta-val"><bdi dir="ltr">@s.SiteCode — @s.SiteName</bdi></span>
+                    </div>
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["ProcCurrencyLabel"]</span>
+                        <span class="audit-meta-val" dir="ltr">@s.CurrencyCode</span>
+                    </div>
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["SalesShippingAddress"]</span>
+                        <span class="audit-meta-val">@(s.ShippingAddressSnapshot ?? "—")</span>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(s.Notes))
                     {
-                        <tr>
-                            <td dir="ltr">@l.LineNumber</td>
-                            <td><bdi dir="ltr">@l.ItemCode</bdi> — @l.ItemName</td>
-                            <td dir="ltr">@Format.Number(l.OrderedBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
-                            <td dir="ltr">@Format.Number(l.DispatchedBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
-                            <td dir="ltr">@Format.Number(l.RemainingBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
-                            <td>
-                                @if (CanManageOrders && l.RemainingBaseQuantity > 0m && s.Status is SalesOrderStatus.Approved or SalesOrderStatus.PartiallyDispatched)
-                                {
-                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OnReserveLine.InvokeAsync(l)">@Text["SalesReserveStockButton"]</BitButton>
-                                }
-                            </td>
-                        </tr>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["PoNotesLabel"]</span>
+                            <span class="audit-meta-val">@s.Notes</span>
+                        </div>
                     }
-                </tbody>
-            </table>
+                </div>
 
-            @if (Reservations.Count > 0)
-            {
-                <h4>@Text["SalesReservationsTitle"]</h4>
-                <table class="ff-table">
-                    <thead>
-                        <tr>
-                            <th>@Text["InvWarehouseLabel"]</th>
-                            <th>@Text["PoItemColumn"]</th>
-                            <th>@Text["InvLotCodeLabel"]</th>
-                            <th>@Text["ProcOrderedCol"]</th>
-                            <th>@Text["PoStatusColumn"]</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var r in Reservations)
-                        {
-                            <tr>
-                                <td><bdi dir="ltr">@r.WarehouseCode</bdi></td>
-                                <td><bdi dir="ltr">@r.ItemCode</bdi></td>
-                                <td dir="ltr">@(string.IsNullOrEmpty(r.LotCode) ? "—" : r.LotCode)</td>
-                                <td dir="ltr">@Format.Number(r.RemainingReservedBaseQuantity) / @Format.Number(r.ReservedBaseQuantity) @r.BaseUnitSymbol</td>
-                                <td>@r.Status</td>
-                                <td>
-                                    @if (CanManageOrders && (r.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed))
+                <div class="item-sub-card">
+                    <strong>@Text["ProcLinesSection"]</strong>
+                    <div class="read-grid" style="margin-top: 10px;">
+                        <table class="ff-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>@Text["PoItemColumn"]</th>
+                                    <th>@Text["ProcOrderedCol"]</th>
+                                    <th>@Text["SalesDispatchedQty"]</th>
+                                    <th>@Text["SalesRemainingQty"]</th>
+                                    <th>@Text["ReadActions"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var l in Order.Lines)
+                                {
+                                    <tr>
+                                        <td dir="ltr">@l.LineNumber</td>
+                                        <td><bdi dir="ltr">@l.ItemCode</bdi> — @l.ItemName</td>
+                                        <td dir="ltr">@Format.Number(l.OrderedBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
+                                        <td dir="ltr">@Format.Number(l.DispatchedBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
+                                        <td dir="ltr">@Format.Number(l.RemainingBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
+                                        <td>
+                                            @if (CanManageOrders && l.RemainingBaseQuantity > 0m && s.Status is SalesOrderStatus.Approved or SalesOrderStatus.PartiallyDispatched)
+                                            {
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OnReserveLine.InvokeAsync(l)">@Text["SalesReserveStockButton"]</BitButton>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                @if (Reservations.Count > 0)
+                {
+                    <div class="item-sub-card">
+                        <strong>@Text["SalesReservationsTitle"]</strong>
+                        <div class="read-grid" style="margin-top: 10px;">
+                            <table class="ff-table">
+                                <thead>
+                                    <tr>
+                                        <th>@Text["InvWarehouseLabel"]</th>
+                                        <th>@Text["PoItemColumn"]</th>
+                                        <th>@Text["InvLotCodeLabel"]</th>
+                                        <th>@Text["ProcOrderedCol"]</th>
+                                        <th>@Text["PoStatusColumn"]</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in Reservations)
                                     {
-                                        <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnReleaseReservation.InvokeAsync(r)">@Text["SalesReleaseReservation"]</BitButton>
+                                        <tr>
+                                            <td><bdi dir="ltr">@r.WarehouseCode</bdi></td>
+                                            <td><bdi dir="ltr">@r.ItemCode</bdi></td>
+                                            <td dir="ltr">@(string.IsNullOrEmpty(r.LotCode) ? "—" : r.LotCode)</td>
+                                            <td dir="ltr">@Format.Number(r.RemainingReservedBaseQuantity) / @Format.Number(r.ReservedBaseQuantity) @r.BaseUnitSymbol</td>
+                                            <td>@r.Status</td>
+                                            <td>
+                                                @if (CanManageOrders && (r.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed))
+                                                {
+                                                    <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnReleaseReservation.InvokeAsync(r)">@Text["SalesReleaseReservation"]</BitButton>
+                                                }
+                                            </td>
+                                        </tr>
                                     }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
 
-            <div class="proc-detail-actions">
-                @if (CanManageOrders && s.Status == SalesOrderStatus.Draft)
-                {
-                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OnEdit.InvokeAsync(Order)">@Text["ReadEdit"]</BitButton>
-                    <BitButton Size="BitSize.Small" OnClick="OnApprove">@Text["ProcApproveBtn"]</BitButton>
-                }
-                @if (CanDispatch && s.Status is SalesOrderStatus.Approved or SalesOrderStatus.PartiallyDispatched)
-                {
-                    <BitButton Size="BitSize.Small" OnClick="() => OnDispatch.InvokeAsync(s.Id)">@Text["SalesDispatchButton"]</BitButton>
-                }
-                @if (CanManageOrders && s.Status is SalesOrderStatus.PartiallyDispatched or SalesOrderStatus.Dispatched)
-                {
-                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="OnClose">@Text["ProcShortCloseBtn"]</BitButton>
-                }
-                @if (CanManageOrders && s.Status is SalesOrderStatus.Draft or SalesOrderStatus.Approved)
-                {
-                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="OnCancel">@Text["ProcCancelBtn"]</BitButton>
-                }
-                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CloseDialogAsync">@Text["ReadClose"]</BitButton>
+                <div class="audit-modal-actions" style="margin-top: 14px; display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+                    @if (CanManageOrders && s.Status == SalesOrderStatus.Draft)
+                    {
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OnEdit.InvokeAsync(Order)">@Text["ReadEdit"]</BitButton>
+                        <BitButton Size="BitSize.Small" OnClick="OnApprove">@Text["ProcApproveBtn"]</BitButton>
+                    }
+                    @if (CanDispatch && s.Status is SalesOrderStatus.Approved or SalesOrderStatus.PartiallyDispatched)
+                    {
+                        <BitButton Size="BitSize.Small" OnClick="() => OnDispatch.InvokeAsync(s.Id)">@Text["SalesDispatchButton"]</BitButton>
+                    }
+                    @if (CanManageOrders && s.Status is SalesOrderStatus.PartiallyDispatched or SalesOrderStatus.Dispatched)
+                    {
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="OnClose">@Text["ProcShortCloseBtn"]</BitButton>
+                    }
+                    @if (CanManageOrders && s.Status is SalesOrderStatus.Draft or SalesOrderStatus.Approved)
+                    {
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="OnCancel">@Text["ProcCancelBtn"]</BitButton>
+                    }
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CloseDialogAsync">@Text["ReadClose"]</BitButton>
+                </div>
             </div>
-        </div>
-    }
+        }
+    </Body>
 </BitDialog>
 
 @code {
@@ -141,6 +177,17 @@
     [Parameter] public EventCallback<long> OnDispatch { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
+
+    private static string StatusBadgeClass(SalesOrderStatus status) => status switch
+    {
+        SalesOrderStatus.Draft => "status-draft",
+        SalesOrderStatus.Approved => "status-released",
+        SalesOrderStatus.PartiallyDispatched => "status-inprogress",
+        SalesOrderStatus.Dispatched => "status-completed",
+        SalesOrderStatus.Closed => "status-closed",
+        SalesOrderStatus.Cancelled => "status-cancelled",
+        _ => string.Empty
+    };
 
     private async Task CloseDialogAsync()
     {

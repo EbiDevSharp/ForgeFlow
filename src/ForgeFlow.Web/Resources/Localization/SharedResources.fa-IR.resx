@@ -1716,6 +1716,9 @@
   <data name="InvTypeReversal" xml:space="preserve">
     <value>سند برگشتی</value>
   </data>
+  <data name="InvTypeSalesDispatch" xml:space="preserve">
+    <value>ارسال فروش (خروج کالا)</value>
+  </data>
   <data name="InvErrorWarehouseInactive" xml:space="preserve">
     <value>انبار انتخاب‌شده غیرفعال است.</value>
   </data>
@@ -2988,4 +2991,52 @@
   <data name="BpConfirmActivate" xml:space="preserve"><value>آیا از فعال‌سازی «{0}» اطمینان دارید؟</value></data>
   <data name="BpAllRoles" xml:space="preserve"><value>همه نقش‌ها</value></data>
   <data name="BpFilterRole" xml:space="preserve"><value>فیلتر بر اساس نقش</value></data>
+  <data name="BpFirstName" xml:space="preserve"><value>نام</value></data>
+  <data name="BpLastName" xml:space="preserve"><value>نام خانوادگی</value></data>
+  <data name="BpContactFirstName" xml:space="preserve"><value>نام رابط</value></data>
+  <data name="BpContactLastName" xml:space="preserve"><value>نام خانوادگی رابط</value></data>
+  <data name="BpContactPerson" xml:space="preserve"><value>اطلاعات رابط</value></data>
+  <data name="BpRolesHint" xml:space="preserve"><value>حداقل یک مورد را انتخاب کنید</value></data>
+  <data name="BpSelectProvince" xml:space="preserve"><value>انتخاب استان</value></data>
+  <data name="BpSelectCity" xml:space="preserve"><value>انتخاب شهر</value></data>
+  <data name="BpRequiredFieldHint" xml:space="preserve"><value>* فیلد الزامی</value></data>
+  <data name="BpNationalCodeLengthError" xml:space="preserve"><value>کد ملی باید دقیقاً ۱۰ رقم عددی باشد.</value></data>
+  <data name="BpNationalLegalIdFormatError" xml:space="preserve"><value>شناسه ملی باید فقط شامل ارقام عددی باشد.</value></data>
+  <data name="BpEconomicCodeFormatError" xml:space="preserve"><value>شناسه اقتصادی باید فقط شامل ارقام عددی باشد.</value></data>
+  <data name="BpMobileFormatError" xml:space="preserve"><value>شماره موبایل باید ۱۱ رقم بوده و با ۰۹ شروع شود.</value></data>
+  <data name="BpPhoneFormatError" xml:space="preserve"><value>تلفن ثابت باید عددی بوده و با ۰ شروع شود.</value></data>
+  <data name="BpFirstLastNameRequired" xml:space="preserve"><value>نام و نام خانوادگی الزامی است.</value></data>
+  <data name="BpCompanyNameRequired" xml:space="preserve"><value>نام شرکت الزامی است.</value></data>
+  <data name="BpAddressPlaceholder" xml:space="preserve"><value>خیابان، پلاک، واحد</value></data>
+  <data name="BpNationalCodePlaceholder" xml:space="preserve"><value>۱۰ رقم</value></data>
+  <data name="BpNationalLegalIdPlaceholder" xml:space="preserve"><value>۱۱ رقم</value></data>
+  <data name="BpMobilePlaceholder" xml:space="preserve"><value>۰۹۱۲۱۲۳۴۵۶۷</value></data>
+  <data name="BpPhonePlaceholder" xml:space="preserve"><value>۰۲۱۱۲۳۴۵۶۷۸</value></data>
+  <data name="BpEmailPlaceholder" xml:space="preserve"><value>name@example.com</value></data>
+  <data name="BpWebsitePlaceholder" xml:space="preserve"><value>https://</value></data>
+  <data name="PartnerPickerSelectSupplier" xml:space="preserve"><value>انتخاب تأمین‌کننده...</value></data>
+  <data name="PartnerPickerSelectCustomer" xml:space="preserve"><value>انتخاب مشتری...</value></data>
+  <data name="PartnerPickerSelectPartner" xml:space="preserve"><value>انتخاب طرف تجاری...</value></data>
+  <data name="PartnerPickerSearchPlaceholder" xml:space="preserve"><value>نام، کد، شهر، موبایل یا شناسه را جستجو کنید</value></data>
+  <data name="PartnerPickerChange" xml:space="preserve"><value>تغییر</value></data>
+  <data name="PartnerPickerClear" xml:space="preserve"><value>حذف انتخاب</value></data>
+  <data name="PartnerPickerEmpty" xml:space="preserve"><value>موردی با این مشخصات یافت نشد.</value></data>
+  <data name="PartnerPickerTotalSuppliers" xml:space="preserve"><value>{0} تأمین‌کننده</value></data>
+  <data name="PartnerPickerTotalCustomers" xml:space="preserve"><value>{0} مشتری</value></data>
+  <data name="PartnerPickerTotalPartners" xml:space="preserve"><value>{0} طرف تجاری</value></data>
+  <data name="PartnerPickerCreateNewSupplier" xml:space="preserve"><value>+ تأمین‌کننده جدید</value></data>
+  <data name="PartnerPickerCreateNewCustomer" xml:space="preserve"><value>+ مشتری جدید</value></data>
+  <data name="PartnerPickerCreateNewPartner" xml:space="preserve"><value>+ طرف تجاری جدید</value></data>
+  <data name="PartnerPickerPage" xml:space="preserve"><value>صفحه {0} از {1}</value></data>
+  <data name="PartnerPickerPrev" xml:space="preserve"><value>قبلی</value></data>
+  <data name="PartnerPickerNext" xml:space="preserve"><value>بعدی</value></data>
+  <data name="PartnerPickerTitleSupplier" xml:space="preserve"><value>انتخاب تأمین‌کننده</value></data>
+  <data name="PartnerPickerTitleCustomer" xml:space="preserve"><value>انتخاب مشتری</value></data>
+  <data name="PartnerPickerTitlePartner" xml:space="preserve"><value>انتخاب طرف تجاری</value></data>
+  <data name="BpSearchPlaceholder" xml:space="preserve"><value>نام، کد، شناسه ملی یا کد ملی</value></data>
+  <data name="BpAllPersonTypes" xml:space="preserve"><value>همه</value></data>
+  <data name="BpPersonLegalTooltip" xml:space="preserve"><value>شخص حقوقی</value></data>
+  <data name="BpPersonNaturalTooltip" xml:space="preserve"><value>شخص حقیقی</value></data>
+  <data name="BpAdaptiveLegal" xml:space="preserve"><value>شناسه ملی</value></data>
+  <data name="BpAdaptiveNatural" xml:space="preserve"><value>کد ملی</value></data>
 </root>

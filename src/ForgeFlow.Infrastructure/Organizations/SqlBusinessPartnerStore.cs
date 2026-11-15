@@ -46,6 +46,32 @@ public sealed class SqlBusinessPartnerStore(
         return roles.Select(r => new BusinessPartnerRoleDto(r.Id, r.Code, r.Name)).ToList();
     }
 
+    public async Task<IReadOnlyList<IranProvinceDto>> ListProvinces(CancellationToken ct)
+    {
+        await using var db = await Factory.CreateDbContextAsync(ct);
+        return await db.IranProvinces.AsNoTracking()
+            .OrderBy(p => p.DisplayOrder)
+            .ThenBy(p => p.Name)
+            .Select(p => new IranProvinceDto(p.Id, p.Name))
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<IranCityDto>> ListCities(int? provinceId, CancellationToken ct)
+    {
+        await using var db = await Factory.CreateDbContextAsync(ct);
+        var query = db.IranCities.AsNoTracking();
+        if (provinceId.HasValue)
+        {
+            query = query.Where(c => c.ProvinceId == provinceId.Value);
+        }
+
+        return await query
+            .OrderBy(c => c.DisplayOrder)
+            .ThenBy(c => c.Name)
+            .Select(c => new IranCityDto(c.Id, c.ProvinceId, c.Name))
+            .ToListAsync(ct);
+    }
+
     public Task<OrganizationPage<BusinessPartnerSummary>> List(
         long organizationId,
         BusinessPartnerListQuery query,
@@ -56,6 +82,12 @@ public sealed class SqlBusinessPartnerStore(
 
         if (!query.IncludeInactive)
             baseQuery = baseQuery.Where(b => b.IsActive);
+
+        if (query.PersonTypeFilter.HasValue)
+        {
+            var pType = query.PersonTypeFilter.Value;
+            baseQuery = baseQuery.Where(b => b.PersonType == pType);
+        }
 
         if (query.RoleFilter.HasValue && query.RoleFilter.Value > 0)
         {
@@ -431,6 +463,271 @@ public sealed class SqlBusinessPartnerStore(
         if (!org.IsActive) return (false, "BusinessPartner.ParentOrganizationInactive");
         return (true, null);
     }
+
+    public Task<OrganizationPage<PartnerLookupItem>> SearchLookup(
+        long organizationId,
+        PartnerLookupQuery query,
+        CancellationToken ct) => Read(async db =>
+    {
+        var term = query.Search?.Trim();
+        var normDigits = !string.IsNullOrWhiteSpace(term) ? BusinessPartnerText.NormalizeDigits(term) : null;
+        var hasSearch = !string.IsNullOrWhiteSpace(term);
+
+        if (query.Role == PartnerLookupRole.Supplier)
+        {
+            var baseQuery = from s in db.Suppliers.AsNoTracking()
+                            where s.OrganizationId == organizationId && s.IsActive
+                            join bp in db.BusinessPartners.AsNoTracking().Where(b => b.OrganizationId == organizationId)
+                                on s.Code equals bp.Code into bpJoin
+                            from b in bpJoin.DefaultIfEmpty()
+                            select new { s, b };
+
+            if (hasSearch)
+            {
+                baseQuery = baseQuery.Where(x =>
+                    x.s.Code.Contains(term!)
+                    || x.s.Name.Contains(term!)
+                    || (x.s.ContactName != null && x.s.ContactName.Contains(term!))
+                    || (x.s.Phone != null && (x.s.Phone.Contains(term!) || (normDigits != null && x.s.Phone.Contains(normDigits))))
+                    || (x.b != null && (
+                        x.b.Name.Contains(term!)
+                        || (x.b.CompanyName != null && x.b.CompanyName.Contains(term!))
+                        || (x.b.FirstName != null && x.b.FirstName.Contains(term!))
+                        || (x.b.LastName != null && x.b.LastName.Contains(term!))
+                        || (x.b.NationalCode != null && (x.b.NationalCode.Contains(term!) || (normDigits != null && x.b.NationalCode.Contains(normDigits))))
+                        || (x.b.NationalLegalId != null && (x.b.NationalLegalId.Contains(term!) || (normDigits != null && x.b.NationalLegalId.Contains(normDigits))))
+                        || (x.b.EconomicCode != null && (x.b.EconomicCode.Contains(term!) || (normDigits != null && x.b.EconomicCode.Contains(normDigits))))
+                        || (x.b.Mobile != null && (x.b.Mobile.Contains(term!) || (normDigits != null && x.b.Mobile.Contains(normDigits))))
+                        || (x.b.City != null && x.b.City.Contains(term!))
+                    )));
+            }
+
+            var total = await baseQuery.CountAsync(ct);
+            var rows = await baseQuery
+                .OrderBy(x => x.s.Name).ThenBy(x => x.s.Code)
+                .Skip((query.Page - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .ToListAsync(ct);
+
+            var items = rows.Select(x => new PartnerLookupItem(
+                BusinessPartnerId: x.b?.Id ?? 0,
+                TargetId: x.s.Id,
+                Code: x.s.Code,
+                Name: x.s.Name,
+                PersonType: x.b?.PersonType ?? PersonType.Legal,
+                CompanyName: x.b?.CompanyName,
+                NationalCode: x.b?.NationalCode,
+                NationalLegalId: x.b?.NationalLegalId,
+                EconomicCode: x.b?.EconomicCode,
+                Mobile: x.b?.Mobile,
+                Phone: x.s.Phone,
+                City: x.b?.City,
+                RoleIds: [BusinessPartnerRoleDefinition.RoleSupplier]
+            )).ToList();
+
+            return new OrganizationPage<PartnerLookupItem>(items, total, query.Page, query.PageSize);
+        }
+        else if (query.Role == PartnerLookupRole.Customer)
+        {
+            var baseQuery = from c in db.Customers.AsNoTracking()
+                            where c.OrganizationId == organizationId && c.IsActive
+                            join bp in db.BusinessPartners.AsNoTracking().Where(b => b.OrganizationId == organizationId)
+                                on c.Code equals bp.Code into bpJoin
+                            from b in bpJoin.DefaultIfEmpty()
+                            select new { c, b };
+
+            if (hasSearch)
+            {
+                baseQuery = baseQuery.Where(x =>
+                    x.c.Code.Contains(term!)
+                    || x.c.Name.Contains(term!)
+                    || (x.c.ContactName != null && x.c.ContactName.Contains(term!))
+                    || (x.c.Phone != null && (x.c.Phone.Contains(term!) || (normDigits != null && x.c.Phone.Contains(normDigits))))
+                    || (x.b != null && (
+                        x.b.Name.Contains(term!)
+                        || (x.b.CompanyName != null && x.b.CompanyName.Contains(term!))
+                        || (x.b.FirstName != null && x.b.FirstName.Contains(term!))
+                        || (x.b.LastName != null && x.b.LastName.Contains(term!))
+                        || (x.b.NationalCode != null && (x.b.NationalCode.Contains(term!) || (normDigits != null && x.b.NationalCode.Contains(normDigits))))
+                        || (x.b.NationalLegalId != null && (x.b.NationalLegalId.Contains(term!) || (normDigits != null && x.b.NationalLegalId.Contains(normDigits))))
+                        || (x.b.EconomicCode != null && (x.b.EconomicCode.Contains(term!) || (normDigits != null && x.b.EconomicCode.Contains(normDigits))))
+                        || (x.b.Mobile != null && (x.b.Mobile.Contains(term!) || (normDigits != null && x.b.Mobile.Contains(normDigits))))
+                        || (x.b.City != null && x.b.City.Contains(term!))
+                    )));
+            }
+
+            var total = await baseQuery.CountAsync(ct);
+            var rows = await baseQuery
+                .OrderBy(x => x.c.Name).ThenBy(x => x.c.Code)
+                .Skip((query.Page - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .ToListAsync(ct);
+
+            var items = rows.Select(x => new PartnerLookupItem(
+                BusinessPartnerId: x.b?.Id ?? 0,
+                TargetId: x.c.Id,
+                Code: x.c.Code,
+                Name: x.c.Name,
+                PersonType: x.b?.PersonType ?? PersonType.Legal,
+                CompanyName: x.b?.CompanyName,
+                NationalCode: x.b?.NationalCode,
+                NationalLegalId: x.b?.NationalLegalId,
+                EconomicCode: x.b?.EconomicCode,
+                Mobile: x.b?.Mobile,
+                Phone: x.c.Phone,
+                City: x.b?.City,
+                RoleIds: [BusinessPartnerRoleDefinition.RoleCustomer]
+            )).ToList();
+
+            return new OrganizationPage<PartnerLookupItem>(items, total, query.Page, query.PageSize);
+        }
+        else
+        {
+            var baseQuery = db.BusinessPartners.AsNoTracking()
+                .Where(b => b.OrganizationId == organizationId && b.IsActive);
+
+            if (query.Role == PartnerLookupRole.Contractor)
+            {
+                baseQuery = baseQuery.Where(b => b.Roles.Any(r => r.RoleId == BusinessPartnerRoleDefinition.RoleContractor));
+            }
+
+            if (hasSearch)
+            {
+                baseQuery = baseQuery.Where(b =>
+                    b.Code.Contains(term!)
+                    || b.Name.Contains(term!)
+                    || (b.CompanyName != null && b.CompanyName.Contains(term!))
+                    || (b.FirstName != null && b.FirstName.Contains(term!))
+                    || (b.LastName != null && b.LastName.Contains(term!))
+                    || (b.NationalCode != null && (b.NationalCode.Contains(term!) || (normDigits != null && b.NationalCode.Contains(normDigits))))
+                    || (b.NationalLegalId != null && (b.NationalLegalId.Contains(term!) || (normDigits != null && b.NationalLegalId.Contains(normDigits))))
+                    || (b.EconomicCode != null && (b.EconomicCode.Contains(term!) || (normDigits != null && b.EconomicCode.Contains(normDigits))))
+                    || (b.Mobile != null && (b.Mobile.Contains(term!) || (normDigits != null && b.Mobile.Contains(normDigits))))
+                    || (b.Phone != null && (b.Phone.Contains(term!) || (normDigits != null && b.Phone.Contains(normDigits))))
+                    || (b.Email != null && b.Email.Contains(term!))
+                    || (b.City != null && b.City.Contains(term!)));
+            }
+
+            var total = await baseQuery.CountAsync(ct);
+            var rows = await baseQuery
+                .OrderBy(b => b.Name).ThenBy(b => b.Code)
+                .Skip((query.Page - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .Select(b => new
+                {
+                    b,
+                    RoleIds = b.Roles.Select(r => r.RoleId).ToList()
+                })
+                .ToListAsync(ct);
+
+            var items = rows.Select(x => new PartnerLookupItem(
+                BusinessPartnerId: x.b.Id,
+                TargetId: x.b.Id,
+                Code: x.b.Code,
+                Name: x.b.Name,
+                PersonType: x.b.PersonType,
+                CompanyName: x.b.CompanyName,
+                NationalCode: x.b.NationalCode,
+                NationalLegalId: x.b.NationalLegalId,
+                EconomicCode: x.b.EconomicCode,
+                Mobile: x.b.Mobile,
+                Phone: x.b.Phone,
+                City: x.b.City,
+                RoleIds: x.RoleIds
+            )).ToList();
+
+            return new OrganizationPage<PartnerLookupItem>(items, total, query.Page, query.PageSize);
+        }
+    }, ct);
+
+    public Task<PartnerLookupItem?> GetLookupItem(
+        long organizationId,
+        PartnerLookupRole role,
+        long targetId,
+        CancellationToken ct) => Read(async db =>
+    {
+        if (role == PartnerLookupRole.Supplier)
+        {
+            var row = await (from s in db.Suppliers.AsNoTracking()
+                             where s.OrganizationId == organizationId && s.Id == targetId
+                             join bp in db.BusinessPartners.AsNoTracking().Where(b => b.OrganizationId == organizationId)
+                                 on s.Code equals bp.Code into bpJoin
+                             from b in bpJoin.DefaultIfEmpty()
+                             select new { s, b }).SingleOrDefaultAsync(ct);
+
+            if (row is null) return null;
+            return new PartnerLookupItem(
+                BusinessPartnerId: row.b?.Id ?? 0,
+                TargetId: row.s.Id,
+                Code: row.s.Code,
+                Name: row.s.Name,
+                PersonType: row.b?.PersonType ?? PersonType.Legal,
+                CompanyName: row.b?.CompanyName,
+                NationalCode: row.b?.NationalCode,
+                NationalLegalId: row.b?.NationalLegalId,
+                EconomicCode: row.b?.EconomicCode,
+                Mobile: row.b?.Mobile,
+                Phone: row.s.Phone,
+                City: row.b?.City,
+                RoleIds: [BusinessPartnerRoleDefinition.RoleSupplier]
+            );
+        }
+        else if (role == PartnerLookupRole.Customer)
+        {
+            var row = await (from c in db.Customers.AsNoTracking()
+                             where c.OrganizationId == organizationId && c.Id == targetId
+                             join bp in db.BusinessPartners.AsNoTracking().Where(b => b.OrganizationId == organizationId)
+                                 on c.Code equals bp.Code into bpJoin
+                             from b in bpJoin.DefaultIfEmpty()
+                             select new { c, b }).SingleOrDefaultAsync(ct);
+
+            if (row is null) return null;
+            return new PartnerLookupItem(
+                BusinessPartnerId: row.b?.Id ?? 0,
+                TargetId: row.c.Id,
+                Code: row.c.Code,
+                Name: row.c.Name,
+                PersonType: row.b?.PersonType ?? PersonType.Legal,
+                CompanyName: row.b?.CompanyName,
+                NationalCode: row.b?.NationalCode,
+                NationalLegalId: row.b?.NationalLegalId,
+                EconomicCode: row.b?.EconomicCode,
+                Mobile: row.b?.Mobile,
+                Phone: row.c.Phone,
+                City: row.b?.City,
+                RoleIds: [BusinessPartnerRoleDefinition.RoleCustomer]
+            );
+        }
+        else
+        {
+            var row = await db.BusinessPartners.AsNoTracking()
+                .Include(b => b.Roles)
+                .Where(b => b.OrganizationId == organizationId && b.Id == targetId)
+                .Select(b => new
+                {
+                    b,
+                    RoleIds = b.Roles.Select(r => r.RoleId).ToList()
+                })
+                .SingleOrDefaultAsync(ct);
+
+            if (row is null) return null;
+            return new PartnerLookupItem(
+                BusinessPartnerId: row.b.Id,
+                TargetId: row.b.Id,
+                Code: row.b.Code,
+                Name: row.b.Name,
+                PersonType: row.b.PersonType,
+                CompanyName: row.b.CompanyName,
+                NationalCode: row.b.NationalCode,
+                NationalLegalId: row.b.NationalLegalId,
+                EconomicCode: row.b.EconomicCode,
+                Mobile: row.b.Mobile,
+                Phone: row.b.Phone,
+                City: row.b.City,
+                RoleIds: row.RoleIds
+            );
+        }
+    }, ct);
 
     private async Task<T> Read<T>(Func<OrganizationDbContext, Task<T>> work, CancellationToken ct)
     {

@@ -1376,13 +1376,14 @@
         InventoryTransactionType.ProductionReceipt => Text["InvTypeProdReceipt"],
         InventoryTransactionType.Reversal => Text["InvTypeReversal"],
         InventoryTransactionType.QualityScrap => Text["InvTypeQualityScrap"],
+        InventoryTransactionType.SalesDispatch => Text["InvTypeSalesDispatch"],
         _ => type.ToString()
     };
 
     private static string TxnBadgeClass(InventoryTransactionType type) => type switch
     {
         InventoryTransactionType.Receipt or InventoryTransactionType.ProductionReceipt or InventoryTransactionType.TransferIn => "po-status-completed",
-        InventoryTransactionType.Issue or InventoryTransactionType.ProductionIssue => "po-status-inprogress",
+        InventoryTransactionType.Issue or InventoryTransactionType.ProductionIssue or InventoryTransactionType.SalesDispatch => "po-status-inprogress",
         InventoryTransactionType.TransferOut or InventoryTransactionType.Adjustment => "po-status-released",
         InventoryTransactionType.Reversal or InventoryTransactionType.QualityScrap => "po-status-cancelled",
         _ => "po-status-draft"

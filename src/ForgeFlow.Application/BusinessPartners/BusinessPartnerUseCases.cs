@@ -48,7 +48,8 @@ public sealed class BusinessPartnerUseCases
                 query.RoleFilter,
                 query.IncludeInactive,
                 Math.Clamp(query.Page, 1, 1_000_000),
-                Math.Clamp(query.PageSize, 1, 100));
+                Math.Clamp(query.PageSize, 1, 100),
+                query.PersonTypeFilter);
             return OrganizationResult<OrganizationPage<BusinessPartnerSummary>>.Success(await _store.List(organizationId, bound, ct));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -83,6 +84,71 @@ public sealed class BusinessPartnerUseCases
         }
     }
 
+    public async Task<OrganizationResult<OrganizationPage<PartnerLookupItem>>> SearchLookup(
+        OrganizationScope? scope,
+        long organizationId,
+        PartnerLookupQuery query,
+        CancellationToken ct = default)
+    {
+        var allowedPermissions = query.Role switch
+        {
+            PartnerLookupRole.Supplier => new[] { BusinessPartnerPermissions.Read, "Procurement.Read", "Procurement.ManageOrders" },
+            PartnerLookupRole.Customer => new[] { BusinessPartnerPermissions.Read, "Sales.Read", "Sales.ManageOrders" },
+            _ => new[] { BusinessPartnerPermissions.Read, "Procurement.Read", "Sales.Read" }
+        };
+
+        var auth = await AuthorizeAny(scope, allowedPermissions, ct);
+        if (auth.Error is not null) return OrganizationResult<OrganizationPage<PartnerLookupItem>>.Failure(auth.Error);
+        if (!MatchesOrg(scope, organizationId))
+            return OrganizationResult<OrganizationPage<PartnerLookupItem>>.Failure(BusinessPartnerErrors.AccessDenied);
+
+        try
+        {
+            var bound = new PartnerLookupQuery(
+                query.Search?.Trim(),
+                query.Role,
+                Math.Clamp(query.Page, 1, 1_000_000),
+                Math.Clamp(query.PageSize, 1, 100));
+            return OrganizationResult<OrganizationPage<PartnerLookupItem>>.Success(await _store.SearchLookup(organizationId, bound, ct));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return OrganizationResult<OrganizationPage<PartnerLookupItem>>.Failure("BusinessPartner.PersistenceUnavailable");
+        }
+    }
+
+    public async Task<OrganizationResult<PartnerLookupItem?>> GetLookupItem(
+        OrganizationScope? scope,
+        long organizationId,
+        PartnerLookupRole role,
+        long targetId,
+        CancellationToken ct = default)
+    {
+        var allowedPermissions = role switch
+        {
+            PartnerLookupRole.Supplier => new[] { BusinessPartnerPermissions.Read, "Procurement.Read", "Procurement.ManageOrders" },
+            PartnerLookupRole.Customer => new[] { BusinessPartnerPermissions.Read, "Sales.Read", "Sales.ManageOrders" },
+            _ => new[] { BusinessPartnerPermissions.Read, "Procurement.Read", "Sales.Read" }
+        };
+
+        var auth = await AuthorizeAny(scope, allowedPermissions, ct);
+        if (auth.Error is not null) return OrganizationResult<PartnerLookupItem?>.Failure(auth.Error);
+        if (!MatchesOrg(scope, organizationId))
+            return OrganizationResult<PartnerLookupItem?>.Failure(BusinessPartnerErrors.AccessDenied);
+        if (targetId <= 0)
+            return OrganizationResult<PartnerLookupItem?>.Success(null);
+
+        try
+        {
+            var item = await _store.GetLookupItem(organizationId, role, targetId, ct);
+            return OrganizationResult<PartnerLookupItem?>.Success(item);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return OrganizationResult<PartnerLookupItem?>.Failure("BusinessPartner.PersistenceUnavailable");
+        }
+    }
+
     public async Task<IReadOnlyList<BusinessPartnerRoleDto>> ListRoleDefinitions(CancellationToken ct = default)
     {
         try
@@ -97,6 +163,30 @@ public sealed class BusinessPartnerUseCases
                 new(BusinessPartnerRoleDefinition.RoleCustomer, "CUSTOMER", "Customer"),
                 new(BusinessPartnerRoleDefinition.RoleContractor, "CONTRACTOR", "Contractor")
             ];
+        }
+    }
+
+    public async Task<IReadOnlyList<IranProvinceDto>> ListProvinces(CancellationToken ct = default)
+    {
+        try
+        {
+            return await _store.ListProvinces(ct);
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    public async Task<IReadOnlyList<IranCityDto>> ListCities(int? provinceId, CancellationToken ct = default)
+    {
+        try
+        {
+            return await _store.ListCities(provinceId, ct);
+        }
+        catch
+        {
+            return [];
         }
     }
 
@@ -248,6 +338,26 @@ public sealed class BusinessPartnerUseCases
             return (null, BusinessPartnerErrors.AccessDenied);
 
         return (actor, null);
+    }
+
+    private async ValueTask<(TrustedActor? Actor, string? Error)> AuthorizeAny(
+        OrganizationScope? scope,
+        IReadOnlyList<string> permissions,
+        CancellationToken ct)
+    {
+        if (scope is null || _actors is null) return (null, BusinessPartnerErrors.AccessDenied);
+
+        var actor = await _actors.ResolveAsync(ct);
+        if (actor is null) return (null, BusinessPartnerErrors.AccessDenied);
+        if (_permissions is null) return (null, BusinessPartnerErrors.AccessDenied);
+
+        foreach (var p in permissions)
+        {
+            if ((await _permissions.EvaluateAsync(actor, scope, p, ct)).IsAllowed)
+                return (actor, null);
+        }
+
+        return (null, BusinessPartnerErrors.AccessDenied);
     }
 
     private async Task<OrganizationResult<T>> AuditFailureIfRejected<T>(

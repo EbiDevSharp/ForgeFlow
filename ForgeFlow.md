@@ -3,9 +3,9 @@
 ## Slice 11 — Unified Business Partners & ERP Manufacturing Lifecycle Navigation Structure (2026-11-14)
 
 ### 4. Local One-Click Setup & Migration Automation Tooling
-- **ForgeFlow.Setup (	ools/ForgeFlow.Setup/)**:
+- **ForgeFlow.Setup (tools/ForgeFlow.Setup/)**:
   - Automated database provisioning and schema migration runner independent of design-time factories or external tools.
-  - Verifies SQL Server connection and ensures target database (default 	estforgflow) exists.
+  - Verifies SQL Server connection and ensures target database (default testforgflow) exists.
   - Sequentially applies all pending migrations for DiagnosticsDbContext (schema diag), AuthDbContext (schema uth), and OrganizationDbContext (default schema).
   - Inspects BootstrapState; on fresh installations, automatically bootstraps initial organization (ORG1), factory site (SITE1), and system administrator (dmin / Admin@123456!).
   - Preserves existing accounts and organizations if already initialized.
@@ -3639,7 +3639,7 @@ Post-review localization, local timezone display, full ActionRejected coverage &
 - **JSON metadata redaction & SQL test fixes**: Added DiagnosticRedactor.ScrubJson ([DiagnosticRedactor.cs](src/ForgeFlow.Infrastructure/Diagnostics/DiagnosticRedactor.cs)) used by [SqlErrorLogStore.cs](src/ForgeFlow.Infrastructure/Diagnostics/SqlErrorLogStore.cs) so ISJSON([MetadataJson]) = 1 remains valid while redacting secret JSON keys and token strings; fixed [DiagnosticSqlTests.cs](tests/ForgeFlow.Web.Tests/DiagnosticSqlTests.cs) migration order (OrganizationDbContext before AuthDbContext); and granted FixedAccessRoles.DeploymentProvisioner (ScopeKind = 0) to initial.UserId in [AuditSqlTests.cs](tests/ForgeFlow.Web.Tests/AuditSqlTests.cs) for Platform audit verification.
 
 Verification evidence (after all edits):
-- .\scripts\upgrade-local-testdb.ps1: 	estforgflow database upgraded to 20261110210556_DiagnosticsErrorAndOperationLogs.
+- .\scripts\upgrade-local-testdb.ps1: testforgflow database upgraded to 20261110210556_DiagnosticsErrorAndOperationLogs.
 - dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (  Warning(s), 0 Error(s))**.
 - Targeted live SQL + unit run (FORGEFLOW_TEST_SQLSERVER=... --filter 'FullyQualifiedName~DiagnosticTests|FullyQualifiedName~DiagnosticSqlTests|FullyQualifiedName~AuditSqlTests|FullyQualifiedName~ResourceContractTests'): **Passed: 25, Failed: 0, Skipped: 0, Total: 25** (D01–D09, DiagnosticSqlTests S01–S02, AuditSqlTests, ResourceContractTests).
 - Non-SQL + HTTP test run ($env:FORGEFLOW_AUTH_HTTP_TESTS='1'; =''; dotnet test .\ForgeFlow.slnx -c Release --no-build --no-restore): **Passed: 365, Failed: 0, Skipped: 51, Total: 416**.
@@ -3706,7 +3706,7 @@ Implemented Slice 09 ( 9.0– 9.4) across Design, Domain, Application, Infrastru
   - Added LoadQualityScopesAsync in [ReadScopes.cs](src/ForgeFlow.Web/ReadScopes.cs), QualityNavGroup (/quality, /traceability) in [MainLayout.razor](src/ForgeFlow.Web/Components/Layout/MainLayout.razor), [Quality.razor](src/ForgeFlow.Web/Components/Pages/Quality.razor), [Traceability.razor](src/ForgeFlow.Web/Components/Pages/Traceability.razor), updates to [Items.razor](src/ForgeFlow.Web/Components/Pages/Items.razor), [Inventory.razor](src/ForgeFlow.Web/Components/Pages/Inventory.razor), [Reports.razor](src/ForgeFlow.Web/Components/Pages/Reports.razor), [RolePermissionLocalization.cs](src/ForgeFlow.Web/Roles/RolePermissionLocalization.cs), .qc-* styles in [app.css](src/ForgeFlow.Web/wwwroot/app.css), and full a-IR/en-US .resx catalogs.
 
 Verification evidence (executed after all Slice 09 edits):
-- .\scripts\upgrade-local-testdb.ps1: 	estforgflow upgraded cleanly to 20261111041945_QualityControlAndLotTraceability.
+- .\scripts\upgrade-local-testdb.ps1: testforgflow upgraded cleanly to 20261111041945_QualityControlAndLotTraceability.
 - dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (  Warning(s), 0 Error(s))**.
 - Targeted live SQL + unit suite ($env:FORGEFLOW_AUTH_HTTP_TESTS='1'; =... --filter 'FullyQualifiedName~QualityTests|FullyQualifiedName~QualitySqlTests|FullyQualifiedName~ReportTests|FullyQualifiedName~ReportSqlTests|FullyQualifiedName~InventoryTests|FullyQualifiedName~InventorySqlTests|FullyQualifiedName~ItemTests|FullyQualifiedName~ItemSqlTests|FullyQualifiedName~ProductionOrderTests|FullyQualifiedName~ProductionOrderSqlTests|FullyQualifiedName~OrganizationPersistenceModelTests|FullyQualifiedName~RoleDomainTests|FullyQualifiedName~RoleManagementPageTests|FullyQualifiedName~ResourceContractTests|FullyQualifiedName~DiagnosticTests|FullyQualifiedName~DiagnosticSqlTests|FullyQualifiedName~AuditSqlTests'): **Passed: 80, Failed: 0, Skipped: 0, Total: 80** (QualityTests Q01–Q06 and QualitySqlTests S01–S04 passed against live SQL Server).
 - Full non-SQL + HTTP suite ($env:FORGEFLOW_AUTH_HTTP_TESTS='1'; =''): **Passed: 372, Failed: 0, Skipped: 52, Total: 424**.
@@ -3733,7 +3733,7 @@ ode .\verification\slice01-ui\browser-check.cjs -> **4/4 PASS** (a-IR and en-US
   - Added GET /account/avatar and passed login culture to LoginAsync in [AuthenticationBackend.cs](src/ForgeFlow.Web/Authentication/AuthenticationBackend.cs); exposed theme/culture helpers in [auth-ui.mjs](src/ForgeFlow.Web/wwwroot/auth-ui.mjs).
   - Added [AccountNav.razor](src/ForgeFlow.Web/Components/Layout/AccountNav.razor), [Preferences.razor](src/ForgeFlow.Web/Components/Pages/Preferences.razor) (/account/preferences), [Profile.razor](src/ForgeFlow.Web/Components/Pages/Profile.razor) (/account/profile), updated [ChangePassword.razor](src/ForgeFlow.Web/Components/Pages/ChangePassword.razor) and [UserMenu.razor](src/ForgeFlow.Web/Components/Layout/UserMenu.razor), added .prefs-*, .profile-*, and [data-theme="dark"] tokens in [app.css](src/ForgeFlow.Web/wwwroot/app.css), and added a-IR/en-US resources.
 - **Verification Evidence (2026-11-11, after final P1 edit)**:
-  - .\scripts\upgrade-local-testdb.ps1: 	estforgflow upgraded cleanly to 20261111045515_UserProfileAndPreferences.
+  - .\scripts\upgrade-local-testdb.ps1: testforgflow upgraded cleanly to 20261111045515_UserProfileAndPreferences.
   - dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (  Warning(s), 0 Error(s))**.
   - Targeted live SQL + unit + HTTP + scanner suite (UserProfileAndPreferencesTests|UserProfileAndPreferencesSqlTests|AuthBootstrapTests|AuthSessionSqlTests|AuthSessionHttpSqlTests|AuthUiContractTests|AuthHttpTests|AuthBackendTests|ResourceContractTests|ShellRenderingTests|AuditTests|AuditSqlTests|SampleLocalizationTests|HardcodedDisplayTextScannerTests): **Passed: 106, Failed: 0, Skipped: 0, Total: 106**.
   - Full non-SQL + HTTP suite (FORGEFLOW_AUTH_HTTP_TESTS=1, FORGEFLOW_TEST_SQLSERVER=''): **Passed: 375, Failed: 0, Skipped: 54, Total: 429**.
@@ -3752,12 +3752,12 @@ ode .\scripts\drafts.test.mjs: **19 pass, 0 fail**.
   - Added AccessibleSiteOption, UserMenuContextSnapshot, ActiveSessionSnapshot, SessionOperationResult, and UserAgentDeviceParser in [UserProfileContracts.cs](src/ForgeFlow.Application/Users/UserProfileContracts.cs); registered SessionRevokedByUser, OtherSessionsRevoked, and ActiveSiteSwitched in [AuditEventCatalog.cs](src/ForgeFlow.Application/Audit/AuditEventCatalog.cs).
   - Extended AccountSession (IpAddress, DeviceSummary, IsMobileDevice, LastActivityAtUtc), UserPreference (ActiveOrganizationId, ActiveSiteId), CK_Session_Lifecycle, and CK_SecurityEvent_Code in [IdentityRecords.cs](src/ForgeFlow.Infrastructure/Identity/IdentityRecords.cs) and [AuthDbContext.cs](src/ForgeFlow.Infrastructure/Identity/AuthDbContext.cs) (4 auth migrations).
   - Implemented TouchSessionActivityAsync, GetUserMenuContextAsync (chronological previous sign-in lookup + FailedSignInsSincePrevious + accessible sites/role resolution), SwitchActiveSiteAsync, ListActiveSessionsAsync, RevokeSessionAsync, and RevokeOtherSessionsAsync in [RuntimeSessions.cs](src/ForgeFlow.Infrastructure/Identity/RuntimeSessions.cs), wired with User-Agent and IP capture in [AuthenticationBackend.cs](src/ForgeFlow.Web/Authentication/AuthenticationBackend.cs).
-  - Created Auth migration 20261111052007_SessionsAndActiveSiteContext (with LastActivityAtUtc backfill from IssuedAtUtc) and upgraded 	estforgflow cleanly via [upgrade-local-testdb.ps1](scripts/upgrade-local-testdb.ps1).
+  - Created Auth migration 20261111052007_SessionsAndActiveSiteContext (with LastActivityAtUtc backfill from IssuedAtUtc) and upgraded testforgflow cleanly via [upgrade-local-testdb.ps1](scripts/upgrade-local-testdb.ps1).
 - **Web UI**:
   - Redesigned [UserMenu.razor](src/ForgeFlow.Web/Components/Layout/UserMenu.razor) (truncated username/display name, role badge + active site, conditional multi-site switcher shown only when > 1 site, last-login card + View Sessions link + amber failed-login alert, lightweight daily links with active sessions count badge).
   - Added [Sessions.razor](src/ForgeFlow.Web/Components/Pages/Sessions.razor) (/account/sessions — current device green badge, other sessions Sign out buttons, soft-red Sign out of all other devices button, relative/local last-activity formatting, security footnote) and updated [AccountNav.razor](src/ForgeFlow.Web/Components/Layout/AccountNav.razor) + bilingual .resx catalogs + [ResourceContractTests.cs](tests/ForgeFlow.Web.Tests/ResourceContractTests.cs) + [AuthBootstrapTests.cs](tests/ForgeFlow.Web.Tests/AuthBootstrapTests.cs).
 - **Verification Evidence (2026-11-11, after final P2 edit)**:
-  - .\scripts\upgrade-local-testdb.ps1: 	estforgflow upgraded cleanly to 20261111052007_SessionsAndActiveSiteContext.
+  - .\scripts\upgrade-local-testdb.ps1: testforgflow upgraded cleanly to 20261111052007_SessionsAndActiveSiteContext.
   - dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (  Warning(s), 0 Error(s))**.
   - Targeted live SQL + unit + HTTP + scanner suite (UserProfileAndPreferencesTests|UserProfileAndPreferencesSqlTests|AuthBootstrapTests|AuthSessionSqlTests|AuthSessionHttpSqlTests|AuthUiContractTests|AuthHttpTests|AuthBackendTests|ResourceContractTests|ShellRenderingTests|AuditTests|AuditSqlTests|SampleLocalizationTests|HardcodedDisplayTextScannerTests): **Passed: 112, Failed: 0, Skipped: 0, Total: 112**.
   - Full non-SQL + HTTP suite (FORGEFLOW_AUTH_HTTP_TESTS=1, FORGEFLOW_TEST_SQLSERVER=''): **Passed: 380, Failed: 0, Skipped: 55, Total: 435**.
@@ -3970,7 +3970,7 @@ ode .\scripts\drafts.test.mjs: **19 pass, 0 fail**.
 - **Verification Evidence (2026-11-11)**:
   - `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1`: **PASS (0 Warning(s), 0 Error(s))**.
   - Headless Chrome Playwright verification across both HTML guides at 1440px and 320px (RTL, offline Vazirmatn.woff2, embedded screenshots, zero overflow, zero console/request errors, interactive checklist persistence): **4/4 PASS**.
-  - Live Development instance launched at https://localhost:5001 (	estforgflow): GET /account/login returns **HTTP 200**; `node .\verification\slice01-ui\browser-check.cjs` **4/4 PASS** (a-IR/en-US, 1440px/320px).
+  - Live Development instance launched at https://localhost:5001 (testforgflow): GET /account/login returns **HTTP 200**; `node .\verification\slice01-ui\browser-check.cjs` **4/4 PASS** (a-IR/en-US, 1440px/320px).
 - **Remaining Acceptance Gaps**: Authenticated page screenshots inside `docs/admin-guide-fa.html` await temporary test account credentials (to preserve startup/credential safety rules) if the user wants real post-login captures replacing the remaining screenshot placeholders.
 - **Next Small Step**: Review the two HTML guides locally or supply test login credentials for authenticated screenshot captures; authorize git commit/push when ready.
 ## GPPS End-to-End Case Study & Bug-Fix Increment
@@ -4029,7 +4029,7 @@ ode .\verification\slice01-ui\browser-check.cjs **4/4 PASS**; Batch #2 GPPS Chro
   - dotnet list package --vulnerable --include-transitive: **0 vulnerable packages** across all 8 projects.
   - dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (  Warning(s),   Error(s))**.
   - Non-SQL + HTTP test suite (FORGEFLOW_TEST_SQLSERVER='', FORGEFLOW_AUTH_HTTP_TESTS='1', --filter "FullyQualifiedName!~Sql"): **Passed: 408, Failed: 0, Skipped: 0, Total: 408**.
-  - Live Development instance at https://localhost:5001 (	estforgflow):
+  - Live Development instance at https://localhost:5001 (testforgflow):
     - GET /account/login: **HTTP 200** with security headers (X-Content-Type-Options: nosniff, X-Frame-Options: SAMEORIGIN, Content-Security-Policy: frame-ancestors 'self', Referrer-Policy: strict-origin-when-cross-origin, Permissions-Policy: camera=(), microphone=(), geolocation=(), Cache-Control: no-cache, no-store, max-age=0).
     - GET /: **HTTP 302** -> /account/login?returnUrl=%2F (Cache-Control: no-store).
     - POST /account/sign-in without CSRF: **HTTP 400** (Auth.RequestRejected).
@@ -4055,23 +4055,23 @@ ode verification/slice01-ui/browser-check.cjs: **4/4 PASS** (a-IR & en-US, 1440
 - **Verification Evidence (2026-11-12, after final edit)**:
   - dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (  Warning(s),   Error(s))**.
   - Non-SQL + HTTP test suite (FORGEFLOW_TEST_SQLSERVER='', FORGEFLOW_AUTH_HTTP_TESTS='1', --filter "FullyQualifiedName!~Sql"): **Passed: 423, Failed: 0, Skipped: 0, Total: 423**.
-  - Live Development instance at https://localhost:5001 (	estforgflow): GET /account/login returns **HTTP 200**; 
+  - Live Development instance at https://localhost:5001 (testforgflow): GET /account/login returns **HTTP 200**; 
 ode verification/slice01-ui/browser-check.cjs **4/4 PASS** (a-IR & en-US, 1440px & 320px).
 - **Remaining Acceptance Gaps**:
-  - Apply EF Core AuthDbContext migration (AccountSecurityAndTwoFactor) to 	estforgflow before testing authenticated /account/security and 2FA flows against SQL Server (per startup rule, migrations are never run automatically on startup).
+  - Apply EF Core AuthDbContext migration (AccountSecurityAndTwoFactor) to testforgflow before testing authenticated /account/security and 2FA flows against SQL Server (per startup rule, migrations are never run automatically on startup).
   - Authenticated a-IR/en-US RTL/LTR and 1440px/320px browser verification for /account/security and /account/login-2fa.
   - Phase 2: Passkeys (WebAuthn).
-- **Next Small Step**: Apply the AuthDbContext migration to 	estforgflow (dotnet ef database update --context AuthDbContext ...) and verify /account/security and /account/login-2fa in the browser.
+- **Next Small Step**: Apply the AuthDbContext migration to testforgflow (dotnet ef database update --context AuthDbContext ...) and verify /account/security and /account/login-2fa in the browser.
 ## Passkeys (WebAuthn Phase 2) & Account Navigation Cleanup
 
 - **Scope**:
   1. Simplified the header [UserMenu.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Layout/UserMenu.razor) dropdown by removing redundant links and consolidating into **«تنظیمات من»** (/account/profile with Recommended badge when 2FA is off) + Logout.
   2. Reorganized [AccountNav.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Layout/AccountNav.razor) from 8 flat tabs into **4 categorized tabs** (نمایه من, تنظیمات, امنیت, اعلان‌ها) with contextual sub-tabs for Security (نمای کلی امنیت, تغییر رمز عبور, نشست‌های فعال, فعالیت‌های من) and Notifications (اعلان‌ها, تنظیمات اعلان‌ها).
-  3. Implemented **Passkeys (WebAuthn / FIDO2)** end-to-end without external NuGet dependencies: [WebAuthnVerifier.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Identity/WebAuthnVerifier.cs) (ES256 P-256 & RS256 CBOR/COSE verification with signCount replay protection), uth.UserPasskey table (20261112070859_UserPasskeysWebAuthn applied to 	estforgflow), 4 WebAuthn endpoints in [AuthenticationBackend.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Authentication/AuthenticationBackend.cs), live Passkey management on [Security.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Security.razor), and **Sign in with a Passkey** on [Login.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Login.razor) + [auth-ui.mjs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/wwwroot/auth-ui.mjs).
+  3. Implemented **Passkeys (WebAuthn / FIDO2)** end-to-end without external NuGet dependencies: [WebAuthnVerifier.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Infrastructure/Identity/WebAuthnVerifier.cs) (ES256 P-256 & RS256 CBOR/COSE verification with signCount replay protection), uth.UserPasskey table (20261112070859_UserPasskeysWebAuthn applied to testforgflow), 4 WebAuthn endpoints in [AuthenticationBackend.cs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Authentication/AuthenticationBackend.cs), live Passkey management on [Security.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Security.razor), and **Sign in with a Passkey** on [Login.razor](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/Components/Pages/Login.razor) + [auth-ui.mjs](file:///d:/Projects/ForgeFlow/src/ForgeFlow.Web/wwwroot/auth-ui.mjs).
 - **Verification Evidence (2026-11-12, after final edit)**:
   - dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (  Warning(s),   Error(s))**.
   - Non-SQL + HTTP test suite (FORGEFLOW_TEST_SQLSERVER='', FORGEFLOW_AUTH_HTTP_TESTS='1', --filter "FullyQualifiedName!~Sql"): **Passed: 424, Failed: 0, Skipped: 0, Total: 424**.
-  - Live Development instance at https://localhost:5001 (	estforgflow): GET /account/login returns **HTTP 200**; 
+  - Live Development instance at https://localhost:5001 (testforgflow): GET /account/login returns **HTTP 200**; 
 ode verification/slice01-ui/browser-check.cjs **4/4 PASS** (a-IR & en-US, 1440px & 320px).
 - **Remaining Acceptance Gaps**: Authenticated WebAuthn browser registration/sign-in flow in a live browser (a-IR/en-US, desktop/mobile) awaits user verification with a platform authenticator (Windows Hello / virtual authenticator).
 - **Next Small Step**: Test the simplified header menu, categorized settings tabs, and Passkey registration/sign-in at https://localhost:5001/account/login.
@@ -4081,7 +4081,7 @@ ode verification/slice01-ui/browser-check.cjs **4/4 PASS** (a-IR & en-US, 1440p
 - **Verification Evidence (2026-11-12, after final edit)**:
   - dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (  Warning(s),   Error(s))**.
   - Non-SQL + HTTP test suite (FORGEFLOW_TEST_SQLSERVER='', FORGEFLOW_AUTH_HTTP_TESTS='1', --filter "FullyQualifiedName!~Sql"): **Passed: 424, Failed: 0, Skipped: 0, Total: 424**.
-  - Live Development instance at https://localhost:5001 (	estforgflow): GET /account/login returns **HTTP 200**; 
+  - Live Development instance at https://localhost:5001 (testforgflow): GET /account/login returns **HTTP 200**; 
 ode verification/slice01-ui/browser-check.cjs **4/4 PASS** (a-IR & en-US, 1440px & 320px).
 - **Remaining Acceptance Gaps**: Interactive browser check of <BitOtpInput> inside /account/security and /account/login-2fa across a-IR/en-US and desktop/mobile.
 - **Next Small Step**: Verify the 6-digit BitOtpInput boxes live in the browser at https://localhost:5001/account/login.
@@ -4165,7 +4165,7 @@ ode verification/slice01-ui/browser-check.cjs **4/4 PASS** (a-IR & en-US, 1440p
 - **Verification Evidence (2026-11-12, after final edit)**:
   - dotnet build d:\Projects\ForgeFlow\ForgeFlow.slnx -c Release --no-restore -m:1: **PASS (0 Warning(s), 0 Error(s))**.
   - Non-SQL + HTTP test suite (FORGEFLOW_TEST_SQLSERVER='', FORGEFLOW_AUTH_HTTP_TESTS='1', --filter "FullyQualifiedName!~Sql"): **Passed: 426, Failed: 0, Skipped: 0, Total: 426**.
-  - Live Development instance at https://localhost:5001 (	estforgflow): GET /account/login returns **HTTP 200** with full Content-Security-Policy header; 
+  - Live Development instance at https://localhost:5001 (testforgflow): GET /account/login returns **HTTP 200** with full Content-Security-Policy header; 
 ode d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs **4/4 PASS** (a-IR & en-US, 1440px & 320px).
 - **Remaining Acceptance Gaps**:
   - SQL Server integration tests (*Sql*) were not run in this session (FORGEFLOW_TEST_SQLSERVER unset).
@@ -4411,7 +4411,7 @@ ode d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs **4/4 PASS**
 - **Verification Evidence (2026-11-13)**:
   - Solution build: dotnet build -c Release -m:1 — **0 Warning(s), 0 Error(s)**.
   - Web unit test suite (dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "Category!=SqlServer"): **Passed: 448, Failed: 0, Skipped: 66, Total: 514**.
-  - Local service verification: Web application running in Development with database connection 	estforgflow, responding with **HTTP 200** at https://localhost:5001/login and http://127.0.0.1:5000/login.
+  - Local service verification: Web application running in Development with database connection testforgflow, responding with **HTTP 200** at https://localhost:5001/login and http://127.0.0.1:5000/login.
 - **Next Small Step**: Interactive browser verification (14.6) at https://localhost:5001/account/login or proceed to further modal decomposition in Quality/Production Orders.
 
 ## Audit Remediation — Phase 12 (Modal Decomposition: Quality & BOM Edit, State Synchronization & Defect Remediation)
@@ -4665,3 +4665,340 @@ ode d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs **4/4 PASS**
   - Local process verification: `ForgeFlow.Web.dll` running in Development mode (`task-1518`) at `https://localhost:5001`; verified HTTP 200 response on `https://localhost:5001/account/login`.
 - **Next Small Step**: Await user review and confirmation.
 
+
+
+## Phase 23 (Reusable Partner/Supplier/Customer Search Modal Picker with Server-Side Pagination, Digit Normalization, and Procurement & Sales Integration)
+
+- **Application Contracts & Query Architecture**:
+  - Added `PartnerLookupRole` enum (`All = 0`, `Supplier = 1`, `Customer = 2`, `Contractor = 3`) under `ForgeFlow.Application.BusinessPartners`.
+  - Added `PartnerLookupQuery(string? Search, PartnerLookupRole Role, int Page, int PageSize)` for server-side paginated lookup.
+  - Added `PartnerLookupItem(long BusinessPartnerId, long TargetId, string Code, string Name, PersonType PersonType, string? CompanyName, string? NationalCode, string? NationalLegalId, string? EconomicCode, string? Mobile, string? Phone, string? City, IReadOnlyList<int> RoleIds)`.
+  - Added `SearchLookup` and `GetLookupItem` methods to `IBusinessPartnerStore` and `BusinessPartnerUseCases` with flexible permission evaluation (`BusinessPartners.Read`, `Procurement.Read`/`ManageOrders` for suppliers, `Sales.Read`/`ManageOrders` for customers).
+- **Infrastructure Store Implementation (SqlBusinessPartnerStore.cs)**:
+  - Implemented `SearchLookup`:
+    - For `Role == Supplier`: Performs SQL query joining `[organization].[Supplier]` with `[organization].[BusinessPartner]` on `Code`, returning `TargetId = Supplier.Id`.
+    - For `Role == Customer`: Performs SQL query joining `[organization].[Customer]` with `[organization].[BusinessPartner]` on `Code`, returning `TargetId = Customer.Id`.
+    - For `Role == All` / `Contractor`: Queries `[organization].[BusinessPartner]` directly, returning `TargetId = BusinessPartner.Id`.
+    - Normalizes search term digits with `BusinessPartnerText.NormalizeDigits(term)` to match ASCII and Persian digits seamlessly.
+    - Searches across all 9 fields: Name, Code, Contact Name, Company Name, National Code, National Legal ID, Economic Code, Mobile, Phone, and City.
+    - Applies server-side Skip/Take pagination and SQL count.
+  - Implemented `GetLookupItem`: Fetches existing partner/supplier/customer by `targetId` to resolve initial selected state.
+- **Reusable UI Component & Styling (`PartnerPicker.razor` & `SupplierPicker.razor`)**:
+  - Created `PartnerPicker.razor` with `@bind-Value`:
+    - Form trigger field: shows clickable button with placeholder when empty; displays avatar with initial letter, bold name, code badge, change button, and clear button when selected.
+    - Search modal: uses `<BitDialog>` with custom header, auto-focus search input with instant debounced search (250ms), avatar circles (`.partner-picker-item-avatar.alt-0..4`), bold title, subtitle with Code • City • Mobile/Phone, and checkmark on active item.
+    - Modal footer: displays total count (e.g. "۶ تأمین‌کننده"), "+ تأمین‌کننده جدید" / "+ مشتری جدید" navigation link to `/business-partners`, and compact previous/next pagination.
+    - Dark mode, RTL/LTR layout, and mobile responsive design.
+  - Created `SupplierPicker.razor` as convenience wrapper defaulting to `Role="PartnerLookupRole.Supplier"`.
+- **Procurement & Sales Integration**:
+  - In `PurchaseOrders.razor`: Replaced static supplier `<select>` with `<PartnerPicker @bind-Value="editSupplierId" Role="PartnerLookupRole.Supplier" Scope="CurrentScope" OrganizationId="CurrentOrgId" ... />`.
+  - In `CreateEditSalesOrderModal.razor`: Replaced static customer `<select>` with `<PartnerPicker @bind-Value="customerId" Role="PartnerLookupRole.Customer" Scope="CurrentScope" OrganizationId="CurrentOrgId" ... />`.
+- **Localization & Contract Tests**:
+  - Added 17 keys to `SharedResources.fa-IR.resx` and `SharedResources.en-US.resx`: `PartnerPickerSelectSupplier`, `PartnerPickerSelectCustomer`, `PartnerPickerSelectPartner`, `PartnerPickerSearchPlaceholder`, `PartnerPickerChange`, `PartnerPickerClear`, `PartnerPickerEmpty`, `PartnerPickerTotalSuppliers`, `PartnerPickerTotalCustomers`, `PartnerPickerTotalPartners`, `PartnerPickerCreateNewSupplier`, `PartnerPickerCreateNewCustomer`, `PartnerPickerCreateNewPartner`, `PartnerPickerPage`, `PartnerPickerPrev`, `PartnerPickerNext`, `PartnerPickerTitleSupplier`, `PartnerPickerTitleCustomer`, `PartnerPickerTitlePartner`.
+  - Updated `ResourceContractTests.cs` (13 passed).
+  - Added unit tests in `BusinessPartnerTests.cs` (28 passed).
+- **Verification Evidence (2026-11-15)**:
+  - Solution build (dotnet build ForgeFlow.slnx -c Release --no-restore -m:1): **0 Warning(s), 0 Error(s)**.
+  - Resource contract tests: **13 Passed, 0 Failed**.
+  - Business partner unit tests: **28 Passed, 0 Failed**.
+  - Full test suite: **483 Passed, 0 Failed, 66 Skipped, Total: 549**.
+  - Local process verification: ForgeFlow.Web.exe running in Development mode at https://localhost:5001; verified HTTP 200 with curl on https://localhost:5001/account/login.
+- **Next Small Step**: Await user review and confirmation.
+
+
+
+## Cross-Environment Machine Migration & Setup Automation Hotfix (2026-11-15)
+
+- **Root Causes Diagnosed**:
+  1. **.NET SDK Strict Pinning**: global.json was strictly pinned to 10.0.403 with ollForward: disable. On systems where 10.0.404 (or other .NET 10 patch versions) were installed, all dotnet CLI commands refused to run.
+  2. **Fresh Database Schema Migration Ordering**: On fresh installations where the testforgflow database has no prior tables, tools/ForgeFlow.Setup executed migrations in the order: DiagnosticsDbContext -> AuthDbContext -> OrganizationDbContext. AuthDbContext failed on FK_BootstrapState_Organization_OrganizationId because organization.Organization is created by OrganizationDbContext.
+- **Changes Applied**:
+  - global.json: Updated SDK version to 10.0.400 with ollForward: latestPatch, allowing seamless SDK resolution across developer machines having different .NET 10 patch releases (e.g. 10.0.400, 10.0.403, 10.0.404).
+  - tools/ForgeFlow.Setup/Program.cs: Corrected migration sequence to DiagnosticsDbContext -> OrganizationDbContext -> AuthDbContext, satisfying schema foreign key dependency requirements.
+  - Executed ForgeFlow.Setup successfully: all 3 schema migrations applied, initial organization (ORG1), site (SITE1), and admin credentials bootstrapped.
+- **Verification Evidence (2026-11-15)**:
+  - Solution build (dotnet build): **0 Warning(s), 0 Error(s)**.
+  - Database setup (ForgeFlow.Setup): applied all 3 context migrations cleanly to localhost/testforgflow.
+  - Unit test suite (dotnet test): **Passed: 455, Failed: 0, Skipped: 66, Total: 521**.
+  - Local process verification: ForgeFlow.Web running in Development mode at https://localhost:5001; verified HTTP 200 response on https://localhost:5001/account/login.
+- **Next Small Step**: Await user review and confirmation.
+
+
+
+## Phase 23 (Reusable Partner/Supplier/Customer Search Modal Picker with Server-Side Pagination, Digit Normalization, and Procurement & Sales Integration)
+
+- **Application Contracts & Query Architecture**:
+  - Added `PartnerLookupRole` enum (`All = 0`, `Supplier = 1`, `Customer = 2`, `Contractor = 3`) under `ForgeFlow.Application.BusinessPartners`.
+  - Added `PartnerLookupQuery(string? Search, PartnerLookupRole Role, int Page, int PageSize)` for server-side paginated lookup.
+  - Added `PartnerLookupItem(long BusinessPartnerId, long TargetId, string Code, string Name, PersonType PersonType, string? CompanyName, string? NationalCode, string? NationalLegalId, string? EconomicCode, string? Mobile, string? Phone, string? City, IReadOnlyList<int> RoleIds)`.
+  - Added `SearchLookup` and `GetLookupItem` methods to `IBusinessPartnerStore` and `BusinessPartnerUseCases` with flexible permission evaluation (`BusinessPartners.Read`, `Procurement.Read`/`ManageOrders` for suppliers, `Sales.Read`/`ManageOrders` for customers).
+- **Infrastructure Store Implementation (SqlBusinessPartnerStore.cs)**:
+  - Implemented `SearchLookup`:
+    - For `Role == Supplier`: Performs SQL query joining `[organization].[Supplier]` with `[organization].[BusinessPartner]` on `Code`, returning `TargetId = Supplier.Id`.
+    - For `Role == Customer`: Performs SQL query joining `[organization].[Customer]` with `[organization].[BusinessPartner]` on `Code`, returning `TargetId = Customer.Id`.
+    - For `Role == All` / `Contractor`: Queries `[organization].[BusinessPartner]` directly, returning `TargetId = BusinessPartner.Id`.
+    - Normalizes search term digits with `BusinessPartnerText.NormalizeDigits(term)` to match ASCII and Persian digits seamlessly.
+    - Searches across all 9 fields: Name, Code, Contact Name, Company Name, National Code, National Legal ID, Economic Code, Mobile, Phone, and City.
+    - Applies server-side Skip/Take pagination and SQL count.
+  - Implemented `GetLookupItem`: Fetches existing partner/supplier/customer by `targetId` to resolve initial selected state.
+- **Reusable UI Component & Styling (`PartnerPicker.razor` & `SupplierPicker.razor`)**:
+  - Created `PartnerPicker.razor` with `@bind-Value`:
+    - Form trigger field: shows clickable button with placeholder when empty; displays avatar with initial letter, bold name, code badge, change button, and clear button when selected.
+    - Search modal: uses `<BitDialog>` with custom header, auto-focus search input with instant debounced search (250ms), avatar circles (`.partner-picker-item-avatar.alt-0..4`), bold title, subtitle with Code • City • Mobile/Phone, and checkmark on active item.
+    - Modal footer: displays total count (e.g. "۶ تأمین‌کننده"), "+ تأمین‌کننده جدید" / "+ مشتری جدید" navigation link to `/business-partners`, and compact previous/next pagination.
+    - Dark mode, RTL/LTR layout, and mobile responsive design.
+  - Created `SupplierPicker.razor` as convenience wrapper defaulting to `Role="PartnerLookupRole.Supplier"`.
+- **Procurement & Sales Integration**:
+  - In `PurchaseOrders.razor`: Replaced static supplier `<select>` with `<PartnerPicker @bind-Value="editSupplierId" Role="PartnerLookupRole.Supplier" Scope="CurrentScope" OrganizationId="CurrentOrgId" ... />`.
+  - In `CreateEditSalesOrderModal.razor`: Replaced static customer `<select>` with `<PartnerPicker @bind-Value="customerId" Role="PartnerLookupRole.Customer" Scope="CurrentScope" OrganizationId="CurrentOrgId" ... />`.
+- **Localization & Contract Tests**:
+  - Added 17 keys to `SharedResources.fa-IR.resx` and `SharedResources.en-US.resx`: `PartnerPickerSelectSupplier`, `PartnerPickerSelectCustomer`, `PartnerPickerSelectPartner`, `PartnerPickerSearchPlaceholder`, `PartnerPickerChange`, `PartnerPickerClear`, `PartnerPickerEmpty`, `PartnerPickerTotalSuppliers`, `PartnerPickerTotalCustomers`, `PartnerPickerTotalPartners`, `PartnerPickerCreateNewSupplier`, `PartnerPickerCreateNewCustomer`, `PartnerPickerCreateNewPartner`, `PartnerPickerPage`, `PartnerPickerPrev`, `PartnerPickerNext`, `PartnerPickerTitleSupplier`, `PartnerPickerTitleCustomer`, `PartnerPickerTitlePartner`.
+  - Updated `ResourceContractTests.cs` (13 passed).
+  - Added unit tests in `BusinessPartnerTests.cs` (28 passed).
+- **Verification Evidence (2026-11-15)**:
+  - Solution build (dotnet build ForgeFlow.slnx -c Release --no-restore -m:1): **0 Warning(s), 0 Error(s)**.
+  - Resource contract tests: **13 Passed, 0 Failed**.
+  - Business partner unit tests: **28 Passed, 0 Failed**.
+  - Full test suite: **483 Passed, 0 Failed, 66 Skipped, Total: 549**.
+  - Local process verification: ForgeFlow.Web.exe running in Development mode at https://localhost:5001; verified HTTP 200 with curl on https://localhost:5001/account/login.
+- **Next Small Step**: Await user review and confirmation.
+
+
+
+
+## Phase 22 (Business Partner UI Redesign, Iranian Provinces & Cities Database Lookup, and Field Validation Contract)
+
+- **Domain Entities & Master Data**:
+  - Added IranProvince and IranCity domain entities under ForgeFlow.Domain.BusinessPartners.
+  - Configured IranProvinceConfiguration and IranCityConfiguration in ForgeFlow.Infrastructure.Organizations.Configurations.
+  - Created and applied EF Core migration 20261115065940_IranProvincesAndCities with 20261115065940_IranProvincesAndCities.Seed.cs seeding all 31 Iranian provinces and 1212 cities into [organization].[IranProvince] and [organization].[IranCity].
+- **Validation & Form Contract Enhancement (BusinessPartnerText.cs & BusinessPartners.razor)**:
+  - Separated First Name (FirstName / "نام") and Last Name (LastName / "نام خانوادگی") for natural persons.
+  - Separated Contact Person First Name (FirstName / "نام رابط") and Contact Person Last Name (LastName / "نام خانوادگی رابط") alongside Company Name (CompanyName / "نام شرکت") for legal entities.
+  - Added Economic Code (EconomicCode / "شماره اقتصادی") field for legal entities.
+  - Implemented digit normalization (NormalizeDigits) converting Persian (۰-۹) and Arabic (٠-٩) numerals to ASCII digits.
+  - Enforced strict validation rules:
+    - National Code (کد ملی): numeric only, exactly 10 digits (^\d{10}$).
+    - National Legal ID (شناسه ملی): numeric only (^\d+$).
+    - Economic Code (شناسه اقتصادی): numeric only (^\d+$).
+    - Mobile (شماره موبایل): numeric only, exactly 11 digits, must start with "09" (^09\d{9}$).
+    - Landline Phone (تلفن ثابت): numeric only, must start with "0" (^0\d+$).
+- **UI Redesign Matching Attached Design System (BusinessPartners.razor & pp.css)**:
+  - Implemented interactive multi-select role pill buttons ([✓ تأمین‌کننده], [✓ مشتری], [✓ پیمانکار]) with "حداقل یک مورد را انتخاب کنید" requirement hint.
+  - Implemented single-select person type pill buttons ([✓ شخص حقوقی], [✓ شخص حقیقی]).
+  - Rendered 3 structured sections with dedicated icons and clean dividers:
+    1. **اطلاعات عمومی** (User icon): responsive 3-column / 2-column grid dynamically toggling between natural and legal fields.
+    2. **اطلاعات تماس** (Phone icon): 2-column grid for Mobile, Landline, Email, and Website.
+    3. **اطلاعات آدرس** (Map pin icon): 3-column cascading dropdowns (Country: "ایران", Province: 31 provinces from DB, City: dynamic cities of selected province from DB) plus Address textarea with placeholder "خیابان، پلاک، واحد".
+  - Dialog footer with red "* فیلد الزامی" hint, white Cancel button, and solid blue Save button.
+  - Updated Detail modal to present the separated First/Last name for natural persons and contact persons for legal entities.
+- **Localization & Contract Tests**:
+  - Added all resource keys in SharedResources.fa-IR.resx and SharedResources.en-US.resx: BpFirstName, BpLastName, BpContactFirstName, BpContactLastName, BpContactPerson, BpRolesHint, BpSelectProvince, BpSelectCity, BpRequiredFieldHint, BpNationalCodeLengthError, BpNationalLegalIdFormatError, BpEconomicCodeFormatError, BpMobileFormatError, BpPhoneFormatError, BpFirstLastNameRequired, BpCompanyNameRequired, BpAddressPlaceholder, BpNationalCodePlaceholder, BpNationalLegalIdPlaceholder, BpMobilePlaceholder, BpPhonePlaceholder, BpEmailPlaceholder, BpWebsitePlaceholder.
+  - Synchronized ResourceContractTests.cs (13 passed) and OrganizationPersistenceModelTests.cs (17 migrations, 53 entity types, 7 passed).
+  - Added 26 unit tests in BusinessPartnerTests.cs.
+- **Verification Evidence (2026-11-15)**:
+  - Solution build (dotnet build ForgeFlow.slnx -c Release --no-restore -m:1): **0 Warning(s), 0 Error(s)**.
+  - Database schema & seed: 31 provinces and 1212 cities verified in 	estforgflow.
+  - Persistence model tests: **7 Passed, 0 Failed**.
+  - Resource contract tests: **13 Passed, 0 Failed**.
+  - Business partner unit tests: **26 Passed, 0 Failed**.
+  - Full test suite: **481 Passed, 0 Failed, 66 Skipped, Total: 547**.
+  - Local process verification: ForgeFlow.Web.exe running in Development mode at https://localhost:5001; verified HTTP 200 on https://localhost:5001/account/login.
+- **Next Small Step**: Await user review and confirmation.
+
+
+
+## Phase 23 (Reusable Partner/Supplier/Customer Search Modal Picker with Server-Side Pagination, Digit Normalization, and Procurement & Sales Integration)
+
+- **Application Contracts & Query Architecture**:
+  - Added `PartnerLookupRole` enum (`All = 0`, `Supplier = 1`, `Customer = 2`, `Contractor = 3`) under `ForgeFlow.Application.BusinessPartners`.
+  - Added `PartnerLookupQuery(string? Search, PartnerLookupRole Role, int Page, int PageSize)` for server-side paginated lookup.
+  - Added `PartnerLookupItem(long BusinessPartnerId, long TargetId, string Code, string Name, PersonType PersonType, string? CompanyName, string? NationalCode, string? NationalLegalId, string? EconomicCode, string? Mobile, string? Phone, string? City, IReadOnlyList<int> RoleIds)`.
+  - Added `SearchLookup` and `GetLookupItem` methods to `IBusinessPartnerStore` and `BusinessPartnerUseCases` with flexible permission evaluation (`BusinessPartners.Read`, `Procurement.Read`/`ManageOrders` for suppliers, `Sales.Read`/`ManageOrders` for customers).
+- **Infrastructure Store Implementation (SqlBusinessPartnerStore.cs)**:
+  - Implemented `SearchLookup`:
+    - For `Role == Supplier`: Performs SQL query joining `[organization].[Supplier]` with `[organization].[BusinessPartner]` on `Code`, returning `TargetId = Supplier.Id`.
+    - For `Role == Customer`: Performs SQL query joining `[organization].[Customer]` with `[organization].[BusinessPartner]` on `Code`, returning `TargetId = Customer.Id`.
+    - For `Role == All` / `Contractor`: Queries `[organization].[BusinessPartner]` directly, returning `TargetId = BusinessPartner.Id`.
+    - Normalizes search term digits with `BusinessPartnerText.NormalizeDigits(term)` to match ASCII and Persian digits seamlessly.
+    - Searches across all 9 fields: Name, Code, Contact Name, Company Name, National Code, National Legal ID, Economic Code, Mobile, Phone, and City.
+    - Applies server-side Skip/Take pagination and SQL count.
+  - Implemented `GetLookupItem`: Fetches existing partner/supplier/customer by `targetId` to resolve initial selected state.
+- **Reusable UI Component & Styling (`PartnerPicker.razor` & `SupplierPicker.razor`)**:
+  - Created `PartnerPicker.razor` with `@bind-Value`:
+    - Form trigger field: shows clickable button with placeholder when empty; displays avatar with initial letter, bold name, code badge, change button, and clear button when selected.
+    - Search modal: uses `<BitDialog>` with custom header, auto-focus search input with instant debounced search (250ms), avatar circles (`.partner-picker-item-avatar.alt-0..4`), bold title, subtitle with Code • City • Mobile/Phone, and checkmark on active item.
+    - Modal footer: displays total count (e.g. "۶ تأمین‌کننده"), "+ تأمین‌کننده جدید" / "+ مشتری جدید" navigation link to `/business-partners`, and compact previous/next pagination.
+    - Dark mode, RTL/LTR layout, and mobile responsive design.
+  - Created `SupplierPicker.razor` as convenience wrapper defaulting to `Role="PartnerLookupRole.Supplier"`.
+- **Procurement & Sales Integration**:
+  - In `PurchaseOrders.razor`: Replaced static supplier `<select>` with `<PartnerPicker @bind-Value="editSupplierId" Role="PartnerLookupRole.Supplier" Scope="CurrentScope" OrganizationId="CurrentOrgId" ... />`.
+  - In `CreateEditSalesOrderModal.razor`: Replaced static customer `<select>` with `<PartnerPicker @bind-Value="customerId" Role="PartnerLookupRole.Customer" Scope="CurrentScope" OrganizationId="CurrentOrgId" ... />`.
+- **Localization & Contract Tests**:
+  - Added 17 keys to `SharedResources.fa-IR.resx` and `SharedResources.en-US.resx`: `PartnerPickerSelectSupplier`, `PartnerPickerSelectCustomer`, `PartnerPickerSelectPartner`, `PartnerPickerSearchPlaceholder`, `PartnerPickerChange`, `PartnerPickerClear`, `PartnerPickerEmpty`, `PartnerPickerTotalSuppliers`, `PartnerPickerTotalCustomers`, `PartnerPickerTotalPartners`, `PartnerPickerCreateNewSupplier`, `PartnerPickerCreateNewCustomer`, `PartnerPickerCreateNewPartner`, `PartnerPickerPage`, `PartnerPickerPrev`, `PartnerPickerNext`, `PartnerPickerTitleSupplier`, `PartnerPickerTitleCustomer`, `PartnerPickerTitlePartner`.
+  - Updated `ResourceContractTests.cs` (13 passed).
+  - Added unit tests in `BusinessPartnerTests.cs` (28 passed).
+- **Verification Evidence (2026-11-15)**:
+  - Solution build (dotnet build ForgeFlow.slnx -c Release --no-restore -m:1): **0 Warning(s), 0 Error(s)**.
+  - Resource contract tests: **13 Passed, 0 Failed**.
+  - Business partner unit tests: **28 Passed, 0 Failed**.
+  - Full test suite: **483 Passed, 0 Failed, 66 Skipped, Total: 549**.
+  - Local process verification: ForgeFlow.Web.exe running in Development mode at https://localhost:5001; verified HTTP 200 with curl on https://localhost:5001/account/login.
+- **Next Small Step**: Await user review and confirmation.
+
+
+## Phase 24 (Comprehensive Multi-Industry Catalog, Dual Engineering BOMs, Partner Directory, Inventory Buffers, Optimistic Concurrency Protection & Complete End-to-End ERP Documents: PO, QC, MO, SO, DO)
+
+- **Multi-Industry Catalog & Technical Engineering Structures**:
+  - **Petrochemical Stream**:
+    - Finished Good: `FG-GPPS-1540` (General Purpose Polystyrene Grade 1540, lot-tracked).
+    - Raw Materials & Packaging: `RM-SM-01` (Styrene Monomer, 99.8% pure), `RM-CAT-01` (Peroxide Initiator Catalyst), `RM-MIN-OIL` (White Mineral Oil), `PKG-BAG-25KG` (Laminated 25kg PP Valve Bag).
+    - Work Center: `WC-POLYMER` (Extrusion & Granulation Line).
+    - Routing: `RT-GPPS-1540` (Operation `OP-EXTRUDE` with melt flow and pressure control).
+    - BOM: `BOM-GPPS-1540` v1 (1000 kg base output).
+    - Technical Attributes: Melt Flow Index (MFI = 9.0 g/10min), Vicat Softening Point (96 °C), Density (1.04 g/cm³).
+  - **Food & Beverage (FMCG) Stream with Dual Engineering Versions**:
+    - Finished Good: `FG-OIL-FRY-800` (Frying Oil 800g / 870ml, lot-tracked).
+    - Raw Materials & Packaging: `RM-OIL-PALM` (Refined Palm Olein), `RM-OIL-SUN` (Refined Sunflower Oil), `RM-ADD-TBHQ` (TBHQ Antioxidant), `PKG-CAP-28MM` (28mm Flip-Top Cap), `PKG-LABEL-800` (BOPP Wrap Label), `PKG-CARTON-12` (12-Bottle Shipping Carton).
+    - Dual BOM Versions:
+      - **Version 1 (In-House Bottle Blow Molding)**: Consumes `RM-PREFORM-28G` (PET Preform 28g). Work Center `WC-BLOW` (Rotary Blow Molder) running `OP-BLOW` (preform blow molding) followed by `WC-OIL-FILL` (Blending, Filling & Capping).
+      - **Version 2 (Purchased Ready Bottles)**: Consumes `RM-BOTTLE-800ML` (Pre-blown 800ml PET Bottle from `BP-PARS-PET`). Bypasses `WC-BLOW`, feeding directly into `WC-OIL-FILL`.
+    - Technical Attributes: Iodine Value (60.0 g I₂/100g), Free Fatty Acids (FFA = 0.08%), Food Grade Compliance (`true`).
+    - Packaging Conversion: 1 Box (`BOX`) = 12 Bottles (`BTL`).
+  - **Fisheries & Canned Food Stream**:
+    - Finished Good: `FG-TUNA-180G` (Canned Tuna in Oil 180g, lot-tracked).
+    - Raw Materials & Packaging: `RM-FISH-TUNA` (Whole Frozen Yellowfin Tuna), `RM-OIL-SOYA` (Refined Soybean Oil), `RM-SALT-FOOD` (Non-iodized Food Grade Salt), `PKG-CAN-180G` (Gold-lacquered 180g 2-Piece Can), `PKG-LID-EO` (Easy-Open Lid), `PKG-CARTON-24` (24-Can Master Shipper).
+    - Work Centers: `WC-TUNA-LINE` (Filleting, Filling & Oil Injection) and `WC-AUTOCLAVE` (Thermal Retort Sterilization at 121 °C).
+    - Routing: `RT-TUNA-180G` (`OP-CAN-FILL` and `OP-AUTOCLAVE`).
+    - BOM: `BOM-TUNA-180G` v1 (2400 Cans base output).
+    - Technical Attributes: Drained Weight Ratio (70.0%), Histamine Level (< 25.0 ppm), Food Grade Compliance (`true`).
+    - Packaging Conversion: 1 Box (`BOX`) = 24 Cans (`CAN`).
+- **Business Partner Directory with Iran Geography & Validation**:
+  - Suppliers:
+    - `BP-PARS-PETRO` (Pars Petrochemical Company, Asaluyeh, Bushehr; National Legal ID `10101456789`, Economic Code `4114567891`, Mobile `09121110011`, Phone `07737290000`).
+    - `BP-BEHPAK` (Behpak Industrial Company, Behshahr, Mazandaran; National Legal ID `10102456789`, Economic Code `4116543211`, Mobile `09122220022`, Phone `01134520000`).
+    - `BP-PARS-PET` (Pishro Plastic Pars, Tehran; National Legal ID `10103456789`, Economic Code `4117894561`, Mobile `09123330033`, Phone `02188881111`).
+    - `BP-SHILAT-JONOUB` (Southern Waters Fishery Cooperative, Chabahar, Sistan and Baluchestan; National Legal ID `10104456789`, Economic Code `4119876541`, Mobile `09154440044`, Phone `05435330000`).
+    - `BP-CAN-KHAZAR` (Khazar Metal Packaging Company, Rasht, Gilan; National Legal ID `10105456789`, Economic Code `4111234561`, Mobile `09113334455`, Phone `01333445566`).
+  - Customers:
+    - `BP-ALBORZ-DIST` (Alborz Distribution Company, Tehran; National Legal ID `10106456789`, Economic Code `4118529631`, Mobile `09125550055`, Phone `02166554433`).
+    - `BP-ETKA` (Etka Chain Stores Organization, Tehran; National Legal ID `10107456789`, Economic Code `4117418521`, Mobile `09126660066`, Phone `02188776655`).
+    - `BP-JAMSHIDI` (Ahmad Jamshidi - Natural Person, Isfahan; National Code `0071234567`, Mobile `09137770077`, Phone `03132223344`).
+- **Full Procurement & Purchase Orders Lifecycle**:
+  - `PO-2026-001` (Supplier: `BP-PARS-PETRO`): SM (5,000 kg), CAT (50 kg), MIN-OIL (100 kg), BAG25 (500 pcs) — Status: Approved -> Received into `WH-RM`.
+  - `PO-2026-002` (Supplier: `BP-BEHPAK`): Palm (3,000 kg), Sun (3,000 kg), Soya (1,000 kg), TBHQ (500 g), Salt (100 kg) — Status: Approved -> Received into `WH-RM`.
+  - `PO-2026-003` (Supplier: `BP-PARS-PET`): Preforms (3,000 pcs), Bottles (2,000 pcs), Caps (5,000 pcs), Labels (5,000 pcs), Cartons (500 pcs) — Status: Approved -> Received into `WH-RM`.
+  - `PO-2026-004` (Supplier: `BP-CAN-KHAZAR`): Cans (5,000 pcs), Lids (5,000 pcs), Master Cartons (300 pcs) — Status: Approved -> Received into `WH-RM`.
+  - `PO-2026-005` (Supplier: `BP-SHILAT-JONOUB`): Frozen Tuna Fish (2,500 kg) — Status: Approved -> Received into `WH-RM`.
+  - `PO-2026-006` (Supplier: `BP-BEHPAK`): Open Approved Purchase Order for 5,000 kg Sunflower Oil (Scheduled delivery).
+  - `PO-2026-007` (Supplier: `BP-PARS-PETRO`): Draft Purchase Order for 10,000 kg Styrene Monomer.
+- **Laboratory Quality Control & Specifications (QC / Specs / COA)**:
+  - 9 Quality Parameters: `PARAM-MFI`, `PARAM-VICAT`, `PARAM-PURITY`, `PARAM-FFA`, `PARAM-PV`, `PARAM-HISTAMINE`, `PARAM-DRAINED`, `PARAM-FOOD-GRADE`, `PARAM-LEAK`.
+  - 6 Quality Specifications across Checkpoints:
+    - `SPEC-SM-RAW` (Incoming SM purity >= 99.80%).
+    - `SPEC-SUN-RAW` (Incoming crude oil FFA <= 0.20%, PV <= 2.0).
+    - `SPEC-FISH-RAW` (Incoming tuna fish Histamine <= 50.0 ppm).
+    - `SPEC-GPPS-FG` (Production GPPS 1540 MFI 8-10, Vicat 94-98).
+    - `SPEC-OIL-FRY-FG` (Production frying oil FFA <= 0.10%, PV <= 1.5, Leak Test Passed).
+    - `SPEC-TUNA-FG` (Production canned tuna Drained Wt 68-75%, Histamine <= 40 ppm, Leak Test Passed).
+  - 7 Quality Inspections with Lab Results & Certificates of Analysis (COA):
+    - `INSP-2026-001` (SM Incoming) -> Accepted 5,000 kg, `COA-SM-PARS-01`.
+    - `INSP-2026-002` (Sunflower Oil Incoming) -> Accepted 3,000 kg, `COA-SUN-BEHPAK-01`.
+    - `INSP-2026-003` (Frozen Fish Incoming) -> Accepted 2,500 kg, `COA-TUNA-SHILAT-01`.
+    - `INSP-2026-004` (GPPS FG) -> Accepted 2,000 kg, `COA-GPPS-2026-001`.
+    - `INSP-2026-005` (Frying Oil FG) -> Accepted 600 btl, `COA-OIL-2026-001`.
+    - `INSP-2026-006` (Canned Tuna FG) -> Accepted 1,200 can, `COA-TUNA-2026-001`.
+    - `INSP-2026-007` (Quarantine Sample) -> 100 kg under pending lab evaluation in `WH-QC`.
+- **Manufacturing Execution & Production Orders (MO / BOM Snapshots / Operations)**:
+  - `MO-2026-001` (GPPS 1540): 2,000 kg produced. Operation `OP-EXTRUDE` on `WC-POLYMER` completed. Status: Completed.
+  - `MO-2026-002` (Frying Oil 800g v1 with blow molding): 600 btl produced. Operations `OP-BLOW` on `WC-BLOW` & `OP-FILL` on `WC-OIL-FILL` completed. Status: Completed.
+  - `MO-2026-003` (Frying Oil 800g v2 with purchased bottles): 600 btl produced. Operation `OP-FILL` on `WC-OIL-FILL` completed. Status: Completed.
+  - `MO-2026-004` (Canned Tuna 180g): 1,200 can produced. Operations `OP-CAN-FILL` on `WC-TUNA-LINE` & `OP-AUTOCLAVE` on `WC-AUTOCLAVE` completed. Status: Completed.
+  - `MO-2026-005` (GPPS 1540): 1,000 kg order in progress on shop floor (`OP-EXTRUDE` started). Status: InProgress.
+  - `MO-2026-006` (Frying Oil 800g): 1,200 btl scheduled for next shift. Status: Released.
+  - `MO-2026-007` (Canned Tuna 180g): 2,400 can draft planning order. Status: Draft.
+- **Sales & Delivery Dispatches (SO / DO / COA Snapshot)**:
+  - `SO-2026-001` (Customer: `BP-JAMSHIDI`): 1,200 kg GPPS 1540 -> Dispatched via `DO-2026-001` with `COA-GPPS-2026-001`.
+  - `SO-2026-002` (Customer: `BP-ALBORZ-DIST`): 700 btl Frying Oil -> Dispatched via `DO-2026-002` with `COA-OIL-2026-001`.
+  - `SO-2026-003` (Customer: `BP-ETKA`): 800 can Canned Tuna -> Dispatched via `DO-2026-003` with `COA-TUNA-2026-001`.
+  - `SO-2026-004` (Customer: `BP-ETKA`): Approved open sales order for 1,000 cans Canned Tuna.
+  - `SO-2026-005` (Customer: `BP-ALBORZ-DIST`): Draft sales quote for 1,200 bottles Frying Oil.
+- **Inventory Lifecycle & Stock Buffer Guarantee**:
+  - Full end-to-end receipt, production issue, FG receipt, and partial sales dispatch executed.
+  - Verified remaining positive buffers in `WH-RM` and `WH-FG`:
+    - GPPS in `WH-FG`: **800 kg** buffer remaining.
+    - Frying oil in `WH-FG`: **500 bottles** buffer remaining (across both lots `LOT-FG-OIL1-001` and `LOT-FG-OIL2-001`).
+    - Canned tuna in `WH-FG`: **400 cans** buffer remaining.
+    - Styrene monomer in `WH-RM`: **3,030 kg** buffer remaining.
+    - Palm olein in `WH-RM`: **2,520 kg** buffer remaining.
+    - Sunflower oil in `WH-RM`: **2,520 kg** buffer remaining.
+    - Frozen tuna fish in `WH-RM`: **2,275 kg** buffer remaining.
+- **Optimistic Concurrency Protection Verification**:
+  - Verified concurrent modifications on `BP-PARS-PETRO` across independent contexts.
+  - User A committed first, advancing `RowVersion`.
+  - User B attempted commit with stale `RowVersion` and was rejected with `DbUpdateConcurrencyException`, guaranteeing lost updates are strictly prevented.
+- **Automated Seeder & Live UI Verification**:
+  - Automated seeding tool: `dotnet run --project tools/ForgeFlow.Setup -- --seed-industrial` completed with code 0.
+  - Browser subagent verified all live UI pages on `https://localhost:5001`:
+    - `/purchase-orders`: Orders `PO-2026-001`..`007` across statuses (Completed, Approved, Draft), line item details modal with unit prices and totals ([purchase_orders_list.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/purchase_orders_list.png), [purchase_order_details_modal.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/purchase_order_details_modal.png)).
+    - `/quality`: All 4 tabs verified: Inspections with COAs ([quality_inspections_list.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/quality_inspections_list.png)), Specifications ([quality_specs_list.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/quality_specs_list.png)), Parameters ([quality_parameters_list.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/quality_parameters_list.png)), Lots.
+    - `/production-orders`: Orders `MO-2026-001`..`007` across statuses (Completed, In-Progress, Released, Draft), details workbench with BOM inputs/outputs and shop-floor operations ([production_orders_list.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/production_orders_list.png), [production_order_details_operations.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/production_order_details_operations.png)).
+    - `/sales`: Sales orders tab ([sales_orders_list.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/sales_orders_list.png)), Delivery dispatches tab ([delivery_orders_list.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/delivery_orders_list.png)), and dispatch details modal showing picked lots with COA Certificate snapshot ([delivery_order_detail_coa_snapshot.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/delivery_order_detail_coa_snapshot.png)).
+    - `/inventory`: Current stock balances showing positive buffers for finished goods ([inventory_fg_buffer.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/inventory_fg_buffer.png)) and raw materials ([inventory_rm_buffer.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/inventory_rm_buffer.png)).
+- **Verification Evidence (2026-11-15)**:
+  - Seeder execution: `dotnet run --project tools/ForgeFlow.Setup -- --seed-industrial` completed with code 0.
+  - Concurrency exception: `DbUpdateConcurrencyException` verified and asserted.
+  - Full test suite: `dotnet test` -> **483 Passed, 0 Failed, 66 Skipped, Total: 549**.
+  - Local process verification: `ForgeFlow.Web.exe` running at https://localhost:5001 (HTTP 200 OK).
+
+## Business Partners UI Redesign & Sales Modals Overhaul (2026-11-15)
+
+- **Business Partners Grid & Filter Redesign (`/business-partners`)**:
+  - Implemented exact UI mockup matching `media_1794735192798_3eda75f0.jpg`:
+    - **Adaptive ID under Name**: Replaced separate National Code/Legal ID columns with an adaptive sub-line under the partner name (`شناسه ملی: ...` for Legal, `کد ملی: ...` for Natural).
+    - **Person Type Avatar**: Circular avatar with blue building icon (`#0284c7`) for Legal entities and purple user icon (`#7c3aed`) for Natural persons, with localized tooltips.
+    - **Toolbar Filter**: Added "نوع شخص" filter dropdown (`همه` / `حقوقی` / `حقیقی`) with server-side query filtering via `BusinessPartnerListQuery.PersonTypeFilter`.
+    - **Search Input**: Updated placeholder to `نام، کد، شناسه ملی یا کد ملی`.
+    - **Business Role Badges**: Vibrant chips (blue for customer, teal for supplier, amber for contractor), displayed side-by-side when a partner holds multiple roles.
+    - **Contact Column**: Merged Phone/Mobile (Line 1) and Email (Line 2 with ellipsis and tooltip for long addresses).
+    - **Row Height**: Fixed 68px row height with single-line name truncation.
+    - **Actions Column**: 3 icon buttons with tooltips: View (`View`), Edit (`Edit`), Deactivate/Activate (`Power` icon with conditional red/green styling).
+  - **Redesigned Detail Modal**: Replaced raw list with structured cards: Hero banner (avatar, name, code, status, person type), Business Roles card, General Info card, Contact Info card, Address Info card.
+  - **Real-Time Input Sanitization**: Implemented `FilterDigitsOnly` on `@oninput` for `formMobile` (11 digits, 09 prefix), `formPhone` (0 prefix), `formNationalCode` (10 digits), `formNationalLegalId` (11 digits), and `formEconomicCode`, instantly stripping Persian/English letters and non-digit characters on typing.
+- **Sales & Dispatches Modals Overhaul (`/sales`)**:
+  - `SalesOrderDetailModal.razor` & `DeliveryOrderDetailModal.razor`:
+    - Completely removed default BitDialog `ShowOkButton` and `ShowCancelButton`.
+    - Adopted `ProductionOrders` workbench design: `audit-modal-body`, `audit-modal-title-row` with status badge, `audit-meta-card` metadata rows, line items table with QC/COA links, and bottom action buttons.
+- **Verification Evidence (2026-11-15)**:
+  - Full test suite: `dotnet test` -> **483 Passed, 0 Failed, 66 Skipped, Total: 549**.
+  - Browser subagent visual verification:
+    - Business partners grid: [bp_grid_redesign.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/bp_grid_redesign.png)
+    - Business partner detail modal: [bp_detail_modal_redesign.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/bp_detail_modal_redesign.png)
+    - Sales order detail workbench modal: [sales_order_detail_workbench.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/sales_order_detail_workbench.png)
+    - Delivery order detail workbench modal: [delivery_order_detail_workbench.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/delivery_order_detail_workbench.png)
+  - Live server running at https://localhost:5001.
+- **Next Small Step**: Purchase Orders Actions column iconification and Inventory Movement Types full Persian localization.
+
+## Purchase Orders Grid Icons & Inventory Movement Types Localization (2026-11-15)
+
+- **Purchase Orders Action Column Iconification (`/purchase-orders`)**:
+  - In `src/ForgeFlow.Web/Components/Pages/PurchaseOrders.razor`, the "ثبت رسید کالا" button previously rendered full Persian text inside a 72px column, causing it to overflow outside the grid boundaries.
+  - Added new `.ff-icon--receive` SVG mask in `app.css` matching design conventions.
+  - Converted the Receive button to an icon-only button (`read-detail-action`, 34x34px) wrapped in `<BitTooltip Text="@Text["ProcReceiveBtn"]">`.
+  - Increased column width to `100px` (`MinWidth="90"`), allowing both View and Receive icon buttons to render side-by-side cleanly within the cell.
+- **Inventory Movement Types ("نوع حرکت") Root Cause & Localization (`/inventory`)**:
+  - **Origin & Persistence**: Movement types originate from domain enum `ForgeFlow.Domain.Inventory.InventoryTransactionType`. In SQL, they are stored as numeric `byte` identifiers (1 to 10) in the `TransactionType` column of `inv.InventoryTransaction` (not hardcoded text).
+  - **Root Cause of English Display**: Dynamic formatting uses ASP.NET Core `IStringLocalizer` via `TxnTypeLabel()`. Enum value `SalesDispatch = 10` was missing an explicit pattern case in `TxnTypeLabel()`, falling back to `type.ToString() = "SalesDispatch"`.
+  - **Resolution**:
+    - Added `InvTypeSalesDispatch` = `ارسال فروش (خروج کالا)` to `SharedResources.fa-IR.resx`.
+    - Added `InvTypeSalesDispatch` = `Sales Dispatch` to `SharedResources.en-US.resx`.
+    - Registered `InvTypeSalesDispatch` in `ResourceContractTests.cs`.
+    - Updated `TxnTypeLabel()` and `TxnBadgeClass()` in `Inventory.razor`.
+- **Verification Evidence (2026-11-15)**:
+  - Full test suite: `dotnet test` -> **483 Passed, 0 Failed, 66 Skipped, Total: 549**.
+  - Browser subagent visual verification:
+    - Purchase orders grid with icon-only receive action: [po_actions_receive_icon.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/po_actions_receive_icon.png)
+    - Inventory movements tab with localized Persian labels: [inventory_all_transactions_persian.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/inventory_all_transactions_persian.png)
+    - Inventory movements filter dropdown: [inventory_sales_dispatch_persian_filtered.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/inventory_sales_dispatch_persian_filtered.png)
+  - Live server running at https://localhost:5001.
+- **Next Small Step**: Await user instructions.

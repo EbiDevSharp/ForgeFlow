@@ -2,57 +2,86 @@
 @inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
 
-<BitDialog Width="840px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses"
+<BitDialog Width="860px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses"
            IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
-           Title="@(Dispatch?.Summary.DispatchNumber ?? Text["SalesTabDispatches"])" ShowCloseButton="true">
-    @if (Dispatch is not null)
-    {
-        var ds = Dispatch.Summary;
-        <div class="proc-detail-wrap">
-            <table class="ff-table">
-                <tbody>
-                    <tr>
-                        <th>@Text["SalesOrderNumber"]</th><td dir="ltr">@ds.SalesOrderNumber</td>
-                        <th>@Text["SalesDispatchDate"]</th><td dir="ltr">@Format.Date(ds.DispatchDate)</td>
-                    </tr>
-                    <tr>
-                        <th>@Text["SalesCarrierName"]</th><td>@(ds.CarrierName ?? "—")</td>
-                        <th>@Text["SalesTrackingNumber"]</th><td dir="ltr">@(ds.TrackingNumber ?? "—")</td>
-                    </tr>
-                </tbody>
-            </table>
-            <table class="ff-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>@Text["PoItemColumn"]</th>
-                        <th>@Text["InvLotCodeLabel"]</th>
-                        <th>@Text["SalesDispatchedQty"]</th>
-                        <th>@Text["QcCoaTitle"]</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var dl in Dispatch.Lines)
+           Title="@(Dispatch?.Summary.DispatchNumber ?? Text["SalesTabDispatches"])"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (Dispatch is not null)
+        {
+            var ds = Dispatch.Summary;
+            <div class="audit-modal-body">
+                <div class="audit-modal-title-row">
+                    <span class="audit-modal-code" dir="ltr">@ds.DispatchNumber — @Text["SalesOrderNumber"]: @ds.SalesOrderNumber</span>
+                    <span class="read-badge status-completed">@Text["SalesDispatchedQty"]</span>
+                </div>
+
+                <div class="audit-meta-card">
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["SalesOrderNumber"]</span>
+                        <span class="audit-meta-val" dir="ltr">@ds.SalesOrderNumber</span>
+                    </div>
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["SalesDispatchDate"]</span>
+                        <span class="audit-meta-val" dir="ltr">@Format.Date(ds.DispatchDate)</span>
+                    </div>
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["SalesCarrierName"]</span>
+                        <span class="audit-meta-val">@(ds.CarrierName ?? "—")</span>
+                    </div>
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["SalesTrackingNumber"]</span>
+                        <span class="audit-meta-val" dir="ltr">@(ds.TrackingNumber ?? "—")</span>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(ds.Notes))
                     {
-                        <tr>
-                            <td dir="ltr">@dl.LineNumber</td>
-                            <td><bdi dir="ltr">@dl.ItemCode</bdi> — @dl.ItemName</td>
-                            <td dir="ltr">@dl.LotCode</td>
-                            <td dir="ltr">@Format.Number(dl.DispatchedBaseQuantity) @dl.BaseUnitSymbolSnapshot</td>
-                            <td>
-                                <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnOpenCoa.InvokeAsync((dl.ItemId, dl.LotCode))">
-                                    @(dl.CertificateNumberSnapshot ?? Text["QcCoaBtn"])
-                                </BitButton>
-                            </td>
-                        </tr>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["PoNotesLabel"]</span>
+                            <span class="audit-meta-val">@ds.Notes</span>
+                        </div>
                     }
-                </tbody>
-            </table>
-            <div class="proc-detail-actions">
-                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CloseDialogAsync">@Text["ReadClose"]</BitButton>
+                </div>
+
+                <div class="item-sub-card">
+                    <strong>@Text["ProcLinesSection"]</strong>
+                    <div class="read-grid" style="margin-top: 10px;">
+                        <table class="ff-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>@Text["PoItemColumn"]</th>
+                                    <th>@Text["InvLotCodeLabel"]</th>
+                                    <th>@Text["SalesDispatchedQty"]</th>
+                                    <th>@Text["QcCoaTitle"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var dl in Dispatch.Lines)
+                                {
+                                    <tr>
+                                        <td dir="ltr">@dl.LineNumber</td>
+                                        <td><bdi dir="ltr">@dl.ItemCode</bdi> — @dl.ItemName</td>
+                                        <td dir="ltr">@dl.LotCode</td>
+                                        <td dir="ltr">@Format.Number(dl.DispatchedBaseQuantity) @dl.BaseUnitSymbolSnapshot</td>
+                                        <td>
+                                            <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => OnOpenCoa.InvokeAsync((dl.ItemId, dl.LotCode))">
+                                                @(dl.CertificateNumberSnapshot ?? Text["QcCoaBtn"])
+                                            </BitButton>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="audit-modal-actions" style="margin-top: 14px; display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CloseDialogAsync">@Text["ReadClose"]</BitButton>
+                </div>
             </div>
-        </div>
-    }
+        }
+    </Body>
 </BitDialog>
 
 @code {

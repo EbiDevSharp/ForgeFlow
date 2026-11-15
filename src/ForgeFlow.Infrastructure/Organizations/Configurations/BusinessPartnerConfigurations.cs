@@ -95,3 +95,33 @@ internal sealed class BusinessPartnerRoleAssignmentConfiguration : IEntityTypeCo
             .HasConstraintName("FK_BusinessPartnerRoleAssignment_RoleDefinition");
     }
 }
+
+internal sealed class IranProvinceConfiguration : IEntityTypeConfiguration<IranProvince>
+{
+    public void Configure(EntityTypeBuilder<IranProvince> builder)
+    {
+        builder.ToTable("IranProvince", Schema);
+        builder.HasKey(x => x.Id).HasName("PK_IranProvince");
+        builder.Property(x => x.Id).ValueGeneratedNever();
+        builder.Property(x => x.Name).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.DisplayOrder).IsRequired();
+
+        builder.HasMany(x => x.Cities).WithOne().HasForeignKey(x => x.ProvinceId)
+            .OnDelete(DeleteBehavior.NoAction).HasConstraintName("FK_IranCity_IranProvince");
+    }
+}
+
+internal sealed class IranCityConfiguration : IEntityTypeConfiguration<IranCity>
+{
+    public void Configure(EntityTypeBuilder<IranCity> builder)
+    {
+        builder.ToTable("IranCity", Schema);
+        builder.HasKey(x => x.Id).HasName("PK_IranCity");
+        builder.Property(x => x.Id).ValueGeneratedNever();
+        builder.Property(x => x.ProvinceId).IsRequired();
+        builder.Property(x => x.Name).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.DisplayOrder).IsRequired();
+
+        builder.HasIndex(x => x.ProvinceId).HasDatabaseName("IX_IranCity_ProvinceId");
+    }
+}

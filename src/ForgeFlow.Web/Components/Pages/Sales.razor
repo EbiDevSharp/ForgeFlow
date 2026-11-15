@@ -260,7 +260,14 @@
 
     private enum ReasonMode { CancelOrder, ReverseDispatch }
 
-    private static readonly BitDialogClassStyles DialogClasses = new() { Root = "ff-dialog-root", Container = "ff-dialog-card" };
+    private static readonly BitDialogClassStyles DialogClasses = new()
+    {
+        Container = "read-dialog",
+        Header = "read-dialog-header",
+        Body = "read-dialog-body",
+        CloseButton = "read-dialog-close",
+        Overlay = "read-dialog-overlay"
+    };
     private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
     private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
     private static readonly BitIconInfo PlusIcon = BitIconInfo.Css("ff-icon ff-icon--plus");

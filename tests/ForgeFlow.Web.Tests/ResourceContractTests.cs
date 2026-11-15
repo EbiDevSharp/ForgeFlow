@@ -221,7 +221,7 @@ public sealed class ResourceContractTests
             ["InvSavedNotice"] = 0, ["InvPostedNotice"] = 0, ["InvReversedNotice"] = 0,
             ["InvTypeReceipt"] = 0, ["InvTypeIssue"] = 0, ["InvTypeAdjustment"] = 0,
             ["InvTypeTransferOut"] = 0, ["InvTypeTransferIn"] = 0, ["InvTypeProdIssue"] = 0,
-            ["InvTypeProdReceipt"] = 0, ["InvTypeReversal"] = 0,
+            ["InvTypeProdReceipt"] = 0, ["InvTypeReversal"] = 0, ["InvTypeSalesDispatch"] = 0,
             ["InvErrorWarehouseInactive"] = 0, ["InvErrorAlreadyReversed"] = 0, ["InvErrorCannotReverseReversal"] = 0,
             ["InvErrorLinesRequired"] = 0, ["InvErrorQuantityInvalid"] = 0, ["InvErrorLotCodeInvalid"] = 0,
             ["InvErrorDestWarehouseInvalid"] = 0, ["InvErrorTransferSameWarehouse"] = 0, ["InvErrorOrderInvalid"] = 0,
@@ -524,7 +524,24 @@ public sealed class ResourceContractTests
             ["BpCountry"] = 0, ["BpProvince"] = 0, ["BpAddress"] = 0,
             ["BpCreateButton"] = 0, ["BpCreateTitle"] = 0, ["BpEditTitle"] = 0, ["BpDetailTitle"] = 0,
             ["BpRoleRequired"] = 0, ["BpConfirmDeactivate"] = 1, ["BpConfirmActivate"] = 1,
-            ["BpAllRoles"] = 0, ["BpFilterRole"] = 0
+            ["BpAllRoles"] = 0, ["BpFilterRole"] = 0,
+            ["BpFirstName"] = 0, ["BpLastName"] = 0, ["BpContactFirstName"] = 0, ["BpContactLastName"] = 0,
+            ["BpContactPerson"] = 0, ["BpRolesHint"] = 0, ["BpSelectProvince"] = 0, ["BpSelectCity"] = 0,
+            ["BpRequiredFieldHint"] = 0, ["BpNationalCodeLengthError"] = 0, ["BpNationalLegalIdFormatError"] = 0,
+            ["BpEconomicCodeFormatError"] = 0, ["BpMobileFormatError"] = 0, ["BpPhoneFormatError"] = 0,
+            ["BpFirstLastNameRequired"] = 0, ["BpCompanyNameRequired"] = 0, ["BpAddressPlaceholder"] = 0,
+            ["BpNationalCodePlaceholder"] = 0, ["BpNationalLegalIdPlaceholder"] = 0,
+            ["BpMobilePlaceholder"] = 0, ["BpPhonePlaceholder"] = 0, ["BpEmailPlaceholder"] = 0, ["BpWebsitePlaceholder"] = 0,
+            ["PartnerPickerSelectSupplier"] = 0, ["PartnerPickerSelectCustomer"] = 0, ["PartnerPickerSelectPartner"] = 0,
+            ["PartnerPickerSearchPlaceholder"] = 0, ["PartnerPickerChange"] = 0, ["PartnerPickerClear"] = 0,
+            ["PartnerPickerEmpty"] = 0, ["PartnerPickerTotalSuppliers"] = 1, ["PartnerPickerTotalCustomers"] = 1,
+            ["PartnerPickerTotalPartners"] = 1, ["PartnerPickerCreateNewSupplier"] = 0, ["PartnerPickerCreateNewCustomer"] = 0,
+            ["PartnerPickerCreateNewPartner"] = 0, ["PartnerPickerPage"] = 2, ["PartnerPickerPrev"] = 0,
+            ["PartnerPickerNext"] = 0, ["PartnerPickerTitleSupplier"] = 0, ["PartnerPickerTitleCustomer"] = 0,
+            ["PartnerPickerTitlePartner"] = 0,
+            ["BpSearchPlaceholder"] = 0, ["BpAllPersonTypes"] = 0,
+            ["BpPersonLegalTooltip"] = 0, ["BpPersonNaturalTooltip"] = 0,
+            ["BpAdaptiveLegal"] = 0, ["BpAdaptiveNatural"] = 0
         }.Concat(ForgeFlow.Application.Audit.AuditEventCatalog.All.ToDictionary(d => d.ResourceKey, _ => 0))
          .ToDictionary(kv => kv.Key, kv => kv.Value)
     };

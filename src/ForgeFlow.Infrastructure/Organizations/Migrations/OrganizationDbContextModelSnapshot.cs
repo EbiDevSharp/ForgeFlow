@@ -731,6 +731,50 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ForgeFlow.Domain.BusinessPartners.IranCity", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ProvinceId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id")
+                        .HasName("PK_IranCity");
+
+                    b.HasIndex("ProvinceId")
+                        .HasDatabaseName("IX_IranCity_ProvinceId");
+
+                    b.ToTable("IranCity", "organization");
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.BusinessPartners.IranProvince", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id")
+                        .HasName("PK_IranProvince");
+
+                    b.ToTable("IranProvince", "organization");
+                });
+
             modelBuilder.Entity("ForgeFlow.Domain.Inventory.InventoryBalance", b =>
                 {
                     b.Property<long>("Id")
@@ -4623,6 +4667,16 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
                     b.Navigation("RoleDefinition");
                 });
 
+            modelBuilder.Entity("ForgeFlow.Domain.BusinessPartners.IranCity", b =>
+                {
+                    b.HasOne("ForgeFlow.Domain.BusinessPartners.IranProvince", null)
+                        .WithMany("Cities")
+                        .HasForeignKey("ProvinceId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired()
+                        .HasConstraintName("FK_IranCity_IranProvince");
+                });
+
             modelBuilder.Entity("ForgeFlow.Domain.Inventory.InventoryBalance", b =>
                 {
                     b.HasOne("ForgeFlow.Domain.Units.Unit", null)
@@ -5716,6 +5770,11 @@ namespace ForgeFlow.Infrastructure.Organizations.Migrations
             modelBuilder.Entity("ForgeFlow.Domain.BusinessPartners.BusinessPartner", b =>
                 {
                     b.Navigation("Roles");
+                });
+
+            modelBuilder.Entity("ForgeFlow.Domain.BusinessPartners.IranProvince", b =>
+                {
+                    b.Navigation("Cities");
                 });
 
             modelBuilder.Entity("ForgeFlow.Domain.Organizations.Organization", b =>

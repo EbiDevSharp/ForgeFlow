@@ -1,3 +1,4 @@
+@using ForgeFlow.Application.BusinessPartners
 @using ForgeFlow.Application.Common
 @using ForgeFlow.Application.Inventory
 @using ForgeFlow.Application.Items
@@ -37,14 +38,15 @@
                        @bind="orderNumber" maxlength="32" readonly="@(orderToEdit is not null || !allowOverride)" dir="ltr" />
             </div>
             <div class="proc-po-field">
-                <label for="so-cust">@Text["SalesCustomerColumn"] <span class="proc-req-star" aria-hidden="true">*</span></label>
-                <select id="so-cust" @bind="customerId">
-                    <option value="0">@Text["SalesSelectCustomerPlaceholder"]</option>
-                    @foreach (var c in activeCustomers)
-                    {
-                        <option value="@c.Id">@c.Code — @c.Name</option>
-                    }
-                </select>
+                <PartnerPicker @bind-Value="customerId"
+                               Role="PartnerLookupRole.Customer"
+                               Scope="CurrentScope"
+                               OrganizationId="CurrentOrgId"
+                               Label="@Text["SalesCustomerColumn"]"
+                               Placeholder="@Text["SalesSelectCustomerPlaceholder"]"
+                               InitialName="@customerName"
+                               InitialCode="@customerCode"
+                               Required="true" />
             </div>
             <div class="proc-po-field">
                 <label for="so-site">@Text["PoSiteColumn"]</label>
@@ -213,6 +215,8 @@
     private bool allowOverride;
     private string orderNumber = string.Empty;
     private long customerId;
+    private string customerName = string.Empty;
+    private string customerCode = string.Empty;
     private long siteId;
     private DateTimeOffset? orderDateOffset;
     private DateTimeOffset? requestedDateOffset;
@@ -253,7 +257,9 @@
         var prevRes = await SeqService.GetPreview(CurrentScope, CurrentOrgId, DocumentSequenceType.SalesOrder);
         allowOverride = prevRes.Succeeded && prevRes.Value!.AllowManualOverride;
         orderNumber = prevRes.Succeeded ? prevRes.Value!.NextPreview : string.Empty;
-        customerId = activeCustomers.FirstOrDefault()?.Id ?? 0;
+        customerId = 0;
+        customerName = string.Empty;
+        customerCode = string.Empty;
         warehouseId = 0;
         orderDateOffset = DateTimeOffset.Now;
         requestedDateOffset = null;
@@ -276,6 +282,8 @@
 
         orderNumber = details.Summary.OrderNumber;
         customerId = details.Summary.CustomerId;
+        customerName = details.Summary.CustomerName;
+        customerCode = details.Summary.CustomerCode;
         warehouseId = details.Summary.SourceWarehouseId ?? 0;
         orderDateOffset = new DateTimeOffset(details.Summary.OrderDate.ToDateTime(TimeOnly.MinValue));
         requestedDateOffset = details.Summary.RequestedDeliveryDate is DateOnly rd ? new DateTimeOffset(rd.ToDateTime(TimeOnly.MinValue)) : null;

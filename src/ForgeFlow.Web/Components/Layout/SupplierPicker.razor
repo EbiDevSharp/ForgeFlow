@@ -1,0 +1,29 @@
+@using ForgeFlow.Application.BusinessPartners
+@using ForgeFlow.Application.Organizations
+
+<PartnerPicker Value="@Value"
+               ValueChanged="@ValueChanged"
+               Role="PartnerLookupRole.Supplier"
+               Scope="@Scope"
+               OrganizationId="@OrganizationId"
+               Label="@Label"
+               Placeholder="@Placeholder"
+               Required="@Required"
+               Disabled="@Disabled"
+               AllowClear="@AllowClear"
+               InitialName="@InitialName"
+               InitialCode="@InitialCode" />
+
+@code {
+    [Parameter] public long Value { get; set; }
+    [Parameter] public EventCallback<long> ValueChanged { get; set; }
+    [Parameter] public OrganizationScope? Scope { get; set; }
+    [Parameter] public long OrganizationId { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool AllowClear { get; set; } = true;
+    [Parameter] public string? InitialName { get; set; }
+    [Parameter] public string? InitialCode { get; set; }
+}

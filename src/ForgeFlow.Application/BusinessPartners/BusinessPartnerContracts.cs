@@ -13,6 +13,15 @@ public sealed record BusinessPartnerRoleDto(
     string Code,
     string Name);
 
+public sealed record IranProvinceDto(
+    int Id,
+    string Name);
+
+public sealed record IranCityDto(
+    int Id,
+    int ProvinceId,
+    string Name);
+
 public sealed record BusinessPartnerSummary(
     long Id,
     long OrganizationId,
@@ -106,4 +115,35 @@ public sealed record BusinessPartnerListQuery(
     int? RoleFilter,
     bool IncludeInactive,
     int Page,
-    int PageSize);
+    int PageSize,
+    PersonType? PersonTypeFilter = null);
+
+public enum PartnerLookupRole
+{
+    All = 0,
+    Supplier = 1,
+    Customer = 2,
+    Contractor = 3
+}
+
+public sealed record PartnerLookupQuery(
+    string? Search = null,
+    PartnerLookupRole Role = PartnerLookupRole.All,
+    int Page = 1,
+    int PageSize = 10);
+
+public sealed record PartnerLookupItem(
+    long BusinessPartnerId,
+    long TargetId,
+    string Code,
+    string Name,
+    PersonType PersonType,
+    string? CompanyName,
+    string? NationalCode,
+    string? NationalLegalId,
+    string? EconomicCode,
+    string? Mobile,
+    string? Phone,
+    string? City,
+    IReadOnlyList<int> RoleIds);
+
