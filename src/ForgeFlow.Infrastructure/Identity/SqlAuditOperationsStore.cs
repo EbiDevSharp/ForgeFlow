@@ -32,6 +32,18 @@ public sealed class SqlAuditOperationsStore(
         AuditListQuery query,
         CancellationToken ct = default)
     {
+        long? targetOrgId = scope switch
+        {
+            OrganizationScope.Organization o => o.OrganizationId,
+            OrganizationScope.Site s => s.OrganizationId,
+            _ => null
+        };
+        long? targetSiteId = scope switch
+        {
+            OrganizationScope.Site s => s.SiteId,
+            _ => null
+        };
+
         try
         {
             await using var serviceScope = scopes.CreateAsyncScope();
@@ -44,6 +56,11 @@ public sealed class SqlAuditOperationsStore(
             await using var diagDb = diagDbFactory is not null
                 ? await diagDbFactory.CreateDbContextAsync(ct)
                 : serviceScope.ServiceProvider.GetService<DiagnosticsDbContext>();
+
+            if (orgDb is not null && targetOrgId.HasValue)
+            {
+                orgDb.CurrentOrganizationId = targetOrgId.Value;
+            }
 
             var includeBusiness = query.Category is AuditCategory.All or AuditCategory.Business
                                   && scope is not OrganizationScope.Platform
@@ -161,7 +178,7 @@ public sealed class SqlAuditOperationsStore(
         }
         catch (Exception ex) when (IsTransientUnavailable(ex))
         {
-            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore));
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore), organizationId: targetOrgId, siteId: targetSiteId);
             throw new AuditStoreUnavailableException(ex);
         }
     }
@@ -190,7 +207,7 @@ public sealed class SqlAuditOperationsStore(
                 if (orgDb is null)
                     return null;
 
-                var query = ApplyBusinessScope(orgDb.OrganizationChanges.AsNoTracking(), scope)
+                var query = ApplyBusinessScope(orgDb.OrganizationChanges.AsNoTracking().IgnoreQueryFilters(), scope)
                     .Where(c => c.Id == entryId);
 
                 row = await query
@@ -256,7 +273,7 @@ public sealed class SqlAuditOperationsStore(
         }
         catch (Exception ex) when (IsTransientUnavailable(ex))
         {
-            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore));
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore), organizationId: ScopeOrgId(scope), siteId: ScopeSiteId(scope));
             throw new AuditStoreUnavailableException(ex);
         }
     }
@@ -290,16 +307,18 @@ public sealed class SqlAuditOperationsStore(
                 _ => Enumerable.Empty<ApplicationAccount>().AsQueryable()
             };
 
-            return await usersQuery
+            var rawUsers = await usersQuery
                 .Where(u => u.UserName != null)
-                .Select(u => new AuditActorOption(u.Id, u.UserName!))
+                .Select(u => new { u.Id, UserName = u.UserName! })
                 .Distinct()
                 .OrderBy(u => u.UserName)
                 .ToListAsync(ct);
+
+            return rawUsers.Select(u => new AuditActorOption(u.Id, u.UserName)).ToList();
         }
         catch (Exception ex) when (IsTransientUnavailable(ex))
         {
-            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore));
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore), organizationId: ScopeOrgId(scope), siteId: ScopeSiteId(scope));
             throw new AuditStoreUnavailableException(ex);
         }
     }
@@ -323,7 +342,7 @@ public sealed class SqlAuditOperationsStore(
                     : serviceScope.ServiceProvider.GetService<OrganizationDbContext>();
                 if (orgDb is not null)
                 {
-                    var biz = await ApplyBusinessScope(orgDb.OrganizationChanges.AsNoTracking(), scope)
+                    var biz = await ApplyBusinessScope(orgDb.OrganizationChanges.AsNoTracking().IgnoreQueryFilters(), scope)
                         .Select(c => c.EventCode)
                         .Distinct()
                         .ToListAsync(ct);
@@ -364,7 +383,7 @@ public sealed class SqlAuditOperationsStore(
         }
         catch (Exception ex) when (IsTransientUnavailable(ex))
         {
-            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore));
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore), organizationId: ScopeOrgId(scope), siteId: ScopeSiteId(scope));
             throw new AuditStoreUnavailableException(ex);
         }
     }
@@ -407,7 +426,7 @@ public sealed class SqlAuditOperationsStore(
         OrganizationScope scope,
         AuditListQuery query)
     {
-        var rows = ApplyBusinessScope(orgDb.OrganizationChanges.AsNoTracking(), scope);
+        var rows = ApplyBusinessScope(orgDb.OrganizationChanges.AsNoTracking().IgnoreQueryFilters(), scope);
 
         if (query.ActorUserId is long actorId)
             rows = rows.Where(c => c.ActorId == actorId);
@@ -572,7 +591,7 @@ public sealed class SqlAuditOperationsStore(
                     && authDb.OrganizationMemberships.Any(m =>
                         m.OrganizationId == org.OrganizationId
                         && m.IsActive
-                        && m.UserId == s.SubjectUserId.Value))),
+                        && m.UserId == s.SubjectUserId))),
             OrganizationScope.Site site => query.Where(s => s.OrganizationId == site.OrganizationId && s.SiteId == site.SiteId),
             _ => query.Where(_ => false)
         };
@@ -629,6 +648,19 @@ public sealed class SqlAuditOperationsStore(
             r.RawJson)).ToArray();
     }
 
+    private static long? ScopeOrgId(OrganizationScope? scope) => scope switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site s => s.OrganizationId,
+        _ => null
+    };
+
+    private static long? ScopeSiteId(OrganizationScope? scope) => scope switch
+    {
+        OrganizationScope.Site s => s.SiteId,
+        _ => null
+    };
+
     private static bool IsTransientUnavailable(Exception ex) =>
         ex is DbException or SqlException or InvalidOperationException or TimeoutException;
 
@@ -667,7 +699,7 @@ public sealed class SqlAuditOperationsStore(
             List<(RawAuditRow Row, Guid? SessionId)> bRows = [];
             if (orgDb is not null)
             {
-                var bq = orgDb.OrganizationChanges.AsNoTracking().Where(c => c.ActorId == userId);
+                var bq = orgDb.OrganizationChanges.AsNoTracking().IgnoreQueryFilters().Where(c => c.ActorId == userId);
                 if (fromUtc.HasValue) bq = bq.Where(c => c.OccurredAtUtc >= fromUtc.Value);
                 if (eventCode is not null) bq = bq.Where(c => c.EventCode == eventCode);
                 if (search is not null)
@@ -787,7 +819,7 @@ public sealed class SqlAuditOperationsStore(
         }
         catch (Exception ex) when (IsTransientUnavailable(ex))
         {
-            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore));
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore), actorId: userId);
             throw new AuditStoreUnavailableException(ex);
         }
     }
@@ -817,7 +849,7 @@ public sealed class SqlAuditOperationsStore(
                     : serviceScope.ServiceProvider.GetService<OrganizationDbContext>();
                 if (orgDb is not null)
                 {
-                    row = await orgDb.OrganizationChanges.AsNoTracking()
+                    row = await orgDb.OrganizationChanges.AsNoTracking().IgnoreQueryFilters()
                         .Where(c => c.Id == entryId && c.ActorId == userId)
                         .Select(c => new RawAuditRow(AuditSourceKind.Business, c.Id, c.OccurredAtUtc, c.EventCode, c.OrganizationId, c.SiteId, c.ActorId, null, null, null, c.CorrelationId, c.ChangesJson))
                         .SingleOrDefaultAsync(ct);
@@ -885,7 +917,7 @@ public sealed class SqlAuditOperationsStore(
         }
         catch (Exception ex) when (IsTransientUnavailable(ex))
         {
-            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore));
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore), actorId: userId);
             throw new AuditStoreUnavailableException(ex);
         }
     }
@@ -916,7 +948,7 @@ public sealed class SqlAuditOperationsStore(
 
             if (orgDb is not null)
             {
-                foreach (var code in await orgDb.OrganizationChanges.AsNoTracking()
+                foreach (var code in await orgDb.OrganizationChanges.AsNoTracking().IgnoreQueryFilters()
                     .Where(c => c.ActorId == userId).Select(c => c.EventCode).Distinct().ToListAsync(ct))
                 {
                     codes.Add(code);
@@ -940,7 +972,7 @@ public sealed class SqlAuditOperationsStore(
         }
         catch (Exception ex) when (IsTransientUnavailable(ex))
         {
-            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore));
+            await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlAuditOperationsStore), actorId: userId);
             throw new AuditStoreUnavailableException(ex);
         }
     }

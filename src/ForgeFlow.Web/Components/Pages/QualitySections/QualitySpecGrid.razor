@@ -1,0 +1,112 @@
+@using ForgeFlow.Application.Quality
+@using ForgeFlow.Domain.Quality
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-grid-card">
+    <div class="read-grid">
+        <BitDataGrid @ref="grid" TItem="QualitySpecSummary" OnRead="OnRead" Pageable="true" PageSize="25"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                     AriaLabelledBy="qc-title" WrapCellText="true" Resizable="true">
+            <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+            <Columns>
+                <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["ReadCode"]">
+                    <Template Context="s">
+                        <div>
+                            <div class="read-primary-cell"><bdi dir="ltr">@s.Code</bdi></div>
+                            <div class="read-sub-cell" dir="ltr">v@(s.Version)</div>
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["ReadName"]">
+                    <Template Context="s">@s.Name</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["QcSpecTargetLabel"]">
+                    <Template Context="s">
+                        <div>
+                            <div class="read-primary-cell">
+                                @if (s.TargetKind == QualitySpecTargetKind.Item)
+                                {
+                                    <span dir="ltr">@s.ItemCode</span> <span>— @s.ItemName</span>
+                                }
+                                else
+                                {
+                                    <span dir="ltr">@s.ClassificationCode</span> <span>— @s.ClassificationName</span>
+                                }
+                            </div>
+                            <div class="read-sub-cell">@TargetKindLabel(s.TargetKind)</div>
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["QcSpecCheckpointLabel"]">
+                    <Template Context="s"><span class="cap-badge">@CheckpointLabel(s.Checkpoint)</span></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["QcSpecLinesCountCol"]">
+                    <Template Context="s"><span dir="ltr">@s.LineCount</span></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["ReadStatus"]">
+                    <Template Context="s">
+                        <span class="read-badge @(s.IsActive ? "active" : "inactive")">
+                            @Text[s.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualitySpecSummary" Title="@Text["ReadActions"]">
+                    <Template Context="s">
+                        <div class="read-row-actions">
+                            <BitTooltip Text="@Text[CanManage ? "ReadEdit" : "ReadDetails"]" ShowOnFocus="true">
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                           Icon="@(CanManage ? EditIcon : BitIconInfo.Css("ff-icon ff-icon--eye"))" IconOnly="true"
+                                           aria-label="@Text[CanManage ? "ReadEdit" : "ReadDetails"]"
+                                           OnClick="() => OnOpenSpec.InvokeAsync(s.Id)" />
+                            </BitTooltip>
+                            @if (CanManage)
+                            {
+                                var specToggleLabel = Text[s.IsActive ? "WriteDeactivate" : "WriteActivate"];
+                                <BitTooltip Text="@specToggleLabel" ShowOnFocus="true">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!ModalBusy)"
+                                               Class="@($"read-detail-action {(s.IsActive ? "read-action-deactivate" : "read-action-activate")}")"
+                                               Icon="@(s.IsActive ? DeactivateIcon : ActivateIcon)" IconOnly="true"
+                                               aria-label="@specToggleLabel"
+                                               OnClick="() => OnToggleActive.InvokeAsync(s)" />
+                                </BitTooltip>
+                            }
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
+    private static readonly BitIconInfo DeactivateIcon = BitIconInfo.Css("ff-icon ff-icon--deactivate");
+    private static readonly BitIconInfo ActivateIcon = BitIconInfo.Css("ff-icon ff-icon--activate");
+
+    private BitDataGrid<QualitySpecSummary>? grid;
+
+    [Parameter, EditorRequired] public Func<BitDataGridReadRequest, Task<BitDataGridReadResult<QualitySpecSummary>>> OnRead { get; set; } = default!;
+    [Parameter] public int[] PageSizeOptions { get; set; } = [10, 25, 50, 100];
+    [Parameter] public BitDataGridStrings GridStrings { get; set; } = default!;
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public bool ModalBusy { get; set; }
+    [Parameter] public EventCallback<long> OnOpenSpec { get; set; }
+    [Parameter] public EventCallback<QualitySpecSummary> OnToggleActive { get; set; }
+
+    public async Task RefreshAsync(bool fromFirstPage = false)
+    {
+        if (grid is null) return;
+        if (fromFirstPage && grid.CurrentPage > 1) await grid.GoToPageAsync(1);
+        else await grid.RefreshAsync();
+    }
+
+    private string TargetKindLabel(QualitySpecTargetKind kind) => kind == QualitySpecTargetKind.Item
+        ? Text["QcTargetItem"] : Text["QcTargetClassification"];
+
+    private string CheckpointLabel(QualitySpecCheckpoint ckpt) => ckpt switch
+    {
+        QualitySpecCheckpoint.Incoming => Text["QcCheckpointIncoming"],
+        QualitySpecCheckpoint.Production => Text["QcCheckpointProduction"],
+        _ => Text["QcCheckpointAll"]
+    };
+}

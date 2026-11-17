@@ -16,7 +16,7 @@ public enum QualitySpecCheckpoint : byte
 }
 
 /// <summary>Inspection specification template attached to either an Item or an Item Classification.</summary>
-public sealed class QualitySpec : IHasRowVersion
+public sealed class QualitySpec : IHasRowVersion, IOrganizationEntity
 {
     private readonly List<QualitySpecLine> _lines = [];
 

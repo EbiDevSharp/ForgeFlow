@@ -6,6 +6,7 @@
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
 @inject ITrustedActorAccessor Actors
 @inject IOrganizationPermissionEvaluator Permissions
+@inject ForgeFlow.Application.Common.IOrganizationClock Clock
 @inject IStringLocalizer<SharedResources> Text
 
 <PageTitle>@Text["DocumentNumbering"] - @Text["AppTitle"]</PageTitle>
@@ -198,7 +199,7 @@
                 var pad = (byte)Math.Clamp((int)editPadding, 3, 8);
                 var next = Math.Max(1L, editNextNumber);
                 return DocumentSequence.Create(1, DocumentSequenceType.SalesOrder, p, editSeparator, editYearMode, pad, next, editAllowOverride)
-                    .FormatPreview(DateTime.UtcNow);
+                    .FormatPreview(Clock.UtcNow, Clock.GetTimeZone(CurrentOrgId));
             }
             catch
             {
@@ -261,7 +262,7 @@
         var res = await SeqService.ListSequences(CurrentScope, CurrentOrgId);
         if (!res.Succeeded)
         {
-            pageError = res.Error!.Code;
+            pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
             return;
         }
         sequences = res.Value!.ToList();
@@ -304,7 +305,7 @@
                 editingItem.RowVersion);
             if (!res.Succeeded)
             {
-                modalError = res.Error!.Code;
+                modalError = Text[RolePermissionLocalization.FailureKey(res.Error!.Code)];
                 return;
             }
             editModalOpen = false;

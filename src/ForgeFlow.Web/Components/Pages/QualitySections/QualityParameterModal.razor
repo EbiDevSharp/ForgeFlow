@@ -1,0 +1,151 @@
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Quality
+@using ForgeFlow.Domain.Organizations
+@using ForgeFlow.Domain.Quality
+@inject QualitySpecUseCases SpecService
+@inject IStringLocalizer<SharedResources> Text
+@implements IDisposable
+
+<ForgeFormDialog IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged" Width="640px"
+                 Title="@Text[editingParam is null ? "QcCreateParameterTitle" : "QcEditParameterTitle"]"
+                 Subtitle="@Text["QcParamModalSubtitle"]" CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (paramError is not null)
+        {
+            <p role="alert" class="write-error">@Text[paramError]</p>
+        }
+        <div class="po-form-grid">
+            <div class="write-field">
+                <label for="qc-param-code">@Text["ReadCode"]</label>
+                <input id="qc-param-code" type="text" maxlength="32" @bind="paramCode" disabled="@(editingParam is not null || modalBusy)" placeholder="MFI" />
+            </div>
+            <div class="write-field">
+                <label for="qc-param-symbol">@Text["QcParamSymbolLabel"]</label>
+                <input id="qc-param-symbol" type="text" maxlength="24" @bind="paramSymbol" disabled="@modalBusy" placeholder="MFI" />
+            </div>
+            <div class="write-field po-field-full">
+                <label for="qc-param-name">@Text["ReadName"]</label>
+                <input id="qc-param-name" type="text" maxlength="120" @bind="paramName" disabled="@modalBusy" placeholder="Melt Flow Index" />
+            </div>
+            <div class="write-field">
+                <label for="qc-param-unit">@Text["QcParamUnitLabel"]</label>
+                <input id="qc-param-unit" type="text" maxlength="24" @bind="paramUnitSymbol" disabled="@modalBusy" placeholder="g/10min" />
+            </div>
+            <div class="write-field">
+                <label for="qc-param-type">@Text["AttributeDataTypeLabel"]</label>
+                <select id="qc-param-type" @bind="paramDataType" disabled="@(editingParam is not null || modalBusy)">
+                    <option value="@QualityParameterDataType.Numeric">@ParamDataTypeLabel(QualityParameterDataType.Numeric)</option>
+                    <option value="@QualityParameterDataType.Text">@ParamDataTypeLabel(QualityParameterDataType.Text)</option>
+                    <option value="@QualityParameterDataType.Boolean">@ParamDataTypeLabel(QualityParameterDataType.Boolean)</option>
+                </select>
+            </div>
+            @if (paramDataType == QualityParameterDataType.Numeric)
+            {
+                <div class="write-field">
+                    <label for="qc-param-dec">@Text["QcParamDecimalLabel"]</label>
+                    <input id="qc-param-dec" type="number" min="0" max="6" @bind="paramDecimalPlaces" disabled="@modalBusy" />
+                </div>
+            }
+            <div class="write-field @(paramDataType == QualityParameterDataType.Numeric ? string.Empty : "po-field-full")">
+                <label for="qc-param-method">@Text["QcParamMethodLabel"]</label>
+                <input id="qc-param-method" type="text" maxlength="64" @bind="paramTestMethod" disabled="@modalBusy" placeholder="ASTM D1238" />
+            </div>
+        </div>
+    </ChildContent>
+    <FooterActions>
+        <BitButton IsEnabled="@(!modalBusy && !string.IsNullOrWhiteSpace(paramCode) && !string.IsNullOrWhiteSpace(paramName) && !string.IsNullOrWhiteSpace(paramSymbol))"
+                   OnClick="SubmitParameterAsync">@Text["WriteSave"]</BitButton>
+        <BitButton Variant="BitVariant.Outline" OnClick="CloseAsync">@Text["WriteCancel"]</BitButton>
+    </FooterActions>
+</ForgeFormDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public OrganizationScope? Scope { get; set; }
+    [Parameter] public long OrganizationId { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool modalBusy;
+    private string? paramError;
+    private QualityParameterSummary? editingParam;
+    private string paramCode = string.Empty;
+    private string paramName = string.Empty;
+    private string paramSymbol = string.Empty;
+    private string? paramUnitSymbol;
+    private QualityParameterDataType paramDataType = QualityParameterDataType.Numeric;
+    private byte paramDecimalPlaces = 2;
+    private string? paramTestMethod;
+
+    public void Open(QualityParameterSummary? param)
+    {
+        editingParam = param;
+        paramError = null;
+        paramCode = param?.Code ?? string.Empty;
+        paramName = param?.Name ?? string.Empty;
+        paramSymbol = param?.Symbol ?? string.Empty;
+        paramUnitSymbol = param?.UnitSymbol;
+        paramDataType = param?.DataType ?? QualityParameterDataType.Numeric;
+        paramDecimalPlaces = param?.DecimalPlaces ?? (byte)2;
+        paramTestMethod = param?.DefaultTestMethod;
+        IsOpen = true;
+        IsOpenChanged.InvokeAsync(true);
+        StateHasChanged();
+    }
+
+    private async Task SubmitParameterAsync()
+    {
+        if (Scope is null || modalBusy) return;
+        modalBusy = true;
+        paramError = null;
+        try
+        {
+            var res = editingParam is null
+                ? await SpecService.CreateParameter(Scope, new CreateQualityParameterRequest(
+                    OrganizationId, paramCode, paramName, paramSymbol, paramUnitSymbol, paramDataType, paramDecimalPlaces, paramTestMethod))
+                : await SpecService.UpdateParameter(Scope, new UpdateQualityParameterRequest(
+                    OrganizationId, editingParam.Id, paramName, paramSymbol, paramUnitSymbol, paramDecimalPlaces, paramTestMethod, editingParam.RowVersion));
+
+            if (!res.Succeeded)
+            {
+                paramError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+
+            await CloseAsync();
+            await OnSaved.InvokeAsync();
+        }
+        finally
+        {
+            modalBusy = false;
+        }
+    }
+
+    private string ParamDataTypeLabel(QualityParameterDataType dt) => dt switch
+    {
+        QualityParameterDataType.Numeric => Text["AttributeDataTypeDecimal"],
+        QualityParameterDataType.Boolean => Text["AttributeDataTypeBoolean"],
+        _ => Text["AttributeDataTypeText"]
+    };
+
+    private async Task OnDialogIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        if (!open)
+        {
+            editingParam = null;
+            paramError = null;
+        }
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    private async Task CloseAsync()
+    {
+        await OnDialogIsOpenChanged(false);
+    }
+
+    public void Dispose()
+    {
+        editingParam = null;
+    }
+}

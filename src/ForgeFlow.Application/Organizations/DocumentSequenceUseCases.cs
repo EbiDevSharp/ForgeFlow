@@ -46,4 +46,12 @@ public sealed class DocumentSequenceUseCases
         string? expectedVersion,
         CancellationToken ct = default)
         => sequenceSlices.UpdateSequenceAsync(scope, organizationId, documentType, request, expectedVersion, ct);
+
+    public Task<OrganizationResult<string>> AllocateNumber(
+        OrganizationScope? scope,
+        long organizationId,
+        DocumentSequenceType documentType,
+        string? requestedNumber = null,
+        CancellationToken ct = default)
+        => sequenceSlices.AllocateNumberAsync(scope, organizationId, documentType, requestedNumber, ct);
 }

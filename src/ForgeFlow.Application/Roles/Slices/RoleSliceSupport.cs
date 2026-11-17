@@ -1,6 +1,7 @@
 using ForgeFlow.Application.Common;
 using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Application.Security;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.Roles;
 
@@ -13,10 +14,12 @@ public sealed class RoleSliceSupport(
     ITrustedActorAccessor? actors = null,
     IOrganizationPermissionEvaluator? permissions = null,
     IUserOperationRecorder? operationRecorder = null,
-    IOperationContextAccessor? opContext = null)
+    IOperationContextAccessor? opContext = null,
+    IOrganizationPermissionCache? permCache = null)
 {
     public IUserOperationRecorder? OperationRecorder => operationRecorder;
     public IOperationContextAccessor? OpContext => opContext;
+    public IOrganizationPermissionCache? PermissionCache => permCache;
 
     public async ValueTask<(TrustedActor? Actor, string? Error)> AuthorizeAsync(OrganizationScope? scope, string permission, CancellationToken ct)
     {

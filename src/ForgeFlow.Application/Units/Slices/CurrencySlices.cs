@@ -5,7 +5,7 @@ using ForgeFlow.Domain.Units;
 namespace ForgeFlow.Application.Units.Slices;
 
 /// <summary>Vertical slice handler for currency catalog CRUD and state transitions.</summary>
-internal sealed class CurrencySlices(
+public sealed class CurrencySlices(
     IUnitOperationsStore store,
     UnitSliceSupport support)
 {

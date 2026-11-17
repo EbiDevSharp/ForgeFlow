@@ -8,6 +8,7 @@
 @using ForgeFlow.Domain.Inventory
 @using ForgeFlow.Domain.Sales
 @using ForgeFlow.Web.Components.Pages.SalesSections
+@implements IDisposable
 @inject SalesUseCases SalesService
 @inject StockReservationUseCases ReservationService
 @inject OrganizationUseCases OrgService
@@ -119,7 +120,7 @@
 
             <div class="read-field">
                 <label for="sales-search">@Text["ReadSearch"]</label>
-                <input id="sales-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="64" placeholder="@Text["ReadSearch"]" />
+                <input id="sales-search" type="search" value="@search" @oninput="OnSearchInput" maxlength="64" placeholder="@Text["ReadSearch"]" />
             </div>
         </div>
 
@@ -159,6 +160,7 @@
 
 @* Sales Order Detail + Reservations Modal *@
 <SalesOrderDetailModal @bind-IsOpen="orderDetailOpen"
+                       @bind-IsOpen:after="OnOrderDetailOpenChanged"
                        DialogClasses="@DialogClasses"
                        Order="@detailOrder"
                        Reservations="@orderReservations"
@@ -175,44 +177,15 @@
                        OnCancel="OpenCancelOrderModal" />
 
 @* Reserve Stock Modal *@
-<ForgeFormDialog Width="540px" @bind-IsOpen="reserveModalOpen"
-                 Title="@Text["SalesReserveStockButton"]"
-                 CloseTitle="@Text["ReadClose"]">
-    <ChildContent>
-        @if (reserveModalError is not null)
-        {
-            <p role="alert" class="write-error">@reserveModalError</p>
-        }
-        <div class="write-modal-grid">
-            <div class="write-field">
-                <label for="res-wh">@Text["InvWarehouseLabel"]</label>
-                <select id="res-wh" @bind="reserveWarehouseId">
-                    <option value="0">@Text["InvAllWarehousesOption"]</option>
-                    @foreach (var w in siteWarehouses)
-                    {
-                        <option value="@w.Id">@w.Code — @w.Name</option>
-                    }
-                </select>
-            </div>
-            <div class="write-field">
-                <label for="res-lot">@Text["InvLotCodeLabel"]</label>
-                <input id="res-lot" type="text" @bind="reserveLotCode" maxlength="32" dir="ltr" />
-            </div>
-            <div class="write-field">
-                <label for="res-qty">@Text["ProcOrderedCol"]</label>
-                <input id="res-qty" type="number" step="0.0001" min="0.0001" @bind="reserveQuantity" dir="ltr" />
-            </div>
-            <div class="write-field">
-                <label for="res-notes">@Text["PoNotesLabel"]</label>
-                <input id="res-notes" type="text" @bind="reserveNotes" maxlength="300" />
-            </div>
-        </div>
-    </ChildContent>
-    <FooterActions>
-        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => reserveModalOpen = false">@Text["WriteCancel"]</BitButton>
-        <BitButton Size="BitSize.Small" IsEnabled="!reserveSaving" OnClick="SaveReservationAsync">@(reserveSaving ? Text["WriteSaving"] : Text["WriteSave"])</BitButton>
-    </FooterActions>
-</ForgeFormDialog>
+<SalesReserveStockModal @ref="reserveStockModal"
+                        @bind-IsOpen="reserveModalOpen"
+                        @bind-IsOpen:after="OnReserveModalOpenChanged"
+                        Scope="@CurrentScope"
+                        OrganizationId="@CurrentOrgId"
+                        SalesOrderId="@(detailOrder?.Summary.Id ?? 0)"
+                        Line="@reserveLine"
+                        Warehouses="@siteWarehouses"
+                        OnReserved="OnReservationSavedAsync" />
 
 @* Post Dispatch (Delivery Order) Modal with Lot Picker & COA *@
 <PostDispatchModal @ref="postDispatchModal"
@@ -224,29 +197,19 @@
 
 @* Dispatch Detail Modal *@
 <DeliveryOrderDetailModal @bind-IsOpen="dispatchDetailOpen"
+                         @bind-IsOpen:after="OnDispatchDetailOpenChanged"
                          DialogClasses="@DialogClasses"
                          Dispatch="@detailDispatch"
                          OnOpenCoa="OpenCoaDialogFromTuple" />
 
 @* Cancel Order / Reverse Dispatch Reason Modal *@
-<ForgeFormDialog Width="460px" @bind-IsOpen="reasonModalOpen"
-                 Title="@(reasonMode == ReasonMode.CancelOrder ? Text["ProcCancelBtn"] : Text["SalesReverseButton"])"
-                 CloseTitle="@Text["ReadClose"]">
-    <ChildContent>
-        @if (reasonModalError is not null)
-        {
-            <p role="alert" class="write-error">@reasonModalError</p>
-        }
-        <div class="write-field">
-            <label for="sales-reason-input">@Text["PoCancelReasonLabel"]</label>
-            <input id="sales-reason-input" type="text" @bind="reasonInput" maxlength="300" />
-        </div>
-    </ChildContent>
-    <FooterActions>
-        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => reasonModalOpen = false">@Text["WriteCancel"]</BitButton>
-        <BitButton Size="BitSize.Small" IsEnabled="!reasonSaving" OnClick="ConfirmReasonActionAsync">@(reasonSaving ? Text["WriteSaving"] : Text["WriteConfirm"])</BitButton>
-    </FooterActions>
-</ForgeFormDialog>
+<SalesReasonModal @ref="reasonModal"
+                  @bind-IsOpen="reasonModalOpen"
+                  @bind-IsOpen:after="OnReasonModalOpenChanged"
+                  Title="@(reasonMode == ReasonMode.CancelOrder ? Text["ProcCancelBtn"] : Text["SalesReverseButton"])"
+                  Saving="@reasonSaving"
+                  Error="@reasonModalError"
+                  OnConfirm="ConfirmReasonActionAsync" />
 
 <LotCertificateDialog @bind-IsOpen="coaOpen"
                       Scope="@CurrentScope"
@@ -315,14 +278,9 @@
     private IReadOnlyList<StockReservationSummary> orderReservations = [];
 
     // Reserve modal
+    private SalesReserveStockModal? reserveStockModal;
     private bool reserveModalOpen;
-    private bool reserveSaving;
-    private string? reserveModalError;
     private SalesOrderLineDetails? reserveLine;
-    private long reserveWarehouseId;
-    private string reserveLotCode = string.Empty;
-    private decimal reserveQuantity;
-    private string? reserveNotes;
 
     // Dispatch modal
     private PostDispatchModal? postDispatchModal;
@@ -333,11 +291,11 @@
     private DeliveryOrderDetails? detailDispatch;
 
     // Reason modal
+    private SalesReasonModal? reasonModal;
     private bool reasonModalOpen;
     private bool reasonSaving;
     private string? reasonModalError;
     private ReasonMode reasonMode;
-    private string reasonInput = string.Empty;
     private DeliveryOrderSummary? reversingDispatch;
 
     // COA dialog
@@ -364,6 +322,55 @@
         AnnouncementPage = Text["GridPagerPage"]
     };
 
+    private readonly DebouncedSearchController _searchController = new(300);
+
+    public void Dispose()
+    {
+        _searchController.Dispose();
+        detailOrder = null;
+        orderReservations = [];
+        reserveLine = null;
+        detailDispatch = null;
+        reversingDispatch = null;
+        siteWarehouses.Clear();
+        authorizedSites = [];
+    }
+
+    private void OnOrderDetailOpenChanged()
+    {
+        if (!orderDetailOpen)
+        {
+            detailOrder = null;
+            orderReservations = [];
+            detailError = null;
+        }
+    }
+
+    private void OnReserveModalOpenChanged()
+    {
+        if (!reserveModalOpen)
+        {
+            reserveLine = null;
+        }
+    }
+
+    private void OnDispatchDetailOpenChanged()
+    {
+        if (!dispatchDetailOpen)
+        {
+            detailDispatch = null;
+        }
+    }
+
+    private void OnReasonModalOpenChanged()
+    {
+        if (!reasonModalOpen)
+        {
+            reversingDispatch = null;
+            reasonModalError = null;
+        }
+    }
+
     protected override async Task OnInitializedAsync() => await ReloadScopeAsync();
 
     private async Task ReloadScopeAsync()
@@ -384,7 +391,7 @@
         }
         catch
         {
-            pageError = SalesErrors.PersistenceUnavailable;
+            pageError = RolePermissionLocalization.FailureKey(SalesErrors.PersistenceUnavailable);
         }
         finally
         {
@@ -398,10 +405,16 @@
         var actor = await Actors.ResolveAsync(default);
         if (actor is null) return;
 
-        scopeCanManageOrders = (await Permissions.EvaluateAsync(actor, CurrentScope, SalesPermissions.ManageOrders, default)).IsAllowed;
-        scopeCanDispatch = (await Permissions.EvaluateAsync(actor, CurrentScope, SalesPermissions.Dispatch, default)).IsAllowed;
+        var manageTask = Permissions.EvaluateAsync(actor, CurrentScope, SalesPermissions.ManageOrders, default).AsTask();
+        var dispatchTask = Permissions.EvaluateAsync(actor, CurrentScope, SalesPermissions.Dispatch, default).AsTask();
+        var sitesTask = OrgService.ListSites(CurrentScope, CurrentOrgId, new OrganizationListQuery(Search: null, IncludeInactive: false, Page: 1, PageSize: 100));
 
-        var sitesRes = await OrgService.ListSites(CurrentScope, CurrentOrgId, new OrganizationListQuery(Search: null, IncludeInactive: false, Page: 1, PageSize: 100));
+        await Task.WhenAll(manageTask, dispatchTask, sitesTask);
+
+        scopeCanManageOrders = (await manageTask).IsAllowed;
+        scopeCanDispatch = (await dispatchTask).IsAllowed;
+
+        var sitesRes = await sitesTask;
         authorizedSites = sitesRes.Succeeded ? sitesRes.Value!.Items : [];
         siteFilter = CurrentScope is OrganizationScope.Site siteScope ? siteScope.SiteId : 0;
     }
@@ -423,19 +436,46 @@
         await RefreshCurrentGridAsync();
     }
 
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        await _searchController.OnInputDebouncedAsync(
+            e,
+            val => search = val,
+            async _ =>
+            {
+                await RefreshCurrentGridAsync();
+                await InvokeAsync(StateHasChanged);
+            });
+    }
+
     private async Task ChangeSiteFilterAsync(ChangeEventArgs e)
     {
         siteFilter = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-        await RefreshCurrentGridAsync();
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await RefreshCurrentGridAsync();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ChangeOrderStatusFilterAsync(ChangeEventArgs e)
     {
         orderStatusFilter = e.Value?.ToString() ?? string.Empty;
-        await RefreshCurrentGridAsync();
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await RefreshCurrentGridAsync();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
-    private Task ApplySearchAsync() => RefreshCurrentGridAsync();
+    private async Task ApplySearchAsync()
+    {
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await RefreshCurrentGridAsync();
+            await InvokeAsync(StateHasChanged);
+        });
+    }
 
     private static long ScopeOrgId(OrganizationScope? scope) => scope switch
     {
@@ -533,38 +573,15 @@
         reserveLine = line;
         var whRes = await InvService.ListWarehouses(CurrentScope, CurrentOrgId, new WarehouseListQuery(SiteId: detailOrder.Summary.SiteId, IncludeInactive: false, PageSize: 100));
         siteWarehouses = whRes.Succeeded ? whRes.Value!.Items.ToList() : [];
-        reserveWarehouseId = detailOrder.Summary.SourceWarehouseId ?? 0;
-        reserveLotCode = string.Empty;
-        reserveQuantity = line.RemainingBaseQuantity;
-        reserveNotes = null;
-        reserveModalError = null;
+        reserveStockModal?.Initialize(line, detailOrder.Summary.SourceWarehouseId ?? 0);
         reserveModalOpen = true;
     }
 
-    private async Task SaveReservationAsync()
+    private async Task OnReservationSavedAsync()
     {
-        if (CurrentScope is null || detailOrder is null || reserveLine is null) return;
-        reserveSaving = true;
-        reserveModalError = null;
-        try
-        {
-            var res = await ReservationService.ReserveSalesOrderStock(CurrentScope,
-                new ReserveSalesOrderStockRequest(
-                    CurrentOrgId,
-                    detailOrder.Summary.Id,
-                    reserveLine.Id,
-                    reserveLine.ItemId,
-                    reserveQuantity,
-                    reserveLine.BaseUnitIdSnapshot,
-                    reserveWarehouseId > 0 ? reserveWarehouseId : null,
-                    reserveLotCode,
-                    reserveNotes));
-            if (!res.Succeeded) { reserveModalError = MapError(res.Error!.Code); return; }
-            reserveModalOpen = false;
-            var resList = await ReservationService.ListSalesOrderReservations(CurrentScope, CurrentOrgId, detailOrder.Summary.Id);
-            orderReservations = resList.Succeeded ? resList.Value! : [];
-        }
-        finally { reserveSaving = false; }
+        if (CurrentScope is null || detailOrder is null) return;
+        var resList = await ReservationService.ListSalesOrderReservations(CurrentScope, CurrentOrgId, detailOrder.Summary.Id);
+        orderReservations = resList.Succeeded ? resList.Value! : [];
     }
 
     private async Task ReleaseOrderReservationAsync(StockReservationSummary r)
@@ -608,8 +625,8 @@
     private void OpenCancelOrderModal()
     {
         reasonMode = ReasonMode.CancelOrder;
-        reasonInput = string.Empty;
         reasonModalError = null;
+        reasonModal?.Initialize();
         reasonModalOpen = true;
     }
 
@@ -617,14 +634,14 @@
     {
         reasonMode = ReasonMode.ReverseDispatch;
         reversingDispatch = d;
-        reasonInput = string.Empty;
         reasonModalError = null;
+        reasonModal?.Initialize();
         reasonModalOpen = true;
     }
 
-    private async Task ConfirmReasonActionAsync()
+    private async Task ConfirmReasonActionAsync(string reasonInput)
     {
-        if (CurrentScope is null) return;
+        if (CurrentScope is null || reasonSaving) return;
         reasonSaving = true;
         reasonModalError = null;
         try
@@ -676,12 +693,7 @@
         _ => string.Empty
     };
 
-    private string MapError(string code)
-    {
-        var key = "Err_" + code.Replace(".", string.Empty, StringComparison.Ordinal);
-        var val = Text[key];
-        return val.ResourceNotFound ? code : val.Value;
-    }
+    private string MapError(string code) => Text[RolePermissionLocalization.FailureKey(code)];
 
 
 }

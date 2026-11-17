@@ -10,6 +10,7 @@
 @using ForgeFlow.Domain.Items
 @using ForgeFlow.Domain.Procurement
 @using ForgeFlow.Web.Roles
+@implements IDisposable
 @inject ProcurementUseCases ProcService
 @inject ProductionOrderUseCases OrderService
 @inject InventoryUseCases InvService
@@ -115,7 +116,7 @@
 
             <div class="read-field">
                 <label for="proc-search">@Text["ReadSearch"]</label>
-                <input id="proc-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="64" placeholder="@Text["ReadSearch"]" />
+                <input id="proc-search" type="search" value="@search" @oninput="OnSearchInput" maxlength="64" placeholder="@Text["ReadSearch"]" />
             </div>
         </div>
 
@@ -201,7 +202,7 @@
         </div>
     }
 
-    <ForgeFormDialog Width="1020px" @bind-IsOpen="editorModalOpen"
+    <ForgeFormDialog Width="1020px" @bind-IsOpen="editorModalOpen" @bind-IsOpen:after="OnEditorModalOpenChanged"
                      Title="@(isEditingDraft ? Text["ProcPoEditTitle"] : Text["ProcPoCreateTitle"])"
                      Subtitle="@Text["ProcPoModalSubtitle"]"
                      CloseTitle="@Text["ReadClose"]">
@@ -354,7 +355,7 @@
         </FooterEnd>
     </ForgeFormDialog>
 
-    <BitDialog Width="880px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailModalOpen"
+    <BitDialog Width="880px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailModalOpen" @bind-IsOpen:after="OnDetailModalOpenChanged"
                Title="@Text["ProcPoDetailTitle"]" AriaLabel="@Text["ProcPoDetailTitle"]"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -443,8 +444,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var l in selectedOrder.Lines)
-                                    {
+                                    <Virtualize Items="selectedOrder.Lines.AsCollection()" Context="l" ItemSize="40" OverscanCount="5" SpacerElement="tr">
                                         <tr>
                                             <td dir="ltr">@l.LineNumber</td>
                                             <td>
@@ -463,7 +463,7 @@
                                             <td dir="ltr">@Format.Number(l.RemainingBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
                                             <td dir="ltr">@(l.UnitPrice.HasValue ? Format.Number(l.UnitPrice.Value) : "—")</td>
                                         </tr>
-                                    }
+                                    </Virtualize>
                                 </tbody>
                             </table>
                         </div>
@@ -485,8 +485,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach (var r in selectedOrder.Receipts)
-                                        {
+                                        <Virtualize Items="selectedOrder.Receipts.AsCollection()" Context="r" ItemSize="40" OverscanCount="5" SpacerElement="tr">
                                             <tr>
                                                 <td dir="ltr">@r.DocumentNumber</td>
                                                 <td dir="ltr">@r.WarehouseCode — @r.WarehouseName</td>
@@ -503,7 +502,7 @@
                                                 </td>
                                                 <td>@(r.ReferenceNote ?? "—")</td>
                                             </tr>
-                                        }
+                                        </Virtualize>
                                     </tbody>
                                 </table>
                             </div>
@@ -546,7 +545,7 @@
         </Body>
     </BitDialog>
 
-    <BitDialog Width="880px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="receiveModalOpen"
+    <BitDialog Width="880px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="receiveModalOpen" @bind-IsOpen:after="OnReceiveModalOpenChanged"
                Title="@Text["ProcReceiveTitle"]" AriaLabel="@Text["ProcReceiveTitle"]"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -714,8 +713,28 @@
     private bool poAllowOverride;
     private long editTargetWarehouseId;
     private string editCurrencyCode = "IRR";
-    private DateTimeOffset? editOrderDateOffset;
-    private DateTimeOffset? editExpectedDateOffset;
+    private DateTimeOffset? _editOrderDateOffset;
+    private DateTimeOffset? editOrderDateOffset
+    {
+        get => _editOrderDateOffset;
+        set
+        {
+            _editOrderDateOffset = value;
+            if (_editOrderDateOffset.HasValue && _editExpectedDateOffset.HasValue && _editOrderDateOffset.Value > _editExpectedDateOffset.Value)
+                _editExpectedDateOffset = _editOrderDateOffset;
+        }
+    }
+    private DateTimeOffset? _editExpectedDateOffset;
+    private DateTimeOffset? editExpectedDateOffset
+    {
+        get => _editExpectedDateOffset;
+        set
+        {
+            _editExpectedDateOffset = value;
+            if (_editOrderDateOffset.HasValue && _editExpectedDateOffset.HasValue && _editExpectedDateOffset.Value < _editOrderDateOffset.Value)
+                _editOrderDateOffset = _editExpectedDateOffset;
+        }
+    }
     private string? editNotes;
     private List<DraftLineRow> draftLines = [];
     private string? cancelReason;
@@ -754,16 +773,72 @@
         AnnouncementPage = Text["GridPagerPage"]
     };
 
+    private CancellationTokenSource? _loadCts;
+    private readonly DebouncedSearchController _searchController = new(300);
+
+    public void Dispose()
+    {
+        _searchController.Dispose();
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = null;
+        selectedOrder = null;
+        draftLines.Clear();
+        receiveLines.Clear();
+        authorizedSites = [];
+        activeCurrencies = [];
+        activeWarehouses = [];
+        purchasableItems = [];
+        activeUnits = [];
+    }
+
+    private void OnEditorModalOpenChanged()
+    {
+        if (!editorModalOpen)
+        {
+            draftLines.Clear();
+            modalError = null;
+        }
+    }
+
+    private void OnDetailModalOpenChanged()
+    {
+        if (!detailModalOpen)
+        {
+            selectedOrder = null;
+            modalError = null;
+            cancelReason = string.Empty;
+        }
+    }
+
+    private void OnReceiveModalOpenChanged()
+    {
+        if (!receiveModalOpen)
+        {
+            receiveLines.Clear();
+            modalError = null;
+            receiveDocNumber = string.Empty;
+            receiveReferenceNote = null;
+        }
+    }
+
     protected override async Task OnParametersSetAsync() => await ReloadScopeAsync();
 
     private async Task ReloadScopeAsync()
     {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _loadCts = cts;
+        var ct = cts.Token;
+
         initialLoading = true;
         pageError = null;
         pageNotice = null;
         try
         {
             var loaded = await Scopes.LoadProcurementScopesAsync();
+            if (ct.IsCancellationRequested) return;
             available = OrganizationId is long orgId
                 ? loaded.Where(s => ScopeOrganizationId(s) == orgId).ToList()
                 : loaded.ToList();
@@ -771,13 +846,20 @@
             if (available.Count == 0 && OrganizationId is long fallbackOrgId)
                 available = [new OrganizationScope.Organization(fallbackOrgId)];
             scopeIndex = 0;
-            await RefreshScopeStateAsync();
+            await RefreshScopeStateAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch { pageError = "ReadError"; }
-        finally { initialLoading = false; }
+        finally
+        {
+            if (ReferenceEquals(_loadCts, cts))
+                initialLoading = false;
+        }
     }
 
-    private async Task RefreshScopeStateAsync()
+    private async Task RefreshScopeStateAsync(CancellationToken ct = default)
     {
         scopeCanManageOrders = false;
         scopeCanReceive = false;
@@ -789,27 +871,46 @@
         activeCurrencies = [];
 
         var scope = CurrentScope;
-        if (scope is null) return;
+        if (scope is null || ct.IsCancellationRequested) return;
 
-        var actor = await Actors.ResolveAsync(default);
-        if (actor is not null)
-        {
-            scopeCanManageOrders = (await Permissions.EvaluateAsync(actor, scope, ProcurementPermissions.ManageOrders, default)).IsAllowed;
-            scopeCanReceive = (await Permissions.EvaluateAsync(actor, scope, ProcurementPermissions.ReceiveOrders, default)).IsAllowed;
-        }
-
+        var actor = await Actors.ResolveAsync(ct);
         var orgId = ScopeOrganizationId(scope);
-        var sitesRes = await OrderService.ListAuthorizedSites(scope, orgId);
+
+        Task<PermissionDecision>? manageTask = actor is not null
+            ? Permissions.EvaluateAsync(actor, scope, ProcurementPermissions.ManageOrders, ct).AsTask()
+            : null;
+        Task<PermissionDecision>? receiveTask = actor is not null
+            ? Permissions.EvaluateAsync(actor, scope, ProcurementPermissions.ReceiveOrders, ct).AsTask()
+            : null;
+
+        var sitesTask = OrderService.ListAuthorizedSites(scope, orgId, ct);
+        var supTask = ProcService.ListSuppliers(scope, orgId, new SupplierListQuery(null, false, 1, 100), ct);
+        var whTask = InvService.ListWarehouses(scope, orgId, new WarehouseListQuery(IncludeInactive: false, PageSize: 100), ct);
+        var itemsTask = ItemService.ListActiveItems(scope, orgId, ct);
+        var unitsTask = UnitService.ListActiveUnits(scope, orgId, ct);
+        var curTask = UnitService.ListActiveCurrencies(scope, orgId, ct);
+
+        var tasks = new List<Task> { sitesTask, supTask, whTask, itemsTask, unitsTask, curTask };
+        if (manageTask is not null) tasks.Add(manageTask);
+        if (receiveTask is not null) tasks.Add(receiveTask);
+
+        await Task.WhenAll(tasks);
+        if (ct.IsCancellationRequested) return;
+
+        if (manageTask is not null) scopeCanManageOrders = (await manageTask).IsAllowed;
+        if (receiveTask is not null) scopeCanReceive = (await receiveTask).IsAllowed;
+
+        var sitesRes = await sitesTask;
         if (sitesRes.Succeeded) authorizedSites = sitesRes.Value!;
-        var supRes = await ProcService.ListSuppliers(scope, orgId, new SupplierListQuery(null, false, 1, 100));
+        var supRes = await supTask;
         if (supRes.Succeeded) activeSuppliers = supRes.Value!.Items;
-        var whRes = await InvService.ListWarehouses(scope, orgId, new WarehouseListQuery(IncludeInactive: false, PageSize: 100));
+        var whRes = await whTask;
         if (whRes.Succeeded) activeWarehouses = whRes.Value!.Items;
-        var itemsRes = await ItemService.ListActiveItems(scope, orgId);
+        var itemsRes = await itemsTask;
         if (itemsRes.Succeeded) purchasableItems = itemsRes.Value!.Where(i => i.CanBePurchased).ToArray();
-        var unitsRes = await UnitService.ListActiveUnits(scope, orgId);
+        var unitsRes = await unitsTask;
         if (unitsRes.Succeeded) activeUnits = unitsRes.Value!;
-        var curRes = await UnitService.ListActiveCurrencies(scope, orgId);
+        var curRes = await curTask;
         if (curRes.Succeeded) activeCurrencies = curRes.Value!;
     }
 
@@ -825,28 +926,57 @@
         }
     }
 
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        await _searchController.OnInputDebouncedAsync(
+            e,
+            val => search = val,
+            async _ =>
+            {
+                appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+                await ReloadGridAsync(true);
+                await InvokeAsync(StateHasChanged);
+            });
+    }
+
     private async Task ChangeSiteFilterAsync(ChangeEventArgs e)
     {
         siteFilter = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-        await ReloadGridAsync(true);
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadGridAsync(true);
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ChangeSupplierFilterAsync(ChangeEventArgs e)
     {
         supplierFilter = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-        await ReloadGridAsync(true);
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadGridAsync(true);
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ChangeStatusFilterAsync(ChangeEventArgs e)
     {
         statusFilter = e.Value?.ToString() ?? string.Empty;
-        await ReloadGridAsync(true);
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadGridAsync(true);
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ApplySearchAsync()
     {
-        appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
-        await ReloadGridAsync(true);
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+            await ReloadGridAsync(true);
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ReloadGridAsync(bool fromFirstPage)

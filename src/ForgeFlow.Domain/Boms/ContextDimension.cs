@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Boms;
 
 /// <summary>Extensible manufacturing context dimension per organization (e.g., PLANT, PRODUCTION_LINE, MARKET).</summary>
-public sealed class ContextDimension
+public sealed class ContextDimension : IOrganizationEntity
 {
     private ContextDimension()
     {

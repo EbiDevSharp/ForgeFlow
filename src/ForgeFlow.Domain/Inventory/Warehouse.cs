@@ -2,7 +2,7 @@ using ForgeFlow.Domain.Common;
 
 namespace ForgeFlow.Domain.Inventory;
 
-public sealed class Warehouse : IHasRowVersion
+public sealed class Warehouse : IHasRowVersion, IOrganizationEntity
 {
     private Warehouse() { }
 

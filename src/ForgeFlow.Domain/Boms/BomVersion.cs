@@ -1,10 +1,21 @@
 using ForgeFlow.Domain.Common;
+using ForgeFlow.Domain.Events;
 
 namespace ForgeFlow.Domain.Boms;
 
 /// <summary>Versioned manufacturing structure for a BOM. Approved/Active/historical versions are structurally immutable.</summary>
-public sealed class BomVersion : IHasRowVersion
+public sealed class BomVersion : IHasRowVersion, IHasDomainEvents, IOrganizationEntity
 {
+    private readonly List<IDomainEvent> _domainEvents = [];
+
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void RaiseDomainEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        _domainEvents.Add(domainEvent);
+    }
+    public void ClearDomainEvents() => _domainEvents.Clear();
+
     private BomVersion() { }
 
     private BomVersion(
@@ -120,6 +131,10 @@ public sealed class BomVersion : IHasRowVersion
             throw new BomRuleException(BomErrors.VersionTransitionInvalid);
 
         Status = target;
+        if (target == BomVersionStatus.Approved)
+        {
+            _domainEvents.Add(new BomApprovedEvent(OrganizationId, BomId, Id, VersionNumber, DateTime.UtcNow));
+        }
         return true;
     }
 }

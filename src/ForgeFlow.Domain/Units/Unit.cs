@@ -3,7 +3,7 @@ using ForgeFlow.Domain.Common;
 namespace ForgeFlow.Domain.Units;
 
 /// <summary>Organization-owned Unit of Measure aggregate.</summary>
-public sealed class Unit : IHasRowVersion
+public sealed class Unit : IHasRowVersion, IOrganizationEntity
 {
     private Unit()
     {

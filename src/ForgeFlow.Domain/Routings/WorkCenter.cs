@@ -3,7 +3,7 @@ using ForgeFlow.Domain.Common;
 namespace ForgeFlow.Domain.Routings;
 
 /// <summary>Site-scoped physical or logical manufacturing work center / station.</summary>
-public sealed class WorkCenter : IHasRowVersion
+public sealed class WorkCenter : IHasRowVersion, IOrganizationEntity
 {
     private WorkCenter() { Code = null!; Name = null!; }
 

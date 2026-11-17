@@ -253,10 +253,13 @@
     private string FormatLoginTime(DateTime utcTime)
     {
         var formatter = Services.GetService<DisplayFormatter>();
-        return formatter is not null
-            ? formatter.Timestamp(utcTime, " - ")
-            : TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcTime, DateTimeKind.Utc), TimeZoneInfo.Local)
-                .ToString("yyyy/MM/dd - HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+        if (formatter is not null)
+            return formatter.Timestamp(utcTime, " - ");
+
+        var prefs = Services.GetService<ForgeFlow.Web.Localization.UserDisplayPreferences>();
+        var tz = prefs?.TimeZoneInfo ?? ForgeFlow.Domain.Common.OrganizationCalendarUtils.DefaultTimeZone;
+        return TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcTime, DateTimeKind.Utc), tz)
+            .ToString("yyyy/MM/dd - HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private void Toggle() => open = !open;

@@ -5,7 +5,7 @@ using ForgeFlow.Domain.Items;
 namespace ForgeFlow.Application.Items.Slices;
 
 /// <summary>Vertical slice handlers for core Item catalog queries and commands.</summary>
-internal sealed class ItemCatalogSlices(IItemOperationsStore store, ItemSliceSupport support)
+public sealed class ItemCatalogSlices(IItemOperationsStore store, ItemSliceSupport support)
 {
     public async Task<OrganizationResult<OrganizationPage<ItemSummary>>> ListAsync(
         OrganizationScope? scope, long organizationId, ItemListQuery query, CancellationToken ct)

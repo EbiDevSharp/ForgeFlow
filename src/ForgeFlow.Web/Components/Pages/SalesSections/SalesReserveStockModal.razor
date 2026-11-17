@@ -1,0 +1,133 @@
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Sales
+@using ForgeFlow.Domain.Organizations
+@inject StockReservationUseCases ReservationService
+@inject IStringLocalizer<SharedResources> Text
+@implements IDisposable
+
+<ForgeFormDialog Width="540px" IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged"
+                 Title="@Text["SalesReserveStockButton"]"
+                 CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (modalError is not null)
+        {
+            <p role="alert" class="write-error">@modalError</p>
+        }
+        <div class="write-modal-grid">
+            <div class="write-field">
+                <label for="res-wh">@Text["InvWarehouseLabel"]</label>
+                <select id="res-wh" @bind="warehouseId" disabled="@saving">
+                    <option value="0">@Text["InvAllWarehousesOption"]</option>
+                    @foreach (var w in Warehouses)
+                    {
+                        <option value="@w.Id">@w.Code — @w.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="write-field">
+                <label for="res-lot">@Text["InvLotCodeLabel"]</label>
+                <input id="res-lot" type="text" @bind="lotCode" maxlength="32" dir="ltr" disabled="@saving" />
+            </div>
+            <div class="write-field">
+                <label for="res-qty">@Text["ProcOrderedCol"]</label>
+                <input id="res-qty" type="number" step="0.0001" min="0.0001" @bind="quantity" dir="ltr" disabled="@saving" />
+            </div>
+            <div class="write-field">
+                <label for="res-notes">@Text["PoNotesLabel"]</label>
+                <input id="res-notes" type="text" @bind="notes" maxlength="300" disabled="@saving" />
+            </div>
+        </div>
+    </ChildContent>
+    <FooterActions>
+        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CloseAsync" IsEnabled="@(!saving)">@Text["WriteCancel"]</BitButton>
+        <BitButton Size="BitSize.Small" IsEnabled="@(!saving && quantity > 0m)" OnClick="SaveReservationAsync">
+            @(saving ? Text["WriteSaving"] : Text["WriteSave"])
+        </BitButton>
+    </FooterActions>
+</ForgeFormDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public OrganizationScope? Scope { get; set; }
+    [Parameter] public long OrganizationId { get; set; }
+    [Parameter] public long SalesOrderId { get; set; }
+    [Parameter] public SalesOrderLineDetails? Line { get; set; }
+    [Parameter] public IReadOnlyList<WarehouseSummary> Warehouses { get; set; } = [];
+    [Parameter] public EventCallback OnReserved { get; set; }
+
+    private bool saving;
+    private string? modalError;
+    private long warehouseId;
+    private string lotCode = string.Empty;
+    private decimal quantity;
+    private string? notes;
+
+    public void Initialize(SalesOrderLineDetails line, long defaultWarehouseId)
+    {
+        Line = line;
+        warehouseId = defaultWarehouseId;
+        lotCode = string.Empty;
+        quantity = line.RemainingBaseQuantity;
+        notes = null;
+        modalError = null;
+    }
+
+    private async Task SaveReservationAsync()
+    {
+        if (Scope is null || Line is null || SalesOrderId <= 0 || saving) return;
+        saving = true;
+        modalError = null;
+        try
+        {
+            var res = await ReservationService.ReserveSalesOrderStock(Scope,
+                new ReserveSalesOrderStockRequest(
+                    OrganizationId,
+                    SalesOrderId,
+                    Line.Id,
+                    Line.ItemId,
+                    quantity,
+                    Line.BaseUnitIdSnapshot,
+                    warehouseId > 0 ? warehouseId : null,
+                    lotCode,
+                    notes));
+
+            if (!res.Succeeded)
+            {
+                modalError = Text[RolePermissionLocalization.FailureKey(res.Error!.Code)];
+                return;
+            }
+
+            await CloseAsync();
+            await OnReserved.InvokeAsync();
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task OnDialogIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        if (!open)
+        {
+            Line = null;
+            notes = null;
+            modalError = null;
+        }
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    private async Task CloseAsync()
+    {
+        await OnDialogIsOpenChanged(false);
+    }
+
+    public void Dispose()
+    {
+        Line = null;
+        notes = null;
+    }
+}

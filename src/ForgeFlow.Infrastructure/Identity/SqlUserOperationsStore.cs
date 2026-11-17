@@ -2,9 +2,11 @@ using System.Data;
 using System.Data.Common;
 using System.Text.Json;
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Application.Security;
 using ForgeFlow.Application.Users;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.Users;
+using ForgeFlow.Infrastructure.Common;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +18,11 @@ namespace ForgeFlow.Infrastructure.Identity;
 internal sealed class UserCommitOutcomeUnknownException(Exception inner) : Exception(UserManagementErrors.OutcomeUnknown, inner);
 
 /// <summary>SQL Server implementation of <see cref="IUserOperationsStore"/> using operation-scoped AuthDbContext and serialized locks.</summary>
-public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProvider clock, IUserNotificationPublisher? notifications = null) : IUserOperationsStore
+public sealed class SqlUserOperationsStore(
+    IServiceScopeFactory scopes,
+    TimeProvider clock,
+    IUserNotificationPublisher? notifications = null,
+    ISessionInvalidator? sessionInvalidator = null) : IUserOperationsStore
 {
     private DateTime UtcNow => clock.GetUtcNow().UtcDateTime;
 
@@ -354,6 +360,10 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
                 new { action = isActive ? "UserActivated" : "UserDeactivated", isActive });
 
             await db.SaveChangesAsync(ct);
+            if (!isActive)
+            {
+                sessionInvalidator?.RevokeUserSessions(userId, "AccountDisabled");
+            }
             return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
         }, ct);
 
@@ -479,6 +489,7 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
                 new { action = "AdminPasswordReset" });
 
             await db.SaveChangesAsync(ct);
+            sessionInvalidator?.RevokeUserSessions(userId, "PasswordReset");
             return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
         }, ct);
 
@@ -635,6 +646,7 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
                 new { count = openSessions.Count });
 
             await db.SaveChangesAsync(ct);
+            sessionInvalidator?.RevokeUserSessions(userId, "AdminRevoked");
             return OrganizationResult<UserDetails>.Success((await BuildUserDetailsAsync(db, organizationId, userId, now, ct))!);
         }, ct);
 
@@ -1071,10 +1083,8 @@ public sealed class SqlUserOperationsStore(IServiceScopeFactory scopes, TimeProv
         catch (UserRuleException ex) { return OrganizationResult<T>.Failure(ex.Code, ex.Parameters); }
         catch (DbUpdateConcurrencyException) { return OrganizationResult<T>.Failure(UserManagementErrors.ConcurrencyConflict); }
         catch (UserCommitOutcomeUnknownException) { return OrganizationResult<T>.Failure(UserManagementErrors.OutcomeUnknown); }
-        catch (DbUpdateException ex) when (IsUniqueUserNameViolation(ex))
-        { return OrganizationResult<T>.Failure(UserManagementErrors.UserNameDuplicate); }
-        catch (DbUpdateException ex) when (IsUniqueMembershipOrRoleViolation(ex))
-        { return OrganizationResult<T>.Failure(UserManagementErrors.ConcurrencyConflict); }
+        catch (DbUpdateException ex) when (DbUniqueConstraintExceptionTranslator.IsUniqueConstraintViolation(ex))
+        { return OrganizationResult<T>.Failure(DbUniqueConstraintExceptionTranslator.Translate(ex, UserManagementErrors.ConcurrencyConflict)); }
         catch (DbUpdateException ex) when (IsAuditWriteFailure(ex))
         { return OrganizationResult<T>.Failure(UserManagementErrors.AuditUnavailable); }
         catch (SqlException sql) when (IsAuditSqlFailure(sql))

@@ -9,7 +9,7 @@ using ForgeFlow.Domain.Units;
 
 namespace ForgeFlow.Application.Procurement.Slices;
 
-internal sealed class ProcurementSliceSupport(
+public sealed class ProcurementSliceSupport(
     ITrustedActorAccessor? actors,
     IOrganizationPermissionEvaluator? permissions,
     IUserOperationRecorder? operationRecorder,

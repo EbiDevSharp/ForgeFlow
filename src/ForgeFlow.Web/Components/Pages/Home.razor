@@ -466,13 +466,41 @@
         siteFilter = 0;
         var scope = CurrentScope;
         if (scope is null) { snapshot = null; return; }
+
         if (scope is OrganizationScope.Organization org)
         {
-            var sitesRes = await OrgService.ListSites(scope, org.OrganizationId, new OrganizationListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
-            if (sitesRes.Succeeded)
-                orgSites = sitesRes.Value!.Items;
+            loadingSnapshot = true;
+            pageError = null;
+            try
+            {
+                var sitesTask = OrgService.ListSites(scope, org.OrganizationId, new OrganizationListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+                var snapshotTask = DashboardService.GetSnapshot(scope, org.OrganizationId, null);
+                await Task.WhenAll(sitesTask, snapshotTask);
+
+                var sitesRes = await sitesTask;
+                if (sitesRes.Succeeded)
+                    orgSites = sitesRes.Value!.Items;
+
+                var res = await snapshotTask;
+                if (!res.Succeeded)
+                {
+                    pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                    snapshot = null;
+                }
+                else
+                {
+                    snapshot = res.Value;
+                }
+            }
+            finally
+            {
+                loadingSnapshot = false;
+            }
         }
-        await LoadSnapshotAsync();
+        else
+        {
+            await LoadSnapshotAsync();
+        }
     }
 
     private async Task LoadSnapshotAsync()

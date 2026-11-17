@@ -8,7 +8,7 @@ using ForgeFlow.Domain.Units;
 
 namespace ForgeFlow.Application.Procurement.Slices;
 
-internal sealed class PurchaseOrderSlices(IProcurementOperationsStore store, ProcurementSliceSupport support)
+public sealed class PurchaseOrderSlices(IProcurementOperationsStore store, ProcurementSliceSupport support)
 {
     public async Task<OrganizationResult<OrganizationPage<PurchaseOrderSummary>>> ListPurchaseOrders(
         OrganizationScope? scope,

@@ -1,14 +1,20 @@
 using ForgeFlow.Domain.Common;
+using ForgeFlow.Domain.Events;
 
 namespace ForgeFlow.Domain.Quality;
 
 /// <summary>Site-isolated quality inspection and quarantine hold record linked to stocked warehouse balances.</summary>
-public sealed class QualityInspection : IHasRowVersion, IHasDomainEvents
+public sealed class QualityInspection : IHasRowVersion, IHasDomainEvents, IOrganizationEntity
 {
     private readonly List<QualityInspectionLine> _lines = [];
     private readonly List<IDomainEvent> _domainEvents = [];
 
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void RaiseDomainEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        _domainEvents.Add(domainEvent);
+    }
     public void ClearDomainEvents() => _domainEvents.Clear();
 
     private QualityInspection() { }
@@ -189,7 +195,10 @@ public sealed class QualityInspection : IHasRowVersion, IHasDomainEvents
             : QualityInspectionStatus.InReview;
 
         if (Status == QualityInspectionStatus.Completed)
+        {
+            _domainEvents.Add(new QualityInspectionRecordedEvent(OrganizationId, SiteId, Id, InspectionNumber, DefectReasonCode ?? (RejectedBaseQuantity > 0 ? "Rejected" : "Accepted"), utcNow));
             _domainEvents.Add(new QualityInspectionCompletedDomainEvent(OrganizationId, SiteId, InspectionNumber, utcNow));
+        }
     }
 
     public void Cancel(string? notes, long actorId, DateTime utcNow)

@@ -3,7 +3,7 @@ using ForgeFlow.Domain.Common;
 namespace ForgeFlow.Domain.Procurement;
 
 /// <summary>Organization-shared vendor/supplier master.</summary>
-public sealed class Supplier : IHasRowVersion
+public sealed class Supplier : IHasRowVersion, IOrganizationEntity
 {
     private Supplier()
     {

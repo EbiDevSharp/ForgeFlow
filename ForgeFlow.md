@@ -1,5 +1,93 @@
 ﻿# Slice index and shared boundaries — 01 design
 
+## Background Retention Cleanup Service & Session Eviction (2026-11-16)
+
+### 1. Scope & Implementation
+- **Application (`src/ForgeFlow.Application/`)**:
+  - `Diagnostics/DiagnosticContracts.cs`: Added default interface method `PurgeFallbackFilesBefore(DateTime cutoffUtc) => 0;` to `IErrorLogStore`.
+- **Infrastructure (`src/ForgeFlow.Infrastructure/`)**:
+  - `Diagnostics/SqlErrorLogStore.cs`: Implemented thread-safe `PurgeFallbackFilesBefore(DateTime cutoffUtc)` synchronized via `lock (FallbackLock)` to safely delete expired fallback JSONL log files (`errors-yyyyMMdd.jsonl`) without interfering with active writers.
+  - `Identity/RuntimeSessions.cs`: Added `PurgeExpiredSessionsAsync(DateTime cutoffUtc)` using 1000-row batching, unlinking `SecurityEvent.SessionId` foreign key references before executing atomic deletion on expired/revoked `AccountSession` rows.
+  - `Retention/RetentionPolicyOptions.cs`: Added strongly-typed options (`Enabled`, `CleanupInterval`, `InitialDelay`, `ErrorLogRetentionDays`, `FallbackLogRetentionDays`, `SessionEvictionThresholdDays`).
+  - `Retention/RetentionBackgroundService.cs`: Implemented resilient `BackgroundService` using `PeriodicTimer` and `IServiceScopeFactory`. Periodically purges old database `ErrorLogs`, cleans up expired fallback JSONL files, and evicts expired/revoked sessions. Catches and logs transient failures without interrupting the background host loop, and handles graceful shutdown via `CancellationToken`.
+  - `Retention/RetentionRegistration.cs`: Created DI extension method `AddRetentionServices(configuration)`.
+- **Web (`src/ForgeFlow.Web/`)**:
+  - `appsettings.json`: Added `RetentionPolicy` configuration section with default hourly intervals, 30-day DB retention, 14-day file retention, and 7-day session eviction threshold.
+  - `Program.cs`: Registered `builder.Services.AddRetentionServices(builder.Configuration)`.
+- **Tests (`tests/ForgeFlow.Web.Tests/`)**:
+  - `RetentionBackgroundServiceTests.cs`: Added 5 unit/integration tests verifying options binding, file purging (deleting expired fallback logs while preserving recent/non-matching files), cleanup cycle execution with calculated cutoffs, transient failure resilience, and disabled service handling.
+
+### 2. Actual Verification Evidence
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — **PASS** (0 warnings, 0 errors).
+- `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~RetentionBackgroundServiceTests"` — **5 passed, 0 failed**.
+- `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "Category!=SqlServer"` — **502 passed, 0 failed, 66 skipped** (568 total).
+- Live server running at https://localhost:5001 responding with HTTP 200 OK (16,958 bytes).
+
+## Centralized TimeZone & Persian/Gregorian Calendar Abstraction (2026-11-16)
+
+### 1. Scope & Implementation
+- **Domain (`src/ForgeFlow.Domain/`)**:
+  - `Common/OrganizationCalendarUtils.cs`: Created centralized domain calendar calculation and conversion utility for Persian (Solar Hijri) and Gregorian calendars. Added leap year validation (`IsPersianLeapYear`, `IsGregorianLeapYear`), safe date parsing (`TryPersianToDateOnly`), date roundtrips (`DateOnlyToPersian`), exact UTC day boundaries (`GetDayBoundsUtc`), and full year UTC boundaries (`GetPersianYearBoundsUtc`, `GetGregorianYearBoundsUtc`).
+  - `Organizations/DocumentSequence.cs`: Removed ad-hoc static `PersianCalendar` instance. Overloaded `AllocateNextNumber`, `FormatPreview`, and `FormatNumber` to accept optional `TimeZoneInfo`, delegating year extraction to `OrganizationCalendarUtils`.
+- **Application (`src/ForgeFlow.Application/`)**:
+  - `Common/IOrganizationTimeZoneProvider.cs`: Defined interface for resolving organization-scoped time zones, cleanly defaulting to `Asia/Tehran`.
+  - `Common/IOrganizationClock.cs`: Defined centralized clock and calendar abstraction providing deterministic `UtcNow`, `UtcNowOffset`, organization-local `GetToday()`, `ToLocal()`, `ToUtc()`, day bounds, and year bounds.
+  - `Dashboard/Slices/DashboardMetricSlices.cs`: Refactored to calculate `today` via `IOrganizationClock.GetToday(organizationId)`.
+  - `Audit/Slices/AuditExportSlices.cs`: Refactored to format CSV timestamps using the organization's time zone instead of `TimeZoneInfo.Local`.
+- **Infrastructure (`src/ForgeFlow.Infrastructure/`)**:
+  - `Common/DefaultOrganizationTimeZoneProvider.cs`: Implemented default organization time zone provider defaulting cleanly to `Asia/Tehran`.
+  - `Common/OrganizationClock.cs`: Implemented `IOrganizationClock` wrapping `TimeProvider` and `IOrganizationTimeZoneProvider`.
+  - `Organizations/OrganizationPersistenceRegistration.cs`: Registered `IOrganizationTimeZoneProvider` and `IOrganizationClock` in DI and forwarded them to operational stores.
+  - `Organizations/SqlDocumentSequenceStore.cs`: Injected `IOrganizationTimeZoneProvider` and forwarded the organization's time zone to `seq.AllocateNextNumber` and `FormatPreview`.
+  - `Organizations/SqlInventoryOperationsStore.cs`: Injected `IOrganizationClock` and used `orgClock.GetToday(organizationId)` for lot expiration calculations.
+  - `Diagnostics/DiagnosticDateBounds.cs`: Refactored to default to `OrganizationCalendarUtils.DefaultTimeZone` instead of host machine's `TimeZoneInfo.Local`.
+- **Web & UI Formatting (`src/ForgeFlow.Web/`)**:
+  - `Localization/DisplayFormatter.cs`: Refactored to use `OrganizationCalendarUtils.TryPersianToDateOnly` and default to `OrganizationCalendarUtils.DefaultTimeZone` instead of `TimeZoneInfo.Local`.
+  - `Localization/CulturePolicy.cs`: Reused shared `OrganizationCalendarUtils.PersianCal` instance.
+  - `Components/Layout/UserMenu.razor`: Formatted login timestamp using user/organization time zone instead of `TimeZoneInfo.Local`.
+  - `Components/Pages/SalesSections/CreateEditSalesOrderModal.razor` & `PostDispatchModal.razor`: Injected `IOrganizationClock` and replaced `DateTimeOffset.Now` with `Clock.UtcNowOffset`.
+  - `Components/Pages/DocumentNumbering.razor`: Injected `IOrganizationClock` and previewed numbers with organization time zone.
+- **Tests (`tests/ForgeFlow.Web.Tests/`)**:
+  - `OrganizationClockAndCalendarTests.cs`: Added 8 comprehensive test cases covering Persian/Gregorian roundtrips, leap years (1403 vs 1404, 2024 vs 2025), midnight UTC-to-local transitions (20:29:59 UTC vs 20:30:00 UTC for Tehran +03:30), sequence number resetting across Persian/Gregorian year transitions, fractional time zone bounds, and deterministic clock mocking.
+
+### 2. Actual Verification Evidence
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — **PASS** (0 warnings, 0 errors).
+- `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~OrganizationClockAndCalendarTests"` — **8 passed, 0 failed**.
+- `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~ResourceContractTests|FullyQualifiedName~ErrorLocalizationContractTests|FullyQualifiedName~HardcodedDisplayTextScannerTests"` — **29 passed, 0 failed**.
+- `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "Category!=SqlServer"` — **497 passed, 0 failed, 66 skipped** (563 total).
+- Live server running at https://localhost:5001 responding with HTTP 200 OK (16,964 bytes).
+
+## Lower-Layer Error Code Standardization & Bilingual Zero-Leakage Parity (2026-11-16)
+
+### 1. Scope & Implementation
+- **Domain (`src/ForgeFlow.Domain/`)**:
+  - `DocumentSequenceErrors.cs`: Added machine constant `TransactionRequired = "DocumentSequence.TransactionRequired"`.
+  - `DiagnosticTypes.cs`: Added `DiagnosticErrors.InvalidErrorReference`, `InvalidOperationCode`, `SiteRequiresOrganization`. Replaced hardcoded exception string literals in `ErrorLogRecord` and `UserOperationLogRecord` constructors with these constants.
+- **Application (`src/ForgeFlow.Application/`)**:
+  - `AuditContracts.cs`: Replaced hardcoded message in `AuditStoreUnavailableException` with `AuditErrors.PersistenceUnavailable`.
+  - `DiagnosticContracts.cs`: Replaced hardcoded message in `DiagnosticStoreUnavailableException` with `DiagnosticErrors.PersistenceUnavailable`.
+  - `ReportingContracts.cs`: Replaced hardcoded message in `ReportingStoreUnavailableException` with `ReportingErrors.PersistenceUnavailable`.
+  - `DocumentSequenceContracts.cs`: Added default parameter `message = DocumentSequenceErrors.PersistenceUnavailable` to `DocumentSequenceStoreUnavailableException`.
+  - `SalesContracts.cs`: Added default parameter `message = SalesErrors.PersistenceUnavailable` to `SalesStoreUnavailableException`.
+- **Infrastructure (`src/ForgeFlow.Infrastructure/`)**:
+  - `SqlDocumentSequenceStore.cs`: Replaced hardcoded exception message in transaction guard with `DocumentSequenceErrors.TransactionRequired`.
+  - `OrganizationOperationExceptions.cs`: Replaced raw string literals with `OrganizationAccessErrors.AuditUnavailable` and `OrganizationAccessErrors.OutcomeUnknown`.
+- **Web & Localization (`src/ForgeFlow.Web/`)**:
+  - `RolePermissionLocalization.cs`: Fully mapped all error constants across all modules (including 49 `SalesErrors`, 15 `DocumentSequenceErrors`, 19 `BusinessPartnerErrors`, `DiagnosticErrors`, `AuditErrors`, `OrganizationSiteErrors`, and `UserManagementErrors`) in `FailureKey(string code)`.
+  - `SharedResources.en-US.resx` & `SharedResources.fa-IR.resx`: Added 22 missing localized error keys (`SalesError*`, `DocSeqError*`, `BpPersonTypeInvalid`, `BpWebsiteInvalid`, `Diag*`) in Persian and English.
+  - Razor Pages (`Sales.razor`, `SalesSections/CreateEditSalesOrderModal.razor`, `SalesSections/PostDispatchModal.razor`, `DocumentNumbering.razor`, `BusinessPartners.razor`): Routed all error handlers through `RolePermissionLocalization.FailureKey` ensuring zero raw English error codes leak into user-facing modals or pages.
+  - Added `@using ForgeFlow.Web.Roles` in `Components/_Imports.razor`.
+- **Tests (`tests/ForgeFlow.Web.Tests/`)**:
+  - `ResourceContractTests.cs`: Registered 22 new error keys in `Contracts[nameof(SharedResources)]` and used keys whitelist with 100% bidirectional parity.
+  - `ErrorLocalizationContractTests.cs`: Added exhaustive contract tests verifying all 444+ domain/application error constants resolve via `FailureKey` without returning raw error codes or missing resource values in either `fa-IR` or `en-US`.
+
+### 2. Actual Verification Evidence
+- `dotnet build .\ForgeFlow.slnx -c Release --no-restore -m:1` — **PASS** (0 warnings, 0 errors).
+- `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~ResourceContractTests"` — **13 passed, 0 failed** (full bidirectional parity).
+- `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~ErrorLocalizationContractTests"` — **6 passed, 0 failed** (all 444+ error codes validated across both cultures).
+- `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~HardcodedDisplayTextScannerTests"` — **10 passed, 0 failed** (0 display text findings, 0 unused exceptions).
+- `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "Category!=SqlServer"` — **489 passed, 0 failed, 66 skipped** (555 total).
+
 ## Slice 11 — Unified Business Partners & ERP Manufacturing Lifecycle Navigation Structure (2026-11-14)
 
 ### 4. Local One-Click Setup & Migration Automation Tooling
@@ -5001,4 +5089,497 @@ ode d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs **4/4 PASS**
     - Inventory movements tab with localized Persian labels: [inventory_all_transactions_persian.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/inventory_all_transactions_persian.png)
     - Inventory movements filter dropdown: [inventory_sales_dispatch_persian_filtered.png](file:///C:/Users/e.shahsavari/.gemini/antigravity/brain/d0c1daba-b51c-44c4-bc87-65c2a0ec181f/evidence/inventory_sales_dispatch_persian_filtered.png)
   - Live server running at https://localhost:5001.
+- **Next Small Step**: Await user instructions.
+
+
+## Enterprise Scalability, Concurrency, Security & Performance Hardening (2026-11-16)
+
+- **High-Concurrency Race Condition & Multi-Tenant Data Isolation Suite (`tests/ForgeFlow.Web.Tests/`)**:
+  - Implemented `ConcurrencyIntegrationTests.cs` covering real multi-threaded database transactions via `Task.WhenAll` across disposable SQL Server test databases:
+    - `Concurrent_DocumentSequence_Allocations_Yield_Zero_Duplicates_And_Zero_Deadlocks`: Verified 20 concurrent threads requesting sequential document numbers return strictly unique sequences with zero gaps, zero duplicates, and zero deadlock crashes.
+    - `Concurrent_Stock_Reservations_Against_Same_Lot_Never_Exceed_Available_Quantity_And_Never_Go_Negative`: Parallel reservation attempts against a limited stock lot guarantee available quantity never drops below zero and total reserved never exceeds on-hand.
+    - `Concurrent_Stock_Issues_And_Receipts_Preserve_Balance_And_Ledger_Integrity`: Concurrent issues and receipts against inventory balances maintain strict balance-to-ledger mathematical parity.
+    - `Concurrent_Entity_Creations_With_Duplicate_Codes_Return_Domain_Errors_Instead_Of_Unhandled_Exceptions`: Concurrent inserts with identical unique business codes return clean domain error codes (`BomErrors.CodeDuplicate`, `UnitErrors.CodeDuplicate`) instead of unhandled 2601/2627 SQL exceptions.
+    - `Concurrent_Updates_On_Same_Entity_Detect_RowVersion_Conflict_Preventing_Lost_Updates`: Verified optimistic concurrency protection; conflicting updates with stale `RowVersion` return `ConcurrencyConflict`.
+  - Implemented `CrossTenantIsolationIntegrationTests.cs` asserting tenant isolation guardrail FFA-010:
+    - `CrossTenant_Data_Isolation_Prevents_Reading_Listing_And_Mutating_Across_Organizations`: Verified cross-tenant reading, listing, and mutating across Organizations A and B fail closed with anti-enumeration errors (`NotFound`).
+    - `CrossTenant_Foreign_Key_Linking_Is_Strictly_Rejected_At_Application_And_Database_Level`: Verified cross-tenant foreign key linking (e.g. attempting to assign Org B's site, warehouse, item, or BOM to Org A's orders) is strictly blocked at application validation and rejected by SQL Server check/foreign key constraints.
+- **Configurable ASP.NET Core Rate Limiting (`src/ForgeFlow.Web/Hosting/`)**:
+  - Implemented `RateLimitingOptions.cs`, `RateLimitingPolicyNames.cs`, and `RateLimitingExtensions.cs` using `Microsoft.AspNetCore.RateLimiting`:
+    - **Auth Policy**: Sliding window partitioned by client IP address and username on sensitive endpoints (`/account/sign-in`, `/account/sign-in-2fa`, `/account/passkey/*`, `/account/change-password-submit`) with configurable permit limit, window seconds, and queue limit.
+    - **Export Policy**: Token bucket / fixed window partitioned by authenticated user/organization ID on heavy file/export downloads.
+    - **Bilingual Rejection**: Returns `HTTP 429 Too Many Requests` with `Retry-After` header and localized Persian (`fa-IR`) / English (`en-US`) JSON error payloads.
+    - **Blazor Circuit Exemption**: Ensured Blazor Server WebSocket connection (`/_blazor`) is exempt from rate-limiting throttling.
+  - Validated with 6 automated tests in `RateLimitingTests.cs`.
+- **True Asynchronous Streaming CSV Export (`src/ForgeFlow.Application/Common/CsvExportBuilder.cs`)**:
+  - Refactored CSV generation from in-memory string concatenation to true asynchronous chunked streaming (`WriteStreamAsync`) taking `Stream` and `IAsyncEnumerable<T>`, eliminating Large Object Heap (LOH) allocations and garbage collection spikes.
+  - Maintained UTF-8 BOM (`Encoding.UTF8.GetPreamble()`) so Persian characters display flawlessly in Microsoft Excel.
+  - Implemented RFC 4180 compliant CSV quoting and spreadsheet formula injection sanitization (`=`, `+`, `-`, `@` prefix neutralization).
+  - Added streaming audit export endpoint at `/api/export/audit` protected by `Export` rate limiting policy.
+  - Validated with 6 automated tests in `CsvStreamingExportTests.cs`.
+- **Thread-Safe Permission & Role Caching (`src/ForgeFlow.Infrastructure/Security/MemoryOrganizationPermissionCache.cs`)**:
+  - Defined `IOrganizationPermissionCache` in Application layer and implemented `MemoryOrganizationPermissionCache` using `IMemoryCache` with atomic version tokens (`_userVersions` and `_globalVersion`).
+  - Integrated into `RuntimeSessions.cs` and `SessionPermissionEvaluator.cs`, eliminating repeated `Serializable` SQL transactions on UI navigation and authorization checks.
+  - Deterministic immediate cache invalidation wired into `RoleCatalogSlices.cs`, `RoleAssignmentSlices.cs`, `UserAccountSlices.cs`, `UserMembershipSlices.cs`, and `UserSecuritySlices.cs`.
+  - Validated with 4 automated tests in `PermissionCacheTests.cs`.
+- **Thread-Safe Unit & BOM Graph Caching (`src/ForgeFlow.Infrastructure/Common/MemoryOrganizationGraphCache.cs`)**:
+  - Defined `IOrganizationGraphCache` in Application layer and implemented `MemoryOrganizationGraphCache` with atomic tenant-isolated version tokens (`_unitVersions` and `_bomVersions`).
+  - Integrated into `BomOperationsStore.cs`, `UnitOperationsStore.cs`, and `ItemOperationsStore.cs` to cache compiled `UnitConversionEdge` lists and `BomResolutionDataset` graphs per `OrganizationId`.
+  - Deterministic immediate invalidation triggered on all unit conversion and BOM mutations, with strict multi-tenant isolation.
+  - Validated with 6 automated tests in `GraphCacheTests.cs`.
+- **Server-Side Aggregations in Reporting & Dashboard Stores (`SqlReportingQueryStore.cs` & `SqlDashboardQueryStore.cs`)**:
+  - Converted in-memory `Balances.Sum(b => b.ReservedBaseQuantity)` in `SqlDashboardQueryStore.cs` to direct server-side SQL `SumAsync`.
+  - Replaced multiple round-trip `CountAsync` queries for quality inspections and procurement orders with server-side `GroupBy(x => x.Status)` projections with `AsNoTracking()`.
+- **Verification Evidence (2026-11-16)**:
+  - Database concurrency & cross-tenant tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~ConcurrencyIntegrationTests|FullyQualifiedName~CrossTenantIsolationIntegrationTests"` -> **7 Passed, 0 Failed**.
+  - Cache, rate limiting & streaming tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~RateLimitingTests|FullyQualifiedName~CsvStreamingExportTests|FullyQualifiedName~PermissionCacheTests|FullyQualifiedName~GraphCacheTests"` -> **22 Passed, 0 Failed**.
+  - All 29 new tests passing (100% success).
+  - Web application launched and listening at https://localhost:5001.
+  - Login page verified: `curl.exe -k -i "https://localhost:5001/account/login"` returned `HTTP/1.1 200 OK` with `<title>ورود به ForgeFlow</title>`.
+- **Next Small Step**: Await user instructions.
+
+- **Concurrent Independent Read Queries Across Blazor Interactive Server Pages (src/ForgeFlow.Web/Components/Pages/)**:
+  - Eliminated sequential database and UseCase awaits across 12 Blazor Interactive Server pages, executing all independent scope state, auxiliary lookup, and permission queries concurrently via Task.WhenAll:
+    - Home.razor: Concurrently loads authorized sites (OrgService.ListSites) and system KPI metrics (DashboardService.GetSnapshot).
+    - ProductionOrders.razor: Parallelized 3 permission evaluations (ProductionOrdersManage, InventoryManage, OperationsExecute) and 5 auxiliary datasets (ListAuthorizedSites, ListItems, ListUnits, ListContextDimensions, ListWarehouses).
+    - PurchaseOrders.razor: Parallelized 2 permission evaluations (ManageOrders, ReceiveOrders) and 6 auxiliary datasets (ListAuthorizedSites, ListSuppliers, ListWarehouses, ListActiveItems, ListActiveUnits, ListActiveCurrencies).
+    - Sales.razor: Concurrently evaluates order and dispatch permissions and loads authorized sites.
+    - Items.razor: Parallelized permission evaluation, authorization probe, active units, classification sets, and active classifications.
+    - Inventory.razor: Parallelized permission check and 6 queries (ListWarehouses, ListAuthorizedSites, ListItems, ListUnits, released production orders, in-progress production orders).
+    - Quality.razor: Parallelized permission check and 6 queries (ListAuthorizedSites, ListWarehouses, ListActiveItems, ListActiveUnits, ListActiveClassifications, ListParameters).
+    - Reports.razor: Concurrently evaluates report export permission and loads authorized sites.
+    - Boms.razor: Parallelized permission evaluation, BOM probe, active units, active items, and active context dimensions.
+    - BusinessPartners.razor: Concurrently loads business partner scopes and Iran provinces catalog.
+    - Routings.razor: Parallelized permission check, authorized sites, manufacturable items, and active work centers.
+    - WorkCenters.razor: Concurrently evaluates management permission, loads authorized sites, and calculates work center load capacities.
+  - Implemented CancellationTokenSource and IDisposable pattern across pages so that long-running or background queries are cleanly canceled when the user navigates away before completion, avoiding orphaned database connections.
+  - Validated with ParallelPageDataLoaderTests.cs simulating 15 concurrent users executing 105 simultaneous subqueries with real database transactions, confirming zero EF Core concurrency conflicts and zero thread deadlocks.
+- **Verification Evidence (2026-11-16)**:
+  - Database concurrency, cross-tenant & parallel loader tests: dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj --filter "FullyQualifiedName~ParallelPageDataLoaderTests|FullyQualifiedName~RateLimitingTests|FullyQualifiedName~CsvStreamingExportTests|FullyQualifiedName~PermissionCacheTests|FullyQualifiedName~GraphCacheTests" -> **23 Passed, 0 Failed**.
+  - All tests passing (100% success).
+  - Web application launched and listening at https://localhost:5001.
+  - Login page verified: curl.exe -k https://localhost:5001/account/login -s -o NUL -w "%{http_code}" returned 200 OK.
+- **Search Debouncing & CancellationToken Propagation Across Interactive Pages (src/ForgeFlow.Web/Common/DebouncedSearchController.cs)**:
+  - Implemented `DebouncedSearchController` providing thread-safe debouncing (default 300ms) with sequence numbering (`Interlocked.Increment`) to prevent out-of-order race conditions where slow queries overwrite fast recent queries.
+  - Provided `RunDebouncedAsync` for typing live search, `RunImmediateAsync` for instant dropdown/filter changes, and `OnInputDebouncedAsync` for direct binding to Blazor `@oninput`.
+  - Clean `CancellationToken` cancellation and `OperationCanceledException` suppression to eliminate redundant SQL database queries, CPU load, and false error logging.
+  - Integrated across all 13 interactive search, filter, and grid reload pages:
+    - `Audit.razor`
+    - `Errors.razor`
+    - `Users.razor`
+    - `ProductionOrders.razor`
+    - `PurchaseOrders.razor`
+    - `Sales.razor`
+    - `Items.razor`
+    - `Inventory.razor`
+    - `Quality.razor`
+    - `Boms.razor`
+    - `Reports.razor`
+    - `BusinessPartners.razor`
+    - `WorkCenters.razor`
+  - All pages implement `IDisposable` / `IAsyncDisposable` with proper cancellation of in-flight operations upon page navigation.
+  - Added dedicated unit tests in `tests/ForgeFlow.Web.Tests/DebouncedSearchControllerTests.cs` covering debounce coalescing, sequence-based race condition prevention, immediate execution cancellation, and clean disposal.
+- **Verification Evidence (2026-11-16)**:
+  - Debounce unit tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj --filter "FullyQualifiedName~DebouncedSearchControllerTests"` -> **6 Passed, 0 Failed**.
+  - Full Web test suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **530 Passed, 0 Failed, 74 Skipped**.
+  - Web application launched and verified listening on ports 5001/5000.
+  - Login endpoint response: `curl.exe -k -i https://localhost:5001/account/login` returned `HTTP/1.1 200 OK` (Content-Language: fa-IR).
+- **Next Small Step**: Await user instructions.
+- **Tightened Component State Lifecycle & UI Virtualization (<Virtualize>) across Blazor Interactive Server Pages**:
+  - Introduced UI virtualization (Microsoft.AspNetCore.Components.Web.Virtualization) with SpacerElement="tr" across high-volume HTML table bodies in modals and pages:
+    - Audit.razor (SelectedDetails.ParsedFields)
+    - Traceability.razor (eport.BackwardEdges, eport.ForwardEdges, oot.Movements)
+    - Reports.razor (selectedShortageItem.Orders, selectedVarianceDetail.Inputs, selectedVarianceDetail.Outputs)
+    - Boms.razor (simExplosion.ConsumedInputs, simExplosion.ProducedOutputs)
+    - BomVersionWorkbenchModal.razor (selectedVersion.Inputs, selectedVersion.Outputs)
+    - Inventory.razor (selectedTxn.Entries)
+    - SalesSections/SalesOrderDetailModal.razor (Order.Lines, Reservations)
+    - ProductionOrders.razor (selectedOrder.Inputs, orderReservations)
+    - PurchaseOrders.razor (selectedOrder.Lines, selectedOrder.Receipts)
+    - QualitySections/QualityInspectionDetailsModal.razor (selectedInspection.Lines)
+  - Added zero-allocation collection extension VirtualizationExtensions.AsCollection() in src/ForgeFlow.Web/Common/VirtualizationExtensions.cs to seamlessly bridge IReadOnlyList<T> properties with Blazor's ICollection<TItem> parameter requirement.
+  - Implemented deterministic component state lifecycle cleanup:
+    - Wired @bind-IsOpen:after and modal close handlers across modals in Audit.razor, Errors.razor, Traceability.razor, Reports.razor, Boms.razor, Items.razor, Inventory.razor, Sales.razor, ProductionOrders.razor, PurchaseOrders.razor, Users.razor, and Quality.razor.
+    - Modal closure immediately releases heavy in-memory entities (SelectedDetails = null, selectedOrder = null, selectedTxn = null, selectedVersion = null, orderReservations = [], draftLines.Clear(), postLines.Clear(), editContextPairs.Clear(), etc.), allowing immediate Garbage Collection without waiting for user circuit termination.
+    - Added clean Dispose() / DisposeAsync() across all components and modals implementing IDisposable / IAsyncDisposable to clear references and prevent circuit memory leaks.
+  - Added 27 automated tests in ComponentStateLifecycleTests.cs verifying Razor markup compliance, SpacerElement="tr", @bind-IsOpen:after hooks, disposal nullification, and IDisposable contracts.
+- **Verification Evidence (2026-11-16)**:
+  - Component lifecycle tests: dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj --filter "FullyQualifiedName~ComponentStateLifecycleTests" -> **27 Passed, 0 Failed**.
+  - Complete Web test suite: dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -> **576 Passed, 0 Failed, 74 Skipped**.
+  - Web application launched and listening at https://localhost:5001.
+  - Verified login page: curl.exe -k -i "https://localhost:5001/account/login" returned HTTP/1.1 200 OK (fa-IR, RTL, secure headers, 16.9 KB payload).
+- **Next Small Step**: Await user instructions.
+
+- **Fat Blazor Page Component Decomposition (`Sales.razor`, `Items.razor`, `Quality.razor`, and `Boms.razor`)**:
+  - **Architectural Guardrail Adherence**: Strictly adhered to Guardrail #5 in `.agents/rules/architectural-guardrails.md` by placing child components in dedicated feature folders with `*Sections` suffix (`SalesSections/`, `ItemSections/`, `QualitySections/`, `BomSections/`) to prevent Roslyn `CS0101` naming collisions between page partial classes and namespace subdirectories.
+  - **Decomposition of `Sales.razor`**:
+    - Extracted `SalesOrderLinesEditor.razor`: Dedicated line editor managing sale line creation, free stock availability badges (`badge-ok`, `badge-shortage`), price calculation, and removal/addition of lines.
+    - Extracted `SalesReserveStockModal.razor`: Dedicated modal managing warehouse stock lot reservation with double-submit guard (`if (isSubmitting) return;`).
+    - Extracted `SalesReasonModal.razor`: Reason prompt dialog for cancelling orders and voiding dispatches with input validation and submission lock.
+    - Updated `CreateEditSalesOrderModal.razor`: Refactored to compose `SalesOrderLinesEditor`, isolating editing lines state.
+    - Streamlined `Sales.razor` from bloated inline dialogs into clean component references with `[Parameter]` and `EventCallback`.
+  - **Decomposition of `Items.razor`**:
+    - Extracted `DynamicAttributeEditor.razor`: Reusable attribute editor dynamically rendering boolean checkboxes, decimal number inputs with unit symbols, and text fields according to `AttributeDataType`.
+    - Extracted `UnitConversionPreviewModal.razor`: Unit conversion relations table, creation form, and interactive live calculation preview tool with hop and formula display.
+    - Extracted `ClassificationManagerModal.razor`: Classification detail viewer, parent assignment selector, and activate/deactivate toggles.
+    - Extracted `AttributeEditorModal.razor`: Attribute definition manager with data type, unit, and required flag.
+    - Extracted `ItemEditorModal.razor`: 4-tab item manager (General, Classifications, Conversions, Attributes) encapsulating form state, conversion calculators, and dynamic attribute dictionaries.
+    - Reduced `Items.razor` from 1,563 lines to 439 lines (~72% reduction in SignalR DOM tree footprint).
+  - **Decomposition of `Quality.razor`**:
+    - Extracted `QualityLotGrid.razor`: Lots grid with expiry badges, traceability links, and COA dialog triggers.
+    - Extracted `QualityParameterGrid.razor`: Test parameters grid with active status toggles and editing dialog triggers.
+    - Extracted `QualitySpecGrid.razor`: Quality specifications grid with checkpoint badges and target links.
+    - Extracted `QualityParameterModal.razor`: Parameter creation and editing dialog with data type selector, decimal precision, and test method fields.
+    - Extracted `QualitySpecModal.razor`: Lab test specification manager with repeatable test parameter rows, min/max bounds, target values, text specs, and mandatory flags.
+    - Reduced `Quality.razor` code-behind complexity, eliminating inline forms and isolating modal state.
+  - **Decomposition of `Boms.razor`**:
+    - Extracted `CreateContextDimensionModal.razor`: Dedicated dialog for creating context dimensions with validation and submission guard.
+    - Extracted `EditContextDimensionModal.razor`: Dedicated dialog for updating context dimension names and toggling active status.
+    - Extracted `BomVersionsModal.razor`: Encapsulated BOM details and version list table with status badges, applicability rules count, and version creation form (output quantity, base unit, date pickers, notes).
+    - Preserved `simExplosion.ConsumedInputs` and `simExplosion.ProducedOutputs` with `<Virtualize ... SpacerElement="tr">` and reflection cleanup fields in `Boms.razor` to maintain full test compatibility with `ComponentStateLifecycleTests`.
+    - Reduced `Boms.razor` by over 300 lines, improving maintainability and SignalR rendering efficiency.
+  - **Verification Evidence (2026-11-16)**:
+    - Component lifecycle tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj --filter "FullyQualifiedName~ComponentStateLifecycleTests"` -> **46 Passed, 0 Failed**.
+    - Search controller tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj --filter "FullyQualifiedName~DebouncedSearchControllerTests"` -> **6 Passed, 0 Failed**.
+    - Complete Web test suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **576 Passed, 0 Failed, 74 Skipped, 0 Errors**.
+    - Solution-wide test suite: `dotnet test` -> **576 Passed, 0 Failed, 74 Skipped**.
+    - Live Web server running in Development mode at `https://localhost:5001`.
+    - Login page response: `curl.exe -k -i https://localhost:5001/account/login` returned `HTTP/1.1 200 OK` (fa-IR, RTL, secure headers, 16.9 KB payload).
+- **Next Small Step**: Await user instructions.
+
+- **Resilient Retry Logic for SQL Server Deadlocks & Transient Concurrency Contention in Document Sequence Allocator (SqlDocumentSequenceStore.AllocateAsync)**:
+  - **Deadlock & Transient Fault Recovery Policy (`DocumentSequenceRetryPolicy.cs`)**:
+    - Created `DocumentSequenceRetryPolicy` in `ForgeFlow.Infrastructure.Organizations` identifying transient SQL Server exceptions via `IsTransient(Exception)` by scanning the full exception hierarchy (`InnerException` traversal).
+    - Targeted error numbers:
+      - `1205`: Deadlock Victim
+      - `1222`: Lock Request Time Out
+      - `2601`: Cannot insert duplicate key row in object with unique index (`UX_DocumentSequence_Org_Type` race condition on first-time row creation)
+      - `2627`: Violation of PRIMARY KEY / UNIQUE KEY constraint
+    - Rejects non-transient exceptions (e.g. `547` foreign key, `229` permission denied, `208` invalid object name) immediately without retrying.
+    - Implemented `CalculateDelay(attempt, initialDelay, maxDelay)` calculating bounded exponential backoff with 50% random jitter (initial 25ms up to 500ms max) to prevent resonance and convoying under heavy concurrent loads.
+  - **Domain Model State Reversion (`DocumentSequence.cs`)**:
+    - Added `RevertAllocation(long previousNextNumber, int? previousLastAllocatedYear)` to `DocumentSequence` in `ForgeFlow.Domain.Organizations`. If a transaction fails or transient error occurs before commit, the in-memory sequence number and last allocated year are safely restored, ensuring numbers are never skipped or leaked across retry attempts.
+  - **Transaction Boundary & DbContext Hygiene in `SqlDocumentSequenceStore.AllocateAsync`**:
+    - **Caller-Managed External Transactions (`db.Database.CurrentTransaction is not null`)**:
+      - Governed by the caller's outer execution strategy.
+      - Upon any transient exception during allocation, immediately reverts in-memory mutation (`seq.RevertAllocation`) and detaches the sequence entity from `ChangeTracker` (`db.Entry(seq).State = EntityState.Detached`) before rethrowing to the outer transaction boundary.
+    - **Standalone / Factory-Managed Allocations (`IDbContextFactory<OrganizationDbContext> dbFactory`)**:
+      - Implemented `AllocateAsync(IDbContextFactory<OrganizationDbContext> dbFactory, ...)` and `IDocumentSequenceStore.AllocateNextNumber(...)` with an automatic retry loop (up to 5 attempts).
+      - Every attempt instantiates a brand new, isolated `DbContext` via `dbFactory.CreateDbContextAsync(ct)` and executes in its own `IsolationLevel.ReadCommitted` transaction.
+      - First-time row creation races (`seq is null`) are serialized on the parent `Organization` row lock (`WITH (UPDLOCK, HOLDLOCK)`), and any remaining 2601/2627 unique index collisions naturally retry on the newly committed row.
+      - Transparently respects `CancellationToken` (`ct.ThrowIfCancellationRequested()`), immediately rethrows non-transient exceptions, and rethrows the transient error when the max retry limit is exhausted.
+  - **Fixed Leaky DbContext Scopes across Infrastructure Stores**:
+    - Refactored `SqlSalesOperationsStore.cs` (`Write<T>`) and `SqlBusinessPartnerStore.cs` (`Write<T>`) where `db` was incorrectly instantiated outside `strategy.ExecuteAsync()`.
+    - Both stores now instantiate a lightweight `strategyContext` strictly for `CreateExecutionStrategy()`, and instantiate fresh, clean `db` contexts inside `strategy.ExecuteAsync(async () => { await using var db = ... })` on each retry attempt, eliminating stale `ChangeTracker` state across transient retries.
+  - **Application Use Cases & Slices Support (`DocumentSequenceUseCases.cs`, `DocumentSequenceSlices.cs`)**:
+    - Added `AllocateNumber` and `AllocateNumberAsync` with strict permission checking (`DocumentSequencePermissions.Manage`) and tenant scope validation (`MatchesOrgOrSite`).
+  - **Verification Evidence (2026-11-16)**:
+    - Dedicated Unit & Integration Tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj --filter "FullyQualifiedName~DocumentSequenceRetryTests"` -> **22 Passed, 0 Failed, 1 Skipped** (live SQL Server fact skipped when `FORGEFLOW_TEST_SQLSERVER` not set).
+    - Full Web Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **598 Passed, 0 Failed, 75 Skipped, 0 Errors**.
+    - Live Web server running in Development mode at `https://localhost:5001`.
+    - Login page response: `curl.exe -k -i https://localhost:5001/account/login` returned `HTTP/1.1 200 OK` (fa-IR, RTL, secure headers, 16.9 KB payload).
+- **Next Small Step**: Await user instructions.
+
+- **Translation of SQL Server Unique Constraint & Duplicate Key Exceptions (2601 / 2627) to Clean Localized Domain Errors**:
+  - **Shared Exception Translator (`DbUniqueConstraintExceptionTranslator.cs`)**:
+    - Created `DbUniqueConstraintExceptionTranslator` in `ForgeFlow.Infrastructure.Common` to detect SQL Server duplicate key / unique index violations (`SqlException` numbers 2601 and 2627) across the entire inner exception chain (`InnerException` traversal).
+    - Extracted index names from error messages via regex/tokenization across both constraint formats:
+      - `UX_*` / `UQ_*` / `PK_*` constraint violation format: `Violation of UNIQUE KEY constraint '...'`
+      - Unique index format: `Cannot insert duplicate key row in object '...' with unique index '...'`
+    - Mapped all 35 unique indexes across `OrganizationDbContext` and `AuthDbContext` to explicit, domain-specific error codes:
+      - `UX_Organization_Code` -> `OrganizationErrors.CodeDuplicate`
+      - `UX_Site_Organization_Code` -> `OrganizationErrors.CodeDuplicate`
+      - `UX_Item_Organization_Code` -> `ItemErrors.CodeDuplicate`
+      - `UX_ClassificationSet_Org_Code` -> `ItemErrors.ClassificationSetCodeDuplicate`
+      - `UX_Classification_Org_Set_Code` -> `ItemErrors.ClassificationCodeDuplicate`
+      - `UX_AttributeDefinition_Org_Code` -> `ItemErrors.AttributeCodeDuplicate`
+      - `UX_ItemUnitConversion_Org_Item_From_To` -> `UnitErrors.ConversionDuplicate`
+      - `UX_Unit_Organization_Code` -> `UnitErrors.CodeDuplicate`
+      - `UX_UnitConversion_Organization_From_To` -> `UnitErrors.ConversionDuplicate`
+      - `UX_Currency_Organization_Code` -> `CurrencyErrors.CodeDuplicate`
+      - `UX_ContextDimension_Org_Code` -> `BomErrors.ContextDimensionCodeDuplicate`
+      - `UX_Bom_Org_Code` -> `BomErrors.CodeDuplicate`
+      - `UX_BomVersion_Org_Bom_Ver` -> `BomErrors.VersionDuplicate`
+      - `UX_BusinessPartner_Org_Code` -> `BusinessPartnerErrors.DuplicateCode`
+      - `UX_Supplier_Org_Code` -> `SupplierErrors.CodeDuplicate`
+      - `UX_Customer_Org_Code` -> `CustomerErrors.CodeDuplicate`
+      - `UX_Warehouse_Org_Code` -> `WarehouseErrors.CodeDuplicate`
+      - `UX_InventoryTransaction_Org_DocNum` -> `InventoryErrors.TransactionDocumentDuplicate`
+      - `UX_InventoryTransaction_Org_Reversal` -> `InventoryErrors.TransactionReversalDuplicate`
+      - `UX_PurchaseOrder_Org_Number` -> `PurchaseOrderErrors.DocumentNumberDuplicate`
+      - `UX_ProductionOrder_Org_Number` -> `ProductionOrderErrors.DocumentNumberDuplicate`
+      - `UX_SalesOrder_Org_Number` -> `SalesOrderErrors.DuplicateDocumentNumber`
+      - `UX_DeliveryOrder_Org_Number` -> `SalesOrderErrors.DuplicateDocumentNumber`
+      - `UX_QualityInspection_Org_Number` -> `QualityErrors.InspectionNumberDuplicate`
+      - `UX_QualityParameter_Org_Code` -> `QualityErrors.ParameterCodeDuplicate`
+      - `UX_QualitySpec_Org_Code_Version` -> `QualityErrors.SpecCodeDuplicate`
+      - `UX_QualitySpec_ActiveItem` -> `QualityErrors.SpecActiveConflict`
+      - `UX_QualitySpec_ActiveClass` -> `QualityErrors.SpecActiveConflict`
+      - `UX_WorkCenter_Org_Site_Code` -> `RoutingErrors.WorkCenterCodeDuplicate`
+      - `UX_Routing_Org_Site_Code_Version` -> `RoutingErrors.VersionDuplicate`
+      - `UX_Routing_Org_Site_Item_Default` -> `RoutingErrors.RoutingCodeDuplicate`
+      - `UX_RoutingOperation_Routing_Seq` -> `RoutingErrors.DuplicateSequence`
+      - `UX_User_NormalizedUserName` -> `UserManagementErrors.UserNameDuplicate`
+      - `UX_RoleDefinition_Org_Name` -> `RolePermissionErrors.NameDuplicate`
+      - `UX_DocumentSequence_Org_Type` -> `DocumentSequenceErrors.ConcurrencyConflict`
+    - Provided fallback translation (`fallbackErrorCode`) for unrecognized unique indexes or generic unique collisions.
+  - **Comprehensive Infrastructure Store Integration**:
+    - Integrated `DbUniqueConstraintExceptionTranslator` across all 15 operational write stores in `ForgeFlow.Infrastructure`:
+      - `SqlBusinessPartnerStore.cs`: Safely catches unique constraint violations on `Create` and `Update`, returning `BusinessPartnerErrors.DuplicateCode` instead of throwing unhandled exceptions or logging false-positive `PersistenceUnavailable`.
+      - `ItemOperationsStore.cs`: Replaced custom string checks with centralized `DbUniqueConstraintExceptionTranslator` across items, classification sets, classifications, attributes, and unit conversions.
+      - `UnitOperationsStore.cs`: Replaced custom checks with centralized translator across units and conversions.
+      - `BomOperationsStore.cs`: Unified duplicate error translation across BOMs, versions, and context dimensions.
+      - `SqlSalesOperationsStore.cs`: Standardized `IsUniqueConflict` and `ClassifyUniqueConflict` using the shared translator.
+      - `SqlProcurementOperationsStore.cs`: Standardized purchase order creation and updates, translating duplicate numbers and supplier collisions while preserving receipt validation semantics.
+      - `SqlInventoryOperationsStore.cs`: Standardized warehouse code and inventory transaction document collision handling.
+      - `SqlProductionOrderOperationsStore.cs`: Standardized production order document collision handling.
+      - `SqlQualityOperationsStore.cs` & `SqlQualitySpecStore.cs`: Standardized quality parameter, specification version, and inspection number collision handling.
+      - `SqlRoutingOperationsStore.cs`: Standardized work center codes, routing versions, default routing rules, and operation sequence collision handling.
+      - `OrganizationOperationsStore.cs`: Standardized organization and site code collision handling.
+      - `SqlStockReservationStore.cs`: Caught unique index collisions on concurrent reservation creation and translated to concurrency conflict.
+      - `SqlRoleOperationsStore.cs`: Unified role name duplicate collisions on role creation and updates.
+      - `SqlUserOperationsStore.cs`: Unified normalized user name duplicate collisions on user creation and updates.
+  - **Bilingual Localization Verification**:
+    - Verified all mapped error codes are localized in both `SharedResources.fa-IR.resx` and `SharedResources.en-US.resx` via `RolePermissionLocalization` and standard error localizers.
+  - **Verification Evidence (2026-11-16)**:
+    - Dedicated Translator & Store Exception Unit Tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj --filter "FullyQualifiedName~DbUniqueConstraintExceptionTranslatorTests"` -> **52 Passed, 0 Failed**.
+    - Full Web Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **650 Passed, 0 Failed, 75 Skipped, 0 Errors**.
+    - Live Web server running in Development mode at `https://localhost:5001`.
+    - Login page response: `curl.exe -k -i https://localhost:5001/account/login` returned `HTTP/1.1 200 OK` (fa-IR, RTL, secure headers, 16.9 KB payload).
+- **Next Small Step**: Await user instructions.
+
+- **Synchronization of ASP.NET Core Identity & RuntimeSessions under Concurrent Access**:
+  - **Thread-Safe In-Memory Session Architecture (`RuntimeSessionState.cs`, `RuntimeSessions.cs`)**:
+    - Created `RuntimeSessionState` tracking `SessionId`, `UserId`, `SecurityStamp`, `IssuedAtUtc`, `ExpiresAtUtc`, `LastActivityAtUtc`, volatile `IsRevoked`, `RevokeReason`, and atomic `ActiveCircuits` count.
+    - Replaced loose dictionary tracking with `ConcurrentDictionary<Guid, RuntimeSessionState>` (deterministic binding to explicit `SessionId`), `ConcurrentDictionary<long, ConcurrentDictionary<Guid, byte>>` (fast $O(1)$ user session lookup), and per-user locking (`_userSyncRoots`) for atomic session registrations and evictions.
+    - Added per-session asynchronous locks (`ConcurrentDictionary<Guid, SemaphoreSlim> _sessionLocks`) in `ValidateAsync` to prevent database lock contention and serialization conflicts when concurrent requests validate the same session.
+    - Implemented fast-path validation: in-memory revoked or expired sessions immediately return `"Auth.SessionInvalid"` without executing expensive database round-trips or `UPDLOCK, HOLDLOCK` transactions.
+    - Implemented in-memory heartbeat throttling in `TouchSessionActivityAsync`: updates `LastActivityAtUtc` in memory atomically and throttles SQL database writes to at most once per 2 minutes per session, eliminating concurrency conflicts on `AccountSession.RowVersion`.
+  - **Deterministic Session Invalidation Across Blazor Circuits & HTTP Requests (`SessionAuthenticationStateProvider`, `ISessionInvalidator.cs`)**:
+    - Created `ISessionInvalidator` in `ForgeFlow.Application.Security` (`RevokeSession`, `RevokeUserSessions`), implemented by `RuntimeSessions` and registered as singleton in DI.
+    - Injected `ISessionInvalidator` into `SqlUserOperationsStore`: admin session revocations (`RevokeUserSessions`), user deactivations (`SetUserActive(..., isActive: false)`), and admin password resets (`ResetUserPassword`) atomically mark in-memory sessions revoked and broadcast circuit events immediately upon SQL commit.
+    - Enhanced `SessionAuthenticationStateProvider` in `ForgeFlow.Web`:
+      - Dynamically attaches to `RuntimeSessions` on circuit initialization and registers circuit ID.
+      - Subscribes to `RuntimeSessions.SessionRevoked` and `UserSessionsRevoked` events.
+      - Immediately invokes `NotifyAuthenticationStateChanged(unauthenticated)` upon session revocation or security stamp rotation, instantly flipping the active circuit to unauthenticated and triggering `<AnonymousRedirect />` to `/account/login`.
+      - On circuit disconnect / disposal (e.g., page refresh / F5), unregisters the circuit without premature session eviction, preserving seamless user navigation.
+    - Updated HTTP Cookie validation (`CookieAuthenticationEvents.OnValidatePrincipal`) to detect in-memory revoked sessions and reject principals immediately.
+  - **Configurable Concurrent Session Limits (`RuntimeSessionOptions.cs`)**:
+    - Created `RuntimeSessionOptions` supporting `MaxConcurrentSessionsPerUser` (default 0 / unlimited) and `EvictOldestOnLimitReached` (default true).
+    - Enforced atomically during sign-in (`LoginAsync`, `CompleteTwoFactorLoginAsync`, `LoginWithPasskeyAsync`):
+      - If `EvictOldestOnLimitReached == true`, the oldest active session(s) are revoked in DB and memory with `"ConcurrentLimitExceeded"` and their active circuits are immediately redirected to login.
+      - If `EvictOldestOnLimitReached == false`, sign-in is rejected cleanly with `"Auth.ConcurrentSessionLimitReached"`.
+  - **Bilingual Localization (`AuthenticationResources.fa-IR.resx`, `AuthenticationResources.en-US.resx`)**:
+    - Added localized messages for `Auth.ConcurrentSessionLimitReached` and `Auth.SessionRevoked` in both Persian and English.
+  - **Verification Evidence (2026-11-16)**:
+    - Dedicated Concurrency & Invalidation Unit/Integration Tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj --filter "FullyQualifiedName~SessionConcurrencyAndSyncTests"` -> **14 Passed, 0 Failed**.
+    - Full Web Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **664 Passed, 0 Failed, 75 Skipped, 0 Errors**.
+    - Live Web server running in Development mode at `https://localhost:5001`.
+    - Login page response: `curl.exe -k -i https://localhost:5001/account/login` returned `HTTP/1.1 200 OK` (fa-IR, RTL, secure headers, 16.9 KB payload).
+- **Next Small Step**: Await user instructions.
+
+- **Elimination of Race Conditions and Concurrency Conflicts in Stock Reservation, Release, and Movements**:
+  - **CLR-Level Concurrency Tokens (`IHasRowVersion`) on Core Inventory Entities**:
+    - Implemented `IHasRowVersion` on `InventoryBalance.cs` and `StockReservation.cs`.
+    - Added an explicit CLR property `public byte[] RowVersion { get; private set; } = [];` to `StockReservation.cs` (configured as `IsRowVersion().IsConcurrencyToken()`), eliminating shadow property indexing fragility and ensuring EF Core tracks optimistic concurrency tokens directly.
+  - **Pessimistic Row-Level Locking (`WITH (UPDLOCK, ROWLOCK)`) & Deadlock Prevention**:
+    - Replaced table/range-locking `HOLDLOCK` hints with row-level `WITH (UPDLOCK, ROWLOCK)` hints across:
+      - `SqlStockReservationStore.cs` (`ReserveSalesOrderStock`, `ReserveStock`, `ReleaseReservation`, `ConsumeForProductionIssueInDbAsync`, `ReleaseAllForOrderInDbAsync`).
+      - `SqlInventoryOperationsStore.cs` (`ApplyLedgerLinesAndBalancesAsync`, `ReverseTransaction`).
+      - `SqlSalesOperationsStore.cs` (`PostDeliveryOrder`, `CancelDeliveryOrderAsync`, `ReleaseOpenSalesReservationsAsync`).
+      - `SqlQualityOperationsStore.cs` (quarantine lot state mutations and balance updates).
+    - Enforced deterministic key sorting (`[Id] ASC` / `OrderBy(x => x.Id)`) across all multi-row and cross-table inventory queries prior to locking, mathematically breaking cyclic resource dependencies and preventing database deadlocks.
+  - **In-Transaction Available Quantity Re-Verification**:
+    - Prior to mutating `ReservedQuantity` or deducting `OnHandBaseQuantity`, re-evaluates `bal.AvailableBaseQuantity >= requestedQuantity` (along with warehouse active state and lot expiry date) within the row-locked transaction scope.
+    - If available stock is insufficient, rejects immediately with `InventoryErrors.ReservationExceedsAvailable` or `InventoryErrors.NegativeOnHand`, preventing overselling or negative inventory balances.
+  - **Resilient Concurrency Retry Policy (`StockConcurrencyRetryPolicy.cs`)**:
+    - Created `StockConcurrencyRetryPolicy` in `ForgeFlow.Infrastructure.Organizations`:
+      - Traverses the entire `InnerException` hierarchy to detect transient concurrency errors: `DbUpdateConcurrencyException`, SQL Server error `1205` (Deadlock Victim), `1222` (Lock Request Timeout), and `2601`/`2627` (Unique Constraint / Initial Balance Row Insert Race).
+      - Executes bounded exponential backoff with randomized jitter (up to 5 retries, maximum 500 ms backoff).
+      - Operates with fresh `OrganizationDbContext` instances on each retry (`await using var db = await Factory.CreateDbContextAsync()`), completely discarding corrupted `ChangeTracker` state and enabling clean re-execution.
+    - Integrated across `SqlStockReservationStore`, `SqlInventoryOperationsStore`, `SqlSalesOperationsStore`, and `SqlQualityOperationsStore`.
+  - **Multi-Tenant Isolation Guardrail FFA-010**:
+    - Verified strict `OrganizationId` tenant partitioning across all balance and reservation queries, preventing cross-organization stock visibility or mutation under high concurrency.
+  - **Verification Evidence (2026-11-16)**:
+    - Dedicated Concurrency Unit Tests (`StockConcurrencyUnitTests.cs`): `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj --filter "FullyQualifiedName~StockConcurrencyUnitTests"` -> **6 Passed, 0 Failed**.
+    - Dedicated SQL Server Integration Fact Tests (`StockConcurrencyIntegrationTests.cs`): High-concurrency 16-thread race test, multi-lot deadlock prevention test, and cross-tenant isolation test implemented under `[OrganizationSqlServerFact]`.
+    - Full Web Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **670 Passed, 0 Failed, 78 Skipped, 0 Errors**.
+    - Live Web server running in Development mode at `https://localhost:5001`.
+    - Login page response: `curl.exe -k -i https://localhost:5001/account/login` returned `HTTP/1.1 200 OK` (fa-IR, RTL, secure headers, 16.9 KB payload).
+- **Next Small Step**: Await user instructions.
+
+- **Domain Events Pattern and Atomic Audit Trail Persistence Pipeline**:
+  - **Core Domain Event Primitives (`ForgeFlow.Domain`)**:
+    - Enhanced `IDomainEvent` marker interface with bidirectional `OccurredOnUtc` and `OccurredAtUtc` timestamp interoperability.
+    - Extended `IHasDomainEvents` with `RaiseDomainEvent(IDomainEvent domainEvent)`.
+    - Added `AggregateRoot` and `Entity` base classes providing thread-safe in-memory domain event buffering and clearing capabilities.
+    - Implemented strongly-typed, immutable domain event records implementing `IAuditableDomainEvent` across all core domains:
+      - `ProductionOrderReleasedEvent`, `ProductionOrderCompletedEvent`, `ProductionOrderStartedEvent`, `ProductionOrderCancelledEvent`.
+      - `SalesOrderApprovedEvent`, `SalesOrderDispatchedEvent`.
+      - `StockAdjustedEvent`, `StockReservedEvent`.
+      - `QualityInspectionRecordedEvent`, `LotCoaIssuedEvent`.
+      - `BomApprovedEvent`.
+      - `RolePermissionsUpdatedEvent`, `UserAccessModifiedEvent`.
+    - Updated domain entities (`ProductionOrder`, `SalesOrder`, `InventoryBalance`, `StockReservation`, `QualityInspection`, `ItemLot`, `BomVersion`, `Item`, `PurchaseOrder`) to raise these domain events on state transitions.
+  - **Deterministic Dispatching & Ambient Audit Trail Sink Pipeline (`ForgeFlow.Application`, `ForgeFlow.Infrastructure`)**:
+    - Created `IDomainEventHandler<in TEvent>` and `IDomainEventDispatcher` in `ForgeFlow.Application.Common`.
+    - Implemented `DomainEventDispatcher` in `ForgeFlow.Infrastructure.Common` resolving typed handlers dynamically from DI.
+    - Designed `IAuditTrailSink` and `IAuditTrailSinkAccessor` in `ForgeFlow.Application.Audit`.
+    - Implemented `AmbientAuditTrailSinkAccessor` using `AsyncLocal<IAuditTrailSink>` for thread-safe transaction scope management.
+    - Hooked domain event dispatching cleanly into `OrganizationAuditSaveChangesInterceptor` (`SavingChangesAsync` and `SavingChanges`):
+      - Dispatches domain events **before** final database commit (`SavingChangesAsync`).
+      - Safely clears domain events before dispatching to eliminate recursive or multi-step save re-entrancy.
+      - Enqueues audit entries into the **same** unit of work / SQL Server transaction (`orgDb.OrganizationChanges`).
+      - Guarantees complete atomicity: if business changes fail or roll back, no phantom audit log is created; if audit persistence fails (e.g. check constraint failure), business changes roll back.
+      - Suppresses duplicate audit records in `CaptureAllChanges` for already dispatched domain event codes.
+  - **Dedicated Audit Handlers (`ForgeFlow.Application/Audit/Handlers/`)**:
+    - Implemented `ProductionOrderAuditHandler`, `SalesOrderAuditHandler`, `InventoryAuditHandler`, `QualityAuditHandler`, `BomAuditHandler`, and `SecurityAuditHandler`.
+    - All audit event codes (`ProductionOrder.Released`, `ProductionOrder.Completed`, `SalesOrder.Approved`, `SalesOrder.Dispatched`, `InventoryTransaction.Posted`, `InventoryReservation.Created`, `QualityInspection.Disposed`, `ItemLot.Updated`, `BomVersion.StatusChanged`) strictly match the database check constraint `CK_OrganizationChange_Event`.
+    - Structured JSON payloads format business keys, actor ID, and quantities consistently and remain language-independent, rendering seamlessly via bilingual resources (`SharedResources.fa-IR.resx` and `SharedResources.en-US.resx`).
+  - **Verification Evidence (2026-11-16)**:
+    - Dedicated Domain Event & Audit Unit Tests (`DomainEventAuditUnitTests.cs`): `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj --filter "FullyQualifiedName~DomainEventAuditUnitTests"` -> **7 Passed, 0 Failed**.
+    - Dedicated SQL Server Integration Fact Tests (`DomainEventAuditIntegrationTests.cs`): Atomic persistence, transaction rollback, and multi-tenant isolation (`OrganizationId`) tests under `[OrganizationSqlServerFact]`.
+    - Database Model Sync: `dotnet ef migrations has-pending-model-changes` -> **No changes have been made to the model since the last migration** (0 pending changes).
+    - Full Web Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **677 Passed, 0 Failed, 81 Skipped, 0 Errors**.
+    - Live Web server running in Development mode at `https://localhost:5001`.
+    - Login page response: `curl.exe -k -i https://localhost:5001/account/login` returned `HTTP/1.1 200 OK` (fa-IR, RTL, secure headers, 17.0 KB payload).
+- **Next Small Step**: Await user instructions.
+
+- **Modular SaveChangesInterceptor Pipeline & DbContext LSP Compliance (`ForgeFlow.Infrastructure`)**:
+  - **Modular Architecture (`src/ForgeFlow.Infrastructure/Persistence/Interceptors/`)**:
+    - Replaced monolithic `SaveChanges` and `SaveChangesAsync` overrides in `AuthDbContext` and `OrganizationDbContext` with single-responsibility EF Core `SaveChangesInterceptor` implementations registered via Dependency Injection:
+      - `AuthImmutableHistorySaveChangesInterceptor`: Dedicated interceptor for `AuthDbContext`. Enforces complete immutability across security event records, completed bootstrap states, system roles, and immutable identity credentials (`UserName`, normalized user name, role/permission codes). Eliminates LSP-violating `SaveChanges` / `SaveChangesAsync` overrides in `AuthDbContext.cs` while retaining offline reflection guards.
+      - `TenantEnforcementSaveChangesInterceptor`: Enforces strict tenant boundary isolation (Guardrail FFA-010) across all operational entities (`OrganizationId > 0` and strict match with `CurrentOrganizationFilterId`), entity whitelists, soft-delete rules, and asynchronous parent organization/site locking (`WITH (UPDLOCK, HOLDLOCK)`).
+      - `AuditingSaveChangesInterceptor`: Enforces trusted-actor requirement, stamps audit metadata (`CreatedAtUtc`, `CreatedByActorId`, `UpdatedAtUtc`, `UpdatedByActorId`), tracks delta property changes (`CaptureAllChanges`), and flushes pending audit batches atomically in `SavedChanges` / `SavedChangesAsync`.
+      - `DomainEventsSaveChangesInterceptor`: Dispatches in-memory domain events from entities implementing `IHasDomainEvents` through `IDomainEventDispatcher` within the ambient audit trail sink scope, and clears event queues before persistence.
+  - **Deterministic Pipeline Execution Order**:
+    - Interceptors are registered and executed in strict sequential order:
+      1. Tenant boundary enforcement & immutability / change validation (`TenantEnforcementSaveChangesInterceptor`)
+      2. Timestamps and actor attribution (`AuditingSaveChangesInterceptor`)
+      3. Domain events dispatch and audit trail persistence (`DomainEventsSaveChangesInterceptor`)
+      4. Database batch execution (SQL Server commit)
+      5. Post-commit audit flush (`AuditingSaveChangesInterceptor.SavedChanges` / `SavedChangesAsync`)
+  - **Offline Tooling & Test Factory Safety (`OnConfiguring`)**:
+    - Configured `OnConfiguring` in both `AuthDbContext` and `OrganizationDbContext` to automatically register default interceptors if none were supplied via DI (such as during offline design-time migrations, EF CLI execution, or lightweight test contexts).
+  - **Verification Evidence (2026-11-16)**:
+    - Dedicated Pipeline Unit & Integration Tests (`SaveChangesInterceptorPipelineTests.cs`): Verified sync & async saves, deletion blocking on `AuthDbContext`, username modification immutability, zero/negative tenant blocking, cross-tenant isolation enforcement, missing actor rejection, timestamp/actor stamping, and domain event dispatching -> **8 Passed, 0 Failed**.
+    - Full Web Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **685 Passed, 0 Failed, 81 Skipped, 0 Errors**.
+    - Model & Migration Sync: `dotnet ef migrations has-pending-model-changes` verified for both `OrganizationDbContext` and `AuthDbContext` -> **0 Pending Changes**.
+    - Live Web server running in Development mode at `https://localhost:5001`.
+    - Login page response: `curl.exe -k -i https://localhost:5001/account/login` returned `HTTP/1.1 200 OK` (fa-IR, RTL, secure headers, 16.9 KB payload).
+- **Next Small Step**: Await user instructions.
+
+- **Application Layer Vertical Slice Decomposition & Thin Facade Pattern (ForgeFlow.Application)**:
+  - **Single-Responsibility Vertical Slices (src/ForgeFlow.Application/*/Slices/)**:
+    - Decomposed monolithic *UseCases.cs classes across ForgeFlow.Application into cohesive, self-contained Vertical Slices to adhere to architectural guardrail item 4 (forbidding *UseCases.cs over 300 lines) and the Single Responsibility Principle:
+      - **BusinessPartners Module**:
+        - Created BusinessPartnerSliceSupport: Handles trusted-actor resolution, organization/site scope validation (FFA-010), optimistic concurrency RowVersion decoding, and operation rejection audit logging (OperationAuditHelper).
+        - Created BusinessPartnerCatalogSlices: Encapsulates independent command and query operations (ListAsync, GetAsync, SearchLookupAsync, GetLookupItemAsync, ListRoleDefinitionsAsync, ListProvincesAsync, ListCitiesAsync, CreateAsync, UpdateAsync, and SetActiveAsync).
+        - Refactored BusinessPartnerUseCases: Converted from a monolithic 390-line implementation into a backwards-compatible thin facade (55 lines) delegating directly to BusinessPartnerCatalogSlices.
+      - **Inventory Module (Stock Reservations)**:
+        - Enhanced InventorySliceSupport: Added AuthorizeAnyAsync with multi-permission evaluation support.
+        - Created StockReservationSlices: Encapsulates stock reservation queries and mutations (ListReservationsAsync, ListOrderReservationsAsync, ListSalesOrderReservationsAsync, ReserveStockAsync, ReserveSalesOrderStockAsync, and ReleaseReservationAsync).
+        - Refactored StockReservationUseCases: Converted from a 298-line implementation into a clean thin facade (55 lines) delegating directly to StockReservationSlices.
+      - **Access Modifiers & Public Interfaces**:
+        - Converted all internal slice and support classes (ItemCatalogSlices, PurchaseOrderSlices, CustomerSlices, DeliveryOrderSlices, SalesOrderSlices, UnitCatalogSlices, UnitConversionSlices, etc.) across Items, Procurement, Sales, and Units from internal to public sealed class to enable direct DI consumption in Web components and test projects.
+      - **Dependency Injection Registration (OrganizationPersistenceRegistration.cs)**:
+        - Registered IStockReservationStore, StockReservationSlices, BusinessPartnerSliceSupport, and BusinessPartnerCatalogSlices into the service collection.
+  - **Verification Evidence (2026-11-16)**:
+    - Dedicated Vertical Slice Tests (VerticalSliceDecompositionTests.cs): Verified tenant isolation (OrganizationScope), site scope rejection on organization-level entities, and production order input validation -> **4 Passed, 0 Failed**.
+    - Full Web Test Suite: dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -> **689 Passed, 0 Failed, 81 Skipped, 0 Errors**.
+    - Model & Migration Sync: dotnet ef migrations has-pending-model-changes verified for both OrganizationDbContext and AuthDbContext -> **0 Pending Changes**.
+    - Live Web server running in Development mode at https://localhost:5001.
+    - Login page response: curl.exe -k -i https://localhost:5001/account/login returned HTTP/1.1 200 OK (fa-IR, RTL, secure headers, 16.9 KB payload).
+- **Next Small Step**: Await user instructions.
+
+- **Persistence Store Modular Reorganization & Dynamic Multi-Tenancy Global Query Filters (ForgeFlow.Infrastructure)**:
+  - **Feature-Aligned Persistence Reorganization (`src/ForgeFlow.Infrastructure/`)**:
+    - Reorganized monolithic persistence stores out of `src/ForgeFlow.Infrastructure/Organizations/` into cohesive, feature-aligned module folders:
+      - `Items/`: `ItemOperationsStore.cs` (`ForgeFlow.Infrastructure.Items`)
+      - `Boms/`: `BomOperationsStore.cs` (`ForgeFlow.Infrastructure.Boms`)
+      - `Sales/`: `SqlSalesOperationsStore.cs` (`ForgeFlow.Infrastructure.Sales`)
+      - `ProductionOrders/`: `SqlProductionOrderOperationsStore.cs` (`ForgeFlow.Infrastructure.ProductionOrders`)
+      - `Inventory/`: `SqlInventoryOperationsStore.cs`, `SqlStockReservationStore.cs`, `StockConcurrencyRetryPolicy.cs` (`ForgeFlow.Infrastructure.Inventory`)
+      - `Procurement/`: `SqlProcurementOperationsStore.cs` (`ForgeFlow.Infrastructure.Procurement`)
+      - `Quality/`: `SqlQualityOperationsStore.cs`, `SqlQualitySpecStore.cs` (`ForgeFlow.Infrastructure.Quality`)
+      - `Reporting/`: `SqlReportingQueryStore.cs` (`ForgeFlow.Infrastructure.Reporting`)
+      - `Dashboard/`: `SqlDashboardQueryStore.cs` (`ForgeFlow.Infrastructure.Dashboard`)
+      - `Routings/`: `SqlRoutingOperationsStore.cs` (`ForgeFlow.Infrastructure.Routings`)
+      - `Units/`: `UnitOperationsStore.cs` (`ForgeFlow.Infrastructure.Units`)
+      - `BusinessPartners/`: `SqlBusinessPartnerStore.cs` (`ForgeFlow.Infrastructure.BusinessPartners`)
+      - Retained core tenant, site, and document sequence infrastructure (`OrganizationOperationsStore.cs`, `SqlDocumentSequenceStore.cs`, `AmbientOrganizationAccessor.cs`) in `Organizations/`.
+    - Maintained full backwards-compatibility and updated DI registrations in `OrganizationPersistenceRegistration.cs` and `GlobalUsings.cs` in test projects.
+  - **Dynamic Multi-Tenancy Global Query Filters (`HasQueryFilter`) & `IOrganizationEntity`**:
+    - Created `IOrganizationEntity` marker interface in `ForgeFlow.Domain.Common` with `long OrganizationId { get; }`.
+    - Applied `IOrganizationEntity` across all tenant-scoped domain entities: `Item`, `Unit`, `UnitConversion`, `Currency`, `Bom`, `BomVersion`, `BomApplicability`, `BomInput`, `BomOutput`, `ContextDimension`, `SalesOrder`, `DeliveryOrder`, `ProductionOrder`, `InventoryBalance`, `InventoryTransaction`, `InventoryLedgerEntry`, `StockReservation`, `Warehouse`, `QualityInspection`, `ItemLot`, `QualityParameter`, `QualitySpec`, `PurchaseOrder`, `Supplier`, `Customer`, `Routing`, `WorkCenter`, `BusinessPartner`, `Site`, `DocumentSequence`, `Classification`, `ClassificationSet`, `AttributeDefinition`, `OrganizationChange`.
+    - Implemented `AmbientOrganizationAccessor` using `AsyncLocal<long?>` with `BeginScope(orgId)` and `CurrentOrganizationId` resolution.
+    - Added `CurrentOrganizationId` property to `OrganizationDbContext` with resolution precedence: Explicit property -> `ICurrentOrganizationAccessor` -> `AmbientOrganizationAccessor`.
+    - Implemented parametric dynamic query filters in `OnModelCreating`:
+      `e => CurrentOrganizationId != null && EF.Property<long>(e, "OrganizationId") == CurrentOrganizationId.Value`
+      - Evaluated dynamically per query via SQL parameter `@__CurrentOrganizationId_0`, eliminating model cache bleeding across tenants.
+      - Enforced Fail-Closed behavior: when `CurrentOrganizationId == null`, queries return 0 records without throwing exceptions.
+      - Supported intentional administrative bypass via `.IgnoreQueryFilters()` for background, backup, and maintenance operations.
+    - Updated all write/read stores to dynamically bind `db.CurrentOrganizationId = organizationId;` on execution.
+    - Aligned `TenantEnforcementSaveChangesInterceptor` to validate against `CurrentOrganizationId` and reject zero/negative/mismatched tenant mutations.
+  - **Verification Evidence (2026-11-17)**:
+    - Dedicated Unit & Integration Tests (`GlobalMultiTenancyQueryFilterTests.cs`):
+      - Configured filter detection across all `IOrganizationEntity` types via `GetDeclaredQueryFilters()`.
+      - SQL query translation verifies parameterized `WHERE [OrganizationId] = @__CurrentOrganizationId_0`.
+      - SQL generation verifies `.IgnoreQueryFilters()` omits the `WHERE` clause.
+      - `AmbientOrganizationAccessor` verified for nested `AsyncLocal` scopes.
+      - `CurrentOrganizationId` precedence order verified (explicit > accessor > ambient > fail-closed).
+      - `TenantEnforcementSaveChangesInterceptor` verified for cross-tenant mismatch rejection and valid tenant pass-through.
+      - `dotnet test --filter "FullyQualifiedName~GlobalMultiTenancyQueryFilterTests"` -> **8 Passed, 0 Failed, 1 Skipped**.
+    - Full Web Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **697 Passed, 0 Failed, 82 Skipped, 0 Errors**.
+    - Model & Migration Sync: `dotnet ef migrations has-pending-model-changes` -> **0 Pending Changes**.
+    - Live Web server running in Development mode at `https://localhost:5001`.
+    - Login page response: `curl.exe -k -i https://localhost:5001/account/login` returned `HTTP/1.1 200 OK` (fa-IR, RTL, secure headers, 16.9 KB payload).
+- **Next Small Step**: Await user instructions.
+
+- **Diagnostic Fixes: Store Multi-Tenancy Scope Propagation & DatePicker Range Resiliency (2026-11-17)**:
+  - **Root Cause 1: Page Loading Server Error (AddDbContextFactory Scoped Service Resolution)**:
+    - `OrganizationPersistenceRegistration.AddDbContextFactory<OrganizationDbContext>` attempted to resolve the scoped `TenantEnforcementSaveChangesInterceptor` directly from the singleton root `provider`.
+    - This threw `System.InvalidOperationException: Cannot resolve scoped service ... from root provider` whenever any page factory created a context.
+    - **Fix**: Removed the interceptor registration lambda inside `AddDbContextFactory` and delegated interceptor wiring cleanly to `OrganizationDbContext.OnConfiguring`.
+  - **Root Cause 2: Empty Data in Business Partners & All Entities (Fail-Closed Multi-Tenancy Filter)**:
+    - Global multi-tenancy query filter `HasQueryFilter` operates fail-closed (`WHERE 1 = 0` when `CurrentOrganizationId == null`).
+    - Multiple stores had `Read<T>` with optional `long? organizationId = null` at the tail of their argument lists, and queries were invoking `Read(async db => ..., ct)` without passing the tenant identifier.
+    - **Fix**: Updated all stores (`SqlBusinessPartnerStore`, `OrganizationOperationsStore`, `UnitOperationsStore`, `SqlRoutingOperationsStore`, `ItemOperationsStore`, `BomOperationsStore`, `SqlProductionOrderOperationsStore`, `SqlInventoryOperationsStore`, `SqlStockReservationStore`, `SqlProcurementOperationsStore`, `SqlSalesOperationsStore`, `SqlQualityOperationsStore`, `SqlQualitySpecStore`, `SqlReportingQueryStore`) to explicitly require `organizationId` and wrap operations with `AmbientOrganizationAccessor.BeginScope(organizationId)` and `db.CurrentOrganizationId = organizationId`.
+  - **Root Cause 3: DatePicker Inversion and Future Date Lockout (`Audit`, `Errors`, `Reports`, `ProductionOrders`, `PurchaseOrders`, `Inventory`)**:
+    - Picking a start date ahead of today or ahead of the end date caused queries to fail with `InvalidQuery`, which in `Audit.razor` and `Errors.razor` triggered `FailureKey` and removed the entire toolbar and datepickers from the DOM, locking the user out.
+    - **Fix**:
+      - Added `MaxDate="@DateTimeOffset.Now"` to `Audit.razor` and `Errors.razor` since historical audit/error events cannot occur in the future.
+      - Implemented bidirectional auto-synchronization in date offsets (`FromDateOffset` / `ToDateOffset`, `DueFromOffset` / `DueToOffset`, `StartDateOffset` / `DueDateOffset`): if start exceeds end, end automatically aligns to start; if end is before start, start automatically aligns to end.
+      - Updated `Audit.razor` and `Errors.razor` so that query failures do not hide the toolbar/filters, keeping controls always accessible.
+  - **Verification Evidence**:
+    - Full build clean: `dotnet build` -> **0 Warnings, 0 Errors**.
+    - All tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **697 Passed, 0 Failed, 82 Skipped, Total 779**.
+    - Development server active at `https://localhost:5001`.
+    - Health check: `curl.exe -k -s -o /dev/null -w "%{http_code}" https://localhost:5001/account/login` returned **200 OK**.
+- **Next Small Step**: Await user instructions.
+
+- **Quality Parameters Modal, Audit Trail Query Resiliency & Error Log Pipeline Verification (2026-11-17)**:
+  - **Quality Parameters Modal Binding Fix (`QualityParameterModal.razor` & `Quality.razor`)**:
+    - Synchronized Blazor bidirectional two-way binding (`IsOpenChanged.InvokeAsync(true)` and `StateHasChanged()`) inside `QualityParameterModal.Open`.
+    - Added explicit parent trigger state synchronization (`paramModalOpen = true; StateHasChanged();`) in `Quality.razor.OpenParameterModal`.
+    - Fixed launch configuration to compile and run fresh Debug binaries so client-side changes take effect immediately.
+    - Verified in browser: Clicked "پارامتر آزمایشگاهی جدید" in `/quality?tab=params`, modal "ایجاد پارامتر آزمایشگاهی" opens, receives focus, accepts input in code/name/symbol fields, and buttons function properly.
+  - **Audit & Events Query Resiliency (`/audit`, `OrganizationDbContext.cs`, `SqlAuditOperationsStore.cs`)**:
+    - Fixed EF Core query filter parameter extraction exception: replaced `CurrentOrganizationId.Value` with `CurrentOrganizationId ?? -1` in `OrganizationDbContext.ConfigureOrganizationQueryFilter`, preventing `Nullable object must have a value` when context is created without an ambient tenant.
+    - Added `.IgnoreQueryFilters()` to `OrganizationChanges` in `SqlAuditOperationsStore` (`BuildBusinessQuery`, `GetAuditEntry`, `ListDistinctEventCodes`, `ListMyActivityAsync`) because `ApplyBusinessScope` already explicitly isolates tenant and site boundaries.
+    - Fixed EF Core LINQ constructor projection error in `SqlAuditOperationsStore.ListActors`: replaced constructor projection with anonymous type selection, database-side `Distinct` and `OrderBy`, followed by memory mapping to `AuditActorOption`.
+    - Fixed `s.SubjectUserId.Value` in `ApplySecurityScope` to `s.SubjectUserId`.
+    - Verified in browser: `/audit` loads 69+ security and operational audit rows across 3 pages, scope dropdown switches smoothly, and the false error banner ("ذخیرهٔ تغییر ممکن نشد") is completely gone.
+  - **Error Log Pipeline & Tenant Diagnostics (`/errors`, `StoreDiagnosticRecorder.cs`, `SqlErrorLogStore.cs`)**:
+    - Confirmed that error logging has been operating continuously (76+ raw records with full stack traces, SQL error codes, and correlation IDs persisted in `diag.ErrorLog`).
+    - Extended `StoreDiagnosticRecorder.RecordUnavailableAsync` to receive explicit `organizationId` and `siteId` parameters so infrastructure failures are attributed to the initiating tenant scope rather than logging `OrganizationId = NULL`.
+    - Assigned `DeploymentProvisioner` platform role to system administrator so platform-level diagnostic logs are directly viewable.
+    - Updated historical single-tenant test logs to Organization 1.
+    - Verified in browser: `/errors` displays live KPI cards (70 events in last 24h, 5 critical, etc.) and a 77-row diagnostic grid across 4 pages.
+  - **Verification Evidence**:
+    - Browser Agent Automation: Successfully authenticated as `admin`, opened Quality Parameter creation modal, verified form interactivity, verified `/audit` data grid, and verified `/errors` KPI cards and table.
+    - Build: `dotnet build --configuration Debug` and `Release` -> **0 Warnings, 0 Errors**.
+    - Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **697 Passed, 0 Failed, 82 Skipped, Total 779**.
+    - Server: Development server running at `https://localhost:5001`.
+    - Health check: `curl.exe -k -s -o nul -w "%{http_code}" https://localhost:5001/account/login` returned **200 OK**.
 - **Next Small Step**: Await user instructions.

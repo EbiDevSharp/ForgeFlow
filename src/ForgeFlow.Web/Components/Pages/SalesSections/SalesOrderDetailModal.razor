@@ -74,8 +74,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var l in Order.Lines)
-                                {
+                                <Virtualize Items="Order.Lines.AsCollection()" Context="l" ItemSize="40" OverscanCount="5" SpacerElement="tr">
                                     <tr>
                                         <td dir="ltr">@l.LineNumber</td>
                                         <td><bdi dir="ltr">@l.ItemCode</bdi> — @l.ItemName</td>
@@ -89,7 +88,7 @@
                                             }
                                         </td>
                                     </tr>
-                                }
+                                </Virtualize>
                             </tbody>
                         </table>
                     </div>
@@ -112,8 +111,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var r in Reservations)
-                                    {
+                                    <Virtualize Items="Reservations.AsCollection()" Context="r" ItemSize="40" OverscanCount="5" SpacerElement="tr">
                                         <tr>
                                             <td><bdi dir="ltr">@r.WarehouseCode</bdi></td>
                                             <td><bdi dir="ltr">@r.ItemCode</bdi></td>
@@ -127,7 +125,7 @@
                                                 }
                                             </td>
                                         </tr>
-                                    }
+                                    </Virtualize>
                                 </tbody>
                             </table>
                         </div>

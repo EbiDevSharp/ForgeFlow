@@ -125,4 +125,34 @@ public sealed class DocumentSequenceSlices(
 
         return result;
     }
+
+    public async Task<OrganizationResult<string>> AllocateNumberAsync(
+        OrganizationScope? scope,
+        long organizationId,
+        DocumentSequenceType documentType,
+        string? requestedNumber,
+        CancellationToken ct = default)
+    {
+        var auth = await support.AuthorizeAsync(scope, DocumentSequencePermissions.Manage, ct);
+        if (auth.Error is not null)
+            return OrganizationResult<string>.Failure(auth.Error);
+        if (!DocumentSequenceSliceSupport.MatchesOrgOrSite(scope, organizationId))
+            return OrganizationResult<string>.Failure(DocumentSequenceErrors.AccessDenied);
+        if (!Enum.IsDefined(documentType))
+            return OrganizationResult<string>.Failure(DocumentSequenceErrors.DocumentTypeInvalid);
+
+        try
+        {
+            var allocated = await store.AllocateNextNumber(organizationId, documentType, requestedNumber, support.UtcNow, ct);
+            return OrganizationResult<string>.Success(allocated);
+        }
+        catch (DocumentSequenceRuleException ex)
+        {
+            return OrganizationResult<string>.Failure(ex.Code, ex.Parameters);
+        }
+        catch (DocumentSequenceStoreUnavailableException)
+        {
+            return OrganizationResult<string>.Failure(DocumentSequenceErrors.PersistenceUnavailable);
+        }
+    }
 }

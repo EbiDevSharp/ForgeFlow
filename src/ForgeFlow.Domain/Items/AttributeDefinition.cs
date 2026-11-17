@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Items;
 
 /// <summary>Extensible industry-independent item property definition (e.g., MFI, Density, Viscosity, Purity).</summary>
-public sealed class AttributeDefinition
+public sealed class AttributeDefinition : IOrganizationEntity
 {
     private AttributeDefinition()
     {

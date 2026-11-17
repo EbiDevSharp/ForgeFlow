@@ -2,7 +2,7 @@ using ForgeFlow.Domain.Common;
 
 namespace ForgeFlow.Domain.BusinessPartners;
 
-public sealed class BusinessPartner : IHasRowVersion
+public sealed class BusinessPartner : IHasRowVersion, IOrganizationEntity
 {
     private readonly List<BusinessPartnerRoleAssignment> _roles = [];
 

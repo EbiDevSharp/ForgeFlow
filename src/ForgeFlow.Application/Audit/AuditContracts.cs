@@ -1,4 +1,5 @@
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Domain.Audit;
 
 namespace ForgeFlow.Application.Audit;
 
@@ -66,7 +67,7 @@ public sealed record AuditEntryDetails(
     AuditEntrySummary Summary,
     IReadOnlyList<KeyValuePair<string, string>> ParsedFields);
 
-public sealed class AuditStoreUnavailableException(Exception inner) : Exception("Audit persistence is unavailable.", inner);
+public sealed class AuditStoreUnavailableException(Exception inner) : Exception(AuditErrors.PersistenceUnavailable, inner);
 
 public interface IAuditOperationsStore
 {

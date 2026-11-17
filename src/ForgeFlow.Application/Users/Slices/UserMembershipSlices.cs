@@ -33,8 +33,11 @@ public sealed class UserMembershipSlices(
                 if (UserSliceSupport.DecodeVersion(request.ExpectedMembershipRowVersion) is not byte[] version)
                     res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
                 else
+                {
                     res = await UserSliceSupport.Execute(() => store.SetOrganizationMembershipActive(
                         request.OrganizationId, request.UserId, request.IsActive, version, support.Access(auth.Actor!, scope!, permission), ct));
+                    if (res.Succeeded) support.PermissionCache?.InvalidateUser(request.UserId);
+                }
             }
             catch (UserRuleException ex) { res = UserSliceSupport.FailFromRule<UserDetails>(ex); }
         }
@@ -55,7 +58,10 @@ public sealed class UserMembershipSlices(
         else if (request.SiteId <= 0)
             res = OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
         else
+        {
             res = await UserSliceSupport.Execute(() => store.AssignSiteMembership(request, support.Access(auth.Actor!, scope!, permission), ct));
+            if (res.Succeeded) support.PermissionCache?.InvalidateUser(request.UserId);
+        }
         return await support.RecordRejectedAsync(res, auth.Actor, scope, request.OrganizationId, request.SiteId > 0 ? request.SiteId : null, "SiteMembership", request.UserId.ToString(CultureInfo.InvariantCulture), "AssignSiteMembership");
     }
 
@@ -75,8 +81,11 @@ public sealed class UserMembershipSlices(
         else if (UserSliceSupport.DecodeVersion(request.ExpectedMembershipRowVersion) is not byte[] version)
             res = OrganizationResult<UserDetails>.Failure(UserManagementErrors.ConcurrencyConflict);
         else
+        {
             res = await UserSliceSupport.Execute(() => store.SetSiteMembershipActive(
                 request.OrganizationId, request.UserId, request.SiteId, request.IsActive, version, support.Access(auth.Actor!, scope!, permission), ct));
+            if (res.Succeeded) support.PermissionCache?.InvalidateUser(request.UserId);
+        }
         return await support.RecordRejectedAsync(res, auth.Actor, scope, request.OrganizationId, request.SiteId > 0 ? request.SiteId : null, "SiteMembership", request.UserId.ToString(CultureInfo.InvariantCulture), "SetSiteMembershipActive");
     }
 }

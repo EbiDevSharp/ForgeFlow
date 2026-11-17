@@ -1,3 +1,6 @@
+using ForgeFlow.Domain.Common;
+using ForgeFlow.Domain.Events;
+
 namespace ForgeFlow.Domain.Inventory;
 
 public enum ReservationStatus : byte
@@ -15,8 +18,18 @@ public enum ReservationSourceKind : byte
 }
 
 /// <summary>Hard allocation of available site inventory toward a Production Order or Sales Order.</summary>
-public sealed class StockReservation
+public sealed class StockReservation : IHasRowVersion, IHasDomainEvents, IOrganizationEntity
 {
+    private readonly List<IDomainEvent> _domainEvents = [];
+
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void RaiseDomainEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        _domainEvents.Add(domainEvent);
+    }
+    public void ClearDomainEvents() => _domainEvents.Clear();
+
     private StockReservation() { }
 
     private StockReservation(
@@ -59,6 +72,7 @@ public sealed class StockReservation
         ConsumedBaseQuantity = 0m;
         Status = ReservationStatus.Active;
         Notes = InventoryText.OptionalNote(notes);
+        _domainEvents.Add(new StockReservedEvent(OrganizationId, SiteId, ItemId, ReservedBaseQuantity, SourceKind.ToString(), ProductionOrderId ?? SalesOrderId ?? 0, DateTime.UtcNow));
     }
 
     public long Id { get; private set; }
@@ -78,6 +92,7 @@ public sealed class StockReservation
     public ReservationStatus Status { get; private set; } = ReservationStatus.Active;
     public string? Notes { get; private set; }
     public DateTime? ReleasedAtUtc { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
 
     public decimal RemainingReservedBaseQuantity =>
         Status is ReservationStatus.Fulfilled or ReservationStatus.Released

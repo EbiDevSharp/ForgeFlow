@@ -3039,4 +3039,29 @@
   <data name="BpPersonNaturalTooltip" xml:space="preserve"><value>Natural Person</value></data>
   <data name="BpAdaptiveLegal" xml:space="preserve"><value>Legal ID</value></data>
   <data name="BpAdaptiveNatural" xml:space="preserve"><value>National ID</value></data>
+  <data name="SalesErrorCustomerNotFound" xml:space="preserve"><value>Customer was not found.</value></data>
+  <data name="SalesErrorCustomerInactive" xml:space="preserve"><value>Customer is inactive.</value></data>
+  <data name="SalesErrorCarrierInvalid" xml:space="preserve"><value>Carrier name is invalid.</value></data>
+  <data name="SalesErrorTrackingNumberInvalid" xml:space="preserve"><value>Tracking number is invalid.</value></data>
+  <data name="SalesErrorEmptyOrder" xml:space="preserve"><value>Sales order must contain at least one line item.</value></data>
+  <data name="SalesErrorEmptyDispatch" xml:space="preserve"><value>Dispatch must contain at least one line item.</value></data>
+  <data name="SalesErrorItemNotSellable" xml:space="preserve"><value>Selected item is not marked as sellable.</value></data>
+  <data name="SalesErrorLotQuarantinedOrInsufficient" xml:space="preserve"><value>Selected lot is quarantined or does not have sufficient available stock.</value></data>
+  <data name="SalesErrorNotDraft" xml:space="preserve"><value>Only draft sales orders can be modified.</value></data>
+  <data name="SalesErrorHasDispatchesCannotCancel" xml:space="preserve"><value>Sales order has posted dispatches and cannot be cancelled.</value></data>
+  <data name="SalesErrorOverDispatch" xml:space="preserve"><value>Dispatched quantity exceeds remaining ordered quantity.</value></data>
+  <data name="DocSeqErrorDocumentTypeInvalid" xml:space="preserve"><value>Document type is invalid.</value></data>
+  <data name="DocSeqErrorPrefixInvalid" xml:space="preserve"><value>Prefix must be 1 to 12 alphanumeric characters.</value></data>
+  <data name="DocSeqErrorSeparatorInvalid" xml:space="preserve"><value>Separator must be a dash, underscore, or empty.</value></data>
+  <data name="DocSeqErrorYearModeInvalid" xml:space="preserve"><value>Year mode is invalid.</value></data>
+  <data name="DocSeqErrorPaddingInvalid" xml:space="preserve"><value>Padding digits must be between 3 and 8.</value></data>
+  <data name="DocSeqErrorNextNumberInvalid" xml:space="preserve"><value>Next sequence number must be greater than zero.</value></data>
+  <data name="BpPersonTypeInvalid" xml:space="preserve"><value>Person type is invalid.</value></data>
+  <data name="BpWebsiteInvalid" xml:space="preserve"><value>Website address is invalid.</value></data>
+  <data name="DiagErrorReferenceInvalid" xml:space="preserve"><value>Error reference is invalid.</value></data>
+  <data name="DiagOperationCodeInvalid" xml:space="preserve"><value>Operation code is invalid.</value></data>
+  <data name="DiagSiteRequiresOrganization" xml:space="preserve"><value>Site context requires a parent organization.</value></data>
+  <data name="Auth.RateLimitExceeded" xml:space="preserve"><value>Too many authentication attempts. Please try again in {0} seconds.</value></data>
+  <data name="Export.RateLimitExceeded" xml:space="preserve"><value>Too many export requests. Please try again in {0} seconds.</value></data>
+  <data name="Common.RateLimitExceeded" xml:space="preserve"><value>Too many requests. Please try again in {0} seconds.</value></data>
 </root>

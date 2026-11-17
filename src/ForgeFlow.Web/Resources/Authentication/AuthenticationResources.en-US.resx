@@ -22,4 +22,9 @@
   <data name="Auth.PasskeyRemoved" xml:space="preserve"><value>Passkey removed.</value></data>
   <data name="Auth.PasskeyInvalid" xml:space="preserve"><value>Passkey verification failed. Try again.</value></data>
   <data name="Auth.PasskeyNotFound" xml:space="preserve"><value>Passkey was not found.</value></data>
+  <data name="Auth.RateLimitExceeded" xml:space="preserve"><value>Too many authentication attempts. Please try again in {0} seconds.</value></data>
+  <data name="Export.RateLimitExceeded" xml:space="preserve"><value>Too many export requests. Please try again in {0} seconds.</value></data>
+  <data name="Common.RateLimitExceeded" xml:space="preserve"><value>Too many requests. Please try again in {0} seconds.</value></data>
+  <data name="Auth.ConcurrentSessionLimitReached" xml:space="preserve"><value>The maximum number of concurrent sessions has been reached for this account.</value></data>
+  <data name="Auth.SessionRevoked" xml:space="preserve"><value>Your session has been signed out or revoked. Please sign in again.</value></data>
 </root>

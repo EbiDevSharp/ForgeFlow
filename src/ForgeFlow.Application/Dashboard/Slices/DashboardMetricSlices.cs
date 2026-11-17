@@ -1,3 +1,4 @@
+using ForgeFlow.Application.Common;
 using ForgeFlow.Application.Inventory;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.Procurement;
@@ -16,9 +17,11 @@ public sealed class DashboardMetricSlices(
     IDashboardQueryStore store,
     ITrustedActorAccessor? actors = null,
     IOrganizationPermissionEvaluator? permissions = null,
-    TimeProvider? clock = null)
+    TimeProvider? clock = null,
+    IOrganizationClock? orgClock = null)
 {
-    private DateOnly Today => DateOnly.FromDateTime((clock ?? TimeProvider.System).GetUtcNow().UtcDateTime);
+    private DateOnly GetToday(long organizationId)
+        => orgClock?.GetToday(organizationId) ?? DateOnly.FromDateTime((clock ?? TimeProvider.System).GetUtcNow().UtcDateTime);
 
     public async Task<OrganizationResult<DashboardSnapshot>> GetSnapshotAsync(
         OrganizationScope? scope,
@@ -60,7 +63,7 @@ public sealed class DashboardMetricSlices(
 
         try
         {
-            var snap = await store.GetSnapshot(organizationId, resolvedSiteId, Today, capabilities, ct);
+            var snap = await store.GetSnapshot(organizationId, resolvedSiteId, GetToday(organizationId), capabilities, ct);
             return OrganizationResult<DashboardSnapshot>.Success(snap);
         }
         catch (InventoryStoreUnavailableException)

@@ -281,6 +281,57 @@ public sealed class SqlErrorLogStore(
         }
     }
 
+    public int PurgeFallbackFilesBefore(DateTime cutoffUtc)
+    {
+        var dir = FallbackDirectory;
+        if (!Directory.Exists(dir))
+            return 0;
+
+        var cutoffDateStr = cutoffUtc.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+        var deletedCount = 0;
+
+        try
+        {
+            var files = Directory.GetFiles(dir, "errors-*.jsonl");
+            foreach (var file in files)
+            {
+                var fileName = Path.GetFileNameWithoutExtension(file);
+                if (fileName.StartsWith("errors-", StringComparison.OrdinalIgnoreCase) && fileName.Length == "errors-yyyyMMdd".Length)
+                {
+                    var datePart = fileName["errors-".Length..];
+                    if (string.CompareOrdinal(datePart, cutoffDateStr) < 0)
+                    {
+                        try
+                        {
+                            lock (FallbackLock)
+                            {
+                                if (File.Exists(file))
+                                {
+                                    File.Delete(file);
+                                    deletedCount++;
+                                }
+                            }
+                        }
+                        catch (IOException)
+                        {
+                            // Active write or locked by another process; leave for subsequent cycle
+                        }
+                        catch (UnauthorizedAccessException)
+                        {
+                            // Permission issue; skip safely
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Directory scan failure; skip safely
+        }
+
+        return deletedCount;
+    }
+
     private async Task<Dictionary<long, string>> ResolveUserNamesAsync(IEnumerable<long?> userIds, CancellationToken ct)
     {
         var ids = userIds.Where(x => x is > 0).Select(x => x!.Value).Distinct().ToArray();

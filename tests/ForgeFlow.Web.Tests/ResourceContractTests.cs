@@ -541,7 +541,20 @@ public sealed class ResourceContractTests
             ["PartnerPickerTitlePartner"] = 0,
             ["BpSearchPlaceholder"] = 0, ["BpAllPersonTypes"] = 0,
             ["BpPersonLegalTooltip"] = 0, ["BpPersonNaturalTooltip"] = 0,
-            ["BpAdaptiveLegal"] = 0, ["BpAdaptiveNatural"] = 0
+            ["BpAdaptiveLegal"] = 0, ["BpAdaptiveNatural"] = 0,
+            ["SalesErrorCustomerNotFound"] = 0, ["SalesErrorCustomerInactive"] = 0,
+            ["SalesErrorCarrierInvalid"] = 0, ["SalesErrorTrackingNumberInvalid"] = 0,
+            ["SalesErrorEmptyOrder"] = 0, ["SalesErrorEmptyDispatch"] = 0,
+            ["SalesErrorItemNotSellable"] = 0, ["SalesErrorLotQuarantinedOrInsufficient"] = 0,
+            ["SalesErrorNotDraft"] = 0, ["SalesErrorHasDispatchesCannotCancel"] = 0,
+            ["SalesErrorOverDispatch"] = 0,
+            ["DocSeqErrorDocumentTypeInvalid"] = 0, ["DocSeqErrorPrefixInvalid"] = 0,
+            ["DocSeqErrorSeparatorInvalid"] = 0, ["DocSeqErrorYearModeInvalid"] = 0,
+            ["DocSeqErrorPaddingInvalid"] = 0, ["DocSeqErrorNextNumberInvalid"] = 0,
+            ["BpPersonTypeInvalid"] = 0, ["BpWebsiteInvalid"] = 0,
+            ["DiagErrorReferenceInvalid"] = 0, ["DiagOperationCodeInvalid"] = 0,
+            ["DiagSiteRequiresOrganization"] = 0,
+            ["Auth.RateLimitExceeded"] = 1, ["Export.RateLimitExceeded"] = 1, ["Common.RateLimitExceeded"] = 1
         }.Concat(ForgeFlow.Application.Audit.AuditEventCatalog.All.ToDictionary(d => d.ResourceKey, _ => 0))
          .ToDictionary(kv => kv.Key, kv => kv.Value)
     };
@@ -686,7 +699,15 @@ public sealed class ResourceContractTests
              "CurrencyCreateButton", "CurrencyEditTitle", "CurrencyDetailTitle", "UnitErrorCurrencyInactive",
              "InvResStatusActive", "InvResStatusPartial", "InvResStatusConsumed", "InvResStatusReleased",
              "InvResErrorInvalidState", "InvResErrorExceedsAvailable", "InvResErrorOrderState", "PoResSavedNotice",
-             "ChangePasswordLink", "MyPreferencesMenuSubtitle", "SecurityRowPasskeySoonBadge", "PermModuleSummary", "PermPageSelectLabel", "PermSelectAllPage"]);
+             "ChangePasswordLink", "MyPreferencesMenuSubtitle", "SecurityRowPasskeySoonBadge", "PermModuleSummary", "PermPageSelectLabel", "PermSelectAllPage",
+             "SalesErrorCustomerNotFound", "SalesErrorCustomerInactive", "SalesErrorCarrierInvalid", "SalesErrorTrackingNumberInvalid",
+             "SalesErrorEmptyOrder", "SalesErrorEmptyDispatch", "SalesErrorItemNotSellable", "SalesErrorLotQuarantinedOrInsufficient",
+             "SalesErrorNotDraft", "SalesErrorHasDispatchesCannotCancel", "SalesErrorOverDispatch",
+             "DocSeqErrorDocumentTypeInvalid", "DocSeqErrorPrefixInvalid", "DocSeqErrorSeparatorInvalid",
+             "DocSeqErrorYearModeInvalid", "DocSeqErrorPaddingInvalid", "DocSeqErrorNextNumberInvalid",
+             "BpPersonTypeInvalid", "BpWebsiteInvalid",
+             "DiagErrorReferenceInvalid", "DiagOperationCodeInvalid", "DiagSiteRequiresOrganization",
+             "Auth.RateLimitExceeded", "Export.RateLimitExceeded", "Common.RateLimitExceeded"]);
         used[nameof(SharedResources)].UnionWith(ForgeFlow.Application.Audit.AuditEventCatalog.All.Select(d => d.ResourceKey));
         Assert.Equal(Contracts[nameof(SharedResources)].Keys.Order(), used[nameof(SharedResources)].Order());
     }
@@ -756,7 +777,11 @@ public sealed class ResourceContractTests
     private static void RequireKeys(Dictionary<string, string> catalog, IEnumerable<string> keys)
     {
         if (!catalog.Keys.Order().SequenceEqual(keys.Order()))
-            throw new InvalidDataException("Resource key mismatch");
+        {
+            var missing = keys.Except(catalog.Keys).ToList();
+            var extra = catalog.Keys.Except(keys).ToList();
+            throw new InvalidDataException($"Resource key mismatch. Missing: {string.Join(", ", missing)}. Extra: {string.Join(", ", extra)}");
+        }
     }
 
     private static (int Index, string Format)[] Signature(string message)

@@ -3,7 +3,7 @@ using ForgeFlow.Domain.Common;
 namespace ForgeFlow.Domain.Sales;
 
 /// <summary>Site-scoped Dispatch / Delivery Order picking non-quarantined, non-expired lots with Lot COA snapshots.</summary>
-public sealed class DeliveryOrder : IHasRowVersion
+public sealed class DeliveryOrder : IHasRowVersion, IOrganizationEntity
 {
     private readonly List<DeliveryOrderLine> _lines = [];
 

@@ -3,7 +3,7 @@ using ForgeFlow.Domain.Common;
 namespace ForgeFlow.Domain.Routings;
 
 /// <summary>Site-scoped versioned manufacturing routing defining ordered operations and work centers for an item.</summary>
-public sealed class Routing : IHasRowVersion
+public sealed class Routing : IHasRowVersion, IOrganizationEntity
 {
     private readonly List<RoutingOperation> _operations = [];
 

@@ -11,6 +11,8 @@ internal static class StoreDiagnosticRecorder
         Exception exception,
         string componentName,
         long? actorId = null,
+        long? organizationId = null,
+        long? siteId = null,
         ErrorSeverity severity = ErrorSeverity.Error)
     {
         if (recorder is null) return;
@@ -23,8 +25,8 @@ internal static class StoreDiagnosticRecorder
                 snap?.RequestPath,
                 componentName,
                 actorId ?? snap?.ActorUserId,
-                snap?.OrganizationId,
-                snap?.SiteId,
+                organizationId ?? snap?.OrganizationId,
+                siteId ?? snap?.SiteId,
                 snap?.CorrelationId,
                 snap?.UserAgent), CancellationToken.None);
         }

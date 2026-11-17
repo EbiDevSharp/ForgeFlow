@@ -327,28 +327,13 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         entity.Property<DateTime?>("UpdatedAtUtc").HasColumnType("datetime2(7)").HasConversion(Utc);
         entity.Property<long?>("UpdatedByActorId"); Version(entity);
     }
-    private static bool ValueChanged(Microsoft.EntityFrameworkCore.ChangeTracking.PropertyEntry property)
-        => property.IsModified && !Equals(property.OriginalValue, property.CurrentValue);
-
-    private void Guard()
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        ChangeTracker.DetectChanges();
-        if (ChangeTracker.Entries().Any(e => e.State == EntityState.Deleted ||
-            (e.Entity is SecurityEvent && e.State == EntityState.Modified) ||
-            (e.Entity is BootstrapState && e.State == EntityState.Modified && (byte)e.OriginalValues[nameof(BootstrapState.State)]! == 1) ||
-            (e.Entity is ApplicationAccount && e.State == EntityState.Modified && e.Properties.Any(p => p.Metadata.Name is "UserName" or "NormalizedUserName" && ValueChanged(p))) ||
-            (e.Entity is ScopedRoleAssignment && e.State == EntityState.Modified && e.Properties.Any(p => p.Metadata.Name is "UserId" or "RoleId" or "ScopeKind" or "OrganizationId" or "SiteId" && ValueChanged(p))) ||
-            (e.Entity is RoleDefinition && e.State == EntityState.Modified &&
-                ((bool)e.OriginalValues[nameof(RoleDefinition.IsSystem)]!
-                 || e.Properties.Any(p => p.Metadata.Name is "IsSystem" or "ScopeKind" or "OrganizationId" && ValueChanged(p)))) ||
-            (e.Entity is RolePermission && e.State == EntityState.Modified && e.Properties.Any(p => p.Metadata.Name is "RoleId" or "PermissionCode" && ValueChanged(p))) ||
-            (e.Entity is UserPermissionGrant && e.State == EntityState.Modified && e.Properties.Any(p => p.Metadata.Name is "UserId" or "ScopeKind" or "OrganizationId" or "SiteId" or "PermissionCode" && ValueChanged(p))) ||
-            (e.Entity is UserPreference && e.State == EntityState.Modified && e.Properties.Any(p => p.Metadata.Name is "UserId" or "CreatedAtUtc" && ValueChanged(p))) ||
-            (e.Entity is UserNotificationPreference && e.State == EntityState.Modified && e.Properties.Any(p => p.Metadata.Name is "UserId" or "EventCode" or "CreatedAtUtc" && ValueChanged(p))) ||
-            (e.Entity is UserNotification && e.State == EntityState.Modified && e.Properties.Any(p => p.Metadata.Name is "UserId" or "Category" or "Severity" or "TemplateCode" or "ParamsJson" or "LinkUrl" or "CreatedAtUtc" && ValueChanged(p)))))
-            throw new InvalidOperationException("Auth.ImmutableHistory");
+        base.OnConfiguring(optionsBuilder);
+        var coreExt = optionsBuilder.Options.FindExtension<Microsoft.EntityFrameworkCore.Infrastructure.CoreOptionsExtension>();
+        if (coreExt?.Interceptors?.OfType<ForgeFlow.Infrastructure.Persistence.Interceptors.AuthImmutableHistorySaveChangesInterceptor>().Any() != true)
+            optionsBuilder.AddInterceptors(new ForgeFlow.Infrastructure.Persistence.Interceptors.AuthImmutableHistorySaveChangesInterceptor());
     }
-    public override int SaveChanges(bool acceptAllChangesOnSuccess) { Guard(); return base.SaveChanges(acceptAllChangesOnSuccess); }
-    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
-    { Guard(); return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken); }
+
+    internal void Guard() => ForgeFlow.Infrastructure.Persistence.Interceptors.AuthImmutableHistorySaveChangesInterceptor.Guard(ChangeTracker);
 }

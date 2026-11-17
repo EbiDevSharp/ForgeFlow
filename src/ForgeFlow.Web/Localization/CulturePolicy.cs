@@ -1,5 +1,6 @@
 using System.Globalization;
 using ForgeFlow.Application.Users;
+using ForgeFlow.Domain.Common;
 using Microsoft.AspNetCore.Localization;
 
 namespace ForgeFlow.Web.Localization;
@@ -19,7 +20,7 @@ public sealed class CulturePolicy(UserDisplayPreferences? displayPreferences = n
     public string CalendarSystem => displayPreferences?.EffectiveCalendar(Language)
         ?? (Current.Name == Persian ? UserPreferenceCatalog.PersianCalendar : UserPreferenceCatalog.GregorianCalendar);
 
-    public Calendar Calendar => CalendarSystem == UserPreferenceCatalog.PersianCalendar ? new PersianCalendar() : new GregorianCalendar();
+    public Calendar Calendar => CalendarSystem == UserPreferenceCatalog.PersianCalendar ? OrganizationCalendarUtils.PersianCal : new GregorianCalendar();
 
     public CultureInfo PickerCulture
     {
@@ -29,7 +30,7 @@ public sealed class CulturePolicy(UserDisplayPreferences? displayPreferences = n
             {
                 var culture = (CultureInfo)CultureInfo.GetCultureInfo(Persian).Clone();
                 if (culture.DateTimeFormat.Calendar is not PersianCalendar)
-                    culture.DateTimeFormat.Calendar = culture.OptionalCalendars.OfType<PersianCalendar>().FirstOrDefault() ?? new PersianCalendar();
+                    culture.DateTimeFormat.Calendar = culture.OptionalCalendars.OfType<PersianCalendar>().FirstOrDefault() ?? OrganizationCalendarUtils.PersianCal;
                 culture.DateTimeFormat.FirstDayOfWeek = DayOfWeek.Saturday;
                 culture.DateTimeFormat.ShortDatePattern = PickerShortDateFormat;
                 return culture;

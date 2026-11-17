@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Units;
 
 /// <summary>Organization-scoped currency master for financial & procurement documents.</summary>
-public sealed class Currency
+public sealed class Currency : IOrganizationEntity
 {
     private Currency() { Code = string.Empty; Name = string.Empty; Symbol = string.Empty; }
 

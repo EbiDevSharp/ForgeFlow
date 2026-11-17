@@ -5,7 +5,7 @@ using ForgeFlow.Domain.Items;
 namespace ForgeFlow.Application.Items.Slices;
 
 /// <summary>Vertical slice handlers for Item classification sets, trees, and item assignments.</summary>
-internal sealed class ItemClassificationSlices(IItemOperationsStore store, ItemSliceSupport support)
+public sealed class ItemClassificationSlices(IItemOperationsStore store, ItemSliceSupport support)
 {
     public async Task<OrganizationResult<ItemDetails>> SaveItemClassificationsAsync(
         OrganizationScope? scope, SaveItemClassificationsRequest request, CancellationToken ct)

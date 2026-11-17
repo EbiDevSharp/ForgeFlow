@@ -8,7 +8,7 @@ using ForgeFlow.Domain.Units;
 namespace ForgeFlow.Application.Items.Slices;
 
 /// <summary>Shared authorization, scope validation, and audit-rejection helpers for Item vertical slices.</summary>
-internal sealed class ItemSliceSupport(
+public sealed class ItemSliceSupport(
     ITrustedActorAccessor? actors,
     IOrganizationPermissionEvaluator? permissions,
     IUserOperationRecorder? operationRecorder,

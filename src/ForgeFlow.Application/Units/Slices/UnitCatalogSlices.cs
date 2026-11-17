@@ -5,7 +5,7 @@ using ForgeFlow.Domain.Units;
 namespace ForgeFlow.Application.Units.Slices;
 
 /// <summary>Vertical slice handler for unit of measure catalog CRUD and state transitions.</summary>
-internal sealed class UnitCatalogSlices(
+public sealed class UnitCatalogSlices(
     IUnitOperationsStore store,
     UnitSliceSupport support)
 {

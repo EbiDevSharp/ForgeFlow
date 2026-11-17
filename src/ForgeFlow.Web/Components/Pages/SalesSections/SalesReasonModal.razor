@@ -1,0 +1,65 @@
+@inject IStringLocalizer<SharedResources> Text
+@implements IDisposable
+
+<ForgeFormDialog Width="460px" IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged"
+                 Title="@Title"
+                 CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (Error is not null)
+        {
+            <p role="alert" class="write-error">@Error</p>
+        }
+        <div class="write-field">
+            <label for="sales-reason-input">@Text["PoCancelReasonLabel"]</label>
+            <input id="sales-reason-input" type="text" @bind="reasonInput" maxlength="300" disabled="@Saving" />
+        </div>
+    </ChildContent>
+    <FooterActions>
+        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CloseAsync" IsEnabled="@(!Saving)">@Text["WriteCancel"]</BitButton>
+        <BitButton Size="BitSize.Small" IsEnabled="@(!Saving && !string.IsNullOrWhiteSpace(reasonInput))" OnClick="ConfirmAsync">
+            @(Saving ? Text["WriteSaving"] : Text["WriteConfirm"])
+        </BitButton>
+    </FooterActions>
+</ForgeFormDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public bool Saving { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback<string> OnConfirm { get; set; }
+
+    private string reasonInput = string.Empty;
+
+    public void Initialize()
+    {
+        reasonInput = string.Empty;
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (Saving) return;
+        await OnConfirm.InvokeAsync(reasonInput);
+    }
+
+    private async Task OnDialogIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        if (!open)
+        {
+            reasonInput = string.Empty;
+        }
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    private async Task CloseAsync()
+    {
+        await OnDialogIsOpenChanged(false);
+    }
+
+    public void Dispose()
+    {
+        reasonInput = string.Empty;
+    }
+}

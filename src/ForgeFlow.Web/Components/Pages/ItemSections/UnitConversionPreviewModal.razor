@@ -1,0 +1,232 @@
+@using System.Globalization
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Organizations
+@inject ItemUseCases ItemService
+@inject IStringLocalizer<SharedResources> Text
+@implements IDisposable
+
+<div class="write-panel">
+    @if (Conversions.Count == 0)
+    {
+        <p class="read-empty">@Text["ReadEmpty"]</p>
+    }
+    else
+    {
+        <div class="audit-fields-box">
+            <table class="audit-fields-table">
+                <thead>
+                    <tr>
+                        <th>@Text["UnitConversionRelationLabel"]</th>
+                        <th>@Text["ReadStatus"]</th>
+                        @if (EditMode) { <th>@Text["ReadActions"]</th> }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var conv in Conversions)
+                    {
+                        <tr>
+                            <td><bdi dir="ltr">1 @conv.FromUnitSymbol = @conv.Factor.ToString("0.######", CultureInfo.InvariantCulture) @conv.ToUnitSymbol</bdi></td>
+                            <td>
+                                <span class="read-badge @(conv.IsActive ? "active" : "inactive")">
+                                    @Text[conv.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                                </span>
+                            </td>
+                            @if (EditMode)
+                            {
+                                <td>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                                               OnClick="() => ToggleConversionActiveAsync(conv)">
+                                        @Text[conv.IsActive ? "WriteDeactivate" : "WriteActivate"]
+                                    </BitButton>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (EditMode && IsActive)
+    {
+        <div class="item-sub-card">
+            <p class="write-section-title">@Text["UnitConversionCreateTitle"]</p>
+            <div class="read-field">
+                <label for="item-conv-from">@Text["UnitConversionFromLabel"]</label>
+                <select id="item-conv-from" @bind="newConvFromId" disabled="@saving">
+                    @foreach (var u in ActiveUnits) { <option value="@u.Id">@u.Code — @u.Name</option> }
+                </select>
+            </div>
+            <div class="read-field">
+                <label for="item-conv-to">@Text["UnitConversionToLabel"]</label>
+                <select id="item-conv-to" @bind="newConvToId" disabled="@saving">
+                    @foreach (var u in ActiveUnits) { <option value="@u.Id">@u.Code — @u.Name</option> }
+                </select>
+            </div>
+            <div class="read-field">
+                <label for="item-conv-factor">@Text["UnitConversionFactorLabel"]</label>
+                <input id="item-conv-factor" type="number" step="0.000001" min="0.000001" @bind="newConvFactorText" disabled="@saving" />
+            </div>
+            <div class="write-actions">
+                <BitButton Size="BitSize.Small" IsEnabled="@(!saving)" OnClick="SubmitCreateConversionAsync">@Text["CreateSubmit"]</BitButton>
+            </div>
+        </div>
+    }
+
+    <div class="item-sub-card">
+        <p class="write-section-title">@Text["UnitConverterTitle"]</p>
+        <div class="read-field">
+            <label for="item-calc-qty">@Text["UnitConverterQuantityLabel"]</label>
+            <input id="item-calc-qty" type="number" step="0.000001" min="0.000001" @bind="calcQtyText" />
+        </div>
+        <div class="read-field">
+            <label for="item-calc-from">@Text["UnitConversionFromLabel"]</label>
+            <select id="item-calc-from" @bind="calcFromId">
+                @foreach (var u in ActiveUnits) { <option value="@u.Id">@u.Code — @u.Name</option> }
+            </select>
+        </div>
+        <div class="read-field">
+            <label for="item-calc-to">@Text["UnitConversionToLabel"]</label>
+            <select id="item-calc-to" @bind="calcToId">
+                @foreach (var u in ActiveUnits) { <option value="@u.Id">@u.Code — @u.Name</option> }
+            </select>
+        </div>
+        <div class="write-actions">
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CalculateConversionAsync">@Text["UnitConverterCalculate"]</BitButton>
+        </div>
+        @if (calcResult is not null)
+        {
+            <div class="converter-result-card" role="status">
+                <span class="converter-formula">@FormatCalcEquation()</span>
+                <span class="converter-meta">@Text["UnitConverterHops", calcResult.Hops, calcResult.EffectiveFactor.ToString("0.######", CultureInfo.InvariantCulture)]</span>
+            </div>
+        }
+    </div>
+
+    @if (localError is not null)
+    {
+        <p role="alert" class="write-error">@localError</p>
+    }
+</div>
+
+@code {
+    [Parameter] public OrganizationScope? Scope { get; set; }
+    [Parameter] public long OrganizationId { get; set; }
+    [Parameter] public long ItemId { get; set; }
+    [Parameter] public bool IsActive { get; set; }
+    [Parameter] public bool EditMode { get; set; }
+    [Parameter] public IReadOnlyList<ItemUnitConversionSummary> Conversions { get; set; } = [];
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public EventCallback<ItemDetails> OnItemUpdated { get; set; }
+
+    private bool saving;
+    private string? localError;
+    private long newConvFromId;
+    private long newConvToId;
+    private string newConvFactorText = "1";
+
+    private long calcFromId;
+    private long calcToId;
+    private string calcQtyText = "1";
+    private UnitConversionPreviewResult? calcResult;
+
+    protected override void OnParametersSet()
+    {
+        if (newConvFromId == 0 && ActiveUnits.Count > 0) newConvFromId = ActiveUnits[0].Id;
+        if (newConvToId == 0 && ActiveUnits.Count > 1) newConvToId = ActiveUnits[1].Id;
+        if (calcFromId == 0 && ActiveUnits.Count > 0) calcFromId = ActiveUnits[0].Id;
+        if (calcToId == 0 && ActiveUnits.Count > 1) calcToId = ActiveUnits[1].Id;
+    }
+
+    private async Task SubmitCreateConversionAsync()
+    {
+        if (Scope is null || ItemId <= 0 || saving) return;
+        localError = null;
+        if (!decimal.TryParse(newConvFactorText.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var factor) || factor <= 0m)
+        {
+            localError = Text[RolePermissionLocalization.FailureKey(ForgeFlow.Domain.Units.UnitErrors.ConversionFactorInvalid)];
+            return;
+        }
+
+        saving = true;
+        try
+        {
+            var res = await ItemService.CreateItemConversion(Scope, new CreateItemUnitConversionRequest(
+                OrganizationId, ItemId, newConvFromId, newConvToId, factor));
+            if (!res.Succeeded || res.Value is null)
+            {
+                localError = Text[RolePermissionLocalization.FailureKey(res.Error!.Code)];
+                return;
+            }
+            await OnItemUpdated.InvokeAsync(res.Value);
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task ToggleConversionActiveAsync(ItemUnitConversionSummary conv)
+    {
+        if (Scope is null || ItemId <= 0 || saving) return;
+        saving = true;
+        localError = null;
+        try
+        {
+            var res = await ItemService.SetItemConversionActive(Scope, new SetItemUnitConversionActiveRequest(
+                conv.OrganizationId, conv.ItemId, conv.Id, !conv.IsActive, conv.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                localError = Text[RolePermissionLocalization.FailureKey(res.Error!.Code)];
+                return;
+            }
+            await OnItemUpdated.InvokeAsync(res.Value);
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task CalculateConversionAsync()
+    {
+        if (Scope is null || ItemId <= 0) return;
+        localError = null;
+        calcResult = null;
+        if (!decimal.TryParse(calcQtyText.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var qty) || qty <= 0m)
+        {
+            localError = Text[RolePermissionLocalization.FailureKey(ForgeFlow.Domain.Units.UnitErrors.ConversionQuantityInvalid)];
+            return;
+        }
+
+        var res = await ItemService.PreviewItemConversion(Scope, new ConvertItemQuantityRequest(
+            OrganizationId, ItemId, calcFromId, calcToId, qty));
+        if (!res.Succeeded || res.Value is null)
+        {
+            localError = Text[RolePermissionLocalization.FailureKey(res.Error!.Code)];
+            return;
+        }
+        calcResult = res.Value;
+    }
+
+    private string FormatCalcEquation()
+    {
+        if (calcResult is null) return string.Empty;
+        var fromSym = ActiveUnits.FirstOrDefault(u => u.Id == calcResult.FromUnitId)?.Symbol ?? "#";
+        var toSym = ActiveUnits.FirstOrDefault(u => u.Id == calcResult.ToUnitId)?.Symbol ?? "#";
+        return $"{calcResult.InputQuantity.ToString("0.######", CultureInfo.InvariantCulture)} {fromSym} = {calcResult.ConvertedQuantity.ToString("0.######", CultureInfo.InvariantCulture)} {toSym}";
+    }
+
+    public void Reset()
+    {
+        calcResult = null;
+        localError = null;
+    }
+
+    public void Dispose()
+    {
+        calcResult = null;
+    }
+}

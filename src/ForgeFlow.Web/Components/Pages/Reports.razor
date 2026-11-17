@@ -356,7 +356,7 @@
         }
     }
 
-    <BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="shortageModalOpen"
+    <BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="shortageModalOpen" @bind-IsOpen:after="OnShortageModalOpenChanged"
                Title="@Text["RptShortageBreakdownTitle"]" AriaLabel="@Text["RptShortageBreakdownTitle"]"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -422,8 +422,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var o in selectedShortageItem.Orders)
-                                    {
+                                    <Virtualize Items="selectedShortageItem.Orders.AsCollection()" Context="o" ItemSize="38" OverscanCount="5" SpacerElement="tr">
                                         <tr>
                                             <td><bdi dir="ltr">@o.OrderNumber</bdi></td>
                                             <td><bdi dir="ltr">@o.SiteCode</bdi></td>
@@ -431,7 +430,7 @@
                                             <td dir="ltr">@(o.PlannedDueDate is DateOnly d ? Format.Date(d) : "—")</td>
                                             <td dir="ltr">@FormatQty(o.RequiredBaseQuantity) @selectedShortageItem.BaseUnitSymbol</td>
                                         </tr>
-                                    }
+                                    </Virtualize>
                                 </tbody>
                             </table>
                         </div>
@@ -445,7 +444,7 @@
         </Body>
     </BitDialog>
 
-    <BitDialog Width="920px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="varianceModalOpen"
+    <BitDialog Width="920px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="varianceModalOpen" @bind-IsOpen:after="OnVarianceModalOpenChanged"
                Title="@Text["RptVarianceDetailTitle"]" AriaLabel="@Text["RptVarianceDetailTitle"]"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -503,8 +502,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var line in selectedVarianceDetail.Inputs)
-                                    {
+                                    <Virtualize Items="selectedVarianceDetail.Inputs.AsCollection()" Context="line" ItemSize="45" OverscanCount="5" SpacerElement="tr">
                                         <tr>
                                             <td>
                                                 <div>@line.ItemName</div>
@@ -520,7 +518,7 @@
                                             <td dir="ltr">@FormatQty(line.RemainingToIssueBaseQuantity) @line.BaseUnitSymbol</td>
                                             <td dir="ltr">@FormatPct(line.ConsumptionPercent)</td>
                                         </tr>
-                                    }
+                                    </Virtualize>
                                 </tbody>
                             </table>
                         </div>
@@ -541,8 +539,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var line in selectedVarianceDetail.Outputs)
-                                    {
+                                    <Virtualize Items="selectedVarianceDetail.Outputs.AsCollection()" Context="line" ItemSize="45" OverscanCount="5" SpacerElement="tr">
                                         <tr>
                                             <td>
                                                 <div>@line.ItemName</div>
@@ -558,7 +555,7 @@
                                             </td>
                                             <td dir="ltr">@FormatPct(line.AchievementPercent)</td>
                                         </tr>
-                                    }
+                                    </Virtualize>
                                 </tbody>
                             </table>
                         </div>
@@ -654,6 +651,10 @@
         set
         {
             dueFromFilter = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+            if (dueFromFilter.HasValue && dueToFilter.HasValue && dueFromFilter.Value > dueToFilter.Value)
+            {
+                dueToFilter = dueFromFilter;
+            }
             _ = ReloadActiveDataAsync();
         }
     }
@@ -664,6 +665,10 @@
         set
         {
             dueToFilter = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+            if (dueFromFilter.HasValue && dueToFilter.HasValue && dueToFilter.Value < dueFromFilter.Value)
+            {
+                dueFromFilter = dueToFilter;
+            }
             _ = ReloadActiveDataAsync();
         }
     }
@@ -720,11 +725,22 @@
         if (scope is null) return;
 
         var actor = await Actors.ResolveAsync(default);
-        if (actor is not null)
-            scopeCanExport = (await Permissions.EvaluateAsync(actor, scope, ReportingPermissions.ReportsExport, default)).IsAllowed;
-
         var orgId = ScopeOrgId(scope);
-        var sitesRes = await ReportService.ListAuthorizedSites(scope, orgId);
+
+        Task<PermissionDecision>? exportTask = actor is not null
+            ? Permissions.EvaluateAsync(actor, scope, ReportingPermissions.ReportsExport, default).AsTask()
+            : null;
+        var sitesTask = ReportService.ListAuthorizedSites(scope, orgId);
+
+        if (exportTask is not null)
+            await Task.WhenAll(exportTask, sitesTask);
+        else
+            await sitesTask;
+
+        if (exportTask is not null)
+            scopeCanExport = (await exportTask).IsAllowed;
+
+        var sitesRes = await sitesTask;
         if (sitesRes.Succeeded)
             authorizedSites = sitesRes.Value!;
         if (scope is OrganizationScope.Site siteScope)
@@ -733,36 +749,40 @@
         await LoadActiveTabAsync();
     }
 
-    private CancellationTokenSource? loadCts;
+    private readonly DebouncedSearchController _searchController = new(300);
 
     private async Task ReloadActiveDataAsync(bool debounce = false)
     {
-        var completed = await LoadActiveTabAsync(debounce);
-        if (!completed) return;
-        if (activeTab == TabShortage && shortageGrid is not null)
-            await shortageGrid.RefreshAsync();
-        else if (activeTab == TabVariance && varianceGrid is not null)
-            await varianceGrid.RefreshAsync();
+        if (debounce)
+        {
+            await _searchController.RunDebouncedAsync(ExecuteLoadAsync);
+        }
+        else
+        {
+            await _searchController.RunImmediateAsync(ExecuteLoadAsync);
+        }
+
+        async Task ExecuteLoadAsync(CancellationToken ct)
+        {
+            var completed = await LoadActiveTabAsync(ct);
+            if (!completed) return;
+            if (activeTab == TabShortage && shortageGrid is not null)
+                await shortageGrid.RefreshAsync();
+            else if (activeTab == TabVariance && varianceGrid is not null)
+                await varianceGrid.RefreshAsync();
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
-    private async Task<bool> LoadActiveTabAsync(bool debounce = false)
+    private async Task<bool> LoadActiveTabAsync(CancellationToken ct = default)
     {
         var scope = CurrentScope;
         if (scope is null) return false;
-
-        loadCts?.Cancel();
-        loadCts?.Dispose();
-        var cts = new CancellationTokenSource();
-        loadCts = cts;
-        var ct = cts.Token;
 
         gridLoading = true;
         pageError = null;
         try
         {
-            if (debounce)
-                await Task.Delay(250, ct);
-
             var orgId = ScopeOrgId(scope);
             long? siteArg = siteFilter > 0 ? siteFilter : null;
 
@@ -799,11 +819,8 @@
         }
         finally
         {
-            if (ReferenceEquals(loadCts, cts))
-            {
-                gridLoading = false;
-                StateHasChanged();
-            }
+            gridLoading = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -868,6 +885,20 @@
     {
         selectedShortageItem = item;
         shortageModalOpen = true;
+    }
+
+    private void OnShortageModalOpenChanged()
+    {
+        if (!shortageModalOpen) selectedShortageItem = null;
+    }
+
+    private void OnVarianceModalOpenChanged()
+    {
+        if (!varianceModalOpen)
+        {
+            selectedVarianceDetail = null;
+            modalError = null;
+        }
     }
 
     private void CloseShortageModal()
@@ -1011,8 +1042,12 @@
 
     public async ValueTask DisposeAsync()
     {
-        loadCts?.Cancel();
-        loadCts?.Dispose();
+        selectedShortageItem = null;
+        selectedVarianceDetail = null;
+        shortageReport = null;
+        varianceReport = null;
+        authorizedSites = [];
+        await _searchController.DisposeAsync();
         if (downloadJs is not null)
         {
             try { await downloadJs.DisposeAsync(); }

@@ -1,6 +1,8 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Inventory;
 
-public sealed class InventoryLedgerEntry
+public sealed class InventoryLedgerEntry : IOrganizationEntity
 {
     private InventoryLedgerEntry() { }
 

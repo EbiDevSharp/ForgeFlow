@@ -1,0 +1,99 @@
+@using ForgeFlow.Application.Boms
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Domain.Organizations
+@inject BomUseCases BomService
+@inject IStringLocalizer<SharedResources> Text
+@implements IDisposable
+
+<BitDialog IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged" Title="@Text["BomDimCreateHeading"]" Width="520px" MaxWidth="calc(100vw - 24px)"
+           Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]">
+    <Body>
+        <div class="audit-modal-body">
+            <div class="write-field">
+                <label for="dim-create-code">@Text["ReadCode"]</label>
+                <input id="dim-create-code" type="text" dir="ltr" maxlength="32" @bind="createDimCode" disabled="@dimSaving" />
+            </div>
+            <div class="write-field">
+                <label for="dim-create-name">@Text["ReadName"]</label>
+                <input id="dim-create-name" type="text" maxlength="200" @bind="createDimName" disabled="@dimSaving" />
+            </div>
+            @if (dimError is not null)
+            {
+                <p role="alert" class="write-error">@Text[dimError]</p>
+            }
+            <div class="write-actions">
+                <BitButton IsEnabled="@(!dimSaving && !string.IsNullOrWhiteSpace(createDimCode) && !string.IsNullOrWhiteSpace(createDimName))" OnClick="SubmitCreateDimAsync">
+                    @(dimSaving ? Text["WriteSaving"] : Text["BomDimCreateButton"])
+                </BitButton>
+                <BitButton Variant="BitVariant.Outline" OnClick="CloseAsync">@Text["WriteCancel"]</BitButton>
+            </div>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public EventCallback OnCreated { get; set; }
+
+    private bool dimSaving;
+    private string createDimCode = string.Empty;
+    private string createDimName = string.Empty;
+    private string? dimError;
+
+    public void Open()
+    {
+        createDimCode = string.Empty;
+        createDimName = string.Empty;
+        dimError = null;
+        IsOpen = true;
+    }
+
+    private async Task OnIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        if (!open)
+        {
+            createDimCode = string.Empty;
+            createDimName = string.Empty;
+            dimError = null;
+        }
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    private async Task CloseAsync() => await OnIsOpenChanged(false);
+
+    private async Task SubmitCreateDimAsync()
+    {
+        if (CurrentScope is null || dimSaving) return;
+        dimSaving = true;
+        dimError = null;
+        try
+        {
+            var res = await BomService.CreateContextDimension(CurrentScope,
+                new CreateContextDimensionRequest(CurrentOrgId, createDimCode, createDimName));
+            if (!res.Succeeded)
+            {
+                dimError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            await CloseAsync();
+            await OnCreated.InvokeAsync();
+        }
+        finally
+        {
+            dimSaving = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        createDimCode = string.Empty;
+        createDimName = string.Empty;
+        dimError = null;
+    }
+}

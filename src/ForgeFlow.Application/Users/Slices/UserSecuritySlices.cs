@@ -29,6 +29,7 @@ public sealed class UserSecuritySlices(
             {
                 TenantAccessPolicy.ValidateTenantRoleScope(request.Role, request.OrganizationId, request.SiteId);
                 res = await UserSliceSupport.Execute(() => store.AssignTenantRole(request, support.Access(auth.Actor!, scope!, permission), ct));
+                if (res.Succeeded) support.PermissionCache?.InvalidateUser(request.UserId);
             }
             catch (UserRuleException ex) { res = UserSliceSupport.FailFromRule<UserDetails>(ex); }
         }
@@ -59,6 +60,7 @@ public sealed class UserSecuritySlices(
                 else
                     res = await UserSliceSupport.Execute(() => store.SetTenantRoleActive(
                         request.OrganizationId, request.UserId, request.Role, request.SiteId, request.IsActive, version, support.Access(auth.Actor!, scope!, permission), ct));
+                    if (res.Succeeded) support.PermissionCache?.InvalidateUser(request.UserId);
             }
             catch (UserRuleException ex) { res = UserSliceSupport.FailFromRule<UserDetails>(ex); }
         }

@@ -49,7 +49,7 @@ public sealed class ErrorLogRecord
         string? userAgent)
     {
         if (string.IsNullOrWhiteSpace(errorReference) || errorReference.Length > 32)
-            throw new ArgumentException("Invalid error reference.", nameof(errorReference));
+            throw new ArgumentException(DiagnosticErrors.InvalidErrorReference, nameof(errorReference));
         if (!Enum.IsDefined(severity))
             throw new ArgumentOutOfRangeException(nameof(severity));
         if (!Enum.IsDefined(source))
@@ -113,11 +113,11 @@ public sealed class UserOperationLogRecord
         string metadataJson)
     {
         if (string.IsNullOrWhiteSpace(operationCode) || !CodePattern.IsMatch(operationCode.Trim()))
-            throw new ArgumentException("Invalid operation code.", nameof(operationCode));
+            throw new ArgumentException(DiagnosticErrors.InvalidOperationCode, nameof(operationCode));
         if (!Enum.IsDefined(outcome))
             throw new ArgumentOutOfRangeException(nameof(outcome));
         if (siteId.HasValue && !organizationId.HasValue)
-            throw new ArgumentException("Site requires Organization.", nameof(siteId));
+            throw new ArgumentException(DiagnosticErrors.SiteRequiresOrganization, nameof(siteId));
 
         OccurredAtUtc = DateTime.SpecifyKind(occurredAtUtc, DateTimeKind.Utc);
         OperationCode = operationCode.Trim();
@@ -158,4 +158,7 @@ public static class DiagnosticErrors
     public const string InvalidQuery = "DiagnosticErrors.InvalidQuery";
     public const string InvalidRetentionDays = "DiagnosticErrors.InvalidRetentionDays";
     public const string PersistenceUnavailable = "DiagnosticErrors.PersistenceUnavailable";
+    public const string InvalidErrorReference = "DiagnosticErrors.InvalidErrorReference";
+    public const string InvalidOperationCode = "DiagnosticErrors.InvalidOperationCode";
+    public const string SiteRequiresOrganization = "DiagnosticErrors.SiteRequiresOrganization";
 }

@@ -3,7 +3,7 @@ using ForgeFlow.Domain.Common;
 namespace ForgeFlow.Domain.Sales;
 
 /// <summary>Organization-shared customer master.</summary>
-public sealed class Customer : IHasRowVersion
+public sealed class Customer : IHasRowVersion, IOrganizationEntity
 {
     private Customer()
     {

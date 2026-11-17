@@ -6,7 +6,7 @@ using ForgeFlow.Domain.Units;
 
 namespace ForgeFlow.Application.Sales.Slices;
 
-internal sealed class DeliveryOrderSlices(ISalesOperationsStore store, SalesSliceSupport support)
+public sealed class DeliveryOrderSlices(ISalesOperationsStore store, SalesSliceSupport support)
 {
     public async Task<OrganizationResult<OrganizationPage<DeliveryOrderSummary>>> ListAsync(
         OrganizationScope? scope,

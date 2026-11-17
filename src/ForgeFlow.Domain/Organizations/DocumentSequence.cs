@@ -25,13 +25,11 @@ public enum DocumentYearMode : byte
 }
 
 /// <summary>Organization-scoped configurable auto-numbering sequence for operational documents.</summary>
-public sealed class DocumentSequence : IHasRowVersion
+public sealed class DocumentSequence : IHasRowVersion, IOrganizationEntity
 {
     public const int MaxPrefixLength = 12;
     public const int MinPaddingDigits = 3;
     public const int MaxPaddingDigits = 8;
-
-    private static readonly PersianCalendar PersianCal = new();
 
     private DocumentSequence()
     {
@@ -131,44 +129,43 @@ public sealed class DocumentSequence : IHasRowVersion
         return true;
     }
 
-    public string FormatPreview(DateTime utcNow)
+    public string FormatPreview(DateTime utcNow, TimeZoneInfo? timeZone = null)
     {
-        var currentYear = GetYearFor(utcNow);
+        var currentYear = GetYearFor(utcNow, timeZone);
         var effectiveNext = currentYear.HasValue && LastAllocatedYear.HasValue && LastAllocatedYear.Value != currentYear.Value
             ? 1
             : NextNumber;
-        return FormatNumber(effectiveNext, utcNow);
+        return FormatNumber(effectiveNext, utcNow, timeZone);
     }
 
-    public string AllocateNextNumber(DateTime utcNow)
+    public string AllocateNextNumber(DateTime utcNow, TimeZoneInfo? timeZone = null)
     {
-        var currentYear = GetYearFor(utcNow);
+        var currentYear = GetYearFor(utcNow, timeZone);
         if (currentYear.HasValue && LastAllocatedYear.HasValue && LastAllocatedYear.Value != currentYear.Value)
             NextNumber = 1;
         if (currentYear.HasValue)
             LastAllocatedYear = currentYear.Value;
 
-        var formatted = FormatNumber(NextNumber, utcNow);
+        var formatted = FormatNumber(NextNumber, utcNow, timeZone);
         NextNumber++;
         return formatted;
     }
 
-    private int? GetYearFor(DateTime utcNow) => YearMode switch
+    public void RevertAllocation(long previousNextNumber, int? previousLastAllocatedYear)
     {
-        DocumentYearMode.Gregorian => utcNow.Year,
-        DocumentYearMode.Persian => PersianCal.GetYear(utcNow),
-        _ => null
-    };
+        if (previousNextNumber > 0)
+            NextNumber = previousNextNumber;
+        LastAllocatedYear = previousLastAllocatedYear;
+    }
 
-    public string FormatNumber(long sequenceNumber, DateTime utcNow)
+    private int? GetYearFor(DateTime utcNow, TimeZoneInfo? timeZone = null)
+        => OrganizationCalendarUtils.GetYear(utcNow, YearMode, timeZone);
+
+    public string FormatNumber(long sequenceNumber, DateTime utcNow, TimeZoneInfo? timeZone = null)
     {
         var seqStr = sequenceNumber.ToString($"D{PaddingDigits}", CultureInfo.InvariantCulture);
-        var yearPart = YearMode switch
-        {
-            DocumentYearMode.Gregorian => utcNow.Year.ToString("D4", CultureInfo.InvariantCulture),
-            DocumentYearMode.Persian => PersianCal.GetYear(utcNow).ToString("D4", CultureInfo.InvariantCulture),
-            _ => null
-        };
+        var yearVal = GetYearFor(utcNow, timeZone);
+        var yearPart = yearVal?.ToString("D4", CultureInfo.InvariantCulture);
 
         var result = yearPart is null
             ? $"{Prefix}{Separator}{seqStr}"

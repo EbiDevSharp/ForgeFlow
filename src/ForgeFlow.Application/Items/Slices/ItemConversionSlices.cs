@@ -7,7 +7,7 @@ using ForgeFlow.Domain.Units;
 namespace ForgeFlow.Application.Items.Slices;
 
 /// <summary>Vertical slice handlers for Item-specific unit conversions and hybrid conversion preview.</summary>
-internal sealed class ItemConversionSlices(
+public sealed class ItemConversionSlices(
     IItemOperationsStore store,
     IUnitOperationsStore? unitsStore,
     ItemSliceSupport support)

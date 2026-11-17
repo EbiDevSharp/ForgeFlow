@@ -51,7 +51,10 @@ public sealed class RoleAssignmentSlices(
             || (request.TargetScope == RoleScopeTarget.Site && request.SiteId is not > 0))
             res = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.PermissionScopeInvalid, new Dictionary<string, object> { ["field"] = "SiteId" });
         else
+        {
             res = await RoleSliceSupport.Execute(() => store.AssignUserRole(request, support.Access(auth.Actor!, scope!, permission), ct));
+            if (res.Succeeded) support.PermissionCache?.InvalidateUser(request.UserId);
+        }
         return await support.RecordRejectedAsync(res, auth.Actor, scope, request.OrganizationId, request.SiteId, "ScopedRoleAssignment", $"{request.UserId}:role{request.RoleId}", "AssignUserRole");
     }
 
@@ -69,8 +72,11 @@ public sealed class RoleAssignmentSlices(
         else if (RoleSliceSupport.DecodeVersion(request.ExpectedRowVersion) is not byte[] version)
             res = OrganizationResult<UserPermissionMatrix>.Failure(RolePermissionErrors.ConcurrencyConflict);
         else
+        {
             res = await RoleSliceSupport.Execute(() => store.SetUserRoleAssignmentActive(
                 request.OrganizationId, request.UserId, request.AssignmentId, request.IsActive, version, support.Access(auth.Actor!, scope!, permission), ct));
+            if (res.Succeeded) support.PermissionCache?.InvalidateUser(request.UserId);
+        }
         return await support.RecordRejectedAsync(res, auth.Actor, scope, request.OrganizationId, null, "ScopedRoleAssignment", request.AssignmentId.ToString(CultureInfo.InvariantCulture), "SetUserRoleAssignmentActive");
     }
 
@@ -150,6 +156,7 @@ public sealed class RoleAssignmentSlices(
 
                     res = await RoleSliceSupport.Execute(() => store.SaveUserOperationGrants(
                         request.OrganizationId, request.UserId, request.TargetScope, request.SiteId, normalized, support.Access(auth.Actor!, scope!, permission), ct));
+                    if (res.Succeeded) support.PermissionCache?.InvalidateUser(request.UserId);
                 }
             }
             catch (RoleRuleException ex) { res = RoleSliceSupport.FailFromRule<RoleDetails>(ex) is var r ? OrganizationResult<UserPermissionMatrix>.Failure(r.Error!.Code, r.Error.Parameters) : default!; }

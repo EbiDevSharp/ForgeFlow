@@ -11,6 +11,7 @@
 @inject DisplayFormatter Formatter
 @inject IStringLocalizer<SharedResources> Text
 @inject CulturePolicy Culture
+@implements IDisposable
 
 <BitDialog IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged" Title="@Text["BomVersionWorkbenchTitle"]" Width="1100px" MaxWidth="calc(100vw - 24px)"
            Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
@@ -279,8 +280,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var inp in selectedVersion.Inputs)
-                                    {
+                                    <Virtualize Items="selectedVersion.Inputs.AsCollection()" Context="inp" ItemSize="40" OverscanCount="5" SpacerElement="tr">
                                         <tr>
                                             <td dir="ltr">@inp.Sequence</td>
                                             <td>
@@ -301,7 +301,7 @@
                                                 }
                                             </td>
                                         </tr>
-                                    }
+                                    </Virtualize>
                                 </tbody>
                             </table>
                         </div>
@@ -410,8 +410,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var outLine in selectedVersion.Outputs)
-                                    {
+                                    <Virtualize Items="selectedVersion.Outputs.AsCollection()" Context="outLine" ItemSize="40" OverscanCount="5" SpacerElement="tr">
                                         <tr>
                                             <td dir="ltr">@outLine.Sequence</td>
                                             <td>
@@ -422,7 +421,7 @@
                                             <td dir="ltr"><strong>@Formatter.Number(outLine.Quantity)</strong></td>
                                             <td dir="ltr">@outLine.UnitCode (@outLine.UnitSymbol)</td>
                                         </tr>
-                                    }
+                                    </Virtualize>
                                 </tbody>
                             </table>
                         </div>
@@ -607,7 +606,22 @@
     private async Task OnIsOpenChanged(bool open)
     {
         IsOpen = open;
+        if (!open)
+        {
+            selectedVersion = null;
+            draftInputs.Clear();
+            draftOutputs.Clear();
+            draftConditions.Clear();
+        }
         await IsOpenChanged.InvokeAsync(open);
+    }
+
+    public void Dispose()
+    {
+        selectedVersion = null;
+        draftInputs.Clear();
+        draftOutputs.Clear();
+        draftConditions.Clear();
     }
 
     public async Task OpenVersionAsync(long versionId)

@@ -6,6 +6,7 @@
 @using ForgeFlow.Domain.Inventory
 @using ForgeFlow.Domain.Quality
 @using ForgeFlow.Web.Roles
+@implements IDisposable
 @inject QualityUseCases QualityService
 @inject ItemUseCases ItemService
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
@@ -140,8 +141,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var edge in report.BackwardEdges)
-                                    {
+                                    <Virtualize Items="report.BackwardEdges.AsCollection()" Context="edge" ItemSize="40" OverscanCount="5" SpacerElement="tr">
                                         <tr>
                                             <td>
                                                 <span class="bom-tree-level" dir="ltr">L@(edge.Level)</span>
@@ -155,7 +155,7 @@
                                             <td dir="ltr">@Format.Number(edge.SourceNetBaseQuantity) @edge.SourceUnitSymbol</td>
                                             <td dir="ltr">@edge.TargetItemCode / @edge.TargetLotCode (@Format.Number(edge.TargetNetBaseQuantity) @edge.TargetUnitSymbol)</td>
                                         </tr>
-                                    }
+                                    </Virtualize>
                                 </tbody>
                             </table>
                         </div>
@@ -180,8 +180,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var edge in report.ForwardEdges)
-                                    {
+                                    <Virtualize Items="report.ForwardEdges.AsCollection()" Context="edge" ItemSize="40" OverscanCount="5" SpacerElement="tr">
                                         <tr>
                                             <td>
                                                 <span class="bom-tree-level" dir="ltr">L@(edge.Level)</span>
@@ -195,7 +194,7 @@
                                             </td>
                                             <td dir="ltr">@Format.Number(edge.TargetNetBaseQuantity) @edge.TargetUnitSymbol</td>
                                         </tr>
-                                    }
+                                    </Virtualize>
                                 </tbody>
                             </table>
                         </div>
@@ -219,8 +218,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var m in root.Movements)
-                                {
+                                <Virtualize Items="root.Movements.AsCollection()" Context="m" ItemSize="40" OverscanCount="5" SpacerElement="tr">
                                     <tr>
                                         <td dir="ltr">@Format.Timestamp(m.OccurredAtUtc)</td>
                                         <td dir="ltr">@m.DocumentNumber @(m.IsReversed ? $"({Text["InvReversedBadge"]})" : string.Empty)</td>
@@ -232,7 +230,7 @@
                                             </span>
                                         </td>
                                     </tr>
-                                }
+                                </Virtualize>
                             </tbody>
                         </table>
                     </div>
@@ -364,4 +362,10 @@
         OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
         _ => string.Empty
     };
+
+    public void Dispose()
+    {
+        report = null;
+        activeItems = [];
+    }
 }

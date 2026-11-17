@@ -529,18 +529,32 @@
         if (scope is null) return;
 
         var actor = await Actors.ResolveAsync(default);
-        if (actor is not null)
-            scopeCanManage = (await Permissions.EvaluateAsync(actor, scope, RoutingPermissions.RoutingsManage, default)).IsAllowed;
-
         var orgId = ScopeOrganizationId(scope);
-        var sitesRes = await OrderService.ListAuthorizedSites(scope, orgId);
+
+        Task<PermissionDecision>? manageTask = actor is not null
+            ? Permissions.EvaluateAsync(actor, scope, RoutingPermissions.RoutingsManage, default).AsTask()
+            : null;
+
+        var sitesTask = OrderService.ListAuthorizedSites(scope, orgId);
+        var itemsTask = ItemService.ListItems(scope, orgId, new ItemListQuery(CanBeManufactured: true, IncludeInactive: false, Page: 1, PageSize: 100));
+        var wcTask = RoutingService.ListActiveWorkCenters(scope, orgId);
+
+        var tasks = new List<Task> { sitesTask, itemsTask, wcTask };
+        if (manageTask is not null) tasks.Add(manageTask);
+
+        await Task.WhenAll(tasks);
+
+        if (manageTask is not null)
+            scopeCanManage = (await manageTask).IsAllowed;
+
+        var sitesRes = await sitesTask;
         if (sitesRes.Succeeded) authorizedSites = sitesRes.Value!;
         if (scope is OrganizationScope.Site siteScope) siteFilter = siteScope.SiteId;
 
-        var itemsRes = await ItemService.ListItems(scope, orgId, new ItemListQuery(CanBeManufactured: true, IncludeInactive: false, Page: 1, PageSize: 100));
+        var itemsRes = await itemsTask;
         if (itemsRes.Succeeded) manufacturableItems = itemsRes.Value!.Items;
 
-        var wcRes = await RoutingService.ListActiveWorkCenters(scope, orgId);
+        var wcRes = await wcTask;
         if (wcRes.Succeeded) activeWorkCenters = wcRes.Value!;
     }
 

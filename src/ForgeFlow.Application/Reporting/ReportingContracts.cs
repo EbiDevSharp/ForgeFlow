@@ -2,6 +2,7 @@ using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Boms;
 using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.ProductionOrders;
+using ForgeFlow.Domain.Reporting;
 using ForgeFlow.Domain.Units;
 
 namespace ForgeFlow.Application.Reporting;
@@ -13,7 +14,7 @@ public static class ReportingPermissions
 }
 
 public sealed class ReportingStoreUnavailableException(Exception? inner = null)
-    : Exception("Reporting store unavailable.", inner);
+    : Exception(ReportingErrors.PersistenceUnavailable, inner);
 
 public sealed record MaterialShortageQuery(
     long? SiteId = null,

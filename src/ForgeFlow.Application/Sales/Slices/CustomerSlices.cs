@@ -4,7 +4,7 @@ using ForgeFlow.Domain.Sales;
 namespace ForgeFlow.Application.Sales.Slices;
 
 /// <summary>Vertical slice handlers for Organization-shared Customer master operations.</summary>
-internal sealed class CustomerSlices(ISalesOperationsStore store, SalesSliceSupport support)
+public sealed class CustomerSlices(ISalesOperationsStore store, SalesSliceSupport support)
 {
     public async Task<OrganizationResult<OrganizationPage<CustomerSummary>>> ListAsync(
         OrganizationScope? scope, long organizationId, CustomerListQuery query, CancellationToken ct)

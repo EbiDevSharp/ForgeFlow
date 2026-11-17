@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Items;
 
 /// <summary>Organization-owned classification scheme/taxonomy root (e.g., Product Line, Material Family).</summary>
-public sealed class ClassificationSet
+public sealed class ClassificationSet : IOrganizationEntity
 {
     private ClassificationSet()
     {

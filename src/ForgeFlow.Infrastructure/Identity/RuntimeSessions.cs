@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Data;
 using System.Data.Common;
 using System.Net;
@@ -14,6 +15,7 @@ using ForgeFlow.Application.ProductionOrders;
 using ForgeFlow.Application.Quality;
 using ForgeFlow.Application.Reporting;
 using ForgeFlow.Application.Roles;
+using ForgeFlow.Application.Security;
 using ForgeFlow.Application.Units;
 using ForgeFlow.Application.Users;
 using ForgeFlow.Domain.Roles;
@@ -21,6 +23,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace ForgeFlow.Infrastructure.Identity;
 
@@ -53,10 +56,165 @@ public sealed class RuntimeSessions(
     TimeProvider clock,
     ILogger<RuntimeSessions> logger,
     AuthDiagnosticsOptions? diagnostics = null,
-    IUserNotificationLiveChannel? liveChannel = null) : IUserNotificationPublisher
+    IUserNotificationLiveChannel? liveChannel = null,
+    ForgeFlow.Application.Security.IOrganizationPermissionCache? permCache = null,
+    IOptions<RuntimeSessionOptions>? sessionOptions = null) : IUserNotificationPublisher, ISessionInvalidator
 {
     public static readonly TimeSpan Lifetime = TimeSpan.FromHours(8);
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
+
+    private readonly ConcurrentDictionary<Guid, RuntimeSessionState> _sessions = new();
+    private readonly ConcurrentDictionary<long, ConcurrentDictionary<Guid, byte>> _userSessions = new();
+    private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _sessionLocks = new();
+    private readonly ConcurrentDictionary<long, object> _userSyncRoots = new();
+
+    public event Action<Guid, string>? SessionRevoked;
+    public event Action<long, string>? UserSessionsRevoked;
+
+    public bool TryEnforceLimitInMemory(long userId, out Guid? evictedSessionId)
+    {
+        evictedSessionId = null;
+        var max = sessionOptions?.Value.MaxConcurrentSessionsPerUser ?? 0;
+        if (max <= 0) return true;
+
+        var sync = _userSyncRoots.GetOrAdd(userId, _ => new object());
+        lock (sync)
+        {
+            if (!_userSessions.TryGetValue(userId, out var userSet))
+                return true;
+
+            var now = Now;
+            var activeList = userSet.Keys
+                .Select(id => _sessions.TryGetValue(id, out var s) ? s : null)
+                .Where(s => s is not null && !s.IsRevoked && s.ExpiresAtUtc > now)
+                .OrderBy(s => s!.IssuedAtUtc)
+                .ToList();
+
+            if (activeList.Count >= max)
+            {
+                if (sessionOptions?.Value.EvictOldestOnLimitReached != false)
+                {
+                    var evictCount = activeList.Count - max + 1;
+                    for (var i = 0; i < evictCount && i < activeList.Count; i++)
+                    {
+                        var oldest = activeList[i]!;
+                        oldest.MarkRevoked("ConcurrentLimitExceeded");
+                        SessionRevoked?.Invoke(oldest.SessionId, "ConcurrentLimitExceeded");
+                        evictedSessionId = oldest.SessionId;
+                    }
+                    return true;
+                }
+                return false;
+            }
+            return true;
+        }
+    }
+
+    public void RegisterSessionInMemory(Guid sessionId, long userId, string securityStamp, DateTime issuedAtUtc, DateTime expiresAtUtc, DateTime lastActivityAtUtc)
+    {
+        var sync = _userSyncRoots.GetOrAdd(userId, _ => new object());
+        lock (sync)
+        {
+            var max = sessionOptions?.Value.MaxConcurrentSessionsPerUser ?? 0;
+            if (max > 0 && sessionOptions?.Value.EvictOldestOnLimitReached != false)
+            {
+                if (_userSessions.TryGetValue(userId, out var existingSet))
+                {
+                    var now = Now;
+                    var activeList = existingSet.Keys
+                        .Select(id => _sessions.TryGetValue(id, out var s) ? s : null)
+                        .Where(s => s is not null && !s.IsRevoked && s.ExpiresAtUtc > now)
+                        .OrderBy(s => s!.IssuedAtUtc)
+                        .ToList();
+
+                    if (activeList.Count >= max)
+                    {
+                        var evictCount = activeList.Count - max + 1;
+                        for (var i = 0; i < evictCount && i < activeList.Count; i++)
+                        {
+                            var oldest = activeList[i]!;
+                            oldest.MarkRevoked("ConcurrentLimitExceeded");
+                            SessionRevoked?.Invoke(oldest.SessionId, "ConcurrentLimitExceeded");
+                        }
+                    }
+                }
+            }
+
+            var state = new RuntimeSessionState(sessionId, userId, securityStamp, issuedAtUtc, expiresAtUtc, lastActivityAtUtc);
+            _sessions[sessionId] = state;
+            var userSet = _userSessions.GetOrAdd(userId, _ => new ConcurrentDictionary<Guid, byte>());
+            userSet[sessionId] = 0;
+        }
+    }
+
+    public void RevokeSession(Guid sessionId, string reason)
+    {
+        if (_sessions.TryGetValue(sessionId, out var state))
+        {
+            state.MarkRevoked(reason);
+        }
+        SessionRevoked?.Invoke(sessionId, reason);
+    }
+
+    public void RevokeUserSessions(long userId, string reason, string? exceptSecurityStamp = null, Guid? exceptSessionId = null)
+    {
+        permCache?.InvalidateUser(userId);
+        if (_userSessions.TryGetValue(userId, out var userSet))
+        {
+            foreach (var sId in userSet.Keys)
+            {
+                if (exceptSessionId.HasValue && sId == exceptSessionId.Value)
+                    continue;
+
+                if (_sessions.TryGetValue(sId, out var state))
+                {
+                    if (exceptSecurityStamp is not null && state.SecurityStamp == exceptSecurityStamp)
+                        continue;
+
+                    state.MarkRevoked(reason);
+                    SessionRevoked?.Invoke(sId, reason);
+                }
+            }
+        }
+        if (!exceptSessionId.HasValue && exceptSecurityStamp is null)
+        {
+            UserSessionsRevoked?.Invoke(userId, reason);
+        }
+    }
+
+    public void RegisterCircuit(Guid sessionId, Guid circuitId)
+    {
+        if (_sessions.TryGetValue(sessionId, out var state))
+        {
+            state.IncrementCircuits();
+        }
+    }
+
+    public void UnregisterCircuit(Guid sessionId, Guid circuitId)
+    {
+        if (_sessions.TryGetValue(sessionId, out var state))
+        {
+            state.DecrementCircuits();
+        }
+    }
+
+    public bool TryGetSessionState(Guid sessionId, out RuntimeSessionState? state)
+        => _sessions.TryGetValue(sessionId, out state);
+
+    public int GetActiveSessionCount(long userId)
+    {
+        if (!_userSessions.TryGetValue(userId, out var userSet))
+            return 0;
+
+        var now = Now;
+        var count = 0;
+        foreach (var sId in userSet.Keys)
+        {
+            if (_sessions.TryGetValue(sId, out var state) && !state.IsRevoked && state.ExpiresAtUtc > now)
+                count++;
+        }
+        return count;
+    }
     private static bool AvailableFailure(Exception e) => e is DbException or DbUpdateException or InvalidOperationException;
     private void Unavailable() => logger.LogError("AUTH-STORE-UNAVAILABLE"); // No exception/credentials/claims payload.
     private void Failure(string stage, Exception exception, params string[] secrets)
@@ -106,13 +264,51 @@ public sealed class RuntimeSessions(
             ? JsonSerializer.Serialize(new { ip = normalized })
             : JsonSerializer.Serialize(new { device });
     }
-    private static async Task Revoke(AuthDbContext db, long userId, string reason, DateTime now, Guid correlation, CancellationToken ct, string? currentStamp = null)
+    private async Task Revoke(AuthDbContext db, long userId, string reason, DateTime now, Guid correlation, CancellationToken ct, string? currentStamp = null)
     {
+        permCache?.InvalidateUser(userId);
         foreach (var session in await db.Sessions.Where(s => s.UserId == userId && s.RevokedAtUtc == null && (reason != "StampChanged" || s.SecurityStampSnapshot != currentStamp)).ToListAsync(ct))
         {
             session.RevokedAtUtc = now; session.RevokeReason = reason;
             Event(db,"SessionRevoked",now,correlation,userId,session.Id);
+            RevokeSession(session.Id, reason);
         }
+        RevokeUserSessions(userId, reason, currentStamp);
+    }
+
+    private async Task<string?> EnforceConcurrentSessionLimitAsync(AuthDbContext db, ApplicationAccount user, DateTime now, Guid correlation, CancellationToken ct)
+    {
+        var maxSessions = sessionOptions?.Value.MaxConcurrentSessionsPerUser ?? 0;
+        if (maxSessions <= 0) return null;
+
+        var activeSessions = await db.Sessions
+            .Where(s => s.UserId == user.Id && s.RevokedAtUtc == null && s.ExpiresAtUtc > now)
+            .OrderBy(s => s.IssuedAtUtc)
+            .ToListAsync(ct);
+
+        if (activeSessions.Count >= maxSessions)
+        {
+            if (sessionOptions?.Value.EvictOldestOnLimitReached != false)
+            {
+                var evictCount = activeSessions.Count - maxSessions + 1;
+                for (var i = 0; i < evictCount && i < activeSessions.Count; i++)
+                {
+                    var sToEvict = activeSessions[i];
+                    sToEvict.RevokedAtUtc = now < sToEvict.IssuedAtUtc ? sToEvict.IssuedAtUtc : now;
+                    sToEvict.RevokeReason = "ConcurrentLimitExceeded";
+                    Event(db, "SessionRevoked", now, correlation, user.Id, sToEvict.Id, true,
+                        dataJson: JsonSerializer.Serialize(new { reason = "ConcurrentLimitExceeded" }));
+                    RevokeSession(sToEvict.Id, "ConcurrentLimitExceeded");
+                }
+            }
+            else
+            {
+                Event(db, "SignInFailed", now, correlation, user.Id, outcome: 1,
+                    dataJson: JsonSerializer.Serialize(new { reason = "ConcurrentLimitReached" }));
+                return "Auth.ConcurrentSessionLimitReached";
+            }
+        }
+        return null;
     }
     private static bool Locked(ApplicationAccount user, DateTime now) => user.LockoutEnabled && user.LockoutEnd > new DateTimeOffset(now);
     private async Task<bool> Eligible(AuthDbContext db, SessionReference reference, Guid correlation, CancellationToken ct)
@@ -217,6 +413,14 @@ public sealed class RuntimeSessions(
                     && s.IpAddress == normalizedIp
                     && s.DeviceSummary == (userAgent == null ? null : deviceSummary), ct));
 
+            var limitError = await EnforceConcurrentSessionLimitAsync(db, user, issued, correlation, ct);
+            if (limitError is not null)
+            {
+                await db.SaveChangesAsync(ct);
+                if (!await Commit(tx, ct, [password, username])) return new("Auth.ServiceUnavailable");
+                return new(limitError);
+            }
+
             var session = new AccountSession { Id = Guid.NewGuid(), UserId = user!.Id, SecurityStampSnapshot = user.SecurityStamp!,
                 IpAddress = normalizedIp, DeviceSummary = userAgent is null ? null : deviceSummary, DeviceTokenHash = deviceTokenHash, IsMobileDevice = isMobile,
                 IssuedAtUtc = issued, LastActivityAtUtc = issued, ExpiresAtUtc = issued.Add(Lifetime) };
@@ -276,6 +480,7 @@ public sealed class RuntimeSessions(
             }
 
             await db.SaveChangesAsync(ct); stage = "session-commit"; if (!await Commit(tx,ct,[password, username])) return new("Auth.ServiceUnavailable");
+            RegisterSessionInMemory(session.Id, user.Id, user.SecurityStamp!, session.IssuedAtUtc, session.ExpiresAtUtc, session.LastActivityAtUtc);
             if (notifiedNewDevice || notifiedTwoFactorReminder) liveChannel?.NotifyUser(user.Id);
             return new("Auth.SignedIn",new(user.Id,session.Id,user.SecurityStamp!,user.UserName),new DateTimeOffset(session.ExpiresAtUtc), RequireTwoFactorSetup: user.RequireTwoFactorSetup, RequirePasswordChange: user.RequirePasswordChange);
         }
@@ -333,15 +538,56 @@ public sealed class RuntimeSessions(
     }
     public async Task<string> ValidateAsync(SessionReference reference, CancellationToken ct = default)
     {
+        if (reference.UserId <= 0 || reference.SessionId == Guid.Empty || string.IsNullOrEmpty(reference.SecurityStamp))
+            return "Auth.SessionInvalid";
+
+        if (_sessions.TryGetValue(reference.SessionId, out var cachedState))
+        {
+            if (cachedState.IsRevoked)
+                return "Auth.SessionInvalid";
+            if (cachedState.ExpiresAtUtc <= Now)
+            {
+                cachedState.MarkRevoked("Expired");
+                return "Auth.SessionInvalid";
+            }
+            if (cachedState.SecurityStamp != reference.SecurityStamp || cachedState.UserId != reference.UserId)
+            {
+                cachedState.MarkRevoked("StampChanged");
+                return "Auth.SessionInvalid";
+            }
+        }
+
+        var sessionLock = _sessionLocks.GetOrAdd(reference.SessionId, _ => new SemaphoreSlim(1, 1));
+        await sessionLock.WaitAsync(ct);
         try
         {
+            if (_sessions.TryGetValue(reference.SessionId, out var stateAfterLock) && stateAfterLock.IsRevoked)
+                return "Auth.SessionInvalid";
+
             await using var scope = scopes.CreateAsyncScope(); var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
             var valid = await Eligible(db,reference,Guid.NewGuid(),ct);
             await db.SaveChangesAsync(ct); if (!await Commit(tx,ct)) return "Auth.ServiceUnavailable";
+
+            if (valid)
+            {
+                if (!_sessions.TryGetValue(reference.SessionId, out _))
+                {
+                    RegisterSessionInMemory(reference.SessionId, reference.UserId, reference.SecurityStamp, Now, Now.Add(Lifetime), Now);
+                }
+            }
+            else
+            {
+                RevokeSession(reference.SessionId, "ValidationFailed");
+            }
+
             return valid ? "Auth.Valid" : "Auth.SessionInvalid";
         }
         catch (Exception e) when (AvailableFailure(e)) { Failure("validate-session", e, reference.SecurityStamp); Unavailable(); return "Auth.ServiceUnavailable"; }
+        finally
+        {
+            sessionLock.Release();
+        }
     }
     public async Task<string> LogoutAsync(SessionReference reference, CancellationToken ct = default)
     {
@@ -355,8 +601,16 @@ public sealed class RuntimeSessions(
             {
                 session.RevokedAtUtc = Now; session.RevokeReason = "Logout";
                 Event(db,"SessionRevoked",Now,Guid.NewGuid(),user.Id,session.Id,true);
+                RevokeSession(session.Id, "Logout");
             }
-            await db.SaveChangesAsync(ct); return await Commit(tx,ct) ? "Auth.SignedOut" : "Auth.LogoutRevocationIncomplete";
+            await db.SaveChangesAsync(ct);
+            var committed = await Commit(tx,ct);
+            if (committed)
+            {
+                RevokeSession(reference.SessionId, "Logout");
+                return "Auth.SignedOut";
+            }
+            return "Auth.LogoutRevocationIncomplete";
         }
         catch (Exception e) when (AvailableFailure(e)) { Unavailable(); return "Auth.LogoutRevocationIncomplete"; }
     }
@@ -453,6 +707,9 @@ public sealed class RuntimeSessions(
             await db.SaveChangesAsync(ct);
             if (!await Commit(tx, ct, [currentPassword, newPassword]))
                 return new("Auth.ServiceUnavailable");
+
+            RegisterSessionInMemory(freshSession.Id, user.Id, user.SecurityStamp!, freshSession.IssuedAtUtc, freshSession.ExpiresAtUtc, freshSession.LastActivityAtUtc);
+            RevokeUserSessions(reference.UserId, "PasswordReset", exceptSessionId: freshSession.Id);
 
             if (notifiedPassword) liveChannel?.NotifyUser(user.Id);
             return new("Auth.PasswordChanged", new(user.Id, freshSession.Id, user.SecurityStamp!, user.UserName), new DateTimeOffset(freshSession.ExpiresAtUtc));
@@ -779,6 +1036,17 @@ public sealed class RuntimeSessions(
     public async Task TouchSessionActivityAsync(SessionReference reference, CancellationToken ct = default)
     {
         if (reference.UserId <= 0 || reference.SessionId == Guid.Empty) return;
+
+        if (_sessions.TryGetValue(reference.SessionId, out var state))
+        {
+            if (state.IsRevoked) return;
+            var now = Now;
+            state.LastActivityAtUtc = now;
+
+            if (state.LastPersistedActivityAtUtc.HasValue && now - state.LastPersistedActivityAtUtc.Value < TimeSpan.FromMinutes(2))
+                return;
+        }
+
         try
         {
             await using var scope = scopes.CreateAsyncScope();
@@ -794,6 +1062,10 @@ public sealed class RuntimeSessions(
             {
                 session.LastActivityAtUtc = now < session.IssuedAtUtc ? session.IssuedAtUtc : now;
                 await db.SaveChangesAsync(ct);
+                if (_sessions.TryGetValue(reference.SessionId, out var s))
+                {
+                    s.LastPersistedActivityAtUtc = session.LastActivityAtUtc;
+                }
             }
         }
         catch (Exception e) when (AvailableFailure(e))
@@ -1122,7 +1394,13 @@ public sealed class RuntimeSessions(
                 dataJson: JsonSerializer.Serialize(new { revokedSessionId = target.Id }));
 
             await db.SaveChangesAsync(ct);
-            return await Commit(tx, ct) ? new("Session.Revoked", 1) : new("Auth.ServiceUnavailable");
+            var committed = await Commit(tx, ct);
+            if (committed)
+            {
+                RevokeSession(target.Id, "SessionRevokedByUser");
+                return new("Session.Revoked", 1);
+            }
+            return new("Auth.ServiceUnavailable");
         }
         catch (Exception e) when (AvailableFailure(e))
         {
@@ -1168,7 +1446,15 @@ public sealed class RuntimeSessions(
             }
 
             await db.SaveChangesAsync(ct);
-            return await Commit(tx, ct) ? new("Session.OthersRevoked", others.Count) : new("Auth.ServiceUnavailable");
+            var committed = await Commit(tx, ct);
+            if (committed)
+            {
+                foreach (var session in others)
+                    RevokeSession(session.Id, "SessionRevokedByUser");
+                RevokeUserSessions(reference.UserId, "SessionRevokedByUser", exceptSessionId: reference.SessionId);
+                return new("Session.OthersRevoked", others.Count);
+            }
+            return new("Auth.ServiceUnavailable");
         }
         catch (Exception e) when (AvailableFailure(e))
         {
@@ -1633,6 +1919,14 @@ public sealed class RuntimeSessions(
                     && s.IpAddress == normalizedIp
                     && s.DeviceSummary == (userAgent == null ? null : deviceSummary), ct));
 
+            var limitError = await EnforceConcurrentSessionLimitAsync(db, user, issued, correlation, ct);
+            if (limitError is not null)
+            {
+                await db.SaveChangesAsync(ct);
+                if (!await Commit(tx, ct, [normalizedCode, securityStamp])) return new("Auth.ServiceUnavailable");
+                return new(limitError);
+            }
+
             var session = new AccountSession
             {
                 Id = Guid.NewGuid(),
@@ -1686,6 +1980,7 @@ public sealed class RuntimeSessions(
 
             await db.SaveChangesAsync(ct);
             if (!await Commit(tx, ct, [normalizedCode, securityStamp])) return new("Auth.ServiceUnavailable");
+            RegisterSessionInMemory(session.Id, user.Id, user.SecurityStamp!, session.IssuedAtUtc, session.ExpiresAtUtc, session.LastActivityAtUtc);
             if (notifiedNewDevice) liveChannel?.NotifyUser(user.Id);
             return new("Auth.SignedIn", new(user.Id, session.Id, user.SecurityStamp!, user.UserName), new DateTimeOffset(session.ExpiresAtUtc));
         }
@@ -2262,6 +2557,14 @@ public sealed class RuntimeSessions(
                     && s.IpAddress == normalizedIp
                     && s.DeviceSummary == (userAgent == null ? null : deviceSummary), ct));
 
+            var limitError = await EnforceConcurrentSessionLimitAsync(db, user, issued, correlation, ct);
+            if (limitError is not null)
+            {
+                await db.SaveChangesAsync(ct);
+                if (!await Commit(tx, ct)) return new("Auth.ServiceUnavailable");
+                return new(limitError);
+            }
+
             var session = new AccountSession
             {
                 Id = Guid.NewGuid(),
@@ -2315,6 +2618,7 @@ public sealed class RuntimeSessions(
 
             await db.SaveChangesAsync(ct);
             if (!await Commit(tx, ct)) return new("Auth.ServiceUnavailable");
+            RegisterSessionInMemory(session.Id, user.Id, user.SecurityStamp!, session.IssuedAtUtc, session.ExpiresAtUtc, session.LastActivityAtUtc);
             if (notifiedNewDevice) liveChannel?.NotifyUser(user.Id);
             return new("Auth.SignedIn", new(user.Id, session.Id, user.SecurityStamp!, user.UserName), new DateTimeOffset(session.ExpiresAtUtc));
         }
@@ -2328,6 +2632,11 @@ public sealed class RuntimeSessions(
 
     public async Task<bool> PermissionAsync(SessionReference reference, OrganizationScope scope, string permission, CancellationToken ct)
     {
+        if (permCache is not null && permCache.TryGetGrantedPermissions(reference.UserId, scope, out var cachedGranted) && cachedGranted is not null)
+        {
+            return cachedGranted.Contains(permission);
+        }
+
         try
         {
             await using var operation = scopes.CreateAsyncScope(); var db = operation.ServiceProvider.GetRequiredService<AuthDbContext>();
@@ -2335,9 +2644,124 @@ public sealed class RuntimeSessions(
             var correlation=Guid.NewGuid(); var eligible=await Eligible(db,reference,correlation,ct);
             var allowed = eligible && await ScopeAllowed(db,reference.UserId,scope,permission,ct);
             if (eligible && !allowed) Event(db,"AccessDenied",Now,correlation,reference.UserId,reference.SessionId,true,outcome:1);
-            await db.SaveChangesAsync(ct); return await Commit(tx,ct) && allowed;
+            await db.SaveChangesAsync(ct);
+            var committed = await Commit(tx,ct);
+            if (committed && eligible)
+            {
+                var granted = await LoadGrantedPermissionsAsync(db, reference.UserId, scope, ct);
+                permCache?.SetGrantedPermissions(reference.UserId, scope, granted);
+            }
+            return committed && allowed;
         }
         catch (Exception e) when (AvailableFailure(e)) { Unavailable(); return false; }
+    }
+
+    private static async Task<HashSet<string>> LoadGrantedPermissionsAsync(AuthDbContext db, long userId, OrganizationScope scope, CancellationToken ct)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+
+        if (scope is OrganizationScope.Platform)
+        {
+            var codes = await (from r in db.ScopedRoleAssignments.AsNoTracking()
+                               join rd in db.RoleDefinitions.AsNoTracking() on r.RoleId equals rd.Id
+                               join rp in db.RolePermissions.AsNoTracking() on rd.Id equals rp.RoleId
+                               where r.UserId == userId
+                                     && r.IsActive
+                                     && r.ScopeKind == 0
+                                     && r.OrganizationId == null
+                                     && r.SiteId == null
+                                     && rd.IsActive
+                                     && rd.ScopeKind == 0
+                                     && rp.IsActive
+                               select new { r.RoleId, rp.PermissionCode }).ToListAsync(ct);
+
+            foreach (var item in codes)
+            {
+                result.Add(item.PermissionCode);
+                if (item.RoleId == FixedAccessRoles.DeploymentProvisioner)
+                {
+                    result.Add(AuditPermissions.AuditRead);
+                    result.Add(AuditPermissions.AuditExport);
+                    result.Add(DiagnosticPermissions.ErrorLogsRead);
+                    result.Add(DiagnosticPermissions.ErrorLogsManage);
+                }
+            }
+            return result;
+        }
+
+        var orgId = scope is OrganizationScope.Organization org ? org.OrganizationId : ((OrganizationScope.Site)scope).OrganizationId;
+        if (!await db.OrganizationMemberships.AsNoTracking().AnyAsync(m => m.UserId == userId && m.OrganizationId == orgId && m.IsActive, ct))
+            return result;
+
+        var company = await db.Set<ForgeFlow.Domain.Organizations.Organization>().AsNoTracking().SingleOrDefaultAsync(o => o.Id == orgId, ct);
+        if (company is null)
+            return result;
+
+        if (scope is OrganizationScope.Site site)
+        {
+            var target = await db.Set<ForgeFlow.Domain.Organizations.Site>().AsNoTracking().SingleOrDefaultAsync(s => s.Id == site.SiteId && s.OrganizationId == orgId, ct);
+            if (target is null)
+                return result;
+        }
+
+        var orgRoles = await (from r in db.ScopedRoleAssignments.AsNoTracking()
+                              join rd in db.RoleDefinitions.AsNoTracking() on r.RoleId equals rd.Id
+                              join rp in db.RolePermissions.AsNoTracking() on rd.Id equals rp.RoleId
+                              where r.UserId == userId
+                                    && r.IsActive
+                                    && r.ScopeKind == 1
+                                    && r.OrganizationId == orgId
+                                    && rd.IsActive
+                                    && (rd.OrganizationId == null || rd.OrganizationId == orgId)
+                                    && rp.IsActive
+                              select new { r.RoleId, rp.PermissionCode }).ToListAsync(ct);
+
+        foreach (var r in orgRoles)
+        {
+            result.Add(r.PermissionCode);
+            if (r.RoleId == FixedAccessRoles.OrganizationAdministrator)
+            {
+                foreach (var p in PermissionCatalog.All)
+                {
+                    if (PermissionCatalog.IsGrantedToBuiltInOrganizationAdmin(p.Code, 1))
+                        result.Add(p.Code);
+                }
+            }
+        }
+
+        var orgDirect = await db.UserPermissionGrants.AsNoTracking()
+            .Where(g => g.UserId == userId && g.IsActive && g.ScopeKind == 1 && g.OrganizationId == orgId && g.SiteId == null)
+            .Select(g => g.PermissionCode)
+            .ToListAsync(ct);
+        foreach (var c in orgDirect) result.Add(c);
+
+        if (scope is not OrganizationScope.Site siteScope)
+            return result;
+
+        if (!await db.SiteMemberships.AsNoTracking().AnyAsync(m => m.UserId == userId && m.OrganizationId == orgId && m.SiteId == siteScope.SiteId && m.IsActive, ct))
+            return result;
+
+        var siteRoles = await (from r in db.ScopedRoleAssignments.AsNoTracking()
+                               join rd in db.RoleDefinitions.AsNoTracking() on r.RoleId equals rd.Id
+                               join rp in db.RolePermissions.AsNoTracking() on rd.Id equals rp.RoleId
+                               where r.UserId == userId
+                                     && r.IsActive
+                                     && r.ScopeKind == 2
+                                     && r.OrganizationId == orgId
+                                     && r.SiteId == siteScope.SiteId
+                                     && rd.IsActive
+                                     && (rd.OrganizationId == null || rd.OrganizationId == orgId)
+                                     && rp.IsActive
+                               select rp.PermissionCode).ToListAsync(ct);
+        foreach (var c in siteRoles) result.Add(c);
+
+        var siteDirect = await db.UserPermissionGrants.AsNoTracking()
+            .Where(g => g.UserId == userId && g.IsActive && g.ScopeKind == 2 && g.OrganizationId == orgId && g.SiteId == siteScope.SiteId)
+            .Select(g => g.PermissionCode)
+            .ToListAsync(ct);
+        foreach (var c in siteDirect) result.Add(c);
+
+        return result;
     }
     private static async Task<bool> ScopeAllowed(AuthDbContext db, long userId, OrganizationScope scope, string permission, CancellationToken ct)
     {
@@ -2465,6 +2889,60 @@ public sealed class RuntimeSessions(
                            && g.SiteId == requested.SiteId
                            && g.PermissionCode == permission, ct);
     }
+
+    public async Task<int> PurgeExpiredSessionsAsync(DateTime cutoffUtc, CancellationToken ct = default)
+    {
+        var totalDeleted = 0;
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+
+            while (!ct.IsCancellationRequested)
+            {
+                var candidateIds = await db.Sessions
+                    .Where(s => s.ExpiresAtUtc < cutoffUtc || (s.RevokedAtUtc != null && s.RevokedAtUtc < cutoffUtc))
+                    .Select(s => s.Id)
+                    .Take(1000)
+                    .ToListAsync(ct);
+
+                if (candidateIds.Count == 0)
+                    break;
+
+                // Clear FK reference in SecurityEvent before deleting AccountSession
+                await db.SecurityEvents
+                    .Where(e => e.SessionId != null && candidateIds.Contains(e.SessionId.Value))
+                    .ExecuteUpdateAsync(e => e.SetProperty(x => x.SessionId, (Guid?)null), ct);
+
+                var deleted = await db.Sessions
+                    .Where(s => candidateIds.Contains(s.Id))
+                    .ExecuteDeleteAsync(ct);
+
+                totalDeleted += deleted;
+                if (candidateIds.Count < 1000)
+                    break;
+            }
+        }
+        catch (Exception ex) when (AvailableFailure(ex))
+        {
+            Unavailable();
+        }
+
+        foreach (var (sId, s) in _sessions)
+        {
+            if (s.ExpiresAtUtc < cutoffUtc || (s.IsRevoked && s.ExpiresAtUtc < cutoffUtc))
+            {
+                _sessions.TryRemove(sId, out _);
+                if (_userSessions.TryGetValue(s.UserId, out var set))
+                {
+                    set.TryRemove(sId, out _);
+                }
+                _sessionLocks.TryRemove(sId, out _);
+            }
+        }
+
+        return totalDeleted;
+    }
 }
 
 public static class FixedRolePolicy
@@ -2490,12 +2968,19 @@ public sealed class SessionActorAccessor(ICurrentAuthenticatedSession source, Ru
             ? new(current.UserId,ActorProvenance.AuthenticatedSession,current.SessionId,Guid.NewGuid()) : null;
     }
 }
-public sealed class SessionPermissionEvaluator(ICurrentAuthenticatedSession source, RuntimeSessions sessions) : IOrganizationPermissionEvaluator
+public sealed class SessionPermissionEvaluator(
+    ICurrentAuthenticatedSession source,
+    RuntimeSessions sessions,
+    ForgeFlow.Application.Security.IOrganizationPermissionCache? cache = null) : IOrganizationPermissionEvaluator
 {
-    public async ValueTask<PermissionDecision> EvaluateAsync(TrustedActor actor,OrganizationScope requestedScope,string permission,CancellationToken cancellationToken)
+    public async ValueTask<PermissionDecision> EvaluateAsync(TrustedActor actor, OrganizationScope requestedScope, string permission, CancellationToken cancellationToken)
     {
-        var current=await source.GetAsync(cancellationToken);
-        if (current is null || actor.Provenance!=ActorProvenance.AuthenticatedSession || actor.ActorId!=current.UserId || actor.ProvenanceReference!=current.SessionId) return default;
-        return new(await sessions.PermissionAsync(current,requestedScope,permission,cancellationToken));
+        var current = await source.GetAsync(cancellationToken);
+        if (current is null || actor.Provenance != ActorProvenance.AuthenticatedSession || actor.ActorId != current.UserId || actor.ProvenanceReference != current.SessionId) return default;
+        if (cache is not null && cache.TryGetGrantedPermissions(current.UserId, requestedScope, out var granted) && granted is not null)
+        {
+            return new(granted.Contains(permission));
+        }
+        return new(await sessions.PermissionAsync(current, requestedScope, permission, cancellationToken));
     }
 }

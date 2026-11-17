@@ -4,7 +4,7 @@ using ForgeFlow.Domain.Procurement;
 
 namespace ForgeFlow.Application.Procurement.Slices;
 
-internal sealed class SupplierSlices(IProcurementOperationsStore store, ProcurementSliceSupport support)
+public sealed class SupplierSlices(IProcurementOperationsStore store, ProcurementSliceSupport support)
 {
     public async Task<OrganizationResult<OrganizationPage<SupplierSummary>>> ListSuppliers(
         OrganizationScope? scope,

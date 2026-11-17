@@ -93,6 +93,7 @@ public sealed class RoleCatalogSlices(
                 else
                     res = await RoleSliceSupport.Execute(() => store.CreateOrganizationRole(
                         request.OrganizationId, canonicalName, request.TargetScope, permissionCodes, support.Access(auth.Actor!, scope!, permission), ct));
+                    if (res.Succeeded) support.PermissionCache?.InvalidateAll();
             }
             catch (RoleRuleException ex) { res = RoleSliceSupport.FailFromRule<RoleDetails>(ex); }
         }
@@ -122,8 +123,11 @@ public sealed class RoleCatalogSlices(
                 else if (request.IsActive && !await support.CallerHoldsAllAsync(auth.Actor!, scope!, permissionCodes, ct))
                     res = OrganizationResult<RoleDetails>.Failure(RolePermissionErrors.EscalationForbidden);
                 else
+                {
                     res = await RoleSliceSupport.Execute(() => store.UpdateOrganizationRole(
                         request.OrganizationId, request.RoleId, canonicalName, request.IsActive, permissionCodes, version, support.Access(auth.Actor!, scope!, permission), ct));
+                    if (res.Succeeded) support.PermissionCache?.InvalidateAll();
+                }
             }
             catch (RoleRuleException ex) { res = RoleSliceSupport.FailFromRule<RoleDetails>(ex); }
         }

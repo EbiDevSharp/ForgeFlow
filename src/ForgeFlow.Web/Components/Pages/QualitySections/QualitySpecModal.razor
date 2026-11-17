@@ -1,0 +1,289 @@
+@using System.Globalization
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Quality
+@using ForgeFlow.Domain.Organizations
+@using ForgeFlow.Domain.Quality
+@inject QualitySpecUseCases SpecService
+@inject IStringLocalizer<SharedResources> Text
+@implements IDisposable
+
+<ForgeFormDialog IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged" Width="920px"
+                 Title="@Text[editingSpec is null ? "QcCreateSpecTitle" : "QcEditSpecTitle"]"
+                 Subtitle="@Text["QcSpecModalSubtitle"]" CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (specError is not null)
+        {
+            <p role="alert" class="write-error">@Text[specError]</p>
+        }
+        <div class="po-form-grid">
+            <div class="write-field">
+                <label for="qc-spec-code">@Text["ReadCode"]</label>
+                <input id="qc-spec-code" type="text" maxlength="32" @bind="specCode" disabled="@(editingSpec is not null || !CanManage || modalBusy)" placeholder="SPEC-STYRENE-IN" />
+            </div>
+            <div class="write-field">
+                <label for="qc-spec-ver">@Text["QcSpecVersionLabel"]</label>
+                <input id="qc-spec-ver" type="number" min="1" @bind="specVersion" disabled="@(editingSpec is not null || !CanManage || modalBusy)" />
+            </div>
+            <div class="write-field po-field-full">
+                <label for="qc-spec-name">@Text["ReadName"]</label>
+                <input id="qc-spec-name" type="text" maxlength="120" @bind="specName" disabled="@(!CanManage || modalBusy)" />
+            </div>
+            <div class="write-field">
+                <label for="qc-spec-tkind">@Text["QcSpecTargetKindLabel"]</label>
+                <select id="qc-spec-tkind" @bind="specTargetKind" disabled="@(editingSpec is not null || !CanManage || modalBusy)">
+                    <option value="@QualitySpecTargetKind.Item">@Text["QcTargetItem"]</option>
+                    <option value="@QualitySpecTargetKind.Classification">@Text["QcTargetClassification"]</option>
+                </select>
+            </div>
+            @if (specTargetKind == QualitySpecTargetKind.Item)
+            {
+                <div class="write-field">
+                    <label for="qc-spec-item">@Text["BomLineItemColumn"]</label>
+                    <select id="qc-spec-item" @bind="specTargetItemId" disabled="@(editingSpec is not null || !CanManage || modalBusy)">
+                        <option value="0">@Text["InvSelectItemOption"]</option>
+                        @foreach (var it in ActiveItems)
+                        {
+                            <option value="@it.Id">@it.Code — @it.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+            else
+            {
+                <div class="write-field">
+                    <label for="qc-spec-cls">@Text["QcTargetClassification"]</label>
+                    <select id="qc-spec-cls" @bind="specTargetClassId" disabled="@(editingSpec is not null || !CanManage || modalBusy)">
+                        <option value="0">—</option>
+                        @foreach (var cls in ActiveClassifications)
+                        {
+                            <option value="@cls.Id">@cls.ClassificationSetName: @cls.Code — @cls.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+            <div class="write-field">
+                <label for="qc-spec-ckpt">@Text["QcSpecCheckpointLabel"]</label>
+                <select id="qc-spec-ckpt" @bind="specCheckpoint" disabled="@(!CanManage || modalBusy)">
+                    <option value="@QualitySpecCheckpoint.Incoming">@Text["QcCheckpointIncoming"]</option>
+                    <option value="@QualitySpecCheckpoint.Production">@Text["QcCheckpointProduction"]</option>
+                    <option value="@QualitySpecCheckpoint.All">@Text["QcCheckpointAll"]</option>
+                </select>
+            </div>
+            <div class="write-field">
+                <label for="qc-spec-notes">@Text["PoNotesLabel"]</label>
+                <input id="qc-spec-notes" type="text" maxlength="1000" @bind="specNotes" disabled="@(!CanManage || modalBusy)" />
+            </div>
+        </div>
+
+        <div class="po-context-card qc-spec-lines-box">
+            <div class="po-context-head">
+                <strong>@Text["QcSpecLinesHeading"]</strong>
+                @if (CanManage)
+                {
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Icon="@PlusIcon" OnClick="AddSpecLine">
+                        @Text["QcAddSpecLineBtn"]
+                    </BitButton>
+                }
+            </div>
+            @foreach (var sl in specLines)
+            {
+                var selectedP = ActiveParameters.FirstOrDefault(p => p.Id == sl.QualityParameterId);
+                <div class="qc-spec-line-row">
+                    <select value="@sl.QualityParameterId" @onchange="e => OnSpecLineParamChanged(sl, e)" disabled="@(!CanManage || modalBusy)">
+                        <option value="0">—</option>
+                        @foreach (var p in ActiveParameters)
+                        {
+                            <option value="@p.Id">@p.Code — @p.Name (@p.Symbol@(string.IsNullOrWhiteSpace(p.UnitSymbol) ? string.Empty : $", {p.UnitSymbol}"))</option>
+                        }
+                    </select>
+                    @if (selectedP is null || selectedP.DataType == QualityParameterDataType.Numeric)
+                    {
+                        <input type="number" step="any" @bind="sl.MinValue" placeholder="@Text["QcSpecMinLabel"]" disabled="@(!CanManage || modalBusy)" />
+                        <input type="number" step="any" @bind="sl.MaxValue" placeholder="@Text["QcSpecMaxLabel"]" disabled="@(!CanManage || modalBusy)" />
+                        <input type="number" step="any" @bind="sl.TargetValue" placeholder="@Text["QcSpecTargetValLabel"]" disabled="@(!CanManage || modalBusy)" />
+                    }
+                    else
+                    {
+                        <input type="text" maxlength="100" @bind="sl.ExpectedTextSpec" placeholder="@Text["QcExpectedSpecPlaceholder"]" disabled="@(!CanManage || modalBusy)" />
+                    }
+                    <label class="perm-check">
+                        <input type="checkbox" @bind="sl.IsMandatory" disabled="@(!CanManage || modalBusy)" />
+                        <span>@Text["QcMandatoryLabel"]</span>
+                    </label>
+                    @if (CanManage)
+                    {
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => specLines.Remove(sl)">@Text["BomRemoveRowBtn"]</BitButton>
+                    }
+                </div>
+            }
+        </div>
+    </ChildContent>
+    <FooterActions>
+        @if (CanManage)
+        {
+            <BitButton IsEnabled="@(!modalBusy && !string.IsNullOrWhiteSpace(specCode) && !string.IsNullOrWhiteSpace(specName) && specLines.Count > 0)"
+                       OnClick="SubmitSpecAsync">@Text["WriteSave"]</BitButton>
+        }
+        <BitButton Variant="BitVariant.Outline" OnClick="CloseAsync">@Text[CanManage ? "WriteCancel" : "ReadClose"]</BitButton>
+    </FooterActions>
+</ForgeFormDialog>
+
+@code {
+    private static readonly BitIconInfo PlusIcon = BitIconInfo.Css("ff-icon ff-icon--plus");
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public OrganizationScope? Scope { get; set; }
+    [Parameter] public long OrganizationId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public IReadOnlyList<ItemSummary> ActiveItems { get; set; } = [];
+    [Parameter] public IReadOnlyList<ClassificationSummary> ActiveClassifications { get; set; } = [];
+    [Parameter] public IReadOnlyList<QualityParameterSummary> ActiveParameters { get; set; } = [];
+    [Parameter] public EventCallback<bool> OnSaved { get; set; }
+
+    private bool modalBusy;
+    private string? specError;
+    private QualitySpecSummary? editingSpec;
+    private string specCode = string.Empty;
+    private int specVersion = 1;
+    private string specName = string.Empty;
+    private QualitySpecTargetKind specTargetKind = QualitySpecTargetKind.Classification;
+    private long specTargetItemId;
+    private long specTargetClassId;
+    private QualitySpecCheckpoint specCheckpoint = QualitySpecCheckpoint.Incoming;
+    private string? specNotes;
+    private readonly List<SpecLineEditRow> specLines = [];
+
+    public async Task OpenAsync(long? specId)
+    {
+        if (Scope is null) return;
+        specError = null;
+        specLines.Clear();
+        if (specId is null)
+        {
+            editingSpec = null;
+            specCode = string.Empty;
+            specName = string.Empty;
+            specVersion = 1;
+            specTargetKind = QualitySpecTargetKind.Classification;
+            specTargetItemId = ActiveItems.FirstOrDefault()?.Id ?? 0;
+            specTargetClassId = ActiveClassifications.FirstOrDefault()?.Id ?? 0;
+            specCheckpoint = QualitySpecCheckpoint.Incoming;
+            specNotes = null;
+            AddSpecLine();
+            IsOpen = true;
+            await IsOpenChanged.InvokeAsync(true);
+            return;
+        }
+
+        var res = await SpecService.GetSpec(Scope, OrganizationId, specId.Value);
+        if (!res.Succeeded || res.Value is null) return;
+
+        var d = res.Value;
+        editingSpec = d.Summary;
+        specCode = d.Summary.Code;
+        specName = d.Summary.Name;
+        specVersion = d.Summary.Version;
+        specTargetKind = d.Summary.TargetKind;
+        specTargetItemId = d.Summary.ItemId ?? 0;
+        specTargetClassId = d.Summary.ClassificationId ?? 0;
+        specCheckpoint = d.Summary.Checkpoint;
+        specNotes = d.Summary.Notes;
+        foreach (var l in d.Lines)
+        {
+            specLines.Add(new SpecLineEditRow
+            {
+                QualityParameterId = l.QualityParameterId,
+                MinValue = l.MinValue,
+                MaxValue = l.MaxValue,
+                TargetValue = l.TargetValue,
+                ExpectedTextSpec = l.ExpectedTextSpec,
+                IsMandatory = l.IsMandatory,
+                Notes = l.Notes
+            });
+        }
+        IsOpen = true;
+        await IsOpenChanged.InvokeAsync(true);
+    }
+
+    private void AddSpecLine() => specLines.Add(new SpecLineEditRow
+    {
+        QualityParameterId = ActiveParameters.FirstOrDefault()?.Id ?? 0,
+        IsMandatory = true
+    });
+
+    private void OnSpecLineParamChanged(SpecLineEditRow row, ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var pid))
+            row.QualityParameterId = pid;
+    }
+
+    private async Task SubmitSpecAsync()
+    {
+        if (Scope is null || modalBusy) return;
+        modalBusy = true;
+        specError = null;
+        try
+        {
+            var inputs = specLines.Select(l => new QualitySpecLineInput(
+                l.QualityParameterId, l.MinValue, l.MaxValue, l.TargetValue, l.ExpectedTextSpec, l.IsMandatory, l.Notes)).ToArray();
+
+            var res = editingSpec is null
+                ? await SpecService.CreateSpec(Scope, new CreateQualitySpecRequest(
+                    OrganizationId, specCode, specName, specTargetKind,
+                    specTargetKind == QualitySpecTargetKind.Item ? specTargetItemId : null,
+                    specTargetKind == QualitySpecTargetKind.Classification ? specTargetClassId : null,
+                    specCheckpoint, specVersion, specNotes, inputs))
+                : await SpecService.UpdateSpec(Scope, new UpdateQualitySpecRequest(
+                    OrganizationId, editingSpec.Id, specName, specCheckpoint, specNotes, inputs, editingSpec.RowVersion));
+
+            if (!res.Succeeded)
+            {
+                specError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+
+            await CloseAsync();
+            await OnSaved.InvokeAsync(editingSpec is null);
+        }
+        finally
+        {
+            modalBusy = false;
+        }
+    }
+
+    private async Task OnDialogIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        if (!open)
+        {
+            editingSpec = null;
+            specLines.Clear();
+            specError = null;
+        }
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    private async Task CloseAsync()
+    {
+        await OnDialogIsOpenChanged(false);
+    }
+
+    public void Dispose()
+    {
+        editingSpec = null;
+        specLines.Clear();
+    }
+
+    public sealed class SpecLineEditRow
+    {
+        public long QualityParameterId { get; set; }
+        public decimal? MinValue { get; set; }
+        public decimal? MaxValue { get; set; }
+        public decimal? TargetValue { get; set; }
+        public string? ExpectedTextSpec { get; set; }
+        public bool IsMandatory { get; set; }
+        public string? Notes { get; set; }
+    }
+}

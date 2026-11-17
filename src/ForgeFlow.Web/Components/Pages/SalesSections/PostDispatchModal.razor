@@ -1,3 +1,4 @@
+@using ForgeFlow.Application.Common
 @using ForgeFlow.Application.Inventory
 @using ForgeFlow.Application.Organizations
 @using ForgeFlow.Application.Sales
@@ -6,10 +7,12 @@
 @inject InventoryUseCases InvService
 @inject DocumentSequenceUseCases SeqService
 @inject DisplayFormatter Format
+@inject IOrganizationClock Clock
 @inject IStringLocalizer<SharedResources> Text
 @inject CulturePolicy Culture
+@implements IDisposable
 
-<ForgeFormDialog Width="980px" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+<ForgeFormDialog Width="980px" IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged"
                  Title="@Text["SalesDispatchModalTitle"]"
                  CloseTitle="@Text["ReadClose"]">
     <ChildContent>
@@ -119,7 +122,7 @@
     private string dispatchNumber = string.Empty;
     private bool allowOverride;
     private long warehouseId;
-    private DateTimeOffset? dispatchDateOffset = DateTimeOffset.Now;
+    private DateTimeOffset? dispatchDateOffset;
     private string? carrier;
     private string? tracking;
     private string? notes;
@@ -150,7 +153,7 @@
         var dispPrev = await SeqService.GetPreview(CurrentScope, CurrentOrgId, DocumentSequenceType.DeliveryOrder);
         allowOverride = dispPrev.Succeeded && dispPrev.Value!.AllowManualOverride;
         dispatchNumber = dispPrev.Succeeded ? dispPrev.Value!.NextPreview : string.Empty;
-        dispatchDateOffset = DateTimeOffset.Now;
+        dispatchDateOffset = Clock.UtcNowOffset;
         carrier = null;
         tracking = null;
         notes = null;
@@ -210,7 +213,7 @@
             var picked = lines.Where(l => l.Quantity > 0m && !string.IsNullOrWhiteSpace(l.LotCode))
                 .Select(l => new PostDeliveryOrderLineRequest(l.SalesOrderLineId, l.LotCode, l.Quantity, l.UnitId, null))
                 .ToArray();
-            var date = DateOnly.FromDateTime((dispatchDateOffset ?? DateTimeOffset.Now).DateTime);
+            var date = DateOnly.FromDateTime((dispatchDateOffset ?? Clock.UtcNowOffset).DateTime);
             var res = await SalesService.PostDeliveryOrder(CurrentScope, CurrentOrgId, salesOrderId,
                 new PostDeliveryOrderRequest(warehouseId, allowOverride ? dispatchNumber : null, date, carrier, tracking, notes, picked));
             if (!res.Succeeded)
@@ -229,18 +232,32 @@
         }
     }
 
-    private async Task CloseAsync()
+    private async Task OnDialogIsOpenChanged(bool open)
     {
-        IsOpen = false;
-        await IsOpenChanged.InvokeAsync(false);
+        IsOpen = open;
+        if (!open)
+        {
+            dispatchableLots = [];
+            lines = [];
+            warehouses = [];
+            error = null;
+        }
+        await IsOpenChanged.InvokeAsync(open);
     }
 
-    private string MapError(string code)
+    public void Dispose()
     {
-        var key = "Err_" + code.Replace(".", string.Empty, StringComparison.Ordinal);
-        var val = Text[key];
-        return val.ResourceNotFound ? code : val.Value;
+        dispatchableLots = [];
+        lines = [];
+        warehouses = [];
     }
+
+    private async Task CloseAsync()
+    {
+        await OnDialogIsOpenChanged(false);
+    }
+
+    private string MapError(string code) => Text[RolePermissionLocalization.FailureKey(code)];
 
     public sealed class DispatchLineItem
     {

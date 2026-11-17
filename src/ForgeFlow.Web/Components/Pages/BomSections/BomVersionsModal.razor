@@ -1,0 +1,290 @@
+@using System.Globalization
+@using ForgeFlow.Application.Boms
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Boms
+@using ForgeFlow.Domain.Organizations
+@using ForgeFlow.Web.Roles
+@inject BomUseCases BomService
+@inject DisplayFormatter Formatter
+@inject CulturePolicy Culture
+@inject IStringLocalizer<SharedResources> Text
+@implements IDisposable
+
+<BitDialog IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged" Title="@Text["BomVersionsHeading"]" Width="740px" MaxWidth="calc(100vw - 24px)"
+           Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]">
+    <Body>
+        @if (SelectedBom is not null)
+        {
+            <div class="audit-modal-body">
+                <div class="audit-modal-title-row">
+                    <span class="audit-modal-code"><bdi dir="ltr">@SelectedBom.Summary.Code</bdi> — @SelectedBom.Summary.Name</span>
+                    <span class="read-badge @(SelectedBom.Summary.IsActive ? "active" : "inactive")">
+                        @(SelectedBom.Summary.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
+                    </span>
+                </div>
+                <p class="write-hint">
+                    @Text["BomPrimaryItemLabel"]: <bdi dir="ltr">@SelectedBom.Summary.PrimaryOutputItemCode</bdi> — @SelectedBom.Summary.PrimaryOutputItemName
+                </p>
+
+                @if (bomVersionListError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[bomVersionListError]</p>
+                }
+
+                @if (SelectedBom.Versions.Count == 0)
+                {
+                    <p class="read-empty">@Text["BomNoVersionsEmpty"]</p>
+                }
+                else
+                {
+                    <div class="audit-fields-box" style="overflow-x:auto;">
+                        <table class="audit-fields-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">@Text["BomVersionNumberLabel"]</th>
+                                    <th scope="col">@Text["ReadStatus"]</th>
+                                    <th scope="col">@Text["BomBaseOutputColumn"]</th>
+                                    <th scope="col">@Text["BomEffectiveDatesColumn"]</th>
+                                    <th scope="col">@Text["BomApplicabilityColumn"]</th>
+                                    <th scope="col">@Text["ReadActions"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var ver in SelectedBom.Versions)
+                                {
+                                    <tr>
+                                        <td><strong dir="ltr">v@(ver.VersionNumber)</strong></td>
+                                        <td><span class="read-badge @VersionStatusCss(ver.Status)">@Text[VersionStatusKey(ver.Status)]</span></td>
+                                        <td><bdi dir="ltr">@ver.BaseOutputQuantity.ToString("G29", CultureInfo.InvariantCulture) @ver.BaseOutputUnitSymbol</bdi></td>
+                                        <td><bdi dir="ltr">@Formatter.Date(ver.EffectiveFromDate) — @(ver.EffectiveToDate is DateOnly verTo ? Formatter.Date(verTo) : "∞")</bdi></td>
+                                        <td>
+                                            @if (ver.HasApplicability && ver.ApplicabilityIsActive)
+                                            {
+                                                <span class="cap-badge">@Text["BomRulesCountBadge", ver.ConditionCount]</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="write-hint">@Text["BomUnconditionalLabel"]</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <BitTooltip Text="@Text["BomOpenVersionBtn"]" ShowOnFocus="true">
+                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                           IconName="View" IconOnly="true" aria-label="@Text["BomOpenVersionBtn"]"
+                                                           OnClick="() => OnOpenWorkbench.InvokeAsync(ver.Id)" />
+                                            </BitTooltip>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                @if (ScopeCanManage)
+                {
+                    <div class="item-sub-card">
+                        <h3 class="audit-section-heading">@Text["BomCreateVersionHeading"]</h3>
+                        <div class="write-grid">
+                            <div class="write-field">
+                                <label for="ver-num">@Text["BomVersionNumberLabel"]</label>
+                                <input id="ver-num" type="number" min="1" dir="ltr" @bind="newVerNumber" disabled="@bomSaving" />
+                            </div>
+                            <div class="write-field">
+                                <label for="ver-qty">@Text["BomBaseOutputQtyLabel"]</label>
+                                <input id="ver-qty" type="text" inputmode="decimal" dir="ltr" @bind="newVerQtyText" disabled="@bomSaving" />
+                            </div>
+                            <div class="write-field">
+                                <label for="ver-unit">@Text["BomBaseOutputUnitLabel"]</label>
+                                <select id="ver-unit" @bind="newVerUnitId" disabled="@bomSaving">
+                                    @foreach (var u in ActiveUnits)
+                                    {
+                                        <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="write-field">
+                                <label>@Text["BomEffectiveFromLabel"]</label>
+                                <BitDatePicker @bind-Value="NewVerFromOffset"
+                                               Culture="@Culture.PickerCulture"
+                                               DateFormat="@PickerDateFormat"
+                                               ShowTimePicker="false"
+                                               AllowTextInput="false"
+                                               AutoClose="true"
+                                               ShowGoToToday="true"
+                                               GoToTodayTitle="@Text["BomDateToday"]"
+                                               GoToTodayIcon="@TodayIcon"
+                                               Icon="@CalendarIcon"
+                                               NextMonthNavIcon="@NextNavIcon"
+                                               PrevMonthNavIcon="@PrevNavIcon"
+                                               NextYearNavIcon="@NextYearIcon"
+                                               PrevYearNavIcon="@PrevYearIcon"
+                                               ClearButtonIcon="@CloseIcon"
+                                               IsEnabled="@(!bomSaving)"
+                                               Class="bom-dtp" />
+                            </div>
+                            <div class="write-field">
+                                <label>@Text["BomEffectiveToLabel"]</label>
+                                <BitDatePicker @bind-Value="NewVerToOffset"
+                                               Culture="@Culture.PickerCulture"
+                                               DateFormat="@PickerDateFormat"
+                                               ShowTimePicker="false"
+                                               AllowTextInput="false"
+                                               AutoClose="true"
+                                               ShowClearButton="true"
+                                               ClearButtonTitle="@Text["BomDateClear"]"
+                                               ShowGoToToday="true"
+                                               GoToTodayTitle="@Text["BomDateToday"]"
+                                               GoToTodayIcon="@TodayIcon"
+                                               Icon="@CalendarIcon"
+                                               NextMonthNavIcon="@NextNavIcon"
+                                               PrevMonthNavIcon="@PrevNavIcon"
+                                               NextYearNavIcon="@NextYearIcon"
+                                               PrevYearNavIcon="@PrevYearIcon"
+                                               ClearButtonIcon="@CloseIcon"
+                                               IsEnabled="@(!bomSaving)"
+                                               Class="bom-dtp" />
+                            </div>
+                            <div class="write-field">
+                                <label for="ver-notes">@Text["BomNotesLabel"]</label>
+                                <input id="ver-notes" type="text" maxlength="500" @bind="newVerNotes" disabled="@bomSaving" />
+                            </div>
+                        </div>
+                        <div class="write-actions">
+                            <BitButton Size="BitSize.Small" IsEnabled="@(!bomSaving)" OnClick="SubmitCreateVersionAsync">
+                                @(bomSaving ? Text["WriteSaving"] : Text["BomCreateVersionBtn"])
+                            </BitButton>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public BomDetails? SelectedBom { get; set; }
+    [Parameter] public bool ScopeCanManage { get; set; }
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public IReadOnlyList<ItemSummary> AllActiveItems { get; set; } = [];
+    [Parameter] public EventCallback<long> OnOpenWorkbench { get; set; }
+    [Parameter] public EventCallback<long> OnVersionCreated { get; set; }
+
+    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
+    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
+    private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
+    private BitIconInfo NextNavIcon => BitIconInfo.Css(Culture.Direction == "rtl" ? "ff-icon ff-icon--chevron-prev" : "ff-icon ff-icon--chevron-next");
+    private BitIconInfo PrevNavIcon => BitIconInfo.Css(Culture.Direction == "rtl" ? "ff-icon ff-icon--chevron-next" : "ff-icon ff-icon--chevron-prev");
+    private BitIconInfo NextYearIcon => BitIconInfo.Css(Culture.Direction == "rtl" ? "ff-icon ff-icon--chevrons-prev" : "ff-icon ff-icon--chevrons-next");
+    private BitIconInfo PrevYearIcon => BitIconInfo.Css(Culture.Direction == "rtl" ? "ff-icon ff-icon--chevrons-next" : "ff-icon ff-icon--chevrons-prev");
+    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
+
+    private bool bomSaving;
+    private string? bomVersionListError;
+    private int newVerNumber = 1;
+    private string newVerQtyText = "1";
+    private string newVerNotes = string.Empty;
+    private long newVerUnitId;
+    private DateOnly newVerFromDate = DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly? newVerToDate;
+
+    private DateTimeOffset? NewVerFromOffset
+    {
+        get => ToDateTimeOffset(newVerFromDate);
+        set { if (value.HasValue) newVerFromDate = DateOnly.FromDateTime(value.Value.Date); }
+    }
+    private DateTimeOffset? NewVerToOffset
+    {
+        get => newVerToDate.HasValue ? ToDateTimeOffset(newVerToDate.Value) : null;
+        set => newVerToDate = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+    }
+    private static DateTimeOffset ToDateTimeOffset(DateOnly date) =>
+        new(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+
+    public void Open(BomDetails bom)
+    {
+        var nextVer = bom.Versions.Count > 0 ? bom.Versions.Max(v => v.VersionNumber) + 1 : 1;
+        newVerNumber = nextVer;
+        newVerQtyText = "1";
+        newVerNotes = string.Empty;
+        newVerFromDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        newVerToDate = null;
+        var primaryItem = AllActiveItems.FirstOrDefault(x => x.Id == bom.Summary.PrimaryOutputItemId);
+        newVerUnitId = primaryItem?.BaseUnitId ?? (ActiveUnits.Count > 0 ? ActiveUnits[0].Id : 0);
+        bomVersionListError = null;
+        IsOpen = true;
+    }
+
+    private async Task OnIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        if (!open)
+        {
+            bomVersionListError = null;
+        }
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    private async Task SubmitCreateVersionAsync()
+    {
+        if (CurrentScope is null || SelectedBom is null || bomSaving) return;
+        if (!TryParsePositiveDecimal(newVerQtyText, out var qty))
+        {
+            bomVersionListError = "BomErrorQuantityInvalid";
+            return;
+        }
+        bomSaving = true;
+        bomVersionListError = null;
+        try
+        {
+            var res = await BomService.CreateBomVersion(CurrentScope,
+                new CreateBomVersionRequest(CurrentOrgId, SelectedBom.Summary.Id, newVerNumber, qty, newVerUnitId, newVerFromDate, newVerToDate, newVerNotes));
+            if (!res.Succeeded)
+            {
+                bomVersionListError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            await OnVersionCreated.InvokeAsync(res.Value!.Summary.Id);
+        }
+        finally
+        {
+            bomSaving = false;
+        }
+    }
+
+    private static bool TryParsePositiveDecimal(string raw, out decimal value) =>
+        decimal.TryParse(raw?.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out value) && value > 0m;
+
+    private static string VersionStatusKey(BomVersionStatus status) => status switch
+    {
+        BomVersionStatus.Draft => "BomStatusDraft",
+        BomVersionStatus.Approved => "BomStatusApproved",
+        BomVersionStatus.Active => "BomStatusActive",
+        BomVersionStatus.Superseded => "BomStatusSuperseded",
+        BomVersionStatus.Obsolete => "BomStatusObsolete",
+        _ => "BomStatusDraft"
+    };
+
+    private static string VersionStatusCss(BomVersionStatus status) => status switch
+    {
+        BomVersionStatus.Draft => "bom-status-draft",
+        BomVersionStatus.Approved => "bom-status-approved",
+        BomVersionStatus.Active => "bom-status-active",
+        BomVersionStatus.Superseded => "bom-status-archived",
+        BomVersionStatus.Obsolete => "bom-status-obsolete",
+        _ => "bom-status-draft"
+    };
+
+    public void Dispose()
+    {
+        bomVersionListError = null;
+    }
+}

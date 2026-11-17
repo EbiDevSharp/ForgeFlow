@@ -1,4 +1,5 @@
 using System.Globalization;
+using ForgeFlow.Domain.Common;
 
 namespace ForgeFlow.Web.Localization;
 
@@ -6,7 +7,7 @@ public sealed class DisplayFormatter(CulturePolicy culture, TimeZoneInfo? displa
 {
     private static readonly string[] CurrencyCodes = ["USD", "EUR", "IRR"];
 
-    private TimeZoneInfo ResolvedTimeZone => displayTimeZone ?? displayPreferences?.TimeZoneInfo ?? TimeZoneInfo.Local;
+    private TimeZoneInfo ResolvedTimeZone => displayTimeZone ?? displayPreferences?.TimeZoneInfo ?? OrganizationCalendarUtils.DefaultTimeZone;
 
     public string Date(DateOnly value) => Date(value, null);
 
@@ -69,14 +70,14 @@ public sealed class DisplayFormatter(CulturePolicy culture, TimeZoneInfo? displa
         if (!TryDigits(normalized.AsSpan(yearIndex, 4), out var year) ||
             !TryDigits(normalized.AsSpan(monthIndex, 2), out var month) ||
             !TryDigits(normalized.AsSpan(dayIndex, 2), out var day)) return false;
+        if (yearFirst)
+        {
+            return OrganizationCalendarUtils.TryPersianToDateOnly(year, month, day, out value);
+        }
+
         try
         {
-            if (yearFirst)
-            {
-                var date = new PersianCalendar().ToDateTime(year, month, day, 0, 0, 0, 0);
-                value = DateOnly.FromDateTime(date);
-            }
-            else value = new DateOnly(year, month, day);
+            value = new DateOnly(year, month, day);
             return true;
         }
         catch (ArgumentOutOfRangeException) { return false; }

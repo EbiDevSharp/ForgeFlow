@@ -9,7 +9,7 @@ using ForgeFlow.Domain.Units;
 namespace ForgeFlow.Application.Sales.Slices;
 
 /// <summary>Shared authorization, scope resolution, and audit-rejection helpers for Sales vertical slices.</summary>
-internal sealed class SalesSliceSupport(
+public sealed class SalesSliceSupport(
     ITrustedActorAccessor? actors,
     IOrganizationPermissionEvaluator? permissions,
     IUserOperationRecorder? operationRecorder,

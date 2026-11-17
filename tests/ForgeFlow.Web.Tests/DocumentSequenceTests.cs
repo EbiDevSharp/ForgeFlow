@@ -106,7 +106,7 @@ public sealed class DocumentSequenceTests
 
             var store = new SqlDocumentSequenceStore(factory);
             var list = await store.ListSequences(orgId, new DateTime(2026, 11, 12, 10, 0, 0, DateTimeKind.Utc), access, default);
-            Assert.Equal(9, list.Count);
+            Assert.Equal(Enum.GetValues<DocumentSequenceType>().Length, list.Count);
 
             var soSeq = list.Single(s => s.DocumentType == DocumentSequenceType.SalesOrder);
             var upd = await store.UpdateSequence(

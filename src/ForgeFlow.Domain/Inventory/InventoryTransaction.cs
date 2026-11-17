@@ -1,6 +1,8 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Inventory;
 
-public sealed class InventoryTransaction
+public sealed class InventoryTransaction : IOrganizationEntity
 {
     private InventoryTransaction() { }
 

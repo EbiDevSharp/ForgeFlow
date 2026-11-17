@@ -49,7 +49,14 @@ public static class IdentityPersistence
     {
         services.AddLogging(logging => { if (isolatedHost) logging.ClearProviders(); });
         services.TryAddSingleton<ForgeFlow.Application.Users.IUserNotificationLiveChannel, UserNotificationLiveChannel>();
-        services.AddDbContext<AuthDbContext>(options);
+        services.AddScoped<ForgeFlow.Infrastructure.Persistence.Interceptors.AuthImmutableHistorySaveChangesInterceptor>();
+        services.AddDbContext<AuthDbContext>((sp, opts) =>
+        {
+            options(opts);
+            var interceptor = sp.GetService<ForgeFlow.Infrastructure.Persistence.Interceptors.AuthImmutableHistorySaveChangesInterceptor>()
+                ?? new ForgeFlow.Infrastructure.Persistence.Interceptors.AuthImmutableHistorySaveChangesInterceptor();
+            opts.AddInterceptors(interceptor);
+        });
         services.AddIdentityCore<ApplicationAccount>(identity => {
             identity.Stores.SchemaVersion = IdentitySchemaVersions.Version1;
             identity.Password.RequiredLength = 12;

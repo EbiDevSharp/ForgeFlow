@@ -3039,4 +3039,29 @@
   <data name="BpPersonNaturalTooltip" xml:space="preserve"><value>شخص حقیقی</value></data>
   <data name="BpAdaptiveLegal" xml:space="preserve"><value>شناسه ملی</value></data>
   <data name="BpAdaptiveNatural" xml:space="preserve"><value>کد ملی</value></data>
+  <data name="SalesErrorCustomerNotFound" xml:space="preserve"><value>مشتری مورد نظر یافت نشد.</value></data>
+  <data name="SalesErrorCustomerInactive" xml:space="preserve"><value>مشتری غیرفعال است.</value></data>
+  <data name="SalesErrorCarrierInvalid" xml:space="preserve"><value>نام شرکت حمل‌ونقل نامعتبر است.</value></data>
+  <data name="SalesErrorTrackingNumberInvalid" xml:space="preserve"><value>شماره رهگیری بارنامه نامعتبر است.</value></data>
+  <data name="SalesErrorEmptyOrder" xml:space="preserve"><value>سفارش فروش باید حداقل شامل یک ردیف کالا باشد.</value></data>
+  <data name="SalesErrorEmptyDispatch" xml:space="preserve"><value>حواله خروج باید حداقل شامل یک ردیف کالا باشد.</value></data>
+  <data name="SalesErrorItemNotSellable" xml:space="preserve"><value>کالای انتخاب‌شده به عنوان قابل فروش تعریف نشده است.</value></data>
+  <data name="SalesErrorLotQuarantinedOrInsufficient" xml:space="preserve"><value>بچ انتخاب‌شده در وضعیت قرنطینه است یا موجودی کافی ندارد.</value></data>
+  <data name="SalesErrorNotDraft" xml:space="preserve"><value>تنها سفارش‌های فروش در وضعیت پیش‌نویس قابل ویرایش هستند.</value></data>
+  <data name="SalesErrorHasDispatchesCannotCancel" xml:space="preserve"><value>سفارش فروش دارای حواله خروج ثبت‌شده است و امکان لغو ندارد.</value></data>
+  <data name="SalesErrorOverDispatch" xml:space="preserve"><value>مقدار حواله خروج نمی‌تواند از مقدار باقیمانده سفارش بیشتر باشد.</value></data>
+  <data name="DocSeqErrorDocumentTypeInvalid" xml:space="preserve"><value>نوع سند برای توالی شماره‌گذاری نامعتبر است.</value></data>
+  <data name="DocSeqErrorPrefixInvalid" xml:space="preserve"><value>پیشوند شماره سند باید بین ۱ تا ۱۲ کاراکتر حرفی یا عددی باشد.</value></data>
+  <data name="DocSeqErrorSeparatorInvalid" xml:space="preserve"><value>جداکننده باید خط تیره، خط زیرین یا خالی باشد.</value></data>
+  <data name="DocSeqErrorYearModeInvalid" xml:space="preserve"><value>حالت درج سال در شماره سند نامعتبر است.</value></data>
+  <data name="DocSeqErrorPaddingInvalid" xml:space="preserve"><value>تعداد ارقام شماره سند باید بین ۳ تا ۸ رقم باشد.</value></data>
+  <data name="DocSeqErrorNextNumberInvalid" xml:space="preserve"><value>شماره بعدی توالی باید بزرگتر از صفر باشد.</value></data>
+  <data name="BpPersonTypeInvalid" xml:space="preserve"><value>نوع طرف تجاری (حقیقی یا حقوقی) نامعتبر است.</value></data>
+  <data name="BpWebsiteInvalid" xml:space="preserve"><value>آدرس وب‌سایت نامعتبر است.</value></data>
+  <data name="DiagErrorReferenceInvalid" xml:space="preserve"><value>شناسه رهگیری خطا نامعتبر است.</value></data>
+  <data name="DiagOperationCodeInvalid" xml:space="preserve"><value>کد عملیات ثبت رویداد نامعتبر است.</value></data>
+  <data name="DiagSiteRequiresOrganization" xml:space="preserve"><value>انتخاب سایت نیازمند مشخص بودن سازمان والد است.</value></data>
+  <data name="Auth.RateLimitExceeded" xml:space="preserve"><value>تعداد درخواست‌های احراز هویت بیش از حد مجاز است. لطفاً {0} ثانیه دیگر دوباره تلاش کنید.</value></data>
+  <data name="Export.RateLimitExceeded" xml:space="preserve"><value>تعداد درخواست‌های خروجی فایل بیش از حد مجاز است. لطفاً {0} ثانیه دیگر دوباره تلاش کنید.</value></data>
+  <data name="Common.RateLimitExceeded" xml:space="preserve"><value>تعداد درخواست‌ها بیش از حد مجاز است. لطفاً {0} ثانیه دیگر دوباره تلاش کنید.</value></data>
 </root>

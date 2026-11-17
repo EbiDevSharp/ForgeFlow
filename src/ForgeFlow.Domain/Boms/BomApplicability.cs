@@ -1,6 +1,8 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Boms;
 
-public sealed class BomApplicability
+public sealed class BomApplicability : IOrganizationEntity
 {
     private BomApplicability()
     {

@@ -1,4 +1,5 @@
 using ForgeFlow.Domain.Common;
+using ForgeFlow.Domain.Events;
 
 namespace ForgeFlow.Domain.ProductionOrders;
 
@@ -6,11 +7,16 @@ namespace ForgeFlow.Domain.ProductionOrders;
 /// Site-scoped manufacturing order capturing a resolved BOM version and planned input/output snapshot.
 /// Structurally immutable after Release so subsequent BOM updates never alter historical orders (Day 11).
 /// </summary>
-public sealed class ProductionOrder : IHasRowVersion, IHasDomainEvents
+public sealed class ProductionOrder : IHasRowVersion, IHasDomainEvents, IOrganizationEntity
 {
     private readonly List<IDomainEvent> _domainEvents = [];
 
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void RaiseDomainEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        _domainEvents.Add(domainEvent);
+    }
     public void ClearDomainEvents() => _domainEvents.Clear();
     private ProductionOrder() { }
 
@@ -197,6 +203,7 @@ public sealed class ProductionOrder : IHasRowVersion, IHasDomainEvents
             throw new ProductionOrderRuleException(ProductionOrderErrors.TransitionInvalid);
         Status = ProductionOrderStatus.Released;
         ReleasedAtUtc = utcNow;
+        _domainEvents.Add(new ProductionOrderReleasedEvent(OrganizationId, SiteId, Id, OrderNumber, utcNow));
         _domainEvents.Add(new ProductionOrderReleasedDomainEvent(OrganizationId, SiteId, OrderNumber, utcNow));
     }
 
@@ -206,6 +213,7 @@ public sealed class ProductionOrder : IHasRowVersion, IHasDomainEvents
             throw new ProductionOrderRuleException(ProductionOrderErrors.TransitionInvalid);
         Status = ProductionOrderStatus.InProgress;
         StartedAtUtc = utcNow;
+        _domainEvents.Add(new ProductionOrderStartedEvent(OrganizationId, SiteId, Id, OrderNumber, utcNow));
     }
 
     public void RecordActuals(decimal producedQuantity, decimal scrapQuantity, string? notes)
@@ -228,6 +236,7 @@ public sealed class ProductionOrder : IHasRowVersion, IHasDomainEvents
             Notes = ProductionOrderText.OptionalText(notes, ProductionOrderErrors.NotesInvalid);
         Status = ProductionOrderStatus.Completed;
         CompletedAtUtc = utcNow;
+        _domainEvents.Add(new ProductionOrderCompletedEvent(OrganizationId, SiteId, Id, OrderNumber, ActualProducedQuantity, ActualScrapQuantity, utcNow));
         _domainEvents.Add(new ProductionOrderCompletedDomainEvent(OrganizationId, SiteId, OrderNumber, utcNow));
     }
 
@@ -238,6 +247,7 @@ public sealed class ProductionOrder : IHasRowVersion, IHasDomainEvents
         CancellationReason = ProductionOrderText.RequiredReason(reason);
         Status = ProductionOrderStatus.Cancelled;
         CancelledAtUtc = utcNow;
+        _domainEvents.Add(new ProductionOrderCancelledEvent(OrganizationId, SiteId, Id, OrderNumber, CancellationReason, utcNow));
         _domainEvents.Add(new ProductionOrderCancelledDomainEvent(OrganizationId, SiteId, OrderNumber, CancellationReason, utcNow));
     }
 }

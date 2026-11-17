@@ -1,0 +1,100 @@
+@using System.Globalization
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Domain.Items
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="write-panel">
+    @if (Attributes.Count == 0)
+    {
+        <p class="read-empty">@Text["ReadEmpty"]</p>
+    }
+    else if (!EditMode)
+    {
+        <div class="audit-fields-box">
+            <table class="audit-fields-table">
+                <thead>
+                    <tr>
+                        <th>@Text["ReadName"]</th>
+                        <th>@Text["AuditFieldValueColumn"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var attr in Attributes)
+                    {
+                        <tr>
+                            <td>@attr.Name</td>
+                            <td>@FormatAttrDisplay(attr)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        @foreach (var attr in Attributes)
+        {
+            var val = EditInputs.TryGetValue(attr.AttributeDefinitionId, out var entry)
+                ? entry
+                : new AttrEditModel();
+            <div class="read-field">
+                <label>@attr.Name @(attr.UnitSymbol is not null ? $"({attr.UnitSymbol})" : "")</label>
+                @if (attr.DataType == AttributeDataType.Boolean)
+                {
+                    <select value="@val.BoolText" @onchange="e => val.BoolText = e.Value?.ToString() ?? string.Empty"
+                            disabled="@(Disabled || Saving)">
+                        <option value="">—</option>
+                        <option value="true">@Text["AttributeBoolTrue"]</option>
+                        <option value="false">@Text["AttributeBoolFalse"]</option>
+                    </select>
+                }
+                else if (attr.DataType == AttributeDataType.Decimal)
+                {
+                    <input type="number" step="0.000001" value="@val.DecimalText"
+                           @onchange="e => val.DecimalText = e.Value?.ToString() ?? string.Empty"
+                           disabled="@(Disabled || Saving)" />
+                }
+                else
+                {
+                    <input maxlength="400" value="@val.Text"
+                           @oninput="e => val.Text = e.Value?.ToString() ?? string.Empty"
+                           disabled="@(Disabled || Saving)" />
+                }
+            </div>
+        }
+        <div class="write-actions">
+            <BitButton Size="BitSize.Small" IsEnabled="@(!Disabled && !Saving)"
+                       OnClick="OnSave">@Text["WriteSave"]</BitButton>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<ItemAttributeValueSummary> Attributes { get; set; } = [];
+    [Parameter] public Dictionary<long, AttrEditModel> EditInputs { get; set; } = [];
+    [Parameter] public bool EditMode { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public bool Saving { get; set; }
+    [Parameter] public EventCallback OnSave { get; set; }
+
+    private string FormatAttrDisplay(ItemAttributeValueSummary attr) => attr.DataType switch
+    {
+        AttributeDataType.Boolean => attr.BooleanValue switch
+        {
+            true => Text["AttributeBoolTrue"],
+            false => Text["AttributeBoolFalse"],
+            _ => "—"
+        },
+        AttributeDataType.Decimal => attr.DecimalValue.HasValue
+            ? $"{attr.DecimalValue.Value.ToString("0.######", CultureInfo.InvariantCulture)}{(attr.UnitSymbol is not null ? $" {attr.UnitSymbol}" : "")}"
+            : "—",
+        _ => string.IsNullOrWhiteSpace(attr.TextValue) ? "—" : attr.TextValue
+    };
+
+    public sealed class AttrEditModel
+    {
+        public string Text { get; set; } = string.Empty;
+        public string DecimalText { get; set; } = string.Empty;
+        public string BoolText { get; set; } = string.Empty;
+    }
+}

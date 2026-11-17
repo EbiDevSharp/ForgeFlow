@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Infrastructure.Organizations;
 
 /// <summary>Module-local append-only audit record; no arbitrary request serialization.</summary>
-public sealed class OrganizationChange
+public sealed class OrganizationChange : IOrganizationEntity
 {
     private OrganizationChange() { }
 

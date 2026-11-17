@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Units;
 
 /// <summary>Organization-owned directed conversion rule: 1 FromUnit = Factor * ToUnit.</summary>
-public sealed class UnitConversion
+public sealed class UnitConversion : IOrganizationEntity
 {
     private UnitConversion() { }
 

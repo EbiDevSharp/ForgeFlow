@@ -12,6 +12,7 @@
 @using ForgeFlow.Domain.ProductionOrders
 @using ForgeFlow.Domain.Routings
 @using ForgeFlow.Web.Roles
+@implements IDisposable
 @inject ProductionOrderUseCases OrderService
 @inject RoutingUseCases RoutingService
 @inject BomUseCases BomService
@@ -109,7 +110,7 @@
 
             <div class="read-field">
                 <label for="po-search">@Text["ReadSearch"]</label>
-                <input id="po-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="64" placeholder="@Text["ReadSearch"]" />
+                <input id="po-search" type="search" value="@search" @oninput="OnSearchInput" maxlength="64" placeholder="@Text["ReadSearch"]" />
             </div>
         </div>
 
@@ -172,7 +173,7 @@
         </div>
     }
 
-    <BitDialog Width="680px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createOpen"
+    <BitDialog Width="680px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createOpen" @bind-IsOpen:after="OnCreateOpenChanged"
                Title="@Text["PoCreateTitle"]" AriaLabel="@Text["PoCreateTitle"]"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -319,7 +320,7 @@
         </Body>
     </BitDialog>
 
-    <BitDialog Width="820px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="workbenchOpen"
+    <BitDialog Width="820px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="workbenchOpen" @bind-IsOpen:after="OnWorkbenchOpenChanged"
                Title="@Text["PoWorkbenchTitle"]" AriaLabel="@Text["PoWorkbenchTitle"]"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -681,11 +682,12 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var inp in selectedOrder.Inputs)
-                                    {
-                                        var itemRes = orderReservations.Where(r => r.ItemId == inp.ItemId && r.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed).ToList();
-                                        var reservedQty = itemRes.Sum(r => r.RemainingReservedBaseQuantity);
-                                        var resUnit = itemRes.FirstOrDefault()?.BaseUnitSymbol ?? inp.UnitSymbol;
+                                    <Virtualize Items="selectedOrder.Inputs.AsCollection()" Context="inp" ItemSize="42" OverscanCount="5" SpacerElement="tr">
+                                        @{
+                                            var itemRes = orderReservations.Where(r => r.ItemId == inp.ItemId && r.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed).ToList();
+                                            var reservedQty = itemRes.Sum(r => r.RemainingReservedBaseQuantity);
+                                            var resUnit = itemRes.FirstOrDefault()?.BaseUnitSymbol ?? inp.UnitSymbol;
+                                        }
                                         <tr>
                                             <td><span class="bom-tree-level">L@(inp.Level)</span></td>
                                             <td dir="ltr">@inp.ParentItemCode</td>
@@ -727,7 +729,7 @@
                                                 </td>
                                             }
                                         </tr>
-                                    }
+                                    </Virtualize>
                                 </tbody>
                             </table>
                         </div>
@@ -759,8 +761,7 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            @foreach (var resv in orderReservations)
-                                            {
+                                            <Virtualize Items="orderReservations.AsCollection()" Context="resv" ItemSize="40" OverscanCount="5" SpacerElement="tr">
                                                 <tr>
                                                     <td><span dir="ltr">@resv.ItemCode</span> — @resv.ItemName</td>
                                                     <td><span dir="ltr">@resv.WarehouseCode</span> — @resv.WarehouseName</td>
@@ -794,7 +795,7 @@
                                                         </td>
                                                     }
                                                 </tr>
-                                            }
+                                            </Virtualize>
                                         </tbody>
                                     </table>
                                 </div>
@@ -872,7 +873,7 @@
         </Body>
     </BitDialog>
 
-    <BitDialog Width="540px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="reserveModalOpen"
+    <BitDialog Width="540px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="reserveModalOpen" @bind-IsOpen:after="OnReserveModalOpenChanged"
                Title="@Text["PoResModalTitle"]" AriaLabel="@Text["PoResModalTitle"]"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -1048,25 +1049,45 @@
     private DateTimeOffset? NewStartDateOffset
     {
         get => ToOffset(newStartDate);
-        set => newStartDate = FromOffset(value, newStartDate);
+        set
+        {
+            newStartDate = FromOffset(value, newStartDate);
+            if (newStartDate != default && newDueDate != default && newStartDate > newDueDate)
+                newDueDate = newStartDate;
+        }
     }
 
     private DateTimeOffset? NewDueDateOffset
     {
         get => ToOffset(newDueDate);
-        set => newDueDate = FromOffset(value, newDueDate);
+        set
+        {
+            newDueDate = FromOffset(value, newDueDate);
+            if (newStartDate != default && newDueDate != default && newDueDate < newStartDate)
+                newStartDate = newDueDate;
+        }
     }
 
     private DateTimeOffset? EditStartDateOffset
     {
         get => ToOffset(editStartDate);
-        set => editStartDate = FromOffset(value, editStartDate);
+        set
+        {
+            editStartDate = FromOffset(value, editStartDate);
+            if (editStartDate != default && editDueDate != default && editStartDate > editDueDate)
+                editDueDate = editStartDate;
+        }
     }
 
     private DateTimeOffset? EditDueDateOffset
     {
         get => ToOffset(editDueDate);
-        set => editDueDate = FromOffset(value, editDueDate);
+        set
+        {
+            editDueDate = FromOffset(value, editDueDate);
+            if (editStartDate != default && editDueDate != default && editDueDate < editStartDate)
+                editStartDate = editDueDate;
+        }
     }
 
     private static DateTimeOffset? ToOffset(DateOnly d) =>
@@ -1102,16 +1123,81 @@
         AnnouncementPage = Text["GridPagerPage"]
     };
 
+    private CancellationTokenSource? _loadCts;
+    private readonly DebouncedSearchController _searchController = new(300);
+
+    public void Dispose()
+    {
+        _searchController.Dispose();
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        _loadCts = null;
+        selectedOrder = null;
+        activeEditOp = null;
+        editContextPairs.Clear();
+        newContextPairs.Clear();
+        editItemRoutings = [];
+        newItemRoutings = [];
+        orderReservations = [];
+        authorizedSites = [];
+        manufacturableItems = [];
+        activeUnits = [];
+        activeDimensions = [];
+        activeWarehouses = [];
+    }
+
+    private void OnCreateOpenChanged()
+    {
+        if (!createOpen)
+        {
+            newContextPairs.Clear();
+            createError = null;
+            newNotes = string.Empty;
+        }
+    }
+
+    private void OnWorkbenchOpenChanged()
+    {
+        if (!workbenchOpen)
+        {
+            selectedOrder = null;
+            activeEditOp = null;
+            workbenchError = null;
+            workbenchSaved = null;
+            cancelReason = string.Empty;
+            editContextPairs.Clear();
+            editItemRoutings = [];
+            orderReservations = [];
+        }
+    }
+
+    private void OnReserveModalOpenChanged()
+    {
+        if (!reserveModalOpen)
+        {
+            reserveError = null;
+            reserveLotCode = null;
+            reserveNotes = null;
+        }
+    }
+
     protected override async Task OnParametersSetAsync() => await ReloadScopeAsync();
 
     private async Task ReloadScopeAsync()
     {
+        _loadCts?.Cancel();
+        _loadCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _loadCts = cts;
+        var ct = cts.Token;
+
         initialLoading = true;
         pageError = null;
         pageNotice = null;
         try
         {
             var loaded = await Scopes.LoadProductionOrderScopesAsync();
+            if (ct.IsCancellationRequested) return;
             available = OrganizationId is long orgId
                 ? loaded.Where(s => ScopeOrganizationId(s) == orgId).ToList()
                 : loaded.ToList();
@@ -1119,7 +1205,10 @@
             if (available.Count == 0 && OrganizationId is long fallbackOrgId)
                 available = [new OrganizationScope.Organization(fallbackOrgId)];
             scopeIndex = 0;
-            await RefreshScopeStateAsync();
+            await RefreshScopeStateAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch
         {
@@ -1127,11 +1216,12 @@
         }
         finally
         {
-            initialLoading = false;
+            if (ReferenceEquals(_loadCts, cts))
+                initialLoading = false;
         }
     }
 
-    private async Task RefreshScopeStateAsync()
+    private async Task RefreshScopeStateAsync(CancellationToken ct = default)
     {
         scopeCanManage = false;
         canManageInventory = false;
@@ -1143,40 +1233,59 @@
         siteFilter = 0;
 
         var scope = CurrentScope;
-        if (scope is null) return;
+        if (scope is null || ct.IsCancellationRequested) return;
 
-        var actor = await Actors.ResolveAsync(default);
-        if (actor is not null)
-        {
-            var eval = await Permissions.EvaluateAsync(actor, scope, ProductionOrderPermissions.ProductionOrdersManage, default);
-            scopeCanManage = eval.IsAllowed;
-            var invEval = await Permissions.EvaluateAsync(actor, scope, InventoryPermissions.InventoryManage, default);
-            canManageInventory = invEval.IsAllowed;
-            var opEval = await Permissions.EvaluateAsync(actor, scope, RoutingPermissions.OperationsExecute, default);
-            canExecuteOperations = opEval.IsAllowed;
-        }
-
+        var actor = await Actors.ResolveAsync(ct);
         var orgId = ScopeOrganizationId(scope);
-        var sitesRes = await OrderService.ListAuthorizedSites(scope, orgId);
+
+        Task<PermissionDecision>? manageTask = actor is not null
+            ? Permissions.EvaluateAsync(actor, scope, ProductionOrderPermissions.ProductionOrdersManage, ct).AsTask()
+            : null;
+        Task<PermissionDecision>? invTask = actor is not null
+            ? Permissions.EvaluateAsync(actor, scope, InventoryPermissions.InventoryManage, ct).AsTask()
+            : null;
+        Task<PermissionDecision>? opTask = actor is not null
+            ? Permissions.EvaluateAsync(actor, scope, RoutingPermissions.OperationsExecute, ct).AsTask()
+            : null;
+
+        var sitesTask = OrderService.ListAuthorizedSites(scope, orgId, ct);
+        var itemsTask = ItemService.ListItems(scope, orgId, new ItemListQuery(CanBeManufactured: true, IncludeInactive: false, Page: 1, PageSize: 100), ct);
+        var unitsTask = UnitService.ListUnits(scope, orgId, new UnitListQuery(IncludeInactive: false, Page: 1, PageSize: 100), ct);
+        var dimsTask = BomService.ListContextDimensions(scope, orgId, new ContextDimensionListQuery(IncludeInactive: false, Page: 1, PageSize: 100), ct);
+        var whTask = InvService.ListWarehouses(scope, orgId, new WarehouseListQuery(IncludeInactive: false, Page: 1, PageSize: 100), ct);
+
+        var tasks = new List<Task> { sitesTask, itemsTask, unitsTask, dimsTask, whTask };
+        if (manageTask is not null) tasks.Add(manageTask);
+        if (invTask is not null) tasks.Add(invTask);
+        if (opTask is not null) tasks.Add(opTask);
+
+        await Task.WhenAll(tasks);
+        if (ct.IsCancellationRequested) return;
+
+        if (manageTask is not null) scopeCanManage = (await manageTask).IsAllowed;
+        if (invTask is not null) canManageInventory = (await invTask).IsAllowed;
+        if (opTask is not null) canExecuteOperations = (await opTask).IsAllowed;
+
+        var sitesRes = await sitesTask;
         if (sitesRes.Succeeded)
             authorizedSites = sitesRes.Value!;
 
         if (scope is OrganizationScope.Site siteScope)
             siteFilter = siteScope.SiteId;
 
-        var itemsRes = await ItemService.ListItems(scope, orgId, new ItemListQuery(CanBeManufactured: true, IncludeInactive: false, Page: 1, PageSize: 100));
+        var itemsRes = await itemsTask;
         if (itemsRes.Succeeded)
             manufacturableItems = itemsRes.Value!.Items;
 
-        var unitsRes = await UnitService.ListUnits(scope, orgId, new UnitListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        var unitsRes = await unitsTask;
         if (unitsRes.Succeeded)
             activeUnits = unitsRes.Value!.Items;
 
-        var dimsRes = await BomService.ListContextDimensions(scope, orgId, new ContextDimensionListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        var dimsRes = await dimsTask;
         if (dimsRes.Succeeded)
             activeDimensions = dimsRes.Value!.Items;
 
-        var whRes = await InvService.ListWarehouses(scope, orgId, new WarehouseListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        var whRes = await whTask;
         if (whRes.Succeeded)
             activeWarehouses = whRes.Value!.Items;
     }
@@ -1202,22 +1311,47 @@
         await ReloadGridFromFirstPageAsync();
     }
 
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        await _searchController.OnInputDebouncedAsync(
+            e,
+            val => search = val,
+            async _ =>
+            {
+                appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+                await ReloadGridFromFirstPageAsync();
+                await InvokeAsync(StateHasChanged);
+            });
+    }
+
     private async Task ChangeSiteFilterAsync(ChangeEventArgs e)
     {
         siteFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
-        await ReloadGridFromFirstPageAsync();
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadGridFromFirstPageAsync();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ChangeStatusFilterAsync(ChangeEventArgs e)
     {
         statusFilter = e.Value?.ToString() ?? string.Empty;
-        await ReloadGridFromFirstPageAsync();
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadGridFromFirstPageAsync();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ApplySearchAsync()
     {
-        appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
-        await ReloadGridFromFirstPageAsync();
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+            await ReloadGridFromFirstPageAsync();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ReloadGridFromFirstPageAsync()

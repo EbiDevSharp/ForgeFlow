@@ -9,6 +9,7 @@
 @inject DocumentSequenceUseCases SeqService
 @inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
+@implements IDisposable
 
 <BitDialog Width="780px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses"
            IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged"
@@ -210,8 +211,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var l in selectedInspection.Lines)
-                                    {
+                                    <Virtualize Items="selectedInspection.Lines.AsCollection()" Context="l" ItemSize="40" OverscanCount="5" SpacerElement="tr">
                                         <tr>
                                             <td>@l.LineNumber</td>
                                             <td>
@@ -240,7 +240,7 @@
                                                 </span>
                                             </td>
                                         </tr>
-                                    }
+                                    </Virtualize>
                                 </tbody>
                             </table>
                         </div>
@@ -300,7 +300,23 @@
     private async Task OnIsOpenChanged(bool open)
     {
         IsOpen = open;
+        if (!open)
+        {
+            selectedInspection = null;
+            detailsError = null;
+            editCertificateNumber = null;
+            editDefectCode = null;
+            editNotes = null;
+            editLines.Clear();
+            dispNotes = null;
+        }
         await IsOpenChanged.InvokeAsync(open);
+    }
+
+    public void Dispose()
+    {
+        selectedInspection = null;
+        editLines.Clear();
     }
 
     private void ApplyInspectionDetails(QualityInspectionDetails details)

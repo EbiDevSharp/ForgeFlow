@@ -1,3 +1,4 @@
+using ForgeFlow.Application.Common;
 using ForgeFlow.Application.Dashboard.Slices;
 using ForgeFlow.Application.Organizations;
 
@@ -11,9 +12,10 @@ public sealed class DashboardUseCases(
     IDashboardQueryStore store,
     ITrustedActorAccessor? actors = null,
     IOrganizationPermissionEvaluator? permissions = null,
-    TimeProvider? clock = null)
+    TimeProvider? clock = null,
+    IOrganizationClock? orgClock = null)
 {
-    private readonly DashboardMetricSlices metricSlices = new(store, actors, permissions, clock);
+    private readonly DashboardMetricSlices metricSlices = new(store, actors, permissions, clock, orgClock);
 
     public Task<OrganizationResult<DashboardSnapshot>> GetSnapshot(
         OrganizationScope? scope,

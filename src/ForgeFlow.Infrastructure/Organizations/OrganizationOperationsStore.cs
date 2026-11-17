@@ -1,5 +1,6 @@
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Organizations;
+using ForgeFlow.Infrastructure.Common;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -15,17 +16,17 @@ public sealed class OrganizationOperationsStore(Func<IDbContextFactory<Organizat
     private static SiteDetails Detail(OrganizationDbContext db, Site site) => new(site.Id, site.OrganizationId, site.Code, site.Name, site.IsActive,
         Convert.ToBase64String(db.Entry(site).Property<byte[]>("RowVersion").CurrentValue!));
 
-    public Task<OrganizationDetails?> GetOrganization(long organizationId, CancellationToken ct) => Read(async db =>
+    public Task<OrganizationDetails?> GetOrganization(long organizationId, CancellationToken ct) => Read(organizationId, async db =>
     {
         var org = await db.Organizations.IgnoreAutoIncludes().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
         return org is null ? null : Detail(db, org);
     }, ct);
-    public Task<SiteDetails?> GetSite(long organizationId, long siteId, CancellationToken ct) => Read(async db =>
+    public Task<SiteDetails?> GetSite(long organizationId, long siteId, CancellationToken ct) => Read(organizationId, async db =>
     {
         var site = await db.Sites.SingleOrDefaultAsync(s => s.OrganizationId == organizationId && s.Id == siteId, ct);
         return site is null ? null : Detail(db, site);
     }, ct);
-    public Task<OrganizationPage<OrganizationDetails>> ListOrganizations(long organizationId, OrganizationListQuery query, CancellationToken ct) => Read(async db =>
+    public Task<OrganizationPage<OrganizationDetails>> ListOrganizations(long organizationId, OrganizationListQuery query, CancellationToken ct) => Read(organizationId, async db =>
     {
         var rows = db.Organizations.IgnoreAutoIncludes().Where(o => o.Id == organizationId && (query.IncludeInactive || o.IsActive));
         if (!string.IsNullOrEmpty(query.Search)) rows = rows.Where(o => o.Code.Contains(query.Search) || o.Name.Contains(query.Search));
@@ -33,7 +34,7 @@ public sealed class OrganizationOperationsStore(Func<IDbContextFactory<Organizat
         var page = await rows.OrderBy(o => o.Code).ThenBy(o => o.Id).Skip((query.Page - 1) * query.PageSize).Take(query.PageSize).ToListAsync(ct);
         return new OrganizationPage<OrganizationDetails>(page.Select(o => Detail(db, o)).ToArray(), count, query.Page, query.PageSize);
     }, ct);
-    public Task<OrganizationPage<SiteDetails>> ListSites(long organizationId, long? siteId, OrganizationListQuery query, CancellationToken ct) => Read(async db =>
+    public Task<OrganizationPage<SiteDetails>> ListSites(long organizationId, long? siteId, OrganizationListQuery query, CancellationToken ct) => Read(organizationId, async db =>
     {
         var rows = db.Sites.Where(s => s.OrganizationId == organizationId && (!siteId.HasValue || s.Id == siteId.Value) && (query.IncludeInactive || s.IsActive));
         if (!string.IsNullOrEmpty(query.Search)) rows = rows.Where(s => s.Code.Contains(query.Search) || s.Name.Contains(query.Search));
@@ -42,9 +43,17 @@ public sealed class OrganizationOperationsStore(Func<IDbContextFactory<Organizat
         return new OrganizationPage<SiteDetails>(page.Select(s => Detail(db, s)).ToArray(), count, query.Page, query.PageSize);
     }, ct);
 
-    private async Task<T> Read<T>(Func<OrganizationDbContext, Task<T>> query, CancellationToken ct)
+    private async Task<T> Read<T>(long? organizationId, Func<OrganizationDbContext, Task<T>> query, CancellationToken ct)
     {
-        try { await using var db = await factory.CreateDbContextAsync(ct); return await query(db); }
+        try
+        {
+            using (organizationId.HasValue ? AmbientOrganizationAccessor.BeginScope(organizationId.Value) : null)
+            {
+                await using var db = await factory.CreateDbContextAsync(ct);
+                if (organizationId.HasValue) db.CurrentOrganizationId = organizationId.Value;
+                return await query(db);
+            }
+        }
         catch (Exception ex) when (Unavailable(ex)) { throw new OrganizationStoreUnavailableException(ex); }
     }
     private static bool Unavailable(Exception exception) => exception switch
@@ -153,12 +162,10 @@ public sealed class OrganizationOperationsStore(Func<IDbContextFactory<Organizat
         catch (OrganizationCommitOutcomeUnknownException) { return OrganizationResult<T>.Failure(OrganizationAccessErrors.OutcomeUnknown); }
         catch (OrganizationAuditWriteException ex) when (ex.InnerException is SqlException sql && (sql.Number == 229 || sql.Number >= 50000))
         { return OrganizationResult<T>.Failure(OrganizationAccessErrors.AuditUnavailable); }
-        catch (DbUpdateException ex) when (ex.InnerException is SqlException sql && sql.Number is 2601 or 2627
-            && sql.Message.Contains("'UX_Organization_Code'", StringComparison.Ordinal))
-        { return OrganizationResult<T>.Failure(OrganizationSiteErrors.OrganizationCodeDuplicate); }
-        catch (DbUpdateException ex) when (ex.InnerException is SqlException sql && sql.Number is 2601 or 2627
-            && sql.Message.Contains("'UX_Site_Organization_Code'", StringComparison.Ordinal))
-        { return OrganizationResult<T>.Failure(OrganizationSiteErrors.SiteCodeDuplicate); }
+        catch (DbUpdateException ex) when (DbUniqueConstraintExceptionTranslator.IsUniqueConstraintViolation(ex))
+        {
+            return OrganizationResult<T>.Failure(DbUniqueConstraintExceptionTranslator.Translate(ex, OrganizationSiteErrors.OrganizationCodeDuplicate));
+        }
         catch (InvalidOperationException ex) when (ex.Message is OrganizationSiteErrors.OrganizationInactive or OrganizationSiteErrors.OrganizationHasActiveSites or OrganizationSiteErrors.OrganizationNotFound)
         { return OrganizationResult<T>.Failure(ex.Message); }
         catch (Exception ex) when (Unavailable(ex)) { return OrganizationResult<T>.Failure(OrganizationAccessErrors.PersistenceUnavailable); }

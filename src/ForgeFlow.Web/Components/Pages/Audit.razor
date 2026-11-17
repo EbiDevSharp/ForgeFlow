@@ -42,7 +42,7 @@
     {
         <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
     }
-    else if (FailureKey is not null)
+    else if (FailureKey is not null && SelectedScope is null)
     {
         <div class="read-state" role="alert">
             <p>@Text[FailureKey]</p>
@@ -51,6 +51,12 @@
     }
     else
     {
+        @if (FailureKey is not null)
+        {
+            <div class="read-state" role="alert" style="margin-bottom: 1rem;">
+                <p>@Text[FailureKey]</p>
+            </div>
+        }
         <div class="read-toolbar-card">
             @if (ScopesList.Count > 1)
             {
@@ -110,6 +116,7 @@
                                Class="bom-dtp"
                                Culture="@Culture.PickerCulture"
                                DateFormat="@PickerDateFormat"
+                               MaxDate="@DateTimeOffset.Now"
                                ShowTimePicker="false"
                                AllowTextInput="false"
                                AutoClose="true"
@@ -130,6 +137,7 @@
                                Class="bom-dtp"
                                Culture="@Culture.PickerCulture"
                                DateFormat="@PickerDateFormat"
+                               MaxDate="@DateTimeOffset.Now"
                                ShowTimePicker="false"
                                AllowTextInput="false"
                                AutoClose="true"
@@ -146,7 +154,7 @@
             </div>
             <div class="read-field">
                 <label for="audit-search">@Text["ReadSearch"]</label>
-                <input id="audit-search" type="search" @bind="SearchInput" @bind:after="ApplySearchAsync" maxlength="100" placeholder="@Text["ReadSearchPlaceholder"]" />
+                <input id="audit-search" type="search" value="@SearchInput" @oninput="OnSearchInput" maxlength="100" placeholder="@Text["ReadSearchPlaceholder"]" />
             </div>
         </div>
 
@@ -206,7 +214,7 @@
         </div>
     }
 
-    <BitDialog Width="620px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="DetailsOpen"
+    <BitDialog Width="620px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="DetailsOpen" @bind-IsOpen:after="OnDetailsOpenChanged"
                Title="@Text["AuditDetailsTitle"]" AriaLabel="@Text["AuditDetailsTitle"]"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -239,13 +247,12 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var field in SelectedDetails.ParsedFields)
-                                {
+                                <Virtualize Items="SelectedDetails.ParsedFields.AsCollection()" Context="field" ItemSize="36" OverscanCount="5" SpacerElement="tr">
                                     <tr>
                                         <th><bdi dir="ltr">@field.Key</bdi></th>
                                         <td><bdi dir="ltr">@field.Value</bdi></td>
                                     </tr>
-                                }
+                                </Virtualize>
                             </tbody>
                         </table>
                     }
@@ -298,6 +305,7 @@
     private DateOnly? ToDateFilter;
     private string SearchInput = string.Empty;
     private string? AppliedSearch;
+    private readonly DebouncedSearchController _searchController = new(300);
     private bool InitialLoading = true;
     private bool ScopeCanExport;
     private bool Exporting;
@@ -313,6 +321,11 @@
         set
         {
             FromDateFilter = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+            if (FromDateFilter.HasValue && ToDateFilter.HasValue && FromDateFilter.Value > ToDateFilter.Value)
+            {
+                ToDateFilter = FromDateFilter;
+            }
+            FailureKey = null;
             _ = ReloadGridFromFirstPage();
         }
     }
@@ -323,6 +336,11 @@
         set
         {
             ToDateFilter = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+            if (FromDateFilter.HasValue && ToDateFilter.HasValue && ToDateFilter.Value < FromDateFilter.Value)
+            {
+                FromDateFilter = ToDateFilter;
+            }
+            FailureKey = null;
             _ = ReloadGridFromFirstPage();
         }
     }
@@ -530,10 +548,19 @@
         await ReloadGridFromFirstPage();
     }
 
+    private Task OnSearchInput(ChangeEventArgs e)
+    {
+        return _searchController.OnInputDebouncedAsync(e, v =>
+        {
+            SearchInput = v;
+            AppliedSearch = string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+        }, async _ => await ReloadGridFromFirstPage());
+    }
+
     private async Task ApplySearchAsync()
     {
         AppliedSearch = string.IsNullOrWhiteSpace(SearchInput) ? null : SearchInput.Trim();
-        await ReloadGridFromFirstPage();
+        await _searchController.RunImmediateAsync(async _ => await ReloadGridFromFirstPage());
     }
 
     private async Task Reload()
@@ -675,8 +702,18 @@
         _ => string.Empty
     };
 
+    private void OnDetailsOpenChanged()
+    {
+        if (!DetailsOpen)
+        {
+            SelectedDetails = null;
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
+        SelectedDetails = null;
+        await _searchController.DisposeAsync();
         if (downloadJs is not null)
         {
             try { await downloadJs.DisposeAsync(); }

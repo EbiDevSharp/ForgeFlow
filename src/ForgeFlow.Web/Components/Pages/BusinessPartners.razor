@@ -4,6 +4,7 @@
 @using ForgeFlow.Application.Organizations
 @using ForgeFlow.Domain.BusinessPartners
 @using ForgeFlow.Domain.Organizations
+@implements IDisposable
 @inject BusinessPartnerUseCases BpService
 @inject DocumentSequenceUseCases SeqService
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
@@ -69,7 +70,7 @@
 
             <div class="read-field">
                 <label for="bp-search">@Text["ReadSearch"]</label>
-                <input id="bp-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="64" placeholder="@Text["BpSearchPlaceholder"]" />
+                <input id="bp-search" type="search" value="@search" @oninput="OnSearchInput" maxlength="64" placeholder="@Text["BpSearchPlaceholder"]" />
             </div>
 
             <div class="read-field">
@@ -677,6 +678,9 @@
     private string? pageNotice;
     private string search = string.Empty;
     private bool includeInactive;
+    private readonly DebouncedSearchController _searchController = new(300);
+
+    public void Dispose() => _searchController.Dispose();
     private int roleFilter;
     private int personTypeFilter;
 
@@ -773,8 +777,10 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadScopesAsync();
-        provinces = (await BpService.ListProvinces()).ToList();
+        var scopesTask = LoadScopesAsync();
+        var provincesTask = BpService.ListProvinces();
+        await Task.WhenAll(scopesTask, provincesTask);
+        provinces = (await provincesTask).ToList();
     }
 
     protected override async Task OnParametersSetAsync()
@@ -835,25 +841,56 @@
         }
     }
 
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        await _searchController.OnInputDebouncedAsync(
+            e,
+            val => search = val,
+            async _ =>
+            {
+                await RefreshGridAsync();
+                await InvokeAsync(StateHasChanged);
+            });
+    }
+
     private async Task ChangeRoleFilterAsync(ChangeEventArgs e)
     {
         roleFilter = int.TryParse(e.Value?.ToString(), out var r) ? r : 0;
-        await RefreshGridAsync();
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await RefreshGridAsync();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ChangePersonTypeFilterAsync(ChangeEventArgs e)
     {
         personTypeFilter = int.TryParse(e.Value?.ToString(), out var pt) ? pt : 0;
-        await RefreshGridAsync();
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await RefreshGridAsync();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ToggleInactiveAsync(ChangeEventArgs e)
     {
         includeInactive = e.Value is bool b && b;
-        await RefreshGridAsync();
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await RefreshGridAsync();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
-    private async Task ApplySearchAsync() => await RefreshGridAsync();
+    private async Task ApplySearchAsync()
+    {
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await RefreshGridAsync();
+            await InvokeAsync(StateHasChanged);
+        });
+    }
 
     private async Task ReloadScopeAsync() => await LoadScopesAsync();
 
@@ -1231,13 +1268,5 @@
         _ => string.Empty
     };
 
-    private string MapError(string code) => code switch
-    {
-        BusinessPartnerErrors.DuplicateCode => Text["CreateCodeDuplicate"],
-        BusinessPartnerErrors.CodeInvalid => Text["CreateCodeInvalid"],
-        BusinessPartnerErrors.NameInvalid => Text["WriteNameInvalid"],
-        BusinessPartnerErrors.Conflict => Text["WriteConflict"],
-        BusinessPartnerErrors.RoleRequired => Text["BpRoleRequired"],
-        _ => Text["WriteUnavailable"]
-    };
+    private string MapError(string code) => Text[RolePermissionLocalization.FailureKey(code)];
 }

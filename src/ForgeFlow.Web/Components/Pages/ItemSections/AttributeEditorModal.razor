@@ -1,0 +1,179 @@
+@using System.Globalization
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Items
+@using ForgeFlow.Domain.Organizations
+@inject ItemUseCases ItemService
+@inject IStringLocalizer<SharedResources> Text
+@implements IDisposable
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses"
+           IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged"
+           Title="@Text[EditMode ? "ReadEdit" : "ReadDetails"]"
+           AriaLabel="@Text[EditMode ? "ReadEdit" : "ReadDetails"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (selectedAttr is not null)
+        {
+            <div class="audit-modal-body">
+                @if (!EditMode)
+                {
+                    <div class="audit-modal-title-row">
+                        <strong class="audit-modal-code" dir="ltr">@selectedAttr.Code</strong>
+                        <span class="read-badge @(selectedAttr.IsActive ? "active" : "inactive")">
+                            @Text[selectedAttr.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </div>
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row"><span class="audit-meta-label">@Text["ReadName"]</span><span class="audit-meta-val">@selectedAttr.Name</span></div>
+                        <div class="audit-meta-row"><span class="audit-meta-label">@Text["AttributeDataTypeLabel"]</span><span class="audit-meta-val">@Text[DataTypeResourceKey(selectedAttr.DataType)]</span></div>
+                        <div class="audit-meta-row"><span class="audit-meta-label">@Text["UnitsTab"]</span><span class="audit-meta-val">@(selectedAttr.UnitSymbol ?? "—")</span></div>
+                        <div class="audit-meta-row"><span class="audit-meta-label">@Text["AttributeRequiredLabel"]</span><span class="audit-meta-val">@Text[selectedAttr.IsRequired ? "AttributeRequiredYes" : "AttributeRequiredNo"]</span></div>
+                    </div>
+                }
+                else
+                {
+                    <form class="write-panel" @onsubmit:preventDefault>
+                        <div class="read-field">
+                            <label for="edit-attr-name">@Text["ReadName"]</label>
+                            <input id="edit-attr-name" @bind="editAttrName" maxlength="200" disabled="@(!selectedAttr.IsActive || attrSaving)" />
+                        </div>
+                        @if (selectedAttr.DataType == AttributeDataType.Decimal)
+                        {
+                            <div class="read-field">
+                                <label for="edit-attr-unit">@Text["UnitsTab"]</label>
+                                <select id="edit-attr-unit" @bind="editAttrUnitIdText" disabled="@(!selectedAttr.IsActive || attrSaving)">
+                                    <option value="">—</option>
+                                    @foreach (var u in ActiveUnits) { <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option> }
+                                </select>
+                            </div>
+                        }
+                        <label class="perm-check"><input type="checkbox" @bind="editAttrRequired" disabled="@(!selectedAttr.IsActive || attrSaving)" /><span>@Text["AttributeRequiredLabel"]</span></label>
+                        <div class="write-actions">
+                            @if (selectedAttr.IsActive)
+                            {
+                                <BitButton Size="BitSize.Small" IsEnabled="@(!attrSaving)" OnClick="SubmitUpdateAttributeAsync">@Text["WriteSave"]</BitButton>
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!attrSaving)" OnClick="() => ToggleAttributeActiveAsync(false)">@Text["WriteDeactivate"]</BitButton>
+                            }
+                            else
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!attrSaving)" OnClick="() => ToggleAttributeActiveAsync(true)">@Text["WriteActivate"]</BitButton>
+                            }
+                        </div>
+                        @if (attrSaved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+                        @if (attrError is not null) { <p role="alert" class="write-error">@Text[attrError]</p> }
+                    </form>
+                }
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public OrganizationScope? Scope { get; set; }
+    [Parameter] public long OrganizationId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public Func<AttributeDataType, string> DataTypeResourceKey { get; set; } = dt => dt.ToString();
+    [Parameter] public EventCallback OnAttributeChanged { get; set; }
+
+    private bool EditMode;
+    private bool attrSaving, attrSaved;
+    private AttributeDefinitionSummary? selectedAttr;
+    private string editAttrName = string.Empty, editAttrUnitIdText = string.Empty;
+    private bool editAttrRequired;
+    private string? attrError;
+
+    public async Task OpenAsync(long id, bool edit)
+    {
+        if (Scope is null || OrganizationId <= 0) return;
+        attrSaving = false;
+        attrSaved = false;
+        attrError = null;
+
+        var res = await ItemService.GetAttributeDefinition(Scope, OrganizationId, id);
+        if (!res.Succeeded || res.Value is null) return;
+
+        selectedAttr = res.Value;
+        editAttrName = res.Value.Name;
+        editAttrUnitIdText = res.Value.UnitId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        editAttrRequired = res.Value.IsRequired;
+        EditMode = edit && CanManage;
+        IsOpen = true;
+        await IsOpenChanged.InvokeAsync(true);
+    }
+
+    private async Task SubmitUpdateAttributeAsync()
+    {
+        if (Scope is null || selectedAttr is null || attrSaving) return;
+        attrSaving = true;
+        attrSaved = false;
+        attrError = null;
+        try
+        {
+            long? unitId = selectedAttr.DataType == AttributeDataType.Decimal && long.TryParse(editAttrUnitIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var uid) && uid > 0 ? uid : null;
+            var res = await ItemService.UpdateAttributeDefinition(Scope, new UpdateAttributeDefinitionRequest(
+                selectedAttr.OrganizationId, selectedAttr.Id, editAttrName, unitId, editAttrRequired, selectedAttr.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                attrError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            selectedAttr = res.Value;
+            attrSaved = true;
+            await OnAttributeChanged.InvokeAsync();
+        }
+        finally
+        {
+            attrSaving = false;
+        }
+    }
+
+    private async Task ToggleAttributeActiveAsync(bool target)
+    {
+        if (Scope is null || selectedAttr is null || attrSaving) return;
+        attrSaving = true;
+        attrSaved = false;
+        attrError = null;
+        try
+        {
+            var res = await ItemService.SetAttributeDefinitionActive(Scope, new SetAttributeDefinitionActiveRequest(
+                selectedAttr.OrganizationId, selectedAttr.Id, target, selectedAttr.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                attrError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            selectedAttr = res.Value;
+            attrSaved = true;
+            await OnAttributeChanged.InvokeAsync();
+        }
+        finally
+        {
+            attrSaving = false;
+        }
+    }
+
+    private async Task OnDialogIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        if (!open)
+        {
+            selectedAttr = null;
+            attrError = null;
+            attrSaved = false;
+        }
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    public void Dispose()
+    {
+        selectedAttr = null;
+        attrError = null;
+    }
+}

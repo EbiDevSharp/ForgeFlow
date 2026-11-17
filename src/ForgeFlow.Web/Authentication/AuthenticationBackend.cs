@@ -52,13 +52,134 @@ public sealed class CircuitSessionSource(AuthenticationStateProvider authenticat
         catch (InvalidOperationException) { return null; }
     }
 }
-public sealed class SessionAuthenticationStateProvider(ILoggerFactory logging,RuntimeSessions sessions) : RevalidatingServerAuthenticationStateProvider(logging)
+public sealed class SessionAuthenticationStateProvider : RevalidatingServerAuthenticationStateProvider
 {
-    protected override TimeSpan RevalidationInterval => TimeSpan.FromSeconds(30);
-    protected override async Task<bool> ValidateAuthenticationStateAsync(AuthenticationState state,CancellationToken cancellationToken)
+    private readonly RuntimeSessions _sessions;
+    private SessionReference? _currentReference;
+    private readonly Guid _circuitId = Guid.NewGuid();
+    private bool _subscribed;
+    private readonly object _sync = new();
+
+    public SessionAuthenticationStateProvider(ILoggerFactory logging, RuntimeSessions sessions) 
+        : base(logging)
     {
-        var reference=SessionClaims.Read(state.User);
-        return reference is not null && await sessions.ValidateAsync(reference,cancellationToken)=="Auth.Valid";
+        _sessions = sessions;
+    }
+
+    protected override TimeSpan RevalidationInterval => TimeSpan.FromSeconds(30);
+
+    public override async Task<AuthenticationState> GetAuthenticationStateAsync()
+    {
+        var state = await base.GetAuthenticationStateAsync();
+        AttachSession(state);
+        return state;
+    }
+
+    public void AttachSession(AuthenticationState state)
+    {
+        var reference = SessionClaims.Read(state.User);
+        lock (_sync)
+        {
+            if (reference is null)
+            {
+                DetachSession();
+                return;
+            }
+
+            if (_currentReference?.SessionId != reference.SessionId)
+            {
+                DetachSession();
+                _currentReference = reference;
+                _sessions.RegisterCircuit(reference.SessionId, _circuitId);
+                _sessions.SessionRevoked += OnSessionRevoked;
+                _sessions.UserSessionsRevoked += OnUserSessionsRevoked;
+                _subscribed = true;
+            }
+        }
+    }
+
+    public Task<bool> ValidateStateAsync(AuthenticationState state, CancellationToken cancellationToken)
+        => ValidateAuthenticationStateAsync(state, cancellationToken);
+
+    private void DetachSession()
+    {
+        lock (_sync)
+        {
+            if (_subscribed && _currentReference is not null)
+            {
+                _sessions.SessionRevoked -= OnSessionRevoked;
+                _sessions.UserSessionsRevoked -= OnUserSessionsRevoked;
+                _sessions.UnregisterCircuit(_currentReference.SessionId, _circuitId);
+                _subscribed = false;
+            }
+            _currentReference = null;
+        }
+    }
+
+    private void OnSessionRevoked(Guid sessionId, string reason)
+    {
+        bool shouldSignOut = false;
+        lock (_sync)
+        {
+            if (_currentReference?.SessionId == sessionId)
+            {
+                shouldSignOut = true;
+            }
+        }
+        if (shouldSignOut)
+        {
+            ForceSignOut();
+        }
+    }
+
+    private void OnUserSessionsRevoked(long userId, string reason)
+    {
+        bool shouldSignOut = false;
+        lock (_sync)
+        {
+            if (_currentReference?.UserId == userId)
+            {
+                shouldSignOut = true;
+            }
+        }
+        if (shouldSignOut)
+        {
+            ForceSignOut();
+        }
+    }
+
+    public void ForceSignOut()
+    {
+        DetachSession();
+        NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()))));
+    }
+
+    protected override async Task<bool> ValidateAuthenticationStateAsync(AuthenticationState state, CancellationToken cancellationToken)
+    {
+        var reference = SessionClaims.Read(state.User);
+        if (reference is null)
+        {
+            DetachSession();
+            return false;
+        }
+
+        AttachSession(state);
+        var code = await _sessions.ValidateAsync(reference, cancellationToken);
+        if (code != "Auth.Valid")
+        {
+            DetachSession();
+            return false;
+        }
+        return true;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DetachSession();
+        }
+        base.Dispose(disposing);
     }
 }
 
@@ -82,8 +203,10 @@ public static class AuthenticationBackend
             options.UseSqlServer(connection,sql=>sql.MigrationsHistoryTable("__EFMigrationsHistory","auth"));
         });
         services.AddSingleton<TimeProvider>(TimeProvider.System);
+        services.Configure<RuntimeSessionOptions>(configuration.GetSection("ForgeFlow:Auth:Sessions"));
         services.AddSingleton<RuntimeSessions>();
         services.AddSingleton<ForgeFlow.Application.Users.IUserNotificationPublisher>(sp => sp.GetRequiredService<RuntimeSessions>());
+        services.AddSingleton<ForgeFlow.Application.Security.ISessionInvalidator>(sp => sp.GetRequiredService<RuntimeSessions>());
         services.AddScoped<AuthenticationStateProvider,SessionAuthenticationStateProvider>();
         services.AddCascadingAuthenticationState();
         services.AddScoped<ICurrentAuthenticatedSession,CircuitSessionSource>();
@@ -99,19 +222,17 @@ public static class AuthenticationBackend
                 var code=reference is null ? "Auth.SessionInvalid" : await context.HttpContext.RequestServices.GetRequiredService<RuntimeSessions>().ValidateAsync(reference,context.HttpContext.RequestAborted);
                 if (code!="Auth.Valid") {
                     if (code=="Auth.ServiceUnavailable") context.HttpContext.Items[UnavailableItem]=true;
+                    if (code=="Auth.SessionRevoked") context.HttpContext.Items["ForgeFlow.SessionRevoked"]=true;
                     if (reference is not null) context.HttpContext.Items[RejectedPrincipalItem]=context.Principal;
                     context.RejectPrincipal(); await context.HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
                 }
             };
-            options.Events.OnRedirectToLogin=context=>WriteError(context.HttpContext,context.HttpContext.Items.ContainsKey(UnavailableItem) ? "Auth.ServiceUnavailable" : "Auth.SessionInvalid",context.HttpContext.Items.ContainsKey(UnavailableItem) ? 503 : 401);
+            options.Events.OnRedirectToLogin=context=>WriteError(context.HttpContext,
+                context.HttpContext.Items.ContainsKey(UnavailableItem) ? "Auth.ServiceUnavailable" :
+                context.HttpContext.Items.ContainsKey("ForgeFlow.SessionRevoked") ? "Auth.SessionRevoked" :
+                "Auth.SessionInvalid",
+                context.HttpContext.Items.ContainsKey(UnavailableItem) ? 503 : 401);
             options.Events.OnRedirectToAccessDenied=context=>WriteError(context.HttpContext,"Auth.AccessDenied",403);
-        });
-        services.AddRateLimiter(options => {
-            options.AddPolicy("auth-login", context =>
-                RateLimitPartition.GetFixedWindowLimiter(
-                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1), QueueLimit = 0, AutoReplenishment = true }));
-            options.OnRejected=(context,_)=>new ValueTask(WriteError(context.HttpContext,"Auth.LoginThrottled",429));
         });
         return services;
     }
@@ -147,7 +268,7 @@ public static class AuthenticationBackend
         app.MapPost("/account/passkey/login-options", PasskeyLoginOptions);
         app.MapPost("/account/passkey/login-verify", PasskeyLoginVerify).RequireRateLimiting("auth-login");
         app.MapPost("/account/logout",Logout).WithName("Auth.Logout");
-        app.MapPost("/account/change-password-submit",ChangePasswordSubmit).WithName("Auth.ChangePassword");
+        app.MapPost("/account/change-password-submit",ChangePasswordSubmit).WithName("Auth.ChangePassword").RequireRateLimiting("auth-login");
     }
 
     public static async Task<IResult> Avatar(HttpContext context, RuntimeSessions sessions)

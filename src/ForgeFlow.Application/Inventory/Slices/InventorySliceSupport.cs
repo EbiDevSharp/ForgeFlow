@@ -18,18 +18,32 @@ public sealed class InventorySliceSupport(
         string permission,
         CancellationToken ct)
     {
-        if (actors is null) return (null, InventoryErrors.ActorRequired);
+        var result = await AuthorizeAnyAsync(scope, ct, permission);
+        return (result.Actor, result.Error);
+    }
+
+    public async ValueTask<(TrustedActor? Actor, string? Permission, string? Error)> AuthorizeAnyAsync(
+        OrganizationScope? scope,
+        CancellationToken ct,
+        params string[] allowedPermissions)
+    {
+        if (actors is null) return (null, null, InventoryErrors.ActorRequired);
         var actor = await actors.ResolveAsync(ct);
-        if (actor is null) return (null, InventoryErrors.ActorRequired);
-        if (scope is null) return (null, InventoryErrors.ScopeRequired);
-        if (permissions is null || !(await permissions.EvaluateAsync(actor, scope, permission, ct)).IsAllowed)
-            return (null, InventoryErrors.AccessDenied);
-        return (actor, null);
+        if (actor is null) return (null, null, InventoryErrors.ActorRequired);
+        if (scope is null) return (null, null, InventoryErrors.ScopeRequired);
+        if (permissions is null) return (null, null, InventoryErrors.AccessDenied);
+
+        foreach (var perm in allowedPermissions)
+        {
+            if ((await permissions.EvaluateAsync(actor, scope, perm, ct)).IsAllowed)
+                return (actor, perm, null);
+        }
+        return (null, null, InventoryErrors.AccessDenied);
     }
 
     public OrganizationWriteAccess Access(TrustedActor actor, OrganizationScope scope, string permission) => new(actor, async ct =>
     {
-        var current = await AuthorizeAsync(scope, permission, ct);
+        var current = await AuthorizeAnyAsync(scope, ct, permission);
         return current.Error is null
             && current.Actor!.ActorId == actor.ActorId
             && current.Actor.Provenance == actor.Provenance

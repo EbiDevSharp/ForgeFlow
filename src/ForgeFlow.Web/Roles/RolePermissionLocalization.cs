@@ -2,6 +2,7 @@ using ForgeFlow.Application.Audit;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Audit;
 using ForgeFlow.Domain.Boms;
+using ForgeFlow.Domain.BusinessPartners;
 using ForgeFlow.Domain.Diagnostics;
 using ForgeFlow.Domain.Inventory;
 using ForgeFlow.Domain.Items;
@@ -12,6 +13,7 @@ using ForgeFlow.Domain.Quality;
 using ForgeFlow.Domain.Reporting;
 using ForgeFlow.Domain.Roles;
 using ForgeFlow.Domain.Routings;
+using ForgeFlow.Domain.Sales;
 using ForgeFlow.Domain.Units;
 using ForgeFlow.Domain.Users;
 using ForgeFlow.Web.Localization;
@@ -154,10 +156,10 @@ public static class RolePermissionLocalization
         RolePermissionErrors.SelfDeactivationForbidden or UserManagementErrors.SelfDeactivationForbidden => "UserErrorSelfDeactivation",
         UserManagementErrors.CannotResetOwnTwoFactor => "UserErrorCannotResetOwnTwoFactor",
         UserManagementErrors.TwoFactorReasonRequired => "UserErrorTwoFactorReasonRequired",
-        RolePermissionErrors.ParentOrganizationInactive or UserManagementErrors.ParentOrganizationInactive or OrganizationSiteErrors.OrganizationInactive or UnitErrors.ParentOrganizationInactive or ItemErrors.ParentOrganizationInactive or BomErrors.ParentOrganizationInactive or ProductionOrderErrors.ParentOrganizationInactive or InventoryErrors.ParentOrganizationInactive or QualityErrors.ParentOrganizationInactive or ProcurementErrors.ParentOrganizationInactive or RoutingErrors.ParentOrganizationInactive => "WriteParentInactive",
+        RolePermissionErrors.ParentOrganizationInactive or UserManagementErrors.ParentOrganizationInactive or OrganizationSiteErrors.OrganizationInactive or UnitErrors.ParentOrganizationInactive or ItemErrors.ParentOrganizationInactive or BomErrors.ParentOrganizationInactive or ProductionOrderErrors.ParentOrganizationInactive or InventoryErrors.ParentOrganizationInactive or QualityErrors.ParentOrganizationInactive or ProcurementErrors.ParentOrganizationInactive or RoutingErrors.ParentOrganizationInactive or SalesErrors.ParentOrganizationInactive => "WriteParentInactive",
         RolePermissionErrors.ParentSiteInactive or UserManagementErrors.ParentSiteInactive => "UserErrorParentSiteInactive",
-        RolePermissionErrors.ConcurrencyConflict or UserManagementErrors.ConcurrencyConflict or OrganizationAccessErrors.ConcurrencyConflict or UnitErrors.ConcurrencyConflict or ItemErrors.ConcurrencyConflict or BomErrors.ConcurrencyConflict or ProductionOrderErrors.ConcurrencyConflict or InventoryErrors.ConcurrencyConflict or QualityErrors.ConcurrencyConflict or ProcurementErrors.ConcurrencyConflict or RoutingErrors.ConcurrencyConflict => "WriteConflict",
-        RolePermissionErrors.OutcomeUnknown or UserManagementErrors.OutcomeUnknown or OrganizationAccessErrors.OutcomeUnknown or UnitErrors.OutcomeUnknown or ItemErrors.OutcomeUnknown or BomErrors.OutcomeUnknown or ProductionOrderErrors.OutcomeUnknown or InventoryErrors.OutcomeUnknown or QualityErrors.OutcomeUnknown or ProcurementErrors.OutcomeUnknown or RoutingErrors.OutcomeUnknown => "WriteOutcomeUnknown",
+        RolePermissionErrors.ConcurrencyConflict or UserManagementErrors.ConcurrencyConflict or OrganizationAccessErrors.ConcurrencyConflict or UnitErrors.ConcurrencyConflict or ItemErrors.ConcurrencyConflict or BomErrors.ConcurrencyConflict or ProductionOrderErrors.ConcurrencyConflict or InventoryErrors.ConcurrencyConflict or QualityErrors.ConcurrencyConflict or ProcurementErrors.ConcurrencyConflict or RoutingErrors.ConcurrencyConflict or SalesErrors.ConcurrencyConflict or DocumentSequenceErrors.ConcurrencyConflict or BusinessPartnerErrors.Conflict => "WriteConflict",
+        RolePermissionErrors.OutcomeUnknown or UserManagementErrors.OutcomeUnknown or OrganizationAccessErrors.OutcomeUnknown or UnitErrors.OutcomeUnknown or ItemErrors.OutcomeUnknown or BomErrors.OutcomeUnknown or ProductionOrderErrors.OutcomeUnknown or InventoryErrors.OutcomeUnknown or QualityErrors.OutcomeUnknown or ProcurementErrors.OutcomeUnknown or RoutingErrors.OutcomeUnknown or SalesErrors.OutcomeUnknown => "WriteOutcomeUnknown",
         RolePermissionErrors.AccessDenied or RolePermissionErrors.ActorRequired or RolePermissionErrors.ScopeRequired
             or UserManagementErrors.AccessDenied or UserManagementErrors.ActorRequired or UserManagementErrors.ScopeRequired
             or AuditErrors.AccessDenied or AuditErrors.ActorRequired or AuditErrors.ScopeRequired
@@ -170,7 +172,11 @@ public static class RolePermissionLocalization
             or ProcurementErrors.AccessDenied or ProcurementErrors.ActorRequired or ProcurementErrors.ScopeRequired
             or RoutingErrors.AccessDenied or RoutingErrors.ActorRequired or RoutingErrors.ScopeRequired
             or ReportingErrors.AccessDenied or ReportingErrors.ActorRequired or ReportingErrors.ScopeRequired
-            or DiagnosticErrors.AccessDenied or DiagnosticErrors.ActorRequired or DiagnosticErrors.ScopeRequired => "ReadDenied",
+            or DiagnosticErrors.AccessDenied or DiagnosticErrors.ActorRequired or DiagnosticErrors.ScopeRequired
+            or OrganizationAccessErrors.AccessDenied or OrganizationAccessErrors.ActorRequired or OrganizationAccessErrors.ScopeRequired
+            or SalesErrors.AccessDenied or SalesErrors.ActorRequired or SalesErrors.ScopeRequired
+            or DocumentSequenceErrors.AccessDenied or DocumentSequenceErrors.ActorRequired or DocumentSequenceErrors.ScopeRequired
+            or BusinessPartnerErrors.AccessDenied => "ReadDenied",
         RolePermissionErrors.NotFound or UserManagementErrors.NotFound or OrganizationSiteErrors.OrganizationNotFound or OrganizationSiteErrors.SiteNotFound
             or AuditErrors.NotFound or UnitErrors.NotFound or UnitErrors.ConversionNotFound or UnitErrors.CurrencyNotFound
             or ItemErrors.NotFound or ItemErrors.ClassificationSetNotFound or ItemErrors.ClassificationNotFound
@@ -182,18 +188,25 @@ public static class RolePermissionLocalization
             or QualityErrors.ParameterNotFound or QualityErrors.SpecNotFound
             or ProcurementErrors.NotFound or ProcurementErrors.SupplierNotFound or ProcurementErrors.LineNotFound
             or RoutingErrors.NotFound or RoutingErrors.WorkCenterNotFound or RoutingErrors.RoutingNotFound or RoutingErrors.OperationNotFound
-            or DiagnosticErrors.NotFound => "ReadNotFound",
+            or DiagnosticErrors.NotFound
+            or SalesErrors.NotFound or SalesErrors.LineNotFound or SalesErrors.DispatchNotFound
+            or DocumentSequenceErrors.NotFound or DocumentSequenceErrors.OrganizationInvalid
+            or BusinessPartnerErrors.NotFound => "ReadNotFound",
         UnitErrors.CodeInvalid or UnitErrors.CurrencyCodeInvalid or ItemErrors.CodeInvalid or BomErrors.CodeInvalid or ProductionOrderErrors.OrderNumberInvalid or InventoryErrors.CodeInvalid or InventoryErrors.DocumentNumberInvalid or QualityErrors.InspectionNumberInvalid
             or ProcurementErrors.SupplierCodeInvalid or ProcurementErrors.OrderNumberInvalid or ProcurementErrors.ReceiptDocumentInvalid
-            or RoutingErrors.WorkCenterCodeInvalid or RoutingErrors.RoutingCodeInvalid or RoutingErrors.OperationCodeInvalid => "CreateCodeInvalid",
+            or RoutingErrors.WorkCenterCodeInvalid or RoutingErrors.RoutingCodeInvalid or RoutingErrors.OperationCodeInvalid
+            or SalesErrors.CustomerCodeInvalid or SalesErrors.OrderNumberInvalid or SalesErrors.DispatchNumberInvalid
+            or BusinessPartnerErrors.CodeInvalid or OrganizationSiteErrors.OrganizationCodeInvalid or OrganizationSiteErrors.SiteCodeInvalid => "CreateCodeInvalid",
         UnitErrors.CodeDuplicate or UnitErrors.CurrencyCodeDuplicate or ItemErrors.CodeDuplicate or ItemErrors.ClassificationSetCodeDuplicate or ItemErrors.ClassificationCodeDuplicate or ItemErrors.AttributeCodeDuplicate
             or BomErrors.CodeDuplicate or BomErrors.VersionDuplicate or BomErrors.ContextDimensionCodeDuplicate
             or ProductionOrderErrors.OrderNumberDuplicate
             or InventoryErrors.CodeDuplicate or InventoryErrors.DocumentNumberDuplicate or QualityErrors.InspectionNumberDuplicate
             or ProcurementErrors.SupplierCodeDuplicate or ProcurementErrors.OrderNumberDuplicate
-            or RoutingErrors.WorkCenterCodeDuplicate or RoutingErrors.RoutingCodeDuplicate => "CreateCodeDuplicate",
-        RoutingErrors.VersionDuplicate => "BomErrorVersionDuplicate",
-        UnitErrors.NameInvalid or ItemErrors.NameInvalid or BomErrors.NameInvalid or InventoryErrors.NameInvalid or ProcurementErrors.SupplierNameInvalid or RoutingErrors.NameInvalid => "WriteNameInvalid",
+            or RoutingErrors.WorkCenterCodeDuplicate or RoutingErrors.RoutingCodeDuplicate or RoutingErrors.VersionDuplicate
+            or SalesErrors.CustomerCodeDuplicate or SalesErrors.OrderNumberDuplicate or SalesErrors.DispatchNumberDuplicate
+            or BusinessPartnerErrors.DuplicateCode or OrganizationSiteErrors.OrganizationCodeDuplicate or OrganizationSiteErrors.SiteCodeDuplicate => "CreateCodeDuplicate",
+        UnitErrors.NameInvalid or ItemErrors.NameInvalid or BomErrors.NameInvalid or InventoryErrors.NameInvalid or ProcurementErrors.SupplierNameInvalid or RoutingErrors.NameInvalid
+            or SalesErrors.CustomerNameInvalid or BusinessPartnerErrors.NameInvalid or OrganizationSiteErrors.OrganizationNameInvalid or OrganizationSiteErrors.SiteNameInvalid => "WriteNameInvalid",
         ItemErrors.DescriptionInvalid => "ItemErrorDescriptionInvalid",
         ItemErrors.BaseUnitNotFound or ItemErrors.BaseUnitInactive => "ItemErrorBaseUnitInvalid",
         ItemErrors.CapabilityRequired => "ItemErrorCapabilityRequired",
@@ -325,11 +338,96 @@ public static class RolePermissionLocalization
         ReportingErrors.ProductionOrderNotFound => "RptErrorOrderNotFound",
         ReportingErrors.ExportInvalid => "RptErrorExportInvalid",
         DiagnosticErrors.InvalidRetentionDays => "DiagErrorRetentionInvalid",
-        AuditErrors.InvalidQuery or DiagnosticErrors.InvalidQuery => "ReadError",
+        AuditErrors.InvalidQuery or DiagnosticErrors.InvalidQuery or AuditErrors.InvalidFilter => "ReadError",
+        DiagnosticErrors.InvalidErrorReference => "DiagErrorReferenceInvalid",
+        DiagnosticErrors.InvalidOperationCode => "DiagOperationCodeInvalid",
+        DiagnosticErrors.SiteRequiresOrganization => "DiagSiteRequiresOrganization",
         InventoryErrors.ReservationNotFound => "ReadNotFound",
         InventoryErrors.ReservationInvalidState => "InvResErrorInvalidState",
         InventoryErrors.ReservationExceedsAvailable => "InvResErrorExceedsAvailable",
         InventoryErrors.ReservationNotAllowedForOrderState => "InvResErrorOrderState",
+
+        // Business Partners
+        BusinessPartnerErrors.RoleRequired => "BpRoleRequired",
+        BusinessPartnerErrors.NationalCodeInvalid => "BpNationalCodeLengthError",
+        BusinessPartnerErrors.CompanyNameInvalid => "BpCompanyNameRequired",
+        BusinessPartnerErrors.NationalLegalIdInvalid => "BpNationalLegalIdFormatError",
+        BusinessPartnerErrors.EconomicCodeInvalid => "BpEconomicCodeFormatError",
+        BusinessPartnerErrors.MobileInvalid => "BpMobileFormatError",
+        BusinessPartnerErrors.PhoneInvalid => "BpPhoneFormatError",
+        BusinessPartnerErrors.EmailInvalid => "ProfileEmailInvalidError",
+        BusinessPartnerErrors.AddressInvalid => "ProcErrorAddressInvalid",
+        BusinessPartnerErrors.NotesInvalid => "PoErrorNotesInvalid",
+        BusinessPartnerErrors.Inactive => "UnitErrorInactive",
+        BusinessPartnerErrors.PersonTypeInvalid => "BpPersonTypeInvalid",
+        BusinessPartnerErrors.WebsiteInvalid => "BpWebsiteInvalid",
+
+        // Document Sequence
+        DocumentSequenceErrors.ManualOverrideDisabled => "DocSeqOverrideLocked",
+        DocumentSequenceErrors.DocumentTypeInvalid => "DocSeqErrorDocumentTypeInvalid",
+        DocumentSequenceErrors.PrefixInvalid => "DocSeqErrorPrefixInvalid",
+        DocumentSequenceErrors.SeparatorInvalid => "DocSeqErrorSeparatorInvalid",
+        DocumentSequenceErrors.YearModeInvalid => "DocSeqErrorYearModeInvalid",
+        DocumentSequenceErrors.PaddingInvalid => "DocSeqErrorPaddingInvalid",
+        DocumentSequenceErrors.NextNumberInvalid => "DocSeqErrorNextNumberInvalid",
+
+        // Sales
+        SalesErrors.SiteInvalid => "PoErrorSiteInvalid",
+        SalesErrors.CustomerNotFound => "SalesErrorCustomerNotFound",
+        SalesErrors.CustomerInactive => "SalesErrorCustomerInactive",
+        SalesErrors.ContactInvalid => "ProcErrorContactInvalid",
+        SalesErrors.EmailInvalid => "ProfileEmailInvalidError",
+        SalesErrors.PhoneInvalid => "ProfilePhoneInvalidError",
+        SalesErrors.AddressInvalid => "ProcErrorAddressInvalid",
+        SalesErrors.TaxCodeInvalid => "BpEconomicCodeFormatError",
+        SalesErrors.CurrencyInvalid => "ProcErrorCurrencyInvalid",
+        SalesErrors.DatesInvalid => "BomErrorEffectiveDatesInvalid",
+        SalesErrors.NotesInvalid => "PoErrorNotesInvalid",
+        SalesErrors.ReasonInvalid => "PoErrorCancelReasonInvalid",
+        SalesErrors.CarrierInvalid => "SalesErrorCarrierInvalid",
+        SalesErrors.TrackingNumberInvalid => "SalesErrorTrackingNumberInvalid",
+        SalesErrors.EmptyOrder => "SalesErrorEmptyOrder",
+        SalesErrors.EmptyDispatch => "SalesErrorEmptyDispatch",
+        SalesErrors.DuplicateItem => "ProcErrorDuplicateItem",
+        SalesErrors.ItemInvalid => "BomErrorItemInvalid",
+        SalesErrors.ItemNotSellable => "SalesErrorItemNotSellable",
+        SalesErrors.LineUnitInvalid => "BomErrorUnitInvalid",
+        SalesErrors.QuantityInvalid => "BomErrorQuantityInvalid",
+        SalesErrors.UnitPriceInvalid => "ProcErrorUnitPriceInvalid",
+        SalesErrors.WarehouseInvalid => "InvErrorWarehouseInactive",
+        SalesErrors.LotCodeInvalid => "InvErrorLotCodeInvalid",
+        SalesErrors.LotExpired => "InvErrorLotExpired",
+        SalesErrors.LotQuarantinedOrInsufficient => "SalesErrorLotQuarantinedOrInsufficient",
+        SalesErrors.NotDraft => "SalesErrorNotDraft",
+        SalesErrors.InvalidTransition => "ProcErrorInvalidTransition",
+        SalesErrors.HasDispatchesCannotCancel => "SalesErrorHasDispatchesCannotCancel",
+        SalesErrors.OverDispatch => "SalesErrorOverDispatch",
+        SalesErrors.AlreadyReversed => "InvErrorAlreadyReversed",
+
+        // Organization & User
+        OrganizationSiteErrors.OrganizationHasActiveSites => "WriteHasActiveSites",
+        UserManagementErrors.UserNameInvalid => "UserErrorInvalidName",
+        UserManagementErrors.UserNameDuplicate => "UserErrorDuplicate",
+        UserManagementErrors.PasswordInvalid => "UserErrorPasswordInvalid",
+        UserManagementErrors.LastPlatformAdminRequired => "UserErrorLastPlatformAdmin",
+        UserManagementErrors.SiteMembershipRequired => "UserErrorSiteMembershipRequired",
+
+        // Module Persistence & Audit unavailables
+        AuditErrors.PersistenceUnavailable or BomErrors.AuditUnavailable or BomErrors.PersistenceUnavailable
+            or DiagnosticErrors.PersistenceUnavailable
+            or DocumentSequenceErrors.PersistenceUnavailable or DocumentSequenceErrors.TransactionRequired
+            or InventoryErrors.AuditUnavailable or InventoryErrors.PersistenceUnavailable
+            or ItemErrors.AuditUnavailable or ItemErrors.PersistenceUnavailable
+            or OrganizationAccessErrors.AuditUnavailable or OrganizationAccessErrors.PersistenceUnavailable
+            or ProcurementErrors.AuditUnavailable or ProcurementErrors.PersistenceUnavailable
+            or ProductionOrderErrors.AuditUnavailable or ProductionOrderErrors.PersistenceUnavailable
+            or QualityErrors.AuditUnavailable or QualityErrors.PersistenceUnavailable
+            or ReportingErrors.PersistenceUnavailable
+            or RolePermissionErrors.AuditUnavailable or RolePermissionErrors.PersistenceUnavailable
+            or RoutingErrors.AuditUnavailable or RoutingErrors.PersistenceUnavailable
+            or SalesErrors.AuditUnavailable or SalesErrors.PersistenceUnavailable
+            or UnitErrors.AuditUnavailable or UnitErrors.PersistenceUnavailable
+            or UserManagementErrors.AuditUnavailable or UserManagementErrors.PersistenceUnavailable => "WriteUnavailable",
         _ => "WriteUnavailable"
     };
 

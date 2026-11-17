@@ -1,14 +1,20 @@
 using ForgeFlow.Domain.Common;
+using ForgeFlow.Domain.Events;
 
 namespace ForgeFlow.Domain.Sales;
 
 /// <summary>Site-scoped Sales Order managing customer orders, approvals, reservations, and partial/full dispatches.</summary>
-public sealed class SalesOrder : IHasRowVersion, IHasDomainEvents
+public sealed class SalesOrder : IHasRowVersion, IHasDomainEvents, IOrganizationEntity
 {
     private readonly List<SalesOrderLine> _lines = [];
     private readonly List<IDomainEvent> _domainEvents = [];
 
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void RaiseDomainEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        _domainEvents.Add(domainEvent);
+    }
     public void ClearDomainEvents() => _domainEvents.Clear();
 
     private SalesOrder()
@@ -143,7 +149,13 @@ public sealed class SalesOrder : IHasRowVersion, IHasDomainEvents
 
         Status = SalesOrderStatus.Approved;
         ApprovedAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
+        _domainEvents.Add(new SalesOrderApprovedEvent(OrganizationId, SiteId, Id, OrderNumber, CalculateTotalAmount(), ApprovedAtUtc.Value));
         _domainEvents.Add(new SalesOrderApprovedDomainEvent(OrganizationId, SiteId, OrderNumber, ApprovedAtUtc.Value));
+    }
+
+    public void RecordDispatch(long deliveryOrderId, string deliveryOrderNumber, DateTime utcNow)
+    {
+        _domainEvents.Add(new SalesOrderDispatchedEvent(OrganizationId, SiteId, Id, OrderNumber, deliveryOrderId, deliveryOrderNumber, utcNow));
     }
 
     public void ApplyDispatches(IReadOnlyList<(long LineId, decimal DispatchedBaseDelta)> dispatches)

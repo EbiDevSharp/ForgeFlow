@@ -150,7 +150,7 @@ public sealed record ErrorLogStats(
     int HttpOrCircuitLast24Hours);
 
 public sealed class DiagnosticStoreUnavailableException(Exception inner)
-    : Exception("Diagnostic store unavailable.", inner);
+    : Exception(DiagnosticErrors.PersistenceUnavailable, inner);
 
 public interface IErrorLogStore
 {
@@ -158,4 +158,5 @@ public interface IErrorLogStore
     Task<ErrorLogDetails?> GetAsync(OrganizationScope scope, long id, CancellationToken ct = default);
     Task<ErrorLogStats> GetStatsAsync(OrganizationScope scope, DateTime utcNow, CancellationToken ct = default);
     Task<int> PurgeBeforeAsync(DateTime cutoffUtc, CancellationToken ct = default);
+    int PurgeFallbackFilesBefore(DateTime cutoffUtc) => 0;
 }

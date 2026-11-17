@@ -21,11 +21,12 @@ public sealed class AuditUseCases
         ITrustedActorAccessor? actors = null,
         IOrganizationPermissionEvaluator? permissions = null,
         IUserOperationRecorder? operationRecorder = null,
-        IOperationContextAccessor? opContext = null)
+        IOperationContextAccessor? opContext = null,
+        IOrganizationTimeZoneProvider? timeZoneProvider = null)
     {
         var support = new AuditSliceSupport(actors, permissions, operationRecorder, opContext);
         querySlices = new AuditQuerySlices(store, support);
-        exportSlices = new AuditExportSlices(store, support);
+        exportSlices = new AuditExportSlices(store, support, timeZoneProvider);
     }
 
     public Task<OrganizationResult<OrganizationPage<AuditEntrySummary>>> ListAuditEntries(
@@ -51,6 +52,8 @@ public sealed class AuditUseCases
         AuditCategory category = AuditCategory.All,
         CancellationToken ct = default)
         => querySlices.ListEventCodesAsync(scope, category, ct);
+
+    public AuditExportSlices ExportSlices => exportSlices;
 
     public Task<OrganizationResult<CsvExportFile>> ExportAuditCsv(
         OrganizationScope scope,

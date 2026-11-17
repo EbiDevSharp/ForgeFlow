@@ -11,7 +11,7 @@ public enum QualityControlMode : byte
 }
 
 /// <summary>Organization-shared universal Item Master with operational capabilities.</summary>
-public sealed class Item : IHasDomainEvents, IHasRowVersion
+public sealed class Item : IHasDomainEvents, IHasRowVersion, IOrganizationEntity
 {
     private readonly List<IDomainEvent> domainEvents = [];
 
@@ -56,6 +56,11 @@ public sealed class Item : IHasDomainEvents, IHasRowVersion
     }
 
     public IReadOnlyCollection<IDomainEvent> DomainEvents => domainEvents;
+    public void RaiseDomainEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        domainEvents.Add(domainEvent);
+    }
     public void ClearDomainEvents() => domainEvents.Clear();
 
     public long Id { get; private set; }

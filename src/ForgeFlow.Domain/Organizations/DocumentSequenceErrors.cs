@@ -17,6 +17,7 @@ public static class DocumentSequenceErrors
     public const string PaddingInvalid = "DocumentSequence.PaddingInvalid";
     public const string NextNumberInvalid = "DocumentSequence.NextNumberInvalid";
     public const string ManualOverrideDisabled = "DocumentSequence.ManualOverrideDisabled";
+    public const string TransactionRequired = "DocumentSequence.TransactionRequired";
 }
 
 public sealed class DocumentSequenceRuleException(string code, params (string Key, object Value)[] parameters) : Exception(code)

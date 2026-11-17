@@ -34,7 +34,8 @@ public interface IDocumentSequenceStore
     Task<IReadOnlyList<DocumentSequenceSummary>> ListSequences(long organizationId, DateTime utcNow, OrganizationWriteAccess? seedAccess, CancellationToken ct);
     Task<DocumentSequenceSummary> GetPreview(long organizationId, DocumentSequenceType documentType, DateTime utcNow, CancellationToken ct);
     Task<OrganizationResult<DocumentSequenceSummary>> UpdateSequence(long organizationId, DocumentSequenceType documentType, UpdateDocumentSequenceRequest request, byte[] version, DateTime utcNow, OrganizationWriteAccess access, CancellationToken ct);
+    Task<string> AllocateNextNumber(long organizationId, DocumentSequenceType documentType, string? requestedNumber, DateTime utcNow, CancellationToken ct, TimeZoneInfo? timeZone = null);
 }
 
-public sealed class DocumentSequenceStoreUnavailableException(string message, Exception? inner = null)
+public sealed class DocumentSequenceStoreUnavailableException(string message = DocumentSequenceErrors.PersistenceUnavailable, Exception? inner = null)
     : Exception(message, inner);

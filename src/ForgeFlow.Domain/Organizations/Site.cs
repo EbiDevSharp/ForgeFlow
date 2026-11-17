@@ -1,6 +1,8 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Organizations;
 
-public sealed class Site
+public sealed class Site : IOrganizationEntity
 {
     private readonly Organization organization;
 

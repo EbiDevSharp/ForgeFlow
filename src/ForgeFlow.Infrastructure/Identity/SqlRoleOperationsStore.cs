@@ -7,6 +7,7 @@ using ForgeFlow.Application.Roles;
 using ForgeFlow.Application.Users;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.Roles;
+using ForgeFlow.Infrastructure.Common;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -642,10 +643,8 @@ public sealed class SqlRoleOperationsStore(
         catch (RoleRuleException ex) { return OrganizationResult<T>.Failure(ex.Code, ex.Parameters); }
         catch (DbUpdateConcurrencyException) { return OrganizationResult<T>.Failure(RolePermissionErrors.ConcurrencyConflict); }
         catch (RoleCommitOutcomeUnknownException) { return OrganizationResult<T>.Failure(RolePermissionErrors.OutcomeUnknown); }
-        catch (DbUpdateException ex) when (IsUniqueRoleNameViolation(ex))
-        { return OrganizationResult<T>.Failure(RolePermissionErrors.NameDuplicate); }
-        catch (DbUpdateException ex) when (IsUniqueAssignmentOrGrantViolation(ex))
-        { return OrganizationResult<T>.Failure(RolePermissionErrors.ConcurrencyConflict); }
+        catch (DbUpdateException ex) when (DbUniqueConstraintExceptionTranslator.IsUniqueConstraintViolation(ex))
+        { return OrganizationResult<T>.Failure(DbUniqueConstraintExceptionTranslator.Translate(ex, RolePermissionErrors.ConcurrencyConflict)); }
         catch (DbUpdateException ex) when (IsAuditWriteFailure(ex))
         { return OrganizationResult<T>.Failure(RolePermissionErrors.AuditUnavailable); }
         catch (SqlException sql) when (IsAuditSqlFailure(sql))

@@ -4,6 +4,7 @@ using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.Reporting;
 using ForgeFlow.Domain.Audit;
+using ForgeFlow.Domain.Common;
 using ForgeFlow.Domain.Diagnostics;
 
 namespace ForgeFlow.Application.Audit.Slices;
@@ -13,7 +14,8 @@ namespace ForgeFlow.Application.Audit.Slices;
 /// </summary>
 public sealed class AuditExportSlices(
     IAuditOperationsStore store,
-    AuditSliceSupport support)
+    AuditSliceSupport support,
+    IOrganizationTimeZoneProvider? timeZoneProvider = null)
 {
     public async Task<OrganizationResult<CsvExportFile>> ExportAuditCsvAsync(
         OrganizationScope scope,
@@ -42,10 +44,12 @@ public sealed class AuditExportSlices(
 
         try
         {
+            var orgId = scope is OrganizationScope.Organization o ? o.OrganizationId : scope is OrganizationScope.Site s ? s.OrganizationId : 0L;
+            var tz = timeZoneProvider?.GetTimeZone(orgId) ?? OrganizationCalendarUtils.DefaultTimeZone;
             var page = await store.ListAuditEntries(scope, normalized!, ct);
             var rows = page.Items.Select(e => (IReadOnlyList<string>)
             [
-                TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(e.OccurredAtUtc, DateTimeKind.Utc), TimeZoneInfo.Local)
+                TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(e.OccurredAtUtc, DateTimeKind.Utc), tz)
                     .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
                 e.Source.ToString(),
                 e.EventCode,
@@ -66,6 +70,75 @@ public sealed class AuditExportSlices(
         catch (AuditStoreUnavailableException)
         {
             return OrganizationResult<CsvExportFile>.Failure(AuditErrors.PersistenceUnavailable);
+        }
+    }
+
+    public async Task<OrganizationResult<bool>> StreamAuditCsvAsync(
+        Stream outputStream,
+        OrganizationScope scope,
+        AuditListQuery query,
+        CsvExportColumnHeaders columns,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(outputStream);
+        ArgumentNullException.ThrowIfNull(scope);
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(columns);
+
+        var (allowed, actor, error) = await support.AuthorizePermissionAsync(scope, AuditPermissions.AuditExport, ct);
+        if (!allowed)
+        {
+            await OperationAuditHelper.RecordAsync(support.OperationRecorder, support.OpContext, UserOperationCatalog.AuditExported,
+                OperationAuditHelper.MapFailureOutcome(error), actor, scope, null, null, "Audit", null, error);
+            return OrganizationResult<bool>.Failure(error!);
+        }
+
+        if (columns.Headers.Count != 8
+            || string.IsNullOrWhiteSpace(columns.FileName)
+            || !AuditSliceSupport.TryNormalizeQuery(scope, query with { Page = 1, PageSize = AuditSliceSupport.MaxExportRows }, out var normalized, allowExportPageSize: true))
+        {
+            return OrganizationResult<bool>.Failure(AuditErrors.InvalidQuery);
+        }
+
+        try
+        {
+            var orgId = scope is OrganizationScope.Organization o ? o.OrganizationId : scope is OrganizationScope.Site s ? s.OrganizationId : 0L;
+            var tz = timeZoneProvider?.GetTimeZone(orgId) ?? OrganizationCalendarUtils.DefaultTimeZone;
+            var page = await store.ListAuditEntries(scope, normalized!, ct);
+
+            async IAsyncEnumerable<IReadOnlyList<string>> GenerateRows([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+            {
+                foreach (var e in page.Items)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    yield return
+                    [
+                        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(e.OccurredAtUtc, DateTimeKind.Utc), tz)
+                            .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+                        e.Source.ToString(),
+                        e.EventCode,
+                        e.ActorUserName ?? e.HostOperatorReference ?? (e.ActorUserId?.ToString(CultureInfo.InvariantCulture) ?? "System"),
+                        e.SubjectUserName ?? (e.SubjectUserId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty),
+                        AuditSliceSupport.FormatOutcomeForCsv(e),
+                        e.SiteId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
+                        e.CorrelationId.ToString("D")
+                    ];
+                }
+                await Task.CompletedTask;
+            }
+
+            await CsvExportBuilder.WriteStreamAsync(outputStream, columns.Headers, GenerateRows(ct), ct);
+
+            await OperationAuditHelper.RecordAsync(support.OperationRecorder, support.OpContext, UserOperationCatalog.AuditExported,
+                UserOperationOutcome.Succeeded, actor, scope, null, normalized!.SiteId,
+                "Audit", columns.FileName, null,
+                new { Category = normalized.Category.ToString(), RowCount = page.Items.Count });
+
+            return OrganizationResult<bool>.Success(true);
+        }
+        catch (AuditStoreUnavailableException)
+        {
+            return OrganizationResult<bool>.Failure(AuditErrors.PersistenceUnavailable);
         }
     }
 }

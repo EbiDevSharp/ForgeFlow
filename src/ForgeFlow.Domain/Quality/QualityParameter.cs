@@ -1,3 +1,5 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Quality;
 
 public enum QualityParameterDataType : byte
@@ -8,7 +10,7 @@ public enum QualityParameterDataType : byte
 }
 
 /// <summary>Organization-wide catalog of reusable laboratory/inspection test parameters with scientific symbols and units.</summary>
-public sealed class QualityParameter
+public sealed class QualityParameter : IOrganizationEntity
 {
     private QualityParameter() { }
 

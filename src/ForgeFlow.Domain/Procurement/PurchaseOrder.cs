@@ -3,12 +3,17 @@ using ForgeFlow.Domain.Common;
 namespace ForgeFlow.Domain.Procurement;
 
 /// <summary>Site-scoped Purchase Order managing vendor ordering, approvals, and partial/full goods receipts.</summary>
-public sealed class PurchaseOrder : IHasRowVersion, IHasDomainEvents
+public sealed class PurchaseOrder : IHasRowVersion, IHasDomainEvents, IOrganizationEntity
 {
     private readonly List<PurchaseOrderLine> _lines = [];
     private readonly List<IDomainEvent> _domainEvents = [];
 
     public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void RaiseDomainEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        _domainEvents.Add(domainEvent);
+    }
     public void ClearDomainEvents() => _domainEvents.Clear();
 
     private PurchaseOrder()

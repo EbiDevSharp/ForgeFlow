@@ -1,14 +1,20 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Infrastructure.Diagnostics;
 
 internal static class DiagnosticDateBounds
 {
     public static DateTime LocalDayStartToUtc(DateOnly date, TimeZoneInfo? timeZone = null)
     {
-        var tz = timeZone ?? TimeZoneInfo.Local;
-        var local = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
-        return TimeZoneInfo.ConvertTimeToUtc(local, tz);
+        var tz = timeZone ?? OrganizationCalendarUtils.DefaultTimeZone;
+        var (startUtc, _) = OrganizationCalendarUtils.GetDayBoundsUtc(date, tz);
+        return startUtc;
     }
 
     public static DateTime LocalDayEndExclusiveToUtc(DateOnly date, TimeZoneInfo? timeZone = null)
-        => LocalDayStartToUtc(date.AddDays(1), timeZone);
+    {
+        var tz = timeZone ?? OrganizationCalendarUtils.DefaultTimeZone;
+        var (_, endUtcExclusive) = OrganizationCalendarUtils.GetDayBoundsUtc(date, tz);
+        return endUtcExclusive;
+    }
 }

@@ -1,10 +1,21 @@
 using ForgeFlow.Domain.Common;
+using ForgeFlow.Domain.Events;
 
 namespace ForgeFlow.Domain.Quality;
 
 /// <summary>Organization-level lot metadata (manufacture date, expiration date, notes) keyed by (OrganizationId, ItemId, LotCode).</summary>
-public sealed class ItemLot : IHasRowVersion
+public sealed class ItemLot : IHasRowVersion, IHasDomainEvents, IOrganizationEntity
 {
+    private readonly List<IDomainEvent> _domainEvents = [];
+
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void RaiseDomainEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        _domainEvents.Add(domainEvent);
+    }
+    public void ClearDomainEvents() => _domainEvents.Clear();
+
     private ItemLot() { }
 
     private ItemLot(
@@ -57,6 +68,12 @@ public sealed class ItemLot : IHasRowVersion
         ExpirationDate = expirationDate;
         Notes = normalizedNotes;
         return true;
+    }
+
+    public void RecordCoa(string coaNumber, DateTime utcNow)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(coaNumber);
+        _domainEvents.Add(new LotCoaIssuedEvent(OrganizationId, null, ItemId, LotCode, coaNumber, utcNow));
     }
 
     public bool IsExpiredOn(DateOnly date) => ExpirationDate.HasValue && ExpirationDate.Value < date;

@@ -5,7 +5,7 @@ using ForgeFlow.Domain.Items;
 namespace ForgeFlow.Application.Items.Slices;
 
 /// <summary>Vertical slice handlers for dynamic Attribute Definitions and Item attribute values.</summary>
-internal sealed class ItemAttributeSlices(IItemOperationsStore store, ItemSliceSupport support)
+public sealed class ItemAttributeSlices(IItemOperationsStore store, ItemSliceSupport support)
 {
     public async Task<OrganizationResult<OrganizationPage<AttributeDefinitionSummary>>> ListAsync(
         OrganizationScope? scope, long organizationId, AttributeDefinitionListQuery query, CancellationToken ct)

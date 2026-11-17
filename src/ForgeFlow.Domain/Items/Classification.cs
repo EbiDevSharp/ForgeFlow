@@ -1,7 +1,9 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Items;
 
 /// <summary>Hierarchical taxonomy node inside an organization's ClassificationSet.</summary>
-public sealed class Classification
+public sealed class Classification : IOrganizationEntity
 {
     private Classification()
     {

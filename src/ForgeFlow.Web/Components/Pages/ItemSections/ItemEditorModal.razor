@@ -1,0 +1,494 @@
+@using System.Globalization
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Quality
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Items
+@using ForgeFlow.Domain.Organizations
+@using ForgeFlow.Domain.Quality
+@inject ItemUseCases ItemService
+@inject QualitySpecUseCases SpecService
+@inject IStringLocalizer<SharedResources> Text
+@implements IDisposable
+
+<BitDialog Width="640px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses"
+           IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged"
+           Title="@Text[editMode ? "ItemEditTitle" : "ItemDetailTitle"]"
+           AriaLabel="@Text[editMode ? "ItemEditTitle" : "ItemDetailTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (selectedItem is not null)
+        {
+            <div class="audit-modal-body">
+                <div class="audit-modal-title-row">
+                    <strong class="audit-modal-code" dir="ltr">@selectedItem.Summary.Code — @selectedItem.Summary.Name</strong>
+                    <span class="read-badge @(selectedItem.Summary.IsActive ? "active" : "inactive")">
+                        @Text[selectedItem.Summary.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                    </span>
+                </div>
+
+                <div class="read-tab-bar" role="tablist">
+                    <button type="button" role="tab" aria-selected="@(activeTab == 0)"
+                            class="read-tab-btn @(activeTab == 0 ? "active" : string.Empty)"
+                            @onclick="() => activeTab = 0">@Text["ItemSectionGeneral"]</button>
+                    <button type="button" role="tab" aria-selected="@(activeTab == 1)"
+                            class="read-tab-btn @(activeTab == 1 ? "active" : string.Empty)"
+                            @onclick="() => activeTab = 1">@Text["ItemSectionClassifications"]</button>
+                    <button type="button" role="tab" aria-selected="@(activeTab == 2)"
+                            class="read-tab-btn @(activeTab == 2 ? "active" : string.Empty)"
+                            @onclick="() => activeTab = 2">@Text["ItemSectionConversions"]</button>
+                    <button type="button" role="tab" aria-selected="@(activeTab == 3)"
+                            class="read-tab-btn @(activeTab == 3 ? "active" : string.Empty)"
+                            @onclick="() => activeTab = 3">@Text["ItemSectionAttributes"]</button>
+                </div>
+
+                @if (activeTab == 0)
+                {
+                    @if (!editMode)
+                    {
+                        <div class="audit-meta-card">
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["ItemBaseUnitLabel"]</span>
+                                <span class="audit-meta-val">@selectedItem.Summary.BaseUnitName (<bdi dir="ltr">@selectedItem.Summary.BaseUnitSymbol</bdi>)</span>
+                            </div>
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["ItemDescriptionLabel"]</span>
+                                <span class="audit-meta-val">@(selectedItem.Summary.Description ?? "—")</span>
+                            </div>
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["ItemCapabilitiesLabel"]</span>
+                                <div class="cap-badge-row">
+                                    @if (selectedItem.Summary.CanBePurchased) { <span class="cap-badge">@Text["ItemCapPurchase"]</span> }
+                                    @if (selectedItem.Summary.CanBeManufactured) { <span class="cap-badge">@Text["ItemCapManufacture"]</span> }
+                                    @if (selectedItem.Summary.CanBeSold) { <span class="cap-badge">@Text["ItemCapSell"]</span> }
+                                    @if (selectedItem.Summary.CanBeConsumed) { <span class="cap-badge">@Text["ItemCapConsume"]</span> }
+                                </div>
+                            </div>
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["ItemRequiresLotTrackingLabel"]</span>
+                                <span class="audit-meta-val">@Text[selectedItem.Summary.RequiresLotTracking ? "AttributeRequiredYes" : "AttributeRequiredNo"]</span>
+                            </div>
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["ItemQcModeLabel"]</span>
+                                <span class="audit-meta-val">@QcModeLabel(selectedItem.Summary.QualityControlMode)</span>
+                            </div>
+                            @if (resolvedIncomingSpec is not null)
+                            {
+                                var sp = resolvedIncomingSpec.Summary;
+                                <div class="audit-meta-row">
+                                    <span class="audit-meta-label">@Text["QcActiveSpecLabel"]</span>
+                                    <span class="audit-meta-val">
+                                        <bdi dir="ltr">@sp.Code (v@(sp.Version))</bdi> — @sp.Name (@sp.LineCount)
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <form class="write-panel" @onsubmit:preventDefault>
+                            <div class="read-field">
+                                <label for="edit-item-name">@Text["ReadName"]</label>
+                                <input id="edit-item-name" @bind="editItemName" @bind:event="oninput" maxlength="200"
+                                       disabled="@(!selectedItem.Summary.IsActive || itemSaving)" />
+                            </div>
+                            <div class="read-field">
+                                <label for="edit-item-desc">@Text["ItemDescriptionLabel"]</label>
+                                <input id="edit-item-desc" @bind="editItemDescription" @bind:event="oninput" maxlength="500"
+                                       disabled="@(!selectedItem.Summary.IsActive || itemSaving)" />
+                            </div>
+                            <div class="read-field">
+                                <label for="edit-item-unit">@Text["ItemBaseUnitLabel"]</label>
+                                <select id="edit-item-unit" @bind="editItemBaseUnitId" disabled="@(!selectedItem.Summary.IsActive || itemSaving)">
+                                    @foreach (var u in ActiveUnits)
+                                    {
+                                        <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="perm-group">
+                                <div class="perm-group-header"><span>@Text["ItemCapabilitiesLabel"]</span></div>
+                                <div class="perm-grid">
+                                    <label class="perm-check"><input type="checkbox" @bind="editCapPurchase" disabled="@(!selectedItem.Summary.IsActive || itemSaving)" /><span>@Text["ItemCapPurchase"]</span></label>
+                                    <label class="perm-check"><input type="checkbox" @bind="editCapManufacture" disabled="@(!selectedItem.Summary.IsActive || itemSaving)" /><span>@Text["ItemCapManufacture"]</span></label>
+                                    <label class="perm-check"><input type="checkbox" @bind="editCapSell" disabled="@(!selectedItem.Summary.IsActive || itemSaving)" /><span>@Text["ItemCapSell"]</span></label>
+                                    <label class="perm-check"><input type="checkbox" @bind="editCapConsume" disabled="@(!selectedItem.Summary.IsActive || itemSaving)" /><span>@Text["ItemCapConsume"]</span></label>
+                                </div>
+                            </div>
+                            <label class="perm-check">
+                                <input type="checkbox" @bind="editRequiresLotTracking" disabled="@(!selectedItem.Summary.IsActive || itemSaving)" />
+                                <span>@Text["ItemRequiresLotTrackingLabel"]</span>
+                            </label>
+                            <div class="read-field">
+                                <label for="edit-item-qc">@Text["ItemQcModeLabel"]</label>
+                                <select id="edit-item-qc" @bind="editQualityControlMode" disabled="@(!selectedItem.Summary.IsActive || itemSaving)">
+                                    <option value="@QualityControlMode.None">@Text["ItemQcModeNone"]</option>
+                                    <option value="@QualityControlMode.IncomingReceipts">@Text["ItemQcModeIncoming"]</option>
+                                    <option value="@QualityControlMode.ProductionReceipts">@Text["ItemQcModeProduction"]</option>
+                                    <option value="@QualityControlMode.AllReceipts">@Text["ItemQcModeAll"]</option>
+                                </select>
+                            </div>
+
+                            @if (itemConfirmToggle is null)
+                            {
+                                <div class="write-actions">
+                                    @if (selectedItem.Summary.IsActive)
+                                    {
+                                        <BitButton Size="BitSize.Small" IsEnabled="@(!itemSaving)" OnClick="SubmitUpdateItemAsync">@Text["WriteSave"]</BitButton>
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!itemSaving)" OnClick="() => itemConfirmToggle = false">@Text["WriteDeactivate"]</BitButton>
+                                    }
+                                    else
+                                    {
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!itemSaving)" OnClick="() => itemConfirmToggle = true">@Text["WriteActivate"]</BitButton>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="write-confirm" role="alertdialog" aria-labelledby="item-toggle-text">
+                                    <p id="item-toggle-text">@Text[itemConfirmToggle.Value ? "WriteConfirmActivate" : "WriteConfirmDeactivate", selectedItem.Summary.Name]</p>
+                                    <div class="write-actions">
+                                        <BitButton Size="BitSize.Small" IsEnabled="@(!itemSaving)" OnClick="ExecuteItemToggleAsync">@Text["WriteConfirm"]</BitButton>
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!itemSaving)" OnClick="() => itemConfirmToggle = null">@Text["WriteCancel"]</BitButton>
+                                    </div>
+                                </div>
+                            }
+                        </form>
+                    }
+                }
+                else if (activeTab == 1)
+                {
+                    @if (!editMode)
+                    {
+                        @if (selectedItem.Classifications.Count == 0)
+                        {
+                            <p class="read-empty">@Text["ReadEmpty"]</p>
+                        }
+                        else
+                        {
+                            <div class="audit-fields-box">
+                                <table class="audit-fields-table">
+                                    <thead>
+                                        <tr>
+                                            <th>@Text["ClassificationSetLabel"]</th>
+                                            <th>@Text["ReadCode"]</th>
+                                            <th>@Text["ReadName"]</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var cls in selectedItem.Classifications)
+                                        {
+                                            <tr>
+                                                <td>@cls.ClassificationSetName</td>
+                                                <td><bdi dir="ltr">@cls.Code</bdi></td>
+                                                <td>@cls.Name</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="write-panel">
+                            @foreach (var setGroup in ActiveClassifications.GroupBy(c => new { c.ClassificationSetId, c.ClassificationSetName }))
+                            {
+                                <div class="perm-group">
+                                    <div class="perm-group-header"><span>@setGroup.Key.ClassificationSetName</span></div>
+                                    <div class="perm-grid">
+                                        @foreach (var cls in setGroup)
+                                        {
+                                            var isChecked = editItemClassIds.Contains(cls.Id);
+                                            <label class="perm-check">
+                                                <input type="checkbox" checked="@isChecked"
+                                                       disabled="@(!selectedItem.Summary.IsActive || itemSaving)"
+                                                       @onchange="e => ToggleItemClassification(cls, e.Value is bool b && b)" />
+                                                <span>@cls.Name</span>
+                                            </label>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            <div class="write-actions">
+                                <BitButton Size="BitSize.Small" IsEnabled="@(selectedItem.Summary.IsActive && !itemSaving)"
+                                           OnClick="SubmitItemClassificationsAsync">@Text["WriteSave"]</BitButton>
+                            </div>
+                        </div>
+                    }
+                }
+                else if (activeTab == 2)
+                {
+                    <UnitConversionPreviewModal @ref="conversionSection"
+                                                Scope="@Scope"
+                                                OrganizationId="@OrganizationId"
+                                                ItemId="@selectedItem.Summary.Id"
+                                                IsActive="@selectedItem.Summary.IsActive"
+                                                EditMode="@editMode"
+                                                Conversions="@selectedItem.Conversions"
+                                                ActiveUnits="@ActiveUnits"
+                                                OnItemUpdated="ApplySelectedItem" />
+                }
+                else
+                {
+                    <DynamicAttributeEditor Attributes="@selectedItem.Attributes"
+                                            EditInputs="@editAttrInputs"
+                                            EditMode="@editMode"
+                                            Disabled="@(!selectedItem.Summary.IsActive)"
+                                            Saving="@itemSaving"
+                                            OnSave="SubmitItemAttributesAsync" />
+                }
+
+                @if (itemSaving) { <p role="status">@Text["WriteSaving"]</p> }
+                @if (itemSaved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+                @if (itemError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[itemError]</p>
+                    @if (itemError is "WriteConflict" or "WriteOutcomeUnknown")
+                    {
+                        <div class="write-actions">
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadAsync">@Text["WriteReload"]</BitButton>
+                        </div>
+                    }
+                }
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public OrganizationScope? Scope { get; set; }
+    [Parameter] public long OrganizationId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public IReadOnlyList<ClassificationSetSummary> ClassificationSets { get; set; } = [];
+    [Parameter] public IReadOnlyList<ClassificationSummary> ActiveClassifications { get; set; } = [];
+    [Parameter] public EventCallback OnItemChanged { get; set; }
+
+    private UnitConversionPreviewModal? conversionSection;
+    private ItemDetails? selectedItem;
+    private QualitySpecDetails? resolvedIncomingSpec;
+    private byte activeTab;
+    private bool editMode;
+    private bool itemSaving, itemSaved;
+    private string? itemError;
+    private bool? itemConfirmToggle;
+
+    private string editItemName = string.Empty, editItemDescription = string.Empty;
+    private long editItemBaseUnitId;
+    private bool editCapPurchase, editCapManufacture, editCapSell, editCapConsume, editRequiresLotTracking;
+    private QualityControlMode editQualityControlMode = QualityControlMode.None;
+    private readonly HashSet<long> editItemClassIds = [];
+    private readonly Dictionary<long, DynamicAttributeEditor.AttrEditModel> editAttrInputs = [];
+
+    public async Task OpenAsync(long id, bool edit)
+    {
+        if (Scope is null || OrganizationId <= 0) return;
+        itemSaving = false;
+        itemSaved = false;
+        itemError = null;
+        itemConfirmToggle = null;
+        activeTab = 0;
+
+        var res = await ItemService.GetItem(Scope, OrganizationId, id);
+        if (!res.Succeeded || res.Value is null) return;
+
+        ApplySelectedItem(res.Value);
+        resolvedIncomingSpec = null;
+        try
+        {
+            var specRes = await SpecService.ResolveApplicableSpec(Scope, OrganizationId, id, QualitySpecCheckpoint.Incoming);
+            if (specRes.Succeeded) resolvedIncomingSpec = specRes.Value;
+        }
+        catch
+        {
+            resolvedIncomingSpec = null;
+        }
+
+        editMode = edit && CanManage;
+        IsOpen = true;
+        await IsOpenChanged.InvokeAsync(true);
+    }
+
+    private void ApplySelectedItem(ItemDetails details)
+    {
+        selectedItem = details;
+        editItemName = details.Summary.Name;
+        editItemDescription = details.Summary.Description ?? string.Empty;
+        editItemBaseUnitId = details.Summary.BaseUnitId;
+        editCapPurchase = details.Summary.CanBePurchased;
+        editCapManufacture = details.Summary.CanBeManufactured;
+        editCapSell = details.Summary.CanBeSold;
+        editCapConsume = details.Summary.CanBeConsumed;
+        editRequiresLotTracking = details.Summary.RequiresLotTracking;
+        editQualityControlMode = details.Summary.QualityControlMode;
+
+        editItemClassIds.Clear();
+        foreach (var c in details.Classifications) editItemClassIds.Add(c.ClassificationId);
+
+        editAttrInputs.Clear();
+        foreach (var a in details.Attributes)
+        {
+            editAttrInputs[a.AttributeDefinitionId] = new DynamicAttributeEditor.AttrEditModel
+            {
+                Text = a.TextValue ?? string.Empty,
+                DecimalText = a.DecimalValue?.ToString("0.######", CultureInfo.InvariantCulture) ?? string.Empty,
+                BoolText = a.BooleanValue switch { true => "true", false => "false", _ => string.Empty }
+            };
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (selectedItem is not null) await OpenAsync(selectedItem.Summary.Id, editMode);
+    }
+
+    private async Task SubmitUpdateItemAsync()
+    {
+        if (Scope is null || selectedItem is null || itemSaving) return;
+        itemSaving = true;
+        itemSaved = false;
+        itemError = null;
+        try
+        {
+            var res = await ItemService.UpdateItem(Scope, new UpdateItemRequest(
+                selectedItem.Summary.OrganizationId, selectedItem.Summary.Id, editItemName, editItemDescription, editItemBaseUnitId,
+                editCapPurchase, editCapManufacture, editCapSell, editCapConsume, selectedItem.Summary.RowVersion,
+                editRequiresLotTracking, editQualityControlMode));
+            if (!res.Succeeded || res.Value is null) { itemError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            ApplySelectedItem(res.Value);
+            itemSaved = true;
+            await OnItemChanged.InvokeAsync();
+        }
+        finally { itemSaving = false; }
+    }
+
+    private async Task ExecuteItemToggleAsync()
+    {
+        if (Scope is null || selectedItem is null || itemConfirmToggle is not bool target || itemSaving) return;
+        itemSaving = true;
+        itemSaved = false;
+        itemError = null;
+        try
+        {
+            var res = await ItemService.SetItemActive(Scope, new SetItemActiveRequest(
+                selectedItem.Summary.OrganizationId, selectedItem.Summary.Id, target, selectedItem.Summary.RowVersion));
+            if (!res.Succeeded || res.Value is null) { itemConfirmToggle = null; itemError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            ApplySelectedItem(res.Value);
+            itemConfirmToggle = null;
+            itemSaved = true;
+            await OnItemChanged.InvokeAsync();
+        }
+        finally { itemSaving = false; }
+    }
+
+    private void ToggleItemClassification(ClassificationSummary cls, bool isChecked)
+    {
+        itemSaved = false;
+        if (isChecked)
+        {
+            var setInfo = ClassificationSets.FirstOrDefault(s => s.Id == cls.ClassificationSetId);
+            if (setInfo is not null && !setInfo.AllowMultiple)
+            {
+                var sameSetIds = ActiveClassifications.Where(x => x.ClassificationSetId == cls.ClassificationSetId).Select(x => x.Id).ToArray();
+                foreach (var id in sameSetIds) editItemClassIds.Remove(id);
+            }
+            editItemClassIds.Add(cls.Id);
+        }
+        else
+        {
+            editItemClassIds.Remove(cls.Id);
+        }
+    }
+
+    private async Task SubmitItemClassificationsAsync()
+    {
+        if (Scope is null || selectedItem is null || itemSaving) return;
+        itemSaving = true;
+        itemSaved = false;
+        itemError = null;
+        try
+        {
+            var res = await ItemService.SaveItemClassifications(Scope, new SaveItemClassificationsRequest(
+                selectedItem.Summary.OrganizationId, selectedItem.Summary.Id, editItemClassIds.ToArray(), selectedItem.Summary.RowVersion));
+            if (!res.Succeeded || res.Value is null) { itemError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            ApplySelectedItem(res.Value);
+            itemSaved = true;
+        }
+        finally { itemSaving = false; }
+    }
+
+    private async Task SubmitItemAttributesAsync()
+    {
+        if (Scope is null || selectedItem is null || itemSaving) return;
+        itemSaving = true;
+        itemSaved = false;
+        itemError = null;
+        try
+        {
+            var inputs = new List<ItemAttributeValueInput>();
+            foreach (var attr in selectedItem.Attributes)
+            {
+                if (!editAttrInputs.TryGetValue(attr.AttributeDefinitionId, out var model)) continue;
+                decimal? decVal = null;
+                if (attr.DataType == AttributeDataType.Decimal && !string.IsNullOrWhiteSpace(model.DecimalText))
+                {
+                    if (!decimal.TryParse(model.DecimalText.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsedDec))
+                    {
+                        itemError = "ItemErrorAttributeValueInvalid";
+                        return;
+                    }
+                    decVal = parsedDec;
+                }
+                bool? boolVal = attr.DataType == AttributeDataType.Boolean && bool.TryParse(model.BoolText, out var b) ? b : null;
+                inputs.Add(new ItemAttributeValueInput(
+                    attr.AttributeDefinitionId,
+                    attr.DataType == AttributeDataType.Text ? model.Text : null,
+                    decVal,
+                    boolVal));
+            }
+            var res = await ItemService.SaveItemAttributeValues(Scope, new SaveItemAttributeValuesRequest(
+                selectedItem.Summary.OrganizationId, selectedItem.Summary.Id, inputs, selectedItem.Summary.RowVersion));
+            if (!res.Succeeded || res.Value is null) { itemError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
+            ApplySelectedItem(res.Value);
+            itemSaved = true;
+        }
+        finally { itemSaving = false; }
+    }
+
+    private string QcModeLabel(QualityControlMode mode) => mode switch
+    {
+        QualityControlMode.IncomingReceipts => Text["ItemQcModeIncoming"],
+        QualityControlMode.ProductionReceipts => Text["ItemQcModeProduction"],
+        QualityControlMode.AllReceipts => Text["ItemQcModeAll"],
+        _ => Text["ItemQcModeNone"]
+    };
+
+    private async Task OnDialogIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        if (!open)
+        {
+            selectedItem = null;
+            resolvedIncomingSpec = null;
+            itemError = null;
+            itemSaved = false;
+            editItemClassIds.Clear();
+            editAttrInputs.Clear();
+            conversionSection?.Reset();
+        }
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    public void Dispose()
+    {
+        selectedItem = null;
+        resolvedIncomingSpec = null;
+        editItemClassIds.Clear();
+        editAttrInputs.Clear();
+    }
+}

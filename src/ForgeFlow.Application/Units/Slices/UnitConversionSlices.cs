@@ -5,7 +5,7 @@ using ForgeFlow.Domain.Units;
 namespace ForgeFlow.Application.Units.Slices;
 
 /// <summary>Vertical slice handler for unit conversions, multi-hop conversion graph resolution, and standard unit seeding.</summary>
-internal sealed class UnitConversionSlices(
+public sealed class UnitConversionSlices(
     IUnitOperationsStore store,
     UnitSliceSupport support)
 {

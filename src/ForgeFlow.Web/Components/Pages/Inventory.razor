@@ -8,6 +8,7 @@
 @using ForgeFlow.Domain.Inventory
 @using ForgeFlow.Domain.ProductionOrders
 @using ForgeFlow.Web.Roles
+@implements IDisposable
 @inject InventoryUseCases InvService
 @inject StockReservationUseCases ResService
 @inject ProductionOrderUseCases OrderService
@@ -165,7 +166,7 @@
 
             <div class="read-field">
                 <label for="inv-search">@Text["ReadSearch"]</label>
-                <input id="inv-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="64" placeholder="@Text["ReadSearch"]" />
+                <input id="inv-search" type="search" value="@search" @oninput="OnSearchInput" maxlength="64" placeholder="@Text["ReadSearch"]" />
             </div>
         </div>
 
@@ -416,7 +417,7 @@
         }
     }
 
-    <BitDialog Width="560px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="whModalOpen"
+    <BitDialog Width="560px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="whModalOpen" @bind-IsOpen:after="OnWhModalOpenChanged"
                Title="@(editingWarehouse is null ? Text["InvWarehouseCreateTitle"] : Text["InvWarehouseEditTitle"])"
                AriaLabel="@(editingWarehouse is null ? Text["InvWarehouseCreateTitle"] : Text["InvWarehouseEditTitle"])"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
@@ -479,7 +480,7 @@
         </Body>
     </BitDialog>
 
-    <BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="postModalOpen"
+    <BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="postModalOpen" @bind-IsOpen:after="OnPostOpenChanged"
                Title="@Text["InvPostMovementBtn"]" AriaLabel="@Text["InvPostMovementBtn"]"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -609,7 +610,7 @@
         </Body>
     </BitDialog>
 
-    <BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailsOpen"
+    <BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailsOpen" @bind-IsOpen:after="OnDetailsOpenChanged"
                Title="@Text["InvTxnDetailsTitle"]" AriaLabel="@Text["InvTxnDetailsTitle"]"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -680,8 +681,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var line in selectedTxn.Entries)
-                                    {
+                                    <Virtualize Items="selectedTxn.Entries.AsCollection()" Context="line" ItemSize="40" OverscanCount="5" SpacerElement="tr">
                                         <tr>
                                             <td>@line.LineNumber</td>
                                             <td dir="ltr">@line.WarehouseCode</td>
@@ -694,7 +694,7 @@
                                                 </span>
                                             </td>
                                         </tr>
-                                    }
+                                    </Virtualize>
                                 </tbody>
                             </table>
                         </div>
@@ -791,6 +791,52 @@
     private bool openReservationsOnly = true;
     private string? search;
     private string? appliedSearch;
+    private readonly DebouncedSearchController _searchController = new(300);
+
+    public void Dispose()
+    {
+        _searchController.Dispose();
+        selectedTxn = null;
+        editingWarehouse = null;
+        postLines.Clear();
+        activeWarehouses = [];
+        activeItems = [];
+        activeUnits = [];
+        activeProductionOrders = [];
+        authorizedSites = [];
+    }
+
+    private void OnDetailsOpenChanged()
+    {
+        if (!detailsOpen)
+        {
+            selectedTxn = null;
+            detailsError = null;
+            reverseDocNumber = string.Empty;
+            reverseNote = string.Empty;
+        }
+    }
+
+    private void OnPostOpenChanged()
+    {
+        if (!postModalOpen)
+        {
+            postLines.Clear();
+            postError = null;
+            postReferenceNote = string.Empty;
+        }
+    }
+
+    private void OnWhModalOpenChanged()
+    {
+        if (!whModalOpen)
+        {
+            editingWarehouse = null;
+            whError = null;
+            whCode = string.Empty;
+            whName = string.Empty;
+        }
+    }
     private bool modalBusy;
 
     private bool coaOpen;
@@ -838,8 +884,28 @@
         public string LotCode { get; set; } = string.Empty;
         public decimal Quantity { get; set; } = 1m;
         public long UnitId { get; set; }
-        public DateTimeOffset? ManufactureDateOffset { get; set; }
-        public DateTimeOffset? ExpirationDateOffset { get; set; }
+        private DateTimeOffset? _mfgOffset;
+        public DateTimeOffset? ManufactureDateOffset
+        {
+            get => _mfgOffset;
+            set
+            {
+                _mfgOffset = value;
+                if (_mfgOffset.HasValue && _expOffset.HasValue && _mfgOffset.Value > _expOffset.Value)
+                    _expOffset = _mfgOffset;
+            }
+        }
+        private DateTimeOffset? _expOffset;
+        public DateTimeOffset? ExpirationDateOffset
+        {
+            get => _expOffset;
+            set
+            {
+                _expOffset = value;
+                if (_mfgOffset.HasValue && _expOffset.HasValue && _expOffset.Value < _mfgOffset.Value)
+                    _mfgOffset = _expOffset;
+            }
+        }
     }
 
     private OrganizationScope? CurrentScope =>
@@ -918,33 +984,47 @@
         if (scope is null) return;
 
         var actor = await Actors.ResolveAsync(default);
-        if (actor is not null)
-        {
-            var eval = await Permissions.EvaluateAsync(actor, scope, InventoryPermissions.InventoryManage, default);
-            scopeCanManage = eval.IsAllowed;
-        }
-
         var orgId = ScopeOrganizationId(scope);
-        var whRes = await InvService.ListWarehouses(scope, orgId, new WarehouseListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+
+        Task<PermissionDecision>? manageTask = actor is not null
+            ? Permissions.EvaluateAsync(actor, scope, InventoryPermissions.InventoryManage, default).AsTask()
+            : null;
+
+        var whTask = InvService.ListWarehouses(scope, orgId, new WarehouseListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        var sitesTask = OrderService.ListAuthorizedSites(scope, orgId);
+        var itemsTask = ItemService.ListItems(scope, orgId, new ItemListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        var unitsTask = UnitService.ListUnits(scope, orgId, new UnitListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        var relOrdersTask = OrderService.ListOrders(scope, orgId, new ProductionOrderListQuery(Status: ProductionOrderStatus.Released, Page: 1, PageSize: 50));
+        var progOrdersTask = OrderService.ListOrders(scope, orgId, new ProductionOrderListQuery(Status: ProductionOrderStatus.InProgress, Page: 1, PageSize: 50));
+
+        var tasks = new List<Task> { whTask, sitesTask, itemsTask, unitsTask, relOrdersTask, progOrdersTask };
+        if (manageTask is not null) tasks.Add(manageTask);
+
+        await Task.WhenAll(tasks);
+
+        if (manageTask is not null)
+            scopeCanManage = (await manageTask).IsAllowed;
+
+        var whRes = await whTask;
         if (whRes.Succeeded)
             activeWarehouses = whRes.Value!.Items;
 
-        var sitesRes = await OrderService.ListAuthorizedSites(scope, orgId);
+        var sitesRes = await sitesTask;
         if (sitesRes.Succeeded)
             authorizedSites = sitesRes.Value!;
         if (scope is OrganizationScope.Site siteScope)
             siteFilter = siteScope.SiteId;
 
-        var itemsRes = await ItemService.ListItems(scope, orgId, new ItemListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        var itemsRes = await itemsTask;
         if (itemsRes.Succeeded)
             activeItems = itemsRes.Value!.Items;
 
-        var unitsRes = await UnitService.ListUnits(scope, orgId, new UnitListQuery(IncludeInactive: false, Page: 1, PageSize: 100));
+        var unitsRes = await unitsTask;
         if (unitsRes.Succeeded)
             activeUnits = unitsRes.Value!.Items;
 
-        var relOrders = await OrderService.ListOrders(scope, orgId, new ProductionOrderListQuery(Status: ProductionOrderStatus.Released, Page: 1, PageSize: 50));
-        var progOrders = await OrderService.ListOrders(scope, orgId, new ProductionOrderListQuery(Status: ProductionOrderStatus.InProgress, Page: 1, PageSize: 50));
+        var relOrders = await relOrdersTask;
+        var progOrders = await progOrdersTask;
         var combined = new List<ProductionOrderSummary>();
         if (relOrders.Succeeded) combined.AddRange(relOrders.Value!.Items);
         if (progOrders.Succeeded) combined.AddRange(progOrders.Value!.Items);
@@ -976,46 +1056,87 @@
         await ReloadActiveGridAsync(fromFirstPage: true);
     }
 
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        await _searchController.OnInputDebouncedAsync(
+            e,
+            val => search = val,
+            async _ =>
+            {
+                appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+                await ReloadActiveGridAsync(fromFirstPage: true);
+                await InvokeAsync(StateHasChanged);
+            });
+    }
+
     private async Task ChangeSiteFilterAsync(ChangeEventArgs e)
     {
         siteFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
-        await ReloadActiveGridAsync(fromFirstPage: true);
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadActiveGridAsync(fromFirstPage: true);
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ChangeWarehouseFilterAsync(ChangeEventArgs e)
     {
         warehouseFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
-        await ReloadActiveGridAsync(fromFirstPage: true);
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadActiveGridAsync(fromFirstPage: true);
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ChangeTypeFilterAsync(ChangeEventArgs e)
     {
         typeFilter = e.Value?.ToString() ?? string.Empty;
-        await ReloadActiveGridAsync(fromFirstPage: true);
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadActiveGridAsync(fromFirstPage: true);
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ToggleZeroBalancesAsync(ChangeEventArgs e)
     {
         includeZeroBalances = e.Value is bool b && b;
-        await ReloadActiveGridAsync(fromFirstPage: true);
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadActiveGridAsync(fromFirstPage: true);
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ToggleInactiveWarehousesAsync(ChangeEventArgs e)
     {
         includeInactiveWarehouses = e.Value is bool b && b;
-        await ReloadActiveGridAsync(fromFirstPage: true);
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadActiveGridAsync(fromFirstPage: true);
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ToggleOpenReservationsAsync(ChangeEventArgs e)
     {
         openReservationsOnly = e.Value is bool b && b;
-        await ReloadActiveGridAsync(fromFirstPage: true);
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadActiveGridAsync(fromFirstPage: true);
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ApplySearchAsync()
     {
-        appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
-        await ReloadActiveGridAsync(fromFirstPage: true);
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+            await ReloadActiveGridAsync(fromFirstPage: true);
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ReloadActiveGridAsync(bool fromFirstPage)

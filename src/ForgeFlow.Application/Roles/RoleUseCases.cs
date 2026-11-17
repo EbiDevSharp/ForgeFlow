@@ -2,6 +2,7 @@ using ForgeFlow.Application.Common;
 using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.Roles.Slices;
+using ForgeFlow.Application.Security;
 using ForgeFlow.Domain.Roles;
 
 namespace ForgeFlow.Application.Roles;
@@ -20,9 +21,10 @@ public sealed class RoleUseCases
         ITrustedActorAccessor? actors = null,
         IOrganizationPermissionEvaluator? permissions = null,
         IUserOperationRecorder? operationRecorder = null,
-        IOperationContextAccessor? opContext = null)
+        IOperationContextAccessor? opContext = null,
+        IOrganizationPermissionCache? permCache = null)
     {
-        var support = new RoleSliceSupport(actors, permissions, operationRecorder, opContext);
+        var support = new RoleSliceSupport(actors, permissions, operationRecorder, opContext, permCache);
         catalogSlices = new RoleCatalogSlices(store, support);
         assignmentSlices = new RoleAssignmentSlices(store, support);
     }

@@ -1,0 +1,172 @@
+@using System.Globalization
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Domain.Organizations
+@inject ItemUseCases ItemService
+@inject IStringLocalizer<SharedResources> Text
+@implements IDisposable
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses"
+           IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged"
+           Title="@Text[EditMode ? "ReadEdit" : "ReadDetails"]"
+           AriaLabel="@Text[EditMode ? "ReadEdit" : "ReadDetails"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (selectedClassification is not null)
+        {
+            <div class="audit-modal-body">
+                @if (!EditMode)
+                {
+                    <div class="audit-modal-title-row">
+                        <strong class="audit-modal-code" dir="ltr">@selectedClassification.Code</strong>
+                        <span class="read-badge @(selectedClassification.IsActive ? "active" : "inactive")">
+                            @Text[selectedClassification.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </div>
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row"><span class="audit-meta-label">@Text["ClassificationSetLabel"]</span><span class="audit-meta-val">@selectedClassification.ClassificationSetName</span></div>
+                        <div class="audit-meta-row"><span class="audit-meta-label">@Text["ReadName"]</span><span class="audit-meta-val">@selectedClassification.Name</span></div>
+                        <div class="audit-meta-row"><span class="audit-meta-label">@Text["ClassificationParentLabel"]</span><span class="audit-meta-val">@(selectedClassification.ParentClassificationName ?? "—")</span></div>
+                    </div>
+                }
+                else
+                {
+                    <form class="write-panel" @onsubmit:preventDefault>
+                        <div class="read-field">
+                            <label for="edit-cls-name">@Text["ReadName"]</label>
+                            <input id="edit-cls-name" @bind="editClsName" maxlength="200" disabled="@(!selectedClassification.IsActive || clsSaving)" />
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-cls-parent">@Text["ClassificationParentLabel"]</label>
+                            <select id="edit-cls-parent" @bind="editClsParentIdText" disabled="@(!selectedClassification.IsActive || clsSaving)">
+                                <option value="">—</option>
+                                @foreach (var p in ActiveClassifications.Where(x => x.ClassificationSetId == selectedClassification.ClassificationSetId && x.Id != selectedClassification.Id))
+                                {
+                                    <option value="@p.Id">@p.Code — @p.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="write-actions">
+                            @if (selectedClassification.IsActive)
+                            {
+                                <BitButton Size="BitSize.Small" IsEnabled="@(!clsSaving)" OnClick="SubmitUpdateClassificationAsync">@Text["WriteSave"]</BitButton>
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!clsSaving)" OnClick="() => ToggleClassificationActiveAsync(false)">@Text["WriteDeactivate"]</BitButton>
+                            }
+                            else
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!clsSaving)" OnClick="() => ToggleClassificationActiveAsync(true)">@Text["WriteActivate"]</BitButton>
+                            }
+                        </div>
+                        @if (clsSaved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+                        @if (clsError is not null) { <p role="alert" class="write-error">@Text[clsError]</p> }
+                    </form>
+                }
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public OrganizationScope? Scope { get; set; }
+    [Parameter] public long OrganizationId { get; set; }
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public IReadOnlyList<ClassificationSummary> ActiveClassifications { get; set; } = [];
+    [Parameter] public EventCallback OnClassificationChanged { get; set; }
+
+    private bool EditMode;
+    private bool clsSaving, clsSaved;
+    private ClassificationSummary? selectedClassification;
+    private string editClsName = string.Empty, editClsParentIdText = string.Empty;
+    private string? clsError;
+
+    public async Task OpenAsync(long id, bool edit)
+    {
+        if (Scope is null || OrganizationId <= 0) return;
+        clsSaving = false;
+        clsSaved = false;
+        clsError = null;
+
+        var res = await ItemService.GetClassification(Scope, OrganizationId, id);
+        if (!res.Succeeded || res.Value is null) return;
+
+        selectedClassification = res.Value;
+        editClsName = res.Value.Name;
+        editClsParentIdText = res.Value.ParentClassificationId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        EditMode = edit && CanManage;
+        IsOpen = true;
+        await IsOpenChanged.InvokeAsync(true);
+    }
+
+    private async Task SubmitUpdateClassificationAsync()
+    {
+        if (Scope is null || selectedClassification is null || clsSaving) return;
+        clsSaving = true;
+        clsSaved = false;
+        clsError = null;
+        try
+        {
+            long? parentId = long.TryParse(editClsParentIdText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var pid) && pid > 0 ? pid : null;
+            var res = await ItemService.UpdateClassification(Scope, new UpdateClassificationRequest(
+                selectedClassification.OrganizationId, selectedClassification.Id, editClsName, parentId, selectedClassification.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                clsError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            selectedClassification = res.Value;
+            clsSaved = true;
+            await OnClassificationChanged.InvokeAsync();
+        }
+        finally
+        {
+            clsSaving = false;
+        }
+    }
+
+    private async Task ToggleClassificationActiveAsync(bool target)
+    {
+        if (Scope is null || selectedClassification is null || clsSaving) return;
+        clsSaving = true;
+        clsSaved = false;
+        clsError = null;
+        try
+        {
+            var res = await ItemService.SetClassificationActive(Scope, new SetClassificationActiveRequest(
+                selectedClassification.OrganizationId, selectedClassification.Id, target, selectedClassification.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                clsError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            selectedClassification = res.Value;
+            clsSaved = true;
+            await OnClassificationChanged.InvokeAsync();
+        }
+        finally
+        {
+            clsSaving = false;
+        }
+    }
+
+    private async Task OnDialogIsOpenChanged(bool open)
+    {
+        IsOpen = open;
+        if (!open)
+        {
+            selectedClassification = null;
+            clsError = null;
+            clsSaved = false;
+        }
+        await IsOpenChanged.InvokeAsync(open);
+    }
+
+    public void Dispose()
+    {
+        selectedClassification = null;
+        clsError = null;
+    }
+}

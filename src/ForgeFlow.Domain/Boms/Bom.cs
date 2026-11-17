@@ -3,7 +3,7 @@ using ForgeFlow.Domain.Common;
 namespace ForgeFlow.Domain.Boms;
 
 /// <summary>Organization-shared planned manufacturing BOM header tied to a manufacturable PrimaryOutputItem.</summary>
-public sealed class Bom : IHasRowVersion
+public sealed class Bom : IHasRowVersion, IOrganizationEntity
 {
     private Bom()
     {

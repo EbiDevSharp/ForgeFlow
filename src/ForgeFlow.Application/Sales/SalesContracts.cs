@@ -290,5 +290,5 @@ public interface ISalesOperationsStore
     Task<OrganizationResult<DeliveryOrderDetails>> ReverseDeliveryOrder(long organizationId, long deliveryOrderId, string reason, byte[] version, DateTime utcNow, OrganizationWriteAccess access, CancellationToken ct);
 }
 
-public sealed class SalesStoreUnavailableException(string message, Exception? inner = null)
+public sealed class SalesStoreUnavailableException(string message = SalesErrors.PersistenceUnavailable, Exception? inner = null)
     : Exception(message, inner);

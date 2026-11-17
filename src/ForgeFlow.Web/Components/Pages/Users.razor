@@ -78,10 +78,10 @@ else
         </div>
         <div class="read-field">
             <label for="users-search">@Text["ReadSearch"]</label>
-            <input id="users-search" @bind="search" @bind:after="Search" maxlength="100" placeholder="@Text["UserSearchPlaceholder"]" />
+            <input id="users-search" type="search" value="@search" @oninput="OnSearchInput" maxlength="100" placeholder="@Text["UserSearchPlaceholder"]" />
         </div>
         <label class="read-inactive">
-            <input type="checkbox" @bind="inactive" @bind:after="Search" /> @Text["ReadInactive"]
+            <input type="checkbox" @bind="inactive" @bind:after="OnInactiveChanged" /> @Text["ReadInactive"]
         </label>
     </div>
 
@@ -160,7 +160,7 @@ else
 }
 </section>
 
-<BitDialog Width="540px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailOpen"
+<BitDialog Width="540px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailOpen" @bind-IsOpen:after="OnDetailOpenChanged"
            Title="@(editMode ? Text["UserEditModalTitle"] : Text["ReadDetails"])" AriaLabel="@(editMode ? Text["UserEditModalTitle"] : Text["ReadDetails"])"
            CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
            AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -526,7 +526,7 @@ else
 </Body>
 </BitDialog>
 
-<BitDialog Width="460px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createOpen"
+<BitDialog Width="460px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createOpen" @bind-IsOpen:after="OnCreateOpenChanged"
            OnDismissing="OnCreateDismissing"
            Title="@Text["CreateUserTitle"]" AriaLabel="@Text["CreateUserTitle"]"
            CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
@@ -665,7 +665,7 @@ else
 </Body>
 </BitDialog>
 
-<BitDialog Width="420px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="attachOpen"
+<BitDialog Width="420px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="attachOpen" @bind-IsOpen:after="OnAttachOpenChanged"
            Title="@Text["AttachUserTitle"]" AriaLabel="@Text["AttachUserTitle"]"
            CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
            AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -707,7 +707,7 @@ else
 </Body>
 </BitDialog>
 
-<BitDialog Width="700px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="permOpen"
+<BitDialog Width="700px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="permOpen" @bind-IsOpen:after="OnPermOpenChanged"
            Title="@(permSnapshot is null ? Text["UserPermissionsButton"] : Text["UserPermissionsTitle", permSnapshot.UserName])"
            AriaLabel="@(permSnapshot is null ? Text["UserPermissionsButton"] : Text["UserPermissionsTitle", permSnapshot.UserName])"
            CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
@@ -846,17 +846,78 @@ else
     private int revision;
     private bool disposed;
     private bool Current(int value) => !disposed && value == revision;
+    private readonly DebouncedSearchController _searchController = new(300);
 
     public void Dispose()
     {
         disposed = true;
         revision++;
+        _searchController.Dispose();
         selected = null;
         detailOpen = false;
         createOpen = false;
         attachOpen = false;
+        permOpen = false;
         createPassword = string.Empty;
         resetPasswordValue = string.Empty;
+        permSnapshot = null;
+        permUserSites.Clear();
+        orgRoleDetails.Clear();
+        expandedPermModules.Clear();
+        directSelectedPerms.Clear();
+        initialDirectPerms.Clear();
+        roleGrantedPerms.Clear();
+        roleGrantingNamesByCode.Clear();
+        orgSites.Clear();
+        createSelectedSiteIds.Clear();
+        attachSelectedSiteIds.Clear();
+    }
+
+    private void OnDetailOpenChanged()
+    {
+        if (!detailOpen)
+        {
+            selected = null;
+            writeError = null;
+            confirmAction = null;
+            resetPasswordValue = string.Empty;
+        }
+    }
+
+    private void OnCreateOpenChanged()
+    {
+        if (!createOpen)
+        {
+            createUserName = null;
+            createPassword = null;
+            createError = null;
+            createSelectedSiteIds.Clear();
+        }
+    }
+
+    private void OnAttachOpenChanged()
+    {
+        if (!attachOpen)
+        {
+            attachUserName = null;
+            attachError = null;
+            attachSelectedSiteIds.Clear();
+        }
+    }
+
+    private void OnPermOpenChanged()
+    {
+        if (!permOpen)
+        {
+            permSnapshot = null;
+            permError = null;
+            directSelectedPerms.Clear();
+            initialDirectPerms.Clear();
+            roleGrantedPerms.Clear();
+            roleGrantingNamesByCode.Clear();
+            permUserSites.Clear();
+            orgRoleDetails.Clear();
+        }
     }
 
     private IReadOnlyList<OrganizationScope> available = [];
@@ -1174,7 +1235,17 @@ else
         return (await Permissions.EvaluateAsync(actor, scope, permission, default)).IsAllowed;
     }
 
-    private async Task Search() => await ReloadGridFromFirstPage();
+    private Task OnSearchInput(ChangeEventArgs e)
+    {
+        return _searchController.OnInputDebouncedAsync(e, v => search = v, async _ => await ReloadGridFromFirstPage());
+    }
+
+    private Task OnInactiveChanged()
+    {
+        return _searchController.RunImmediateAsync(async _ => await ReloadGridFromFirstPage());
+    }
+
+    private async Task Search() => await _searchController.RunImmediateAsync(async _ => await ReloadGridFromFirstPage());
 
     private async Task ChangeScope(ChangeEventArgs e)
     {

@@ -1,6 +1,8 @@
+using ForgeFlow.Domain.Common;
+
 namespace ForgeFlow.Domain.Boms;
 
-public sealed class BomOutput
+public sealed class BomOutput : IOrganizationEntity
 {
     private BomOutput() { }
 

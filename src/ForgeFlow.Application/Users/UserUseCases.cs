@@ -1,6 +1,7 @@
 using ForgeFlow.Application.Common;
 using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Application.Security;
 using ForgeFlow.Application.Users.Slices;
 
 namespace ForgeFlow.Application.Users;
@@ -20,9 +21,10 @@ public sealed class UserUseCases
         ITrustedActorAccessor? actors = null,
         IOrganizationPermissionEvaluator? permissions = null,
         IUserOperationRecorder? operationRecorder = null,
-        IOperationContextAccessor? opContext = null)
+        IOperationContextAccessor? opContext = null,
+        IOrganizationPermissionCache? permCache = null)
     {
-        var support = new UserSliceSupport(actors, permissions, operationRecorder, opContext);
+        var support = new UserSliceSupport(actors, permissions, operationRecorder, opContext, permCache);
         accountSlices = new UserAccountSlices(store, support);
         membershipSlices = new UserMembershipSlices(store, support);
         securitySlices = new UserSecuritySlices(store, support);

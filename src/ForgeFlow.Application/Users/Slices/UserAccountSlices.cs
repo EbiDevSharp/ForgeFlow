@@ -128,6 +128,7 @@ public sealed class UserAccountSlices(
                 else
                     res = await UserSliceSupport.Execute(() => store.SetUserActive(
                         request.OrganizationId, request.UserId, request.IsActive, version, support.Access(auth.Actor!, scope!, permission), ct));
+                    if (res.Succeeded) support.PermissionCache?.InvalidateUser(request.UserId);
             }
             catch (UserRuleException ex) { res = UserSliceSupport.FailFromRule<UserDetails>(ex); }
         }
@@ -152,6 +153,7 @@ public sealed class UserAccountSlices(
         else
             res = await UserSliceSupport.Execute(() => store.UnlockUser(
                 request.OrganizationId, request.UserId, version, support.Access(auth.Actor!, scope!, permission), ct));
+            if (res.Succeeded) support.PermissionCache?.InvalidateUser(request.UserId);
         return await support.RecordRejectedAsync(res, auth.Actor, scope, request.OrganizationId, null, "User", request.UserId.ToString(CultureInfo.InvariantCulture), "UnlockUser");
     }
 

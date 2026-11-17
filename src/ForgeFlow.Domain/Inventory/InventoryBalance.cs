@@ -1,7 +1,20 @@
+using ForgeFlow.Domain.Common;
+using ForgeFlow.Domain.Events;
+
 namespace ForgeFlow.Domain.Inventory;
 
-public sealed class InventoryBalance
+public sealed class InventoryBalance : IHasRowVersion, IHasDomainEvents, IOrganizationEntity
 {
+    private readonly List<IDomainEvent> _domainEvents = [];
+
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    public void RaiseDomainEvent(IDomainEvent domainEvent)
+    {
+        ArgumentNullException.ThrowIfNull(domainEvent);
+        _domainEvents.Add(domainEvent);
+    }
+    public void ClearDomainEvents() => _domainEvents.Clear();
+
     private InventoryBalance() { }
 
     private InventoryBalance(

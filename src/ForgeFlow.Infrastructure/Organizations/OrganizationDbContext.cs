@@ -1,6 +1,8 @@
 using System.Data.Common;
 using System.Text.Json;
 using System.Text.Encodings.Web;
+using ForgeFlow.Application.Audit;
+using ForgeFlow.Application.Common;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Boms;
 using ForgeFlow.Domain.BusinessPartners;
@@ -27,16 +29,121 @@ public sealed class OrganizationDbContext(
     DbContextOptions<OrganizationDbContext> options,
     TimeProvider? clock = null,
     ICurrentOrganizationAccessor? organizationAccessor = null)
-    : DbContext(options)
+    : DbContext(options), IAuditTrailSink
 {
-    internal long? CurrentOrganizationFilterId => organizationAccessor?.CurrentOrganizationId;
+    private long? _currentOrganizationId;
+
+    /// <summary>
+    /// Context-scoped active OrganizationId.
+    /// Dynamically parameterized per query in EF Core HasQueryFilter.
+    /// Evaluates explicit context property, then scoped accessor, then ambient accessor.
+    /// </summary>
+    public long? CurrentOrganizationId
+    {
+        get => _currentOrganizationId ?? organizationAccessor?.CurrentOrganizationId ?? AmbientOrganizationAccessor.Current;
+        set => _currentOrganizationId = value;
+    }
+
+    internal long? CurrentOrganizationFilterId => CurrentOrganizationId;
+    internal TimeProvider? Clock => clock;
     private bool failed;
     private bool inOperationScope;
     private TrustedActor? currentActor;
     private (TrustedActor Actor, DateTime Now, PendingChange[] Changes)? pendingAudit;
+    private readonly HashSet<string> _dispatchedDomainEventCodes = [];
 
+    internal bool Failed => failed;
+    internal HashSet<string> DispatchedDomainEventCodes => _dispatchedDomainEventCodes;
+    internal (TrustedActor Actor, DateTime Now, PendingChange[] Changes)? PendingAudit
+    {
+        get => pendingAudit;
+        set => pendingAudit = value;
+    }
     internal TrustedActor? CurrentActor => currentActor;
-    internal bool IsSavingAuditBatch { get; private set; }
+    internal bool IsSavingAuditBatch { get; set; }
+
+    void IAuditTrailSink.Record(long organizationId, long? siteId, string eventCode, string detailsJson)
+    {
+        var actor = currentActor;
+        if (actor is null) return;
+        var now = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
+        OrganizationChanges.Add(new OrganizationChange(
+            organizationId,
+            siteId,
+            actor.ActorId,
+            eventCode,
+            now,
+            actor.CorrelationId,
+            detailsJson));
+        _dispatchedDomainEventCodes.Add(eventCode);
+    }
+
+    internal void DispatchDomainEventsSync(
+        IDomainEventDispatcher? dispatcher,
+        IAuditTrailSinkAccessor? sinkAccessor,
+        TrustedActor? actor)
+        => DispatchDomainEventsAsync(dispatcher, sinkAccessor, actor, CancellationToken.None).GetAwaiter().GetResult();
+
+    internal async Task DispatchDomainEventsAsync(
+        IDomainEventDispatcher? dispatcher,
+        IAuditTrailSinkAccessor? sinkAccessor,
+        TrustedActor? actor,
+        CancellationToken cancellationToken)
+    {
+        var entries = ChangeTracker.Entries<ForgeFlow.Domain.Common.IHasDomainEvents>()
+            .Where(e => e.Entity.DomainEvents.Count > 0)
+            .ToList();
+
+        if (entries.Count == 0)
+            return;
+
+        var events = entries.SelectMany(e => e.Entity.DomainEvents).ToList();
+
+        foreach (var entry in entries)
+        {
+            foreach (var evt in entry.Entity.DomainEvents)
+            {
+                if (evt is ForgeFlow.Domain.Common.IAuditableDomainEvent auditable)
+                {
+                    _dispatchedDomainEventCodes.Add(auditable.EventCode);
+                }
+            }
+            entry.Entity.ClearDomainEvents();
+        }
+
+        IDisposable? scope = null;
+        if (sinkAccessor is AmbientAuditTrailSinkAccessor ambient)
+        {
+            scope = ambient.BeginScope(this);
+        }
+
+        try
+        {
+            if (dispatcher is not null)
+            {
+                await dispatcher.DispatchAsync(events, cancellationToken);
+            }
+            else if (actor is not null)
+            {
+                var now = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
+                foreach (var evt in events.OfType<ForgeFlow.Domain.Common.IAuditableDomainEvent>())
+                {
+                    OrganizationChanges.Add(new OrganizationChange(
+                        evt.OrganizationId,
+                        evt.SiteId,
+                        actor.ActorId,
+                        evt.EventCode,
+                        now,
+                        actor.CorrelationId,
+                        evt.BuildAuditJson()));
+                }
+            }
+        }
+        finally
+        {
+            scope?.Dispose();
+        }
+    }
 
     internal void MarkFailed()
     {
@@ -104,8 +211,13 @@ public sealed class OrganizationDbContext(
     {
         base.OnConfiguring(optionsBuilder);
         var coreExt = optionsBuilder.Options.FindExtension<Microsoft.EntityFrameworkCore.Infrastructure.CoreOptionsExtension>();
-        if (coreExt?.Interceptors?.OfType<OrganizationAuditSaveChangesInterceptor>().Any() != true)
-            optionsBuilder.AddInterceptors(new OrganizationAuditSaveChangesInterceptor());
+        var existing = coreExt?.Interceptors ?? [];
+        if (!existing.OfType<ForgeFlow.Infrastructure.Persistence.Interceptors.TenantEnforcementSaveChangesInterceptor>().Any())
+            optionsBuilder.AddInterceptors(new ForgeFlow.Infrastructure.Persistence.Interceptors.TenantEnforcementSaveChangesInterceptor());
+        if (!existing.OfType<ForgeFlow.Infrastructure.Persistence.Interceptors.AuditingSaveChangesInterceptor>().Any())
+            optionsBuilder.AddInterceptors(new ForgeFlow.Infrastructure.Persistence.Interceptors.AuditingSaveChangesInterceptor());
+        if (!existing.OfType<ForgeFlow.Infrastructure.Persistence.Interceptors.DomainEventsSaveChangesInterceptor>().Any())
+            optionsBuilder.AddInterceptors(new ForgeFlow.Infrastructure.Persistence.Interceptors.DomainEventsSaveChangesInterceptor());
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -124,15 +236,18 @@ public sealed class OrganizationDbContext(
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
-            var orgProp = entityType.FindProperty("OrganizationId");
-            if (orgProp is not null && orgProp.ClrType == typeof(long))
+            if (entityType.ClrType != typeof(Organization) &&
+                (typeof(ForgeFlow.Domain.Common.IOrganizationEntity).IsAssignableFrom(entityType.ClrType) ||
+                 (entityType.FindProperty("OrganizationId") is { ClrType: { } clrType } && clrType == typeof(long))))
+            {
                 method.MakeGenericMethod(entityType.ClrType).Invoke(this, [modelBuilder]);
+            }
         }
     }
 
     private void ConfigureOrganizationQueryFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : class
         => modelBuilder.Entity<TEntity>().HasQueryFilter(
-            e => CurrentOrganizationFilterId == null || EF.Property<long>(e, "OrganizationId") == CurrentOrganizationFilterId);
+            e => EF.Property<long>(e, "OrganizationId") == (CurrentOrganizationId ?? -1));
 
     /// <summary>
     /// Trusted caller supplies actor only after current permission evaluation. No provider or fake authorization.
@@ -141,7 +256,7 @@ public sealed class OrganizationDbContext(
     public Task<int> SaveChangesAsync(TrustedActor actor, CancellationToken cancellationToken = default)
         => SaveAttributed(actor, true, cancellationToken);
 
-    internal Task<int> SaveInOperation(TrustedActor actor, CancellationToken ct) => SaveAttributed(actor, false, ct);
+    public Task<int> SaveInOperation(TrustedActor actor, CancellationToken ct = default) => SaveAttributed(actor, false, ct);
 
     private async Task<int> SaveAttributed(TrustedActor actor, bool ownsTransaction, CancellationToken cancellationToken)
     {
@@ -177,36 +292,21 @@ public sealed class OrganizationDbContext(
         }
     }
 
-    internal void PrepareAttributedSaveSync(TrustedActor? actor)
-        => PrepareAttributedSaveAsync(actor, CancellationToken.None, sync: true).GetAwaiter().GetResult();
 
-    internal Task PrepareAttributedSaveAsync(TrustedActor? actor, CancellationToken cancellationToken)
-        => PrepareAttributedSaveAsync(actor, cancellationToken, sync: false);
-
-    private async Task PrepareAttributedSaveAsync(TrustedActor? actor, CancellationToken cancellationToken, bool sync)
-    {
-        ChangeTracker.DetectChanges();
-        var entries = ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToArray();
-        if (failed || (entries.Length > 0 && actor is null))
-            throw new InvalidOperationException(OrganizationAccessErrors.ActorRequired);
-        if (entries.Length == 0)
-            return;
-
-        ArgumentNullException.ThrowIfNull(actor);
-        ValidateEntries(entries);
-        var now = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
-        var changes = CaptureAllChanges(entries).ToArray();
-        if (!sync)
-            await LockAndValidateParents(entries, cancellationToken);
-        ApplyAuditMetadata(entries, actor, now);
-        pendingAudit = (actor, now, changes);
-    }
 
     internal void FlushPendingAuditChangesSync()
     {
-        if (pendingAudit is not { } batch) return;
+        if (pendingAudit is not { } batch)
+        {
+            _dispatchedDomainEventCodes.Clear();
+            return;
+        }
         pendingAudit = null;
-        if (batch.Changes.Length == 0) return;
+        if (batch.Changes.Length == 0)
+        {
+            _dispatchedDomainEventCodes.Clear();
+            return;
+        }
 
         IsSavingAuditBatch = true;
         try
@@ -218,6 +318,7 @@ public sealed class OrganizationDbContext(
         finally
         {
             IsSavingAuditBatch = false;
+            _dispatchedDomainEventCodes.Clear();
             ClearTrackedDomainEvents();
         }
     }
@@ -226,12 +327,14 @@ public sealed class OrganizationDbContext(
     {
         if (pendingAudit is not { } batch)
         {
+            _dispatchedDomainEventCodes.Clear();
             ClearTrackedDomainEvents();
             return;
         }
         pendingAudit = null;
         if (batch.Changes.Length == 0)
         {
+            _dispatchedDomainEventCodes.Clear();
             ClearTrackedDomainEvents();
             return;
         }
@@ -246,6 +349,7 @@ public sealed class OrganizationDbContext(
         finally
         {
             IsSavingAuditBatch = false;
+            _dispatchedDomainEventCodes.Clear();
             ClearTrackedDomainEvents();
         }
     }
@@ -275,7 +379,7 @@ public sealed class OrganizationDbContext(
         }
     }
 
-    private static void ApplyAuditMetadata(EntityEntry[] entries, TrustedActor actor, DateTime now)
+    internal static void ApplyAuditMetadata(EntityEntry[] entries, TrustedActor actor, DateTime now)
     {
         foreach (var entry in entries)
         {
@@ -302,7 +406,7 @@ public sealed class OrganizationDbContext(
         }
     }
 
-    private static void ValidateEntries(EntityEntry[] entries)
+    internal static void ValidateEntries(EntityEntry[] entries)
     {
         foreach (var entry in entries)
         {
@@ -383,9 +487,9 @@ public sealed class OrganizationDbContext(
         }
     }
 
-    private sealed record PendingChange(EntityEntry Entry, string EventCode, string Json);
+    internal sealed record PendingChange(EntityEntry Entry, string EventCode, string Json);
 
-    private static long ResolveEntityOrganizationId(object entity) => entity switch
+    internal static long ResolveEntityOrganizationId(object entity) => entity switch
     {
         Organization org => org.Id,
         Site site => site.OrganizationId,
@@ -439,7 +543,7 @@ public sealed class OrganizationDbContext(
         _ => throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied)
     };
 
-    private long? ResolveEntitySiteId(object entity) => entity switch
+    internal long? ResolveEntitySiteId(object entity) => entity switch
     {
         Site site => site.Id,
         ProductionOrder po => po.SiteId,
@@ -469,7 +573,7 @@ public sealed class OrganizationDbContext(
         _ => null
     };
 
-    private static IEnumerable<PendingChange> CaptureAllChanges(EntityEntry[] entries)
+    internal static IEnumerable<PendingChange> CaptureAllChanges(EntityEntry[] entries, HashSet<string>? dispatchedCodes = null)
     {
         var seenBomLinesVersions = new HashSet<long>();
         var seenApplicabilityIds = new HashSet<long>();
@@ -619,12 +723,12 @@ public sealed class OrganizationDbContext(
             if (entry.Entity is InventoryLedgerEntry or InventoryBalance)
                 continue;
 
-            foreach (var change in CaptureChanges(entry))
+            foreach (var change in CaptureChanges(entry, dispatchedCodes))
                 yield return change;
         }
     }
 
-    private static IEnumerable<PendingChange> CaptureChanges(EntityEntry entry)
+    private static IEnumerable<PendingChange> CaptureChanges(EntityEntry entry, HashSet<string>? dispatchedCodes = null)
     {
         if (entry.Entity is WorkCenter wc)
         {
@@ -703,6 +807,8 @@ public sealed class OrganizationDbContext(
         {
             if (entry.State == EntityState.Added)
             {
+                if (dispatchedCodes?.Contains("InventoryReservation.Created") == true)
+                    yield break;
                 yield return new PendingChange(entry, "InventoryReservation.Created",
                     JsonSerializer.Serialize(new
                     {
@@ -842,6 +948,8 @@ public sealed class OrganizationDbContext(
                     SalesOrderStatus.Cancelled => "SalesOrder.Cancelled",
                     _ => "SalesOrder.Updated"
                 };
+                if (dispatchedCodes?.Contains(evCode) == true)
+                    yield break;
                 yield return new PendingChange(entry, evCode,
                     JsonSerializer.Serialize(new { so.OrderNumber, Status = so.Status.ToString(), so.CustomerId }, AuditJson));
                 yield break;
@@ -900,6 +1008,8 @@ public sealed class OrganizationDbContext(
             }
             if (entry.Property("AcceptedBaseQuantity").IsModified || entry.Property("RejectedBaseQuantity").IsModified)
             {
+                if (dispatchedCodes?.Contains("QualityInspection.Disposed") == true)
+                    yield break;
                 yield return new PendingChange(entry, "QualityInspection.Disposed",
                     JsonSerializer.Serialize(new { qi.InspectionNumber, qi.AcceptedBaseQuantity, qi.RejectedBaseQuantity, qi.RemainingBlockedBaseQuantity, Status = qi.Status.ToString(), qi.DefectReasonCode }, AuditJson));
                 yield break;
@@ -1014,6 +1124,8 @@ public sealed class OrganizationDbContext(
                     ProductionOrderStatus.Cancelled => "ProductionOrder.Cancelled",
                     _ => "ProductionOrder.Updated"
                 };
+                if (dispatchedCodes?.Contains(evCode) == true)
+                    yield break;
                 yield return new PendingChange(entry, evCode,
                     JsonSerializer.Serialize(new
                     {
@@ -1089,6 +1201,8 @@ public sealed class OrganizationDbContext(
             }
             if (entry.Property("Status").IsModified)
             {
+                if (dispatchedCodes?.Contains("BomVersion.StatusChanged") == true)
+                    yield break;
                 yield return new PendingChange(entry, "BomVersion.StatusChanged",
                     JsonSerializer.Serialize(new
                     {
@@ -1364,7 +1478,7 @@ public sealed class OrganizationDbContext(
                     After = new { IsActive = entry.Property("IsActive").CurrentValue } }, AuditJson));
     }
 
-    private async Task LockAndValidateParents(EntityEntry[] entries, CancellationToken cancellationToken)
+    internal async Task LockAndValidateParents(EntityEntry[] entries, CancellationToken cancellationToken)
     {
         var orgIds = entries.Select(e => ResolveEntityOrganizationId(e.Entity))
             .Where(id => id > 0).Distinct().OrderBy(id => id).ToArray();
@@ -1374,8 +1488,11 @@ public sealed class OrganizationDbContext(
             var addedOrg = entries.FirstOrDefault(e => e.Entity is Organization o && o.Id == orgId && e.State == EntityState.Added);
             if (addedOrg is not null) continue; // Insert lock retained by our transaction.
 
+            if (!Database.IsRelational() || Database.CurrentTransaction is null)
+                continue;
+
             await using DbCommand command = Database.GetDbConnection().CreateCommand();
-            command.Transaction = Database.CurrentTransaction!.GetDbTransaction();
+            command.Transaction = Database.CurrentTransaction.GetDbTransaction();
             command.CommandText = "SELECT [IsActive] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = @id";
             var parameter = command.CreateParameter();
             parameter.ParameterName = "@id";
@@ -1402,7 +1519,7 @@ public sealed class OrganizationDbContext(
             {
                 var parent = (Organization)orgEntry.Entity;
                 var pendingInactive = siteEntries.Where(e => !((Site)e.Entity).IsActive).Select(e => ((Site)e.Entity).Id).ToArray();
-                if (await Sites.AnyAsync(s => s.OrganizationId == parent.Id && s.IsActive && !pendingInactive.Contains(s.Id), cancellationToken)
+                if (await Sites.IgnoreQueryFilters().AnyAsync(s => s.OrganizationId == parent.Id && s.IsActive && !pendingInactive.Contains(s.Id), cancellationToken)
                     || siteEntries.Any(e => ((Site)e.Entity).IsActive))
                     throw new InvalidOperationException(OrganizationSiteErrors.OrganizationHasActiveSites);
             }

@@ -1,0 +1,12 @@
+global using ForgeFlow.Infrastructure.Boms;
+global using ForgeFlow.Infrastructure.BusinessPartners;
+global using ForgeFlow.Infrastructure.Dashboard;
+global using ForgeFlow.Infrastructure.Inventory;
+global using ForgeFlow.Infrastructure.Items;
+global using ForgeFlow.Infrastructure.Procurement;
+global using ForgeFlow.Infrastructure.ProductionOrders;
+global using ForgeFlow.Infrastructure.Quality;
+global using ForgeFlow.Infrastructure.Reporting;
+global using ForgeFlow.Infrastructure.Routings;
+global using ForgeFlow.Infrastructure.Sales;
+global using ForgeFlow.Infrastructure.Units;

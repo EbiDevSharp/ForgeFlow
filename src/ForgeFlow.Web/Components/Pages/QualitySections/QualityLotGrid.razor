@@ -1,0 +1,78 @@
+@using ForgeFlow.Application.Quality
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-grid-card">
+    <div class="read-grid">
+        <BitDataGrid @ref="grid" TItem="ItemLotSummary" OnRead="OnRead" Pageable="true" PageSize="25"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                     AriaLabelledBy="qc-title" WrapCellText="true" Resizable="true">
+            <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+            <Columns>
+                <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["BomLineItemColumn"]">
+                    <Template Context="l"><span dir="ltr">@l.ItemCode</span> — @l.ItemName</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["InvLotCodeLabel"]">
+                    <Template Context="l">
+                        <a class="qc-lot-link" href="@($"/traceability?itemId={l.ItemId}&lotCode={Uri.EscapeDataString(l.LotCode)}")" dir="ltr">@l.LotCode</a>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["QcLotMfgDateLabel"]">
+                    <Template Context="l"><bdi dir="ltr">@(l.ManufactureDate?.ToString("yyyy-MM-dd") ?? "—")</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["QcLotExpDateLabel"]">
+                    <Template Context="l">
+                        @if (l.ExpirationDate.HasValue)
+                        {
+                            <span class="read-badge @(l.IsExpired ? "rpt-shortage-badge" : l.IsExpiringSoon ? "qc-status-pending" : "qc-status-completed")">
+                                <bdi dir="ltr">@l.ExpirationDate.Value.ToString("yyyy-MM-dd")</bdi>
+                            </span>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["PoNotesLabel"]">
+                    <Template Context="l">@(l.Notes ?? "—")</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ItemLotSummary" Title="@Text["ReadActions"]">
+                    <Template Context="l">
+                        <div class="read-row-actions">
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OnOpenCoa.InvokeAsync((l.ItemId, l.LotCode))">
+                                @Text["QcCoaBtn"]
+                            </BitButton>
+                            @if (CanManage)
+                            {
+                                <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                               Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                               OnClick="() => OnEditLot.InvokeAsync(l)" />
+                                </BitTooltip>
+                            }
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
+    private BitDataGrid<ItemLotSummary>? grid;
+
+    [Parameter, EditorRequired] public Func<BitDataGridReadRequest, Task<BitDataGridReadResult<ItemLotSummary>>> OnRead { get; set; } = default!;
+    [Parameter] public int[] PageSizeOptions { get; set; } = [10, 25, 50, 100];
+    [Parameter] public BitDataGridStrings GridStrings { get; set; } = default!;
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public EventCallback<(long ItemId, string LotCode)> OnOpenCoa { get; set; }
+    [Parameter] public EventCallback<ItemLotSummary> OnEditLot { get; set; }
+
+    public async Task RefreshAsync(bool fromFirstPage = false)
+    {
+        if (grid is null) return;
+        if (fromFirstPage && grid.CurrentPage > 1) await grid.GoToPageAsync(1);
+        else await grid.RefreshAsync();
+    }
+}

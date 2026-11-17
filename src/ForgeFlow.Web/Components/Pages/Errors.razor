@@ -5,6 +5,7 @@
 @using ForgeFlow.Application.Organizations
 @using ForgeFlow.Domain.Diagnostics
 @using ForgeFlow.Web.Roles
+@implements IDisposable
 @inject ErrorLogUseCases ErrorLogs
 @inject ForgeFlow.Web.Organizations.ReadScopes Scopes
 @inject ITrustedActorAccessor Actors
@@ -46,7 +47,7 @@
     {
         <p role="status" aria-live="polite">@Text["ReadLoading"]</p>
     }
-    else if (failureKey is not null)
+    else if (failureKey is not null && selectedScope is null)
     {
         <div class="read-state" role="alert">
             <p>@Text[failureKey]</p>
@@ -59,6 +60,12 @@
     }
     else
     {
+        @if (failureKey is not null)
+        {
+            <div class="read-state" role="alert" style="margin-bottom: 1rem;">
+                <p>@Text[failureKey]</p>
+            </div>
+        }
         @if (stats is not null)
         {
             <div class="rpt-kpi-grid" aria-label="@Text["ErrorLogs"]">
@@ -120,6 +127,7 @@
                                Class="bom-dtp"
                                Culture="@Culture.PickerCulture"
                                DateFormat="@PickerDateFormat"
+                               MaxDate="@DateTimeOffset.Now"
                                ShowTimePicker="false"
                                AllowTextInput="false"
                                AutoClose="true"
@@ -140,6 +148,7 @@
                                Class="bom-dtp"
                                Culture="@Culture.PickerCulture"
                                DateFormat="@PickerDateFormat"
+                               MaxDate="@DateTimeOffset.Now"
                                ShowTimePicker="false"
                                AllowTextInput="false"
                                AutoClose="true"
@@ -156,7 +165,7 @@
             </div>
             <div class="read-field">
                 <label for="err-search">@Text["ReadSearch"]</label>
-                <input id="err-search" type="search" @bind="searchInput" @bind:after="ApplySearchAsync" maxlength="100" placeholder="@Text["ReadSearchPlaceholder"]" />
+                <input id="err-search" type="search" value="@searchInput" @oninput="OnSearchInput" maxlength="100" placeholder="@Text["ReadSearchPlaceholder"]" />
             </div>
         </div>
 
@@ -226,7 +235,7 @@
         </div>
     }
 
-    <BitDialog Width="820px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailsOpen"
+    <BitDialog Width="820px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailsOpen" @bind-IsOpen:after="OnDetailsOpenChanged"
                Title="@Text["ErrorLogsDetailsTitle"]" AriaLabel="@Text["ErrorLogsDetailsTitle"]"
                CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
                AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
@@ -333,6 +342,21 @@
     private DateOnly? toDate;
     private string searchInput = string.Empty;
     private string? appliedSearch;
+    private readonly DebouncedSearchController _searchController = new(300);
+
+    public void Dispose()
+    {
+        _searchController.Dispose();
+        selectedDetails = null;
+    }
+
+    private void OnDetailsOpenChanged()
+    {
+        if (!detailsOpen)
+        {
+            selectedDetails = null;
+        }
+    }
 
     private bool detailsOpen;
     private ErrorLogDetails? selectedDetails;
@@ -343,6 +367,11 @@
         set
         {
             fromDate = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+            if (fromDate.HasValue && toDate.HasValue && fromDate.Value > toDate.Value)
+            {
+                toDate = fromDate;
+            }
+            failureKey = null;
             _ = ReloadGridFromFirstPageAsync();
         }
     }
@@ -353,6 +382,11 @@
         set
         {
             toDate = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+            if (fromDate.HasValue && toDate.HasValue && toDate.Value < fromDate.Value)
+            {
+                fromDate = toDate;
+            }
+            failureKey = null;
             _ = ReloadGridFromFirstPageAsync();
         }
     }
@@ -467,19 +501,28 @@
     private async Task ChangeSeverityAsync(ChangeEventArgs e)
     {
         severityFilter = e.Value?.ToString() ?? string.Empty;
-        await ReloadGridFromFirstPageAsync();
+        await _searchController.RunImmediateAsync(async _ => await ReloadGridFromFirstPageAsync());
     }
 
     private async Task ChangeSourceAsync(ChangeEventArgs e)
     {
         sourceFilter = e.Value?.ToString() ?? string.Empty;
-        await ReloadGridFromFirstPageAsync();
+        await _searchController.RunImmediateAsync(async _ => await ReloadGridFromFirstPageAsync());
+    }
+
+    private Task OnSearchInput(ChangeEventArgs e)
+    {
+        return _searchController.OnInputDebouncedAsync(e, v =>
+        {
+            searchInput = v;
+            appliedSearch = string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+        }, async _ => await ReloadGridFromFirstPageAsync());
     }
 
     private async Task ApplySearchAsync()
     {
         appliedSearch = string.IsNullOrWhiteSpace(searchInput) ? null : searchInput.Trim();
-        await ReloadGridFromFirstPageAsync();
+        await _searchController.RunImmediateAsync(async _ => await ReloadGridFromFirstPageAsync());
     }
 
     private async Task OpenDetailsAsync(long id)

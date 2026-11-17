@@ -6,6 +6,7 @@
 @using ForgeFlow.Domain.Routings
 @using ForgeFlow.Web.Organizations
 @using ForgeFlow.Web.Roles
+@implements IDisposable
 @inject RoutingUseCases RoutingService
 @inject ProductionOrderUseCases OrderService
 @inject ReadScopes Scopes
@@ -96,7 +97,7 @@
             </label>
             <div class="read-field read-search">
                 <label for="wc-search">@Text["ReadSearch"]</label>
-                <input id="wc-search" type="search" @bind="search" @bind:after="ApplySearchAsync" maxlength="100"
+                <input id="wc-search" type="search" value="@search" @oninput="OnSearchInput" maxlength="100"
                        placeholder="@Text["ReadSearchPlaceholder"]" />
             </div>
         </div>
@@ -373,6 +374,9 @@
     private bool includeInactive;
     private string? search;
     private string? appliedSearch;
+    private readonly DebouncedSearchController _searchController = new(300);
+
+    public void Dispose() => _searchController.Dispose();
 
     private bool createOpen;
     private bool detailOpen;
@@ -456,17 +460,30 @@
         if (scope is null) return;
 
         var actor = await Actors.ResolveAsync(default);
-        if (actor is not null)
-        {
-            scopeCanManage = (await Permissions.EvaluateAsync(actor, scope, RoutingPermissions.RoutingsManage, default)).IsAllowed;
-        }
-
         var orgId = ScopeOrganizationId(scope);
-        var sitesRes = await OrderService.ListAuthorizedSites(scope, orgId);
+        long? filterSite = scope is OrganizationScope.Site s ? s.SiteId : null;
+
+        Task<PermissionDecision>? manageTask = actor is not null
+            ? Permissions.EvaluateAsync(actor, scope, RoutingPermissions.RoutingsManage, default).AsTask()
+            : null;
+
+        var sitesTask = OrderService.ListAuthorizedSites(scope, orgId);
+        var loadsTask = RoutingService.GetWorkCenterLoads(scope, orgId, filterSite);
+
+        var tasks = new List<Task> { sitesTask, loadsTask };
+        if (manageTask is not null) tasks.Add(manageTask);
+
+        await Task.WhenAll(tasks);
+
+        if (manageTask is not null)
+            scopeCanManage = (await manageTask).IsAllowed;
+
+        var sitesRes = await sitesTask;
         if (sitesRes.Succeeded) authorizedSites = sitesRes.Value!;
         if (scope is OrganizationScope.Site siteScope) siteFilter = siteScope.SiteId;
 
-        await LoadWorkCenterLoadsAsync();
+        var loadsRes = await loadsTask;
+        if (loadsRes.Succeeded) loads = loadsRes.Value!;
     }
 
     private async Task LoadWorkCenterLoadsAsync()
@@ -488,29 +505,58 @@
         }
     }
 
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        await _searchController.OnInputDebouncedAsync(
+            e,
+            val => search = val,
+            async _ =>
+            {
+                appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+                await ReloadGridFromFirstPageAsync();
+                await InvokeAsync(StateHasChanged);
+            });
+    }
+
     private async Task OnSiteFilterChangedAsync(ChangeEventArgs e)
     {
         siteFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
-        await LoadWorkCenterLoadsAsync();
-        await ReloadGridFromFirstPageAsync();
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await LoadWorkCenterLoadsAsync();
+            await ReloadGridFromFirstPageAsync();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task OnTypeFilterChangedAsync(ChangeEventArgs e)
     {
         typeFilter = e.Value?.ToString() ?? string.Empty;
-        await ReloadGridFromFirstPageAsync();
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadGridFromFirstPageAsync();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task OnIncludeInactiveChangedAsync(ChangeEventArgs e)
     {
         includeInactive = e.Value is bool b && b;
-        await ReloadGridFromFirstPageAsync();
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            await ReloadGridFromFirstPageAsync();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ApplySearchAsync()
     {
-        appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
-        await ReloadGridFromFirstPageAsync();
+        await _searchController.RunImmediateAsync(async _ =>
+        {
+            appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+            await ReloadGridFromFirstPageAsync();
+            await InvokeAsync(StateHasChanged);
+        });
     }
 
     private async Task ReloadGridFromFirstPageAsync()

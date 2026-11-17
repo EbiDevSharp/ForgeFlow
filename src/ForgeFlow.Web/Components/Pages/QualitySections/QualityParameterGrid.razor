@@ -1,0 +1,100 @@
+@using ForgeFlow.Application.Quality
+@using ForgeFlow.Domain.Quality
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-grid-card">
+    <div class="read-grid">
+        <BitDataGrid @ref="grid" TItem="QualityParameterSummary" OnRead="OnRead" Pageable="true" PageSize="25"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                     AriaLabelledBy="qc-title" WrapCellText="true" Resizable="true">
+            <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+            <Columns>
+                <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["ReadCode"]">
+                    <Template Context="p"><bdi dir="ltr">@p.Code</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["QcParamSymbolLabel"]">
+                    <Template Context="p"><span class="qc-symbol-chip" dir="ltr">@p.Symbol</span></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["ReadName"]">
+                    <Template Context="p">@p.Name</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["QcParamUnitLabel"]">
+                    <Template Context="p"><span dir="ltr">@(p.UnitSymbol ?? "—")</span></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["AttributeDataTypeLabel"]">
+                    <Template Context="p">
+                        <span>@ParamDataTypeLabel(p.DataType)</span>
+                        @if (p.DataType == QualityParameterDataType.Numeric)
+                        {
+                            <span class="read-sub-cell" dir="ltr"> (@p.DecimalPlaces)</span>
+                        }
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["QcParamMethodLabel"]">
+                    <Template Context="p"><span dir="ltr">@(p.DefaultTestMethod ?? "—")</span></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["ReadStatus"]">
+                    <Template Context="p">
+                        <span class="read-badge @(p.IsActive ? "active" : "inactive")">
+                            @Text[p.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="QualityParameterSummary" Title="@Text["ReadActions"]">
+                    <Template Context="p">
+                        @if (CanManage)
+                        {
+                            <div class="read-row-actions">
+                                <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                               Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                               OnClick="() => OnEditParam.InvokeAsync(p)" />
+                                </BitTooltip>
+                                @{
+                                    var paramToggleLabel = Text[p.IsActive ? "WriteDeactivate" : "WriteActivate"];
+                                }
+                                <BitTooltip Text="@paramToggleLabel" ShowOnFocus="true">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!ModalBusy)"
+                                               Class="@($"read-detail-action {(p.IsActive ? "read-action-deactivate" : "read-action-activate")}")"
+                                               Icon="@(p.IsActive ? DeactivateIcon : ActivateIcon)" IconOnly="true"
+                                               aria-label="@paramToggleLabel"
+                                               OnClick="() => OnToggleActive.InvokeAsync(p)" />
+                                </BitTooltip>
+                            </div>
+                        }
+                    </Template>
+                </BitDataGridColumn>
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
+    private static readonly BitIconInfo DeactivateIcon = BitIconInfo.Css("ff-icon ff-icon--deactivate");
+    private static readonly BitIconInfo ActivateIcon = BitIconInfo.Css("ff-icon ff-icon--activate");
+
+    private BitDataGrid<QualityParameterSummary>? grid;
+
+    [Parameter, EditorRequired] public Func<BitDataGridReadRequest, Task<BitDataGridReadResult<QualityParameterSummary>>> OnRead { get; set; } = default!;
+    [Parameter] public int[] PageSizeOptions { get; set; } = [10, 25, 50, 100];
+    [Parameter] public BitDataGridStrings GridStrings { get; set; } = default!;
+    [Parameter] public bool CanManage { get; set; }
+    [Parameter] public bool ModalBusy { get; set; }
+    [Parameter] public EventCallback<QualityParameterSummary> OnEditParam { get; set; }
+    [Parameter] public EventCallback<QualityParameterSummary> OnToggleActive { get; set; }
+
+    public async Task RefreshAsync(bool fromFirstPage = false)
+    {
+        if (grid is null) return;
+        if (fromFirstPage && grid.CurrentPage > 1) await grid.GoToPageAsync(1);
+        else await grid.RefreshAsync();
+    }
+
+    private string ParamDataTypeLabel(QualityParameterDataType dt) => dt switch
+    {
+        QualityParameterDataType.Numeric => Text["AttributeDataTypeDecimal"],
+        QualityParameterDataType.Boolean => Text["AttributeDataTypeBoolean"],
+        _ => Text["AttributeDataTypeText"]
+    };
+}
