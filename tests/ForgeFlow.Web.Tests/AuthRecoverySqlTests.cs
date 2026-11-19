@@ -24,7 +24,7 @@ public sealed class AuthRecoverySqlTests
         foreach (var expired in new[] { false, true })
         {
             var id = Guid.NewGuid(); var expires = expired ? now.AddHours(1) : now.AddHours(8);
-            await auth.Database.ExecuteSqlInterpolatedAsync($"INSERT [auth].[Session] ([Id],[UserId],[SecurityStampSnapshot],[IssuedAtUtc],[ExpiresAtUtc]) VALUES ({id},{user.Id},{user.SecurityStamp},{now},{expires})");
+            await auth.Database.ExecuteSqlInterpolatedAsync($"INSERT [auth].[Session] ([Id],[UserId],[SecurityStampSnapshot],[IssuedAtUtc],[ExpiresAtUtc],[LastActivityAtUtc]) VALUES ({id},{user.Id},{user.SecurityStamp},{now},{expires},{now})");
         }
         return (connection, user.Id, password);
     }
@@ -111,8 +111,8 @@ public sealed class AuthRecoverySqlTests
         Assert.True((await manager.CreateAsync(other,AuthBootstrapTests.Password())).Succeeded);
         var original = await db.Users.SingleAsync(u=>u.Id==id);
         var previous = Guid.NewGuid(); var unrelated = Guid.NewGuid(); var issued = DateTime.UtcNow.AddHours(-1); var expires = issued.AddHours(8); var revoked = issued.AddMinutes(1);
-        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT [auth].[Session] ([Id],[UserId],[SecurityStampSnapshot],[IssuedAtUtc],[ExpiresAtUtc],[RevokedAtUtc],[RevokeReason]) VALUES ({previous},{id},{original.SecurityStamp},{issued},{expires},{revoked},'Logout')");
-        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT [auth].[Session] ([Id],[UserId],[SecurityStampSnapshot],[IssuedAtUtc],[ExpiresAtUtc]) VALUES ({unrelated},{other.Id},{other.SecurityStamp},{issued},{expires})");
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT [auth].[Session] ([Id],[UserId],[SecurityStampSnapshot],[IssuedAtUtc],[ExpiresAtUtc],[LastActivityAtUtc],[RevokedAtUtc],[RevokeReason]) VALUES ({previous},{id},{original.SecurityStamp},{issued},{expires},{issued},{revoked},'Logout')");
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT [auth].[Session] ([Id],[UserId],[SecurityStampSnapshot],[IssuedAtUtc],[ExpiresAtUtc],[LastActivityAtUtc]) VALUES ({unrelated},{other.Id},{other.SecurityStamp},{issued},{expires},{issued})");
         Assert.Equal("Auth.PasswordResetCompleted",(await new HostRecovery(connection).ResetAsync(new(Guid.NewGuid(),id),AuthBootstrapTests.Password(),Consent())).Code);
         await using var verify = Auth(connection);
         var stored = await verify.Sessions.SingleAsync(s=>s.Id==previous); Assert.Equal(revoked,stored.RevokedAtUtc); Assert.Equal("Logout",stored.RevokeReason);

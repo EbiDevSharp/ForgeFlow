@@ -806,18 +806,8 @@ public sealed class SqlQualityOperationsStore(
         return OrganizationResult<T>.Failure(QualityErrors.ConcurrencyConflict);
     }
 
-    private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long orgId, CancellationToken ct)
-    {
-        var active = await db.Database.SqlQueryRaw<bool>(
-            "SELECT [IsActive] AS [Value] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {0}", orgId)
-            .SingleOrDefaultAsync(ct);
-        if (!active)
-        {
-            var exists = await db.Organizations.AsNoTracking().AnyAsync(o => o.Id == orgId, ct);
-            return (false, exists ? QualityErrors.ParentOrganizationInactive : QualityErrors.AccessDenied);
-        }
-        return (true, null);
-    }
+    private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long orgId, CancellationToken ct)
+        => OrganizationActivityGuard.RequireActiveOrganizationAsync(db, orgId, QualityErrors.ParentOrganizationInactive, QualityErrors.AccessDenied, ct);
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
         => ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);

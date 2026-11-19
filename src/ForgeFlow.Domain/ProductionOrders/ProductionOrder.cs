@@ -72,6 +72,7 @@ public sealed class ProductionOrder : IHasRowVersion, IHasDomainEvents, IOrganiz
     public long SiteId { get; private set; }
     public string OrderNumber { get; private set; } = string.Empty;
     public ProductionOrderStatus Status { get; private set; } = ProductionOrderStatus.Draft;
+    public bool CanReserveStock => Status is ProductionOrderStatus.Released or ProductionOrderStatus.InProgress;
 
     public long ItemId { get; private set; }
     public decimal RequestedQuantity { get; private set; }
@@ -204,7 +205,6 @@ public sealed class ProductionOrder : IHasRowVersion, IHasDomainEvents, IOrganiz
         Status = ProductionOrderStatus.Released;
         ReleasedAtUtc = utcNow;
         _domainEvents.Add(new ProductionOrderReleasedEvent(OrganizationId, SiteId, Id, OrderNumber, utcNow));
-        _domainEvents.Add(new ProductionOrderReleasedDomainEvent(OrganizationId, SiteId, OrderNumber, utcNow));
     }
 
     public void Start(DateTime utcNow)
@@ -237,7 +237,6 @@ public sealed class ProductionOrder : IHasRowVersion, IHasDomainEvents, IOrganiz
         Status = ProductionOrderStatus.Completed;
         CompletedAtUtc = utcNow;
         _domainEvents.Add(new ProductionOrderCompletedEvent(OrganizationId, SiteId, Id, OrderNumber, ActualProducedQuantity, ActualScrapQuantity, utcNow));
-        _domainEvents.Add(new ProductionOrderCompletedDomainEvent(OrganizationId, SiteId, OrderNumber, utcNow));
     }
 
     public void Cancel(string? reason, DateTime utcNow)
@@ -248,10 +247,5 @@ public sealed class ProductionOrder : IHasRowVersion, IHasDomainEvents, IOrganiz
         Status = ProductionOrderStatus.Cancelled;
         CancelledAtUtc = utcNow;
         _domainEvents.Add(new ProductionOrderCancelledEvent(OrganizationId, SiteId, Id, OrderNumber, CancellationReason, utcNow));
-        _domainEvents.Add(new ProductionOrderCancelledDomainEvent(OrganizationId, SiteId, OrderNumber, CancellationReason, utcNow));
     }
 }
-
-public sealed record ProductionOrderReleasedDomainEvent(long OrganizationId, long SiteId, string OrderNumber, DateTime OccurredAtUtc) : IDomainEvent;
-public sealed record ProductionOrderCompletedDomainEvent(long OrganizationId, long SiteId, string OrderNumber, DateTime OccurredAtUtc) : IDomainEvent;
-public sealed record ProductionOrderCancelledDomainEvent(long OrganizationId, long SiteId, string OrderNumber, string Reason, DateTime OccurredAtUtc) : IDomainEvent;

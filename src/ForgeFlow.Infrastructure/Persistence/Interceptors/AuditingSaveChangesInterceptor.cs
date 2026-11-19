@@ -1,4 +1,5 @@
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Infrastructure.Organizations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -82,11 +83,29 @@ public sealed class AuditingSaveChangesInterceptor(
             .ToArray();
 
         var actor = orgDb.CurrentActor ?? actorAccessor?.CurrentActor;
-        if (orgDb.Failed || (entries.Length > 0 && actor is null))
-            throw new InvalidOperationException(OrganizationAccessErrors.ActorRequired);
+        if (orgDb.Failed)
+            throw new InvalidOperationException(OrganizationAccessErrors.PersistenceUnavailable);
 
         if (entries.Length == 0)
             return;
+
+        var isSequenceOnlyOperation = entries.All(e =>
+            e.Entity is DocumentSequence &&
+            (e.State == EntityState.Added ||
+             (e.State == EntityState.Modified &&
+              !e.Properties.Any(p => p.IsModified && p.Metadata.Name is not ("NextNumber" or "LastAllocatedYear" or "RowVersion")))));
+
+        if (actor is null)
+        {
+            if (isSequenceOnlyOperation)
+            {
+                var sequenceNow = (timeProvider ?? orgDb.Clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
+                OrganizationDbContext.ApplyAuditMetadata(entries, null, sequenceNow);
+                return;
+            }
+
+            throw new InvalidOperationException(OrganizationAccessErrors.ActorRequired);
+        }
 
         ArgumentNullException.ThrowIfNull(actor);
 

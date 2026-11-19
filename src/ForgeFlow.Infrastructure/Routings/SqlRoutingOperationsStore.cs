@@ -80,7 +80,7 @@ public sealed class SqlRoutingOperationsStore(
     public Task<OrganizationResult<WorkCenterSummary>> CreateWorkCenter(
         CreateWorkCenterRequest request,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(request.OrganizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<WorkCenterSummary>.Failure(orgCheck.Error!);
@@ -111,7 +111,7 @@ public sealed class SqlRoutingOperationsStore(
         byte[] version,
         UpdateWorkCenterRequest request,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<WorkCenterSummary>.Failure(orgCheck.Error!);
@@ -132,7 +132,7 @@ public sealed class SqlRoutingOperationsStore(
         byte[] version,
         bool isActive,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<WorkCenterSummary>.Failure(orgCheck.Error!);
@@ -278,7 +278,7 @@ public sealed class SqlRoutingOperationsStore(
     public Task<OrganizationResult<RoutingDetails>> CreateDraftRouting(
         CreateRoutingRequest request,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(request.OrganizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<RoutingDetails>.Failure(orgCheck.Error!);
@@ -322,7 +322,7 @@ public sealed class SqlRoutingOperationsStore(
         byte[] version,
         UpdateDraftRoutingRequest request,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<RoutingDetails>.Failure(orgCheck.Error!);
@@ -330,7 +330,8 @@ public sealed class SqlRoutingOperationsStore(
         var routing = await db.Routings.SingleOrDefaultAsync(r => r.OrganizationId == organizationId && r.Id == id, ct);
         if (routing is null) return OrganizationResult<RoutingDetails>.Failure(RoutingErrors.RoutingNotFound);
         if (!Matches(db, routing, version)) return OrganizationResult<RoutingDetails>.Failure(RoutingErrors.ConcurrencyConflict);
-        if (routing.Status != RoutingStatus.Draft) return OrganizationResult<RoutingDetails>.Failure(RoutingErrors.RoutingNotDraft);
+
+        routing.UpdateDraft(request.Name, request.BomVersionId, request.IsDefault, request.Notes);
 
         if (request.BomVersionId is > 0)
         {
@@ -341,7 +342,6 @@ public sealed class SqlRoutingOperationsStore(
             if (!bvValid) return OrganizationResult<RoutingDetails>.Failure(RoutingErrors.BomVersionInvalid);
         }
 
-        routing.UpdateDraft(request.Name, request.BomVersionId, request.IsDefault, request.Notes);
         await db.SaveInOperation(access.Actor, ct);
 
         return OrganizationResult<RoutingDetails>.Success((await BuildRoutingDetailsAsync(db, organizationId, routing.Id, ct))!);
@@ -353,7 +353,7 @@ public sealed class SqlRoutingOperationsStore(
         byte[] version,
         IReadOnlyList<RoutingOperationInput> operations,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<RoutingDetails>.Failure(orgCheck.Error!);
@@ -363,7 +363,7 @@ public sealed class SqlRoutingOperationsStore(
             .SingleOrDefaultAsync(r => r.OrganizationId == organizationId && r.Id == routingId, ct);
         if (routing is null) return OrganizationResult<RoutingDetails>.Failure(RoutingErrors.RoutingNotFound);
         if (!Matches(db, routing, version)) return OrganizationResult<RoutingDetails>.Failure(RoutingErrors.ConcurrencyConflict);
-        if (routing.Status != RoutingStatus.Draft) return OrganizationResult<RoutingDetails>.Failure(RoutingErrors.RoutingNotDraft);
+        routing.EnsureDraftMutable();
 
         var wcIds = operations.Select(o => o.WorkCenterId).Distinct().ToArray();
         var validWorkCenters = await db.WorkCenters.AsNoTracking()
@@ -403,7 +403,7 @@ public sealed class SqlRoutingOperationsStore(
         byte[] version,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<RoutingDetails>.Failure(orgCheck.Error!);
@@ -414,8 +414,7 @@ public sealed class SqlRoutingOperationsStore(
         if (routing is null) return OrganizationResult<RoutingDetails>.Failure(RoutingErrors.RoutingNotFound);
         if (!Matches(db, routing, version)) return OrganizationResult<RoutingDetails>.Failure(RoutingErrors.ConcurrencyConflict);
 
-        if (routing.Operations.Count == 0)
-            return OrganizationResult<RoutingDetails>.Failure(RoutingErrors.EmptyOperations);
+        routing.Activate(utcNow);
 
         var wcIds = routing.Operations.Select(o => o.WorkCenterId).Distinct().ToArray();
         var activeCount = await db.WorkCenters.AsNoTracking()
@@ -437,7 +436,6 @@ public sealed class SqlRoutingOperationsStore(
                 prev.SetDefault(false);
         }
 
-        routing.Activate(utcNow);
         await db.SaveInOperation(access.Actor, ct);
         return OrganizationResult<RoutingDetails>.Success((await BuildRoutingDetailsAsync(db, organizationId, routing.Id, ct))!);
     }, ct);
@@ -447,7 +445,7 @@ public sealed class SqlRoutingOperationsStore(
         long id,
         byte[] version,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<RoutingDetails>.Failure(orgCheck.Error!);
@@ -573,7 +571,7 @@ public sealed class SqlRoutingOperationsStore(
         byte[] version,
         OrganizationWriteAccess access,
         Action<ProductionOrderOperation> apply,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<ProductionOrderOperationSummary>.Failure(orgCheck.Error!);
@@ -786,15 +784,15 @@ public sealed class SqlRoutingOperationsStore(
     }
 
     private async Task<OrganizationResult<T>> Write<T>(
+        long organizationId,
         OrganizationWriteAccess access,
         Func<OrganizationDbContext, Task<OrganizationResult<T>>> operation,
-        CancellationToken ct,
-        long? organizationId = null)
+        CancellationToken ct)
     {
         try
         {
             await using var strategyContext = await Factory.CreateDbContextAsync(ct);
-            if (organizationId.HasValue) strategyContext.CurrentOrganizationId = organizationId.Value;
+            strategyContext.CurrentOrganizationId = organizationId;
             var strategy = strategyContext.Database.CreateExecutionStrategy();
             return await strategy.ExecuteAsync(async () =>
             {
@@ -805,7 +803,7 @@ public sealed class SqlRoutingOperationsStore(
                 try
                 {
                     await using var db = await Factory.CreateDbContextAsync(ct);
-                    if (organizationId.HasValue) db.CurrentOrganizationId = organizationId.Value;
+                    db.CurrentOrganizationId = organizationId;
                     await using var transaction = await db.Database.BeginTransactionAsync(ct);
                     var result = await operation(db);
                     if (!result.Succeeded) return result;
@@ -839,14 +837,8 @@ public sealed class SqlRoutingOperationsStore(
         }
     }
 
-    private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
-    {
-        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT [Id] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {organizationId}", ct);
-        var org = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
-        if (org is null) return (false, RoutingErrors.NotFound);
-        if (!org.IsActive) return (false, RoutingErrors.ParentOrganizationInactive);
-        return (true, null);
-    }
+    private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
+        => OrganizationActivityGuard.RequireActiveOrganizationAsync(db, organizationId, RoutingErrors.ParentOrganizationInactive, RoutingErrors.NotFound, ct);
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
         => entity is ForgeFlow.Domain.Common.IHasRowVersion hasVersion && hasVersion.RowVersion.Length > 0

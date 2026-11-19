@@ -118,7 +118,7 @@ public sealed class ItemOperationsStore(
         => Read(organizationId, db => BuildItemDetailsAsync(db, organizationId, id, ct), ct);
 
     public Task<OrganizationResult<ItemDetails>> CreateItem(CreateItemRequest request, OrganizationWriteAccess access, CancellationToken ct)
-        => Write(access, async db =>
+        => Write(request.OrganizationId, access, async db =>
         {
             var org = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
             if (org.Error is not null) return OrganizationResult<ItemDetails>.Failure(org.Error);
@@ -146,7 +146,7 @@ public sealed class ItemOperationsStore(
             db.Items.Add(item);
             await db.SaveInOperation(access.Actor, ct);
             return OrganizationResult<ItemDetails>.Success((await BuildItemDetailsAsync(db, request.OrganizationId, item.Id, ct))!);
-        }, ct, request.OrganizationId);
+        }, ct);
 
     public Task<OrganizationResult<ItemDetails>> UpdateItem(
         long organizationId,
@@ -155,7 +155,7 @@ public sealed class ItemOperationsStore(
         UpdateItemRequest request,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(organizationId, access, async db =>
         {
             var org = await LockAndRequireActiveOrganization(db, organizationId, ct);
             if (org.Error is not null) return OrganizationResult<ItemDetails>.Failure(org.Error);
@@ -183,7 +183,7 @@ public sealed class ItemOperationsStore(
             }
 
             return OrganizationResult<ItemDetails>.Success((await BuildItemDetailsAsync(db, organizationId, item.Id, ct))!);
-        }, ct, organizationId);
+        }, ct);
 
     public Task<OrganizationResult<ItemDetails>> SetItemActive(
         long organizationId,
@@ -192,9 +192,8 @@ public sealed class ItemOperationsStore(
         bool isActive,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(organizationId, access, async db =>
         {
-            await LockOrganization(db, organizationId, ct);
             var orgRow = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
             if (orgRow is null) return OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
             if (isActive && !orgRow.IsActive) return OrganizationResult<ItemDetails>.Failure(ItemErrors.ParentOrganizationInactive);
@@ -208,7 +207,7 @@ public sealed class ItemOperationsStore(
                 await db.SaveInOperation(access.Actor, ct);
 
             return OrganizationResult<ItemDetails>.Success((await BuildItemDetailsAsync(db, organizationId, item.Id, ct))!);
-        }, ct, organizationId);
+        }, ct);
 
     public Task<OrganizationResult<ItemDetails>> SaveItemClassifications(
         long organizationId,
@@ -217,7 +216,7 @@ public sealed class ItemOperationsStore(
         IReadOnlyList<long> classificationIds,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(organizationId, access, async db =>
         {
             var org = await LockAndRequireActiveOrganization(db, organizationId, ct);
             if (org.Error is not null) return OrganizationResult<ItemDetails>.Failure(org.Error);
@@ -278,7 +277,7 @@ public sealed class ItemOperationsStore(
         CreateItemUnitConversionRequest request,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(request.OrganizationId, access, async db =>
         {
             var org = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
             if (org.Error is not null) return OrganizationResult<ItemDetails>.Failure(org.Error);
@@ -317,7 +316,7 @@ public sealed class ItemOperationsStore(
         decimal factor,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(organizationId, access, async db =>
         {
             var org = await LockAndRequireActiveOrganization(db, organizationId, ct);
             if (org.Error is not null) return OrganizationResult<ItemDetails>.Failure(org.Error);
@@ -343,9 +342,8 @@ public sealed class ItemOperationsStore(
         bool isActive,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(organizationId, access, async db =>
         {
-            await LockOrganization(db, organizationId, ct);
             var orgRow = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
             if (orgRow is null) return OrganizationResult<ItemDetails>.Failure(ItemErrors.NotFound);
             if (isActive && !orgRow.IsActive) return OrganizationResult<ItemDetails>.Failure(ItemErrors.ParentOrganizationInactive);
@@ -381,7 +379,7 @@ public sealed class ItemOperationsStore(
         CreateClassificationSetRequest request,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(request.OrganizationId, access, async db =>
         {
             var org = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
             if (org.Error is not null) return OrganizationResult<ClassificationSetSummary>.Failure(org.Error);
@@ -456,7 +454,7 @@ public sealed class ItemOperationsStore(
         CreateClassificationRequest request,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(request.OrganizationId, access, async db =>
         {
             var org = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
             if (org.Error is not null) return OrganizationResult<ClassificationSummary>.Failure(org.Error);
@@ -497,7 +495,7 @@ public sealed class ItemOperationsStore(
         long? parentClassificationId,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(organizationId, access, async db =>
         {
             var org = await LockAndRequireActiveOrganization(db, organizationId, ct);
             if (org.Error is not null) return OrganizationResult<ClassificationSummary>.Failure(org.Error);
@@ -542,9 +540,8 @@ public sealed class ItemOperationsStore(
         bool isActive,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(organizationId, access, async db =>
         {
-            await LockOrganization(db, organizationId, ct);
             var orgRow = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
             if (orgRow is null) return OrganizationResult<ClassificationSummary>.Failure(ItemErrors.NotFound);
             if (isActive && !orgRow.IsActive) return OrganizationResult<ClassificationSummary>.Failure(ItemErrors.ParentOrganizationInactive);
@@ -622,7 +619,7 @@ public sealed class ItemOperationsStore(
         CreateAttributeDefinitionRequest request,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(request.OrganizationId, access, async db =>
         {
             var org = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
             if (org.Error is not null) return OrganizationResult<AttributeDefinitionSummary>.Failure(org.Error);
@@ -653,7 +650,7 @@ public sealed class ItemOperationsStore(
         bool isRequired,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(organizationId, access, async db =>
         {
             var org = await LockAndRequireActiveOrganization(db, organizationId, ct);
             if (org.Error is not null) return OrganizationResult<AttributeDefinitionSummary>.Failure(org.Error);
@@ -683,9 +680,8 @@ public sealed class ItemOperationsStore(
         bool isActive,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(organizationId, access, async db =>
         {
-            await LockOrganization(db, organizationId, ct);
             var orgRow = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
             if (orgRow is null) return OrganizationResult<AttributeDefinitionSummary>.Failure(ItemErrors.NotFound);
             if (isActive && !orgRow.IsActive) return OrganizationResult<AttributeDefinitionSummary>.Failure(ItemErrors.ParentOrganizationInactive);
@@ -711,7 +707,7 @@ public sealed class ItemOperationsStore(
         IReadOnlyList<ItemAttributeValueInput> values,
         OrganizationWriteAccess access,
         CancellationToken ct)
-        => Write(access, async db =>
+        => Write(organizationId, access, async db =>
         {
             var org = await LockAndRequireActiveOrganization(db, organizationId, ct);
             if (org.Error is not null) return OrganizationResult<ItemDetails>.Failure(org.Error);
@@ -975,15 +971,15 @@ public sealed class ItemOperationsStore(
     }
 
     private async Task<OrganizationResult<T>> Write<T>(
+        long organizationId,
         OrganizationWriteAccess access,
         Func<OrganizationDbContext, Task<OrganizationResult<T>>> operation,
-        CancellationToken ct,
-        long? organizationId = null)
+        CancellationToken ct)
     {
         try
         {
             await using var strategyContext = await Factory.CreateDbContextAsync(ct);
-            if (organizationId.HasValue) strategyContext.CurrentOrganizationId = organizationId.Value;
+            strategyContext.CurrentOrganizationId = organizationId;
             var strategy = strategyContext.Database.CreateExecutionStrategy();
             return await strategy.ExecuteAsync(async () =>
             {
@@ -994,7 +990,7 @@ public sealed class ItemOperationsStore(
                 try
                 {
                     await using var db = await Factory.CreateDbContextAsync(ct);
-                    if (organizationId.HasValue) db.CurrentOrganizationId = organizationId.Value;
+                    db.CurrentOrganizationId = organizationId;
                     await using var transaction = await db.Database.BeginTransactionAsync(ct);
                     var result = await operation(db);
                     if (!result.Succeeded) return result;
@@ -1034,17 +1030,8 @@ public sealed class ItemOperationsStore(
         { return OrganizationResult<T>.Failure(ItemErrors.PersistenceUnavailable); }
     }
 
-    private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
-    {
-        await LockOrganization(db, organizationId, ct);
-        var org = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
-        if (org is null) return (false, ItemErrors.NotFound);
-        if (!org.IsActive) return (false, ItemErrors.ParentOrganizationInactive);
-        return (true, null);
-    }
-
-    private static Task LockOrganization(OrganizationDbContext db, long id, CancellationToken ct)
-        => db.Database.ExecuteSqlInterpolatedAsync($"SELECT [Id] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {id}", ct);
+    private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
+        => OrganizationActivityGuard.RequireActiveOrganizationAsync(db, organizationId, ItemErrors.ParentOrganizationInactive, ItemErrors.NotFound, ct);
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
         => ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);

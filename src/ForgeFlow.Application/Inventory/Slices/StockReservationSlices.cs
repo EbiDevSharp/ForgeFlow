@@ -197,8 +197,8 @@ public sealed class StockReservationSlices(
 
         await OperationAuditHelper.RecordIfRejectedAsync(
             res,
-            null, // operationRecorder
-            null, // opContext
+            support.OperationRecorder,
+            support.OpContext,
             UserOperationCatalog.SalesActionRejected,
             auth.Actor,
             scope,

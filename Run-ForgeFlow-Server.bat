@@ -8,26 +8,36 @@ echo ===================================================
 :: بستن نسخه قبلی در پس‌زمینه جهت آزادسازی پورت و قفل فایل‌ها
 taskkill /F /IM ForgeFlow.Web.exe >nul 2>&1
 
-:: تنظیم رشته اتصال پایگاه داده
-set "ConnectionStrings__ForgeFlow=Server=localhost;Database=testforgflow;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;"
+:: تنظیم رشته اتصال پایگاه داده (اعتبارسنجی گواهی در محیط پروداکشن)
+if "%ConnectionStrings__ForgeFlow%"=="" (
+    set "ConnectionStrings__ForgeFlow=Server=localhost;Database=testforgflow;Integrated Security=True;Encrypt=True;"
+)
 
-:: تنظیم محیط اجرایی
-set ASPNETCORE_ENVIRONMENT=Development
+:: تنظیم محیط اجرایی پروداکشن
+if "%ASPNETCORE_ENVIRONMENT%"=="" (
+    set ASPNETCORE_ENVIRONMENT=Production
+)
 
-:: گوش دادن روی تمامی کارت‌های شبکه سیستم روی پورت 5000 و 5001
-set ASPNETCORE_URLS=http://0.0.0.0:5000;https://0.0.0.0:5001
+:: پیکربندی مسیر ذخیره کلیدهای DataProtection برای پروداکشن
+if "%DataProtection__KeyRingPath%"=="" (
+    set "DataProtection__KeyRingPath=%~dp0.local\production-keys"
+)
+
+:: گوش دادن صرفاً روی پروتکل امن HTTPS
+if "%ASPNETCORE_URLS%"=="" (
+    set ASPNETCORE_URLS=https://0.0.0.0:5001
+)
 
 cd /d "%~dp0src\ForgeFlow.Web"
 
 if exist "bin\Release\net10.0\ForgeFlow.Web.exe" (
-    echo [OK] Launching ForgeFlow Server...
+    echo [OK] Launching ForgeFlow Production Server...
     echo Available at:
-    echo   - Local:   http://localhost:5000  or  https://localhost:5001
-    echo   - Network: http://[Your-IP]:5000
+    echo   - HTTPS: https://localhost:5001
     echo ===================================================
     "bin\Release\net10.0\ForgeFlow.Web.exe"
 ) else (
-    echo Building and launching ForgeFlow Server...
+    echo Building and launching ForgeFlow Server in Release...
     dotnet run -c Release
 )
 

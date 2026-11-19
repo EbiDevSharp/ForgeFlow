@@ -235,6 +235,17 @@ public sealed class DomainEventAuditUnitTests
         await secHandler.HandleAsync(new RolePermissionsUpdatedEvent(10, 70, "InventoryClerk", ["Inventory.Read", "Inventory.Manage"], now));
         Assert.Contains(sink.Records, r => r.OrganizationId == 10 && r.SiteId == null && r.EventCode == "RoleDefinitionChanged");
 
+        // 7. ProcurementAuditHandler
+        var procHandler = new ProcurementAuditHandler(sinkAccessor);
+        await procHandler.HandleAsync(new PurchaseOrderApprovedEvent(10, 20, 3, "PO-300", 50000m, now));
+        Assert.Contains(sink.Records, r => r.OrganizationId == 10 && r.SiteId == 20 && r.EventCode == "PurchaseOrder.Approved");
+
+        await procHandler.HandleAsync(new PurchaseOrderClosedEvent(10, 20, 3, "PO-300", now));
+        Assert.Contains(sink.Records, r => r.OrganizationId == 10 && r.SiteId == 20 && r.EventCode == "PurchaseOrder.Closed");
+
+        await procHandler.HandleAsync(new PurchaseOrderCancelledEvent(10, 20, 3, "PO-300", "Cancelled for testing", now));
+        Assert.Contains(sink.Records, r => r.OrganizationId == 10 && r.SiteId == 20 && r.EventCode == "PurchaseOrder.Cancelled");
+
         // Verify all payloads are valid JSON
         foreach (var record in sink.Records)
         {
@@ -254,6 +265,9 @@ public sealed class DomainEventAuditUnitTests
         services.AddScoped<IDomainEventHandler<ProductionOrderReleasedEvent>>(sp => sp.GetRequiredService<ProductionOrderAuditHandler>());
         services.AddScoped<IDomainEventHandler<ProductionOrderCompletedEvent>>(sp => sp.GetRequiredService<ProductionOrderAuditHandler>());
 
+        services.AddScoped<ProcurementAuditHandler>();
+        services.AddScoped<IDomainEventHandler<PurchaseOrderApprovedEvent>>(sp => sp.GetRequiredService<ProcurementAuditHandler>());
+
         services.AddScoped<IDomainEventDispatcher, DomainEventDispatcher>();
 
         await using var provider = services.BuildServiceProvider();
@@ -262,10 +276,17 @@ public sealed class DomainEventAuditUnitTests
         var evt = new ProductionOrderReleasedEvent(100, 200, 1, "PO-DISP", DateTime.UtcNow);
         await dispatcher.DispatchAsync(evt);
 
-        Assert.Single(sink.Records);
+        var poEvt = new PurchaseOrderApprovedEvent(100, 200, 5, "PO-500", 2500m, DateTime.UtcNow);
+        await dispatcher.DispatchAsync(poEvt);
+
+        Assert.Equal(2, sink.Records.Count);
         Assert.Equal("ProductionOrder.Released", sink.Records[0].EventCode);
         Assert.Equal(100, sink.Records[0].OrganizationId);
         Assert.Equal(200, sink.Records[0].SiteId);
+
+        Assert.Equal("PurchaseOrder.Approved", sink.Records[1].EventCode);
+        Assert.Equal(100, sink.Records[1].OrganizationId);
+        Assert.Equal(200, sink.Records[1].SiteId);
     }
 
     [Fact]

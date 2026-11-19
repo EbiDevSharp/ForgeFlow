@@ -14,7 +14,16 @@ using Microsoft.AspNetCore.Components.Server.Circuits;
 
 var builder = WebApplication.CreateBuilder(args);
 using var localRuntime = LocalRuntimeConfiguration.Configure(builder);
-builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+builder.Services.AddRazorComponents().AddInteractiveServerComponents(options =>
+{
+    options.DisconnectedCircuitMaxRetained = 100;
+    options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(3);
+    options.MaxBufferedUnacknowledgedRenderBatches = 10;
+});
+builder.Services.AddHealthChecks()
+    .AddCheck<OrganizationDbContextHealthCheck>("OrganizationDbContext")
+    .AddCheck<AuthDbContextHealthCheck>("AuthDbContext")
+    .AddCheck<DiskSpaceHealthCheck>("DiskSpace");
 builder.Services.AddBitBlazorUIServices();
 builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 builder.Services.Configure<Microsoft.AspNetCore.Builder.RequestLocalizationOptions>(CulturePolicy.Configure);
@@ -31,6 +40,36 @@ builder.Services.AddScoped<IOperationContextAccessor, HttpOperationContextAccess
 builder.Services.AddScoped<CircuitHandler, OperationCircuitHandler>();
 builder.Services.AddScoped<UiErrorReporter>();
 builder.Services.AddExceptionHandler<GlobalExceptionLoggingHandler>();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost;
+
+    var section = builder.Configuration.GetSection("ForwardedHeaders");
+    var knownProxies = section.GetSection("KnownProxies").Get<string[]>();
+    if (knownProxies is { Length: > 0 })
+    {
+        options.KnownProxies.Clear();
+        foreach (var proxy in knownProxies)
+        {
+            if (System.Net.IPAddress.TryParse(proxy, out var ip))
+                options.KnownProxies.Add(ip);
+        }
+    }
+    var knownNetworks = section.GetSection("KnownNetworks").Get<string[]>();
+    if (knownNetworks is { Length: > 0 })
+    {
+        options.KnownIPNetworks.Clear();
+        foreach (var net in knownNetworks)
+        {
+            if (System.Net.IPNetwork.TryParse(net, out var ipNet))
+            {
+                options.KnownIPNetworks.Add(ipNet);
+            }
+        }
+    }
+});
 builder.Services.AddForgeFlowRateLimiting(builder.Configuration);
 builder.Services.AddAuthenticationBackend(builder.Configuration);
 builder.Services.AddUserManagement();
@@ -49,8 +88,10 @@ if (authDiagnostics)
 }
 
 var app = builder.Build();
+app.UseForwardedHeaders();
 if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment(LocalRuntimeConfiguration.SmokeEnvironment))
     app.UseHsts();
+app.UseHttpsRedirection();
 app.UseSecurityHeaders();
 app.Use(async (context, next) =>
 {
@@ -68,9 +109,27 @@ app.Use(async (context, next) =>
 app.UseRequestLocalization();
 app.UseExceptionHandler("/error", createScopeForErrors: true);
 app.UseStatusCodePagesWithReExecute("/not-found");
+
+// Short-circuit static assets before authentication/session middleware (F-02)
+app.Use(async (context, next) =>
+{
+    if (AuthenticationBackend.IsStaticAssetPath(context.Request.Path.Value))
+    {
+        await next(context);
+        return;
+    }
+    await next(context);
+});
+
 app.UseAuthentication();
 app.Use(async (context, next) =>
 {
+    if (AuthenticationBackend.IsStaticAssetPath(context.Request.Path.Value))
+    {
+        await next(context);
+        return;
+    }
+
     var reference = SessionClaims.Read(context.User);
     if (reference is not null)
     {
@@ -91,6 +150,7 @@ app.UseAuthorization();
 app.UseRateLimiter();
 app.UseAntiforgery();
 app.MapStaticAssets();
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapPost("/culture", CultureEndpoint.SwitchAsync);
 app.MapAuthenticationBackend();
 app.MapExportEndpoints();

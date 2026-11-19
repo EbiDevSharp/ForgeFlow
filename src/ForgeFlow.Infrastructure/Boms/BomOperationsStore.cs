@@ -51,7 +51,7 @@ public sealed class BomOperationsStore(
                 ItemName = x.i.Name,
                 UnitSymbol = x.u.Symbol,
                 x.b.IsActive,
-                RowVersion = EF.Property<byte[]>(x.b, "RowVersion")
+                RowVersion = x.b.RowVersion
             })
             .ToListAsync(ct);
 
@@ -138,7 +138,6 @@ public sealed class BomOperationsStore(
         CancellationToken ct)
         => Write(organizationId, access, async db =>
         {
-            await LockOrganization(db, organizationId, ct);
             var orgRow = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
             if (orgRow is null) return OrganizationResult<BomDetails>.Failure(BomErrors.NotFound);
             if (isActive && !orgRow.IsActive) return OrganizationResult<BomDetails>.Failure(BomErrors.ParentOrganizationInactive);
@@ -456,7 +455,6 @@ public sealed class BomOperationsStore(
         CancellationToken ct)
         => Write(organizationId, access, async db =>
         {
-            await LockOrganization(db, organizationId, ct);
             var orgRow = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
             if (orgRow is null) return OrganizationResult<ContextDimensionSummary>.Failure(BomErrors.NotFound);
             if (isActive && !orgRow.IsActive) return OrganizationResult<ContextDimensionSummary>.Failure(BomErrors.ParentOrganizationInactive);
@@ -602,7 +600,7 @@ public sealed class BomOperationsStore(
                              ItemName = i.Name,
                              UnitSymbol = u.Symbol,
                              b.IsActive,
-                             RowVersion = EF.Property<byte[]>(b, "RowVersion")
+                             RowVersion = b.RowVersion
                          }).SingleOrDefaultAsync(ct);
         if (row is null) return null;
 
@@ -624,7 +622,7 @@ public sealed class BomOperationsStore(
                                      v.EffectiveFromDate,
                                      v.EffectiveToDate,
                                      v.Notes,
-                                     RowVersion = EF.Property<byte[]>(v, "RowVersion")
+                                     RowVersion = v.RowVersion
                                  }).ToListAsync(ct);
 
         var verIds = versionRows.Select(x => x.Id).ToArray();
@@ -737,7 +735,7 @@ public sealed class BomOperationsStore(
             appDetails is not null,
             appDetails?.IsActive ?? false,
             appDetails?.Conditions.Count ?? 0,
-            Convert.ToBase64String(db.Entry(verRow.v).Property<byte[]>("RowVersion").CurrentValue!));
+            Convert.ToBase64String(verRow.v.RowVersion));
 
         return new BomVersionDetails(summary, inputs, outputs, appDetails);
     }
@@ -748,7 +746,7 @@ public sealed class BomOperationsStore(
         d.Code,
         d.Name,
         d.IsActive,
-        Convert.ToBase64String(db.Entry(d).Property<byte[]>("RowVersion").CurrentValue!));
+        Convert.ToBase64String(d.RowVersion));
 
     private async Task<T> Read<T>(long? organizationId, Func<OrganizationDbContext, Task<T>> query, CancellationToken ct)
     {
@@ -820,20 +818,13 @@ public sealed class BomOperationsStore(
         { return OrganizationResult<T>.Failure(BomErrors.PersistenceUnavailable); }
     }
 
-    private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
-    {
-        await LockOrganization(db, organizationId, ct);
-        var org = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
-        if (org is null) return (false, BomErrors.NotFound);
-        if (!org.IsActive) return (false, BomErrors.ParentOrganizationInactive);
-        return (true, null);
-    }
-
-    private static Task LockOrganization(OrganizationDbContext db, long id, CancellationToken ct)
-        => db.Database.ExecuteSqlInterpolatedAsync($"SELECT [Id] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {id}", ct);
+    private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
+        => OrganizationActivityGuard.RequireActiveOrganizationAsync(db, organizationId, BomErrors.ParentOrganizationInactive, BomErrors.NotFound, ct);
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
-        => ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);
+        => entity is ForgeFlow.Domain.Common.IHasRowVersion hasVersion && hasVersion.RowVersion.Length > 0
+            ? hasVersion.RowVersion.SequenceEqual(version)
+            : ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);
 
     private static bool Unavailable(Exception exception) => exception switch
     {

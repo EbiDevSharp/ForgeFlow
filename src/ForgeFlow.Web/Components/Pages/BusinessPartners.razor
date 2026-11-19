@@ -438,7 +438,7 @@
                         <div class="bp-field">
                             <label for="bp-form-country">@Text["BpCountry"]</label>
                             <select id="bp-form-country" value="@formCountry" @onchange="e => formCountry = e.Value?.ToString() ?? string.Empty">
-                                <option value="ایران">ایران</option>
+                                <option value="IR">@Text["Country_IR"]</option>
                             </select>
                         </div>
                         <div class="bp-field">
@@ -622,7 +622,7 @@
                         <div class="audit-meta-grid">
                             <div class="audit-meta-row">
                                 <span class="audit-meta-label">@Text["BpCountryProvince"]</span>
-                                <span class="audit-meta-val">@($"{detailItem.Country} - {detailItem.Province}".Trim(' ', '-'))</span>
+                                <span class="audit-meta-val">@($"{ResolveCountry(detailItem.Country)} - {detailItem.Province}".Trim(' ', '-'))</span>
                             </div>
                             <div class="audit-meta-row" style="grid-column: 1 / -1;">
                                 <span class="audit-meta-label">@Text["BpCityAddress"]</span>
@@ -705,7 +705,7 @@
     private string formPhone = string.Empty;
     private string formEmail = string.Empty;
     private string formWebsite = string.Empty;
-    private string formCountry = "ایران";
+    private string formCountry = "IR";
     private string formProvince = string.Empty;
     private string formCity = string.Empty;
     private string formAddress = string.Empty;
@@ -965,7 +965,7 @@
         formPhone = string.Empty;
         formEmail = string.Empty;
         formWebsite = string.Empty;
-        formCountry = "ایران";
+        formCountry = "IR";
         formProvince = string.Empty;
         formCity = string.Empty;
         formAddress = string.Empty;
@@ -1009,7 +1009,7 @@
         formPhone = d.Phone ?? string.Empty;
         formEmail = d.Email ?? string.Empty;
         formWebsite = d.Website ?? string.Empty;
-        formCountry = string.IsNullOrWhiteSpace(d.Country) ? "ایران" : d.Country;
+        formCountry = string.IsNullOrWhiteSpace(d.Country) || d.Country == "ایران" ? "IR" : d.Country;
         formProvince = d.Province ?? string.Empty;
         formCity = d.City ?? string.Empty;
         formAddress = d.Address ?? string.Empty;
@@ -1267,6 +1267,8 @@
         OrganizationScope.Site s => Text["ReadSiteScope", s.OrganizationId, s.SiteId],
         _ => string.Empty
     };
+
+    private string ResolveCountry(string? country) => country is "IR" or "ایران" ? Text["Country_IR"] : (country ?? string.Empty);
 
     private string MapError(string code) => Text[RolePermissionLocalization.FailureKey(code)];
 }

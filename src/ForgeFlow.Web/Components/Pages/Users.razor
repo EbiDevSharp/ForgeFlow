@@ -20,6 +20,7 @@
 @inject ITrustedActorAccessor Actors
 @inject IOrganizationPermissionEvaluator Permissions
 @inject DraftCoordinator Drafts
+@inject ILogger<Users> Logger
 
 <PageTitle>@Text["Users"]</PageTitle>
 <section class="organization-reader">
@@ -1181,14 +1182,24 @@ else
                 StateHasChanged();
             }
         }
-        catch { draftInitialized = false; }
+        catch (OperationCanceledException) { draftInitialized = false; }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to initialize draft coordinator for users.");
+            draftInitialized = false;
+        }
     }
 
     private async Task ClearActiveDraftAsync()
     {
         if (!draftInitialized || Drafts is null) return;
         draftInitialized = false;
-        try { await Drafts.ClearAsync(); } catch { }
+        try { await Drafts.ClearAsync(); }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to clear draft in users.");
+        }
     }
 
     private async Task RefreshScopeStateAsync(int request)
@@ -1210,7 +1221,11 @@ else
             if (sitesResult.Succeeded && sitesResult.Value is not null)
                 sites = sitesResult.Value.Items.ToList();
         }
-        catch { }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load sites for user scope.");
+        }
 
         if (!Current(request)) return;
         scopeCanCreate = create;

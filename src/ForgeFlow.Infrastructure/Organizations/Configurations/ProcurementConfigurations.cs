@@ -9,7 +9,7 @@ using static ForgeFlow.Infrastructure.Organizations.Configurations.OrganizationM
 
 namespace ForgeFlow.Infrastructure.Organizations.Configurations;
 
-internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
+internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<Supplier> supplier)
     {
@@ -39,7 +39,7 @@ internal sealed class SupplierConfiguration : IEntityTypeConfiguration<Supplier>
     }
 }
 
-internal sealed class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder>
+internal sealed class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<PurchaseOrder> purchaseOrder)
     {
@@ -89,7 +89,7 @@ internal sealed class PurchaseOrderConfiguration : IEntityTypeConfiguration<Purc
     }
 }
 
-internal sealed class PurchaseOrderLineConfiguration : IEntityTypeConfiguration<PurchaseOrderLine>
+internal sealed class PurchaseOrderLineConfiguration : IEntityTypeConfiguration<PurchaseOrderLine>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<PurchaseOrderLine> poLine)
     {

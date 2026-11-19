@@ -13,6 +13,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
+using ForgeFlow.Infrastructure.Organizations;
+
 namespace ForgeFlow.Infrastructure.Identity;
 
 internal sealed class RoleCommitOutcomeUnknownException(Exception inner) : Exception(RolePermissionErrors.OutcomeUnknown, inner);
@@ -277,7 +279,7 @@ public sealed class SqlRoleOperationsStore(
             scopeLabel = org.Name;
             if (request.TargetScope == RoleScopeTarget.Site)
             {
-                var site = await db.Set<Site>().SingleOrDefaultAsync(s => s.OrganizationId == request.OrganizationId && s.Id == request.SiteId!.Value, ct);
+                var site = await OrganizationActivityGuard.RequireActiveSiteAsync(db, request.OrganizationId, request.SiteId!.Value, ct);
                 if (site is null)
                     return OrganizationResult<UserPermissionMatrix>.Failure(OrganizationSiteErrors.SiteNotFound);
                 if (!site.IsActive)
@@ -340,7 +342,7 @@ public sealed class SqlRoleOperationsStore(
 
         if (res.Succeeded && notifications is not null)
         {
-            await notifications.PublishAsync(
+            await notifications!.PublishAsync(
                 request.UserId,
                 NotificationEventCatalog.RoleOrAccessChanged,
                 NotificationCategory.Security,
@@ -405,7 +407,7 @@ public sealed class SqlRoleOperationsStore(
 
                 if (assignment.ScopeKind == 2)
                 {
-                    var site = await db.Set<Site>().SingleOrDefaultAsync(s => s.OrganizationId == organizationId && s.Id == assignment.SiteId!.Value, ct);
+                    var site = await OrganizationActivityGuard.RequireActiveSiteAsync(db, organizationId, assignment.SiteId!.Value, ct);
                     if (site is null)
                         return OrganizationResult<UserPermissionMatrix>.Failure(OrganizationSiteErrors.SiteNotFound);
                     if (!site.IsActive)
@@ -419,12 +421,9 @@ public sealed class SqlRoleOperationsStore(
             {
                 if (assignment.ScopeKind == 2 && assignment.SiteId.HasValue)
                 {
-                    var siteName = await db.Set<Site>().AsNoTracking()
-                        .Where(s => s.OrganizationId == organizationId && s.Id == assignment.SiteId.Value)
-                        .Select(s => s.Name)
-                        .SingleOrDefaultAsync(ct);
-                    if (!string.IsNullOrWhiteSpace(siteName))
-                        scopeLabel = siteName;
+                    var site = await OrganizationActivityGuard.RequireActiveSiteAsync(db, organizationId, assignment.SiteId.Value, ct);
+                    if (site is not null && !string.IsNullOrWhiteSpace(site.Name))
+                        scopeLabel = site.Name;
                 }
 
                 if (assignment.RoleId == PermissionCatalog.OrganizationAdministratorRoleId)
@@ -450,7 +449,7 @@ public sealed class SqlRoleOperationsStore(
                 }
             }
 
-            assignment.IsActive = isActive;
+            assignment.SetActive(isActive);
             SetUpdateMetadata(db, assignment, now, access.Actor.ActorId, expectedVersion);
 
             AddEvent(db, "ScopedRoleChanged", now, access.Actor.CorrelationId, access.Actor.ActorId, userId, organizationId, assignment.SiteId,
@@ -463,7 +462,7 @@ public sealed class SqlRoleOperationsStore(
 
         if (res.Succeeded && changed && notifications is not null)
         {
-            await notifications.PublishAsync(
+            await notifications!.PublishAsync(
                 userId,
                 NotificationEventCatalog.RoleOrAccessChanged,
                 NotificationCategory.Security,
@@ -507,7 +506,7 @@ public sealed class SqlRoleOperationsStore(
             scopeLabel = org.Name;
             if (targetScope == RoleScopeTarget.Site)
             {
-                var site = await db.Set<Site>().SingleOrDefaultAsync(s => s.OrganizationId == organizationId && s.Id == siteId!.Value, ct);
+                var site = await OrganizationActivityGuard.RequireActiveSiteAsync(db, organizationId, siteId!.Value, ct);
                 if (site is null)
                     return OrganizationResult<UserPermissionMatrix>.Failure(OrganizationSiteErrors.SiteNotFound);
                 if (!site.IsActive)
@@ -577,7 +576,7 @@ public sealed class SqlRoleOperationsStore(
 
         if (res.Succeeded && changedCount > 0 && notifications is not null)
         {
-            await notifications.PublishAsync(
+            await notifications!.PublishAsync(
                 userId,
                 NotificationEventCatalog.RoleOrAccessChanged,
                 NotificationCategory.Security,
@@ -624,7 +623,7 @@ public sealed class SqlRoleOperationsStore(
                 {
                     await using var opScope = scopes.CreateAsyncScope();
                     var db = opScope.ServiceProvider.GetRequiredService<AuthDbContext>();
-                    await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+                    await using var tx = await db.Database.BeginTransactionAsync(ct);
 
                     var result = await operation(db);
                     if (!result.Succeeded)
@@ -653,10 +652,8 @@ public sealed class SqlRoleOperationsStore(
         { return OrganizationResult<T>.Failure(RolePermissionErrors.PersistenceUnavailable); }
     }
 
-    private static Task<Organization?> LockOrganizationAsync(AuthDbContext db, long organizationId, CancellationToken ct)
-        => db.Set<Organization>()
-            .FromSqlInterpolated($"SELECT * FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id]={organizationId}")
-            .SingleOrDefaultAsync(ct);
+    private static Task<OrganizationActivitySnapshot?> LockOrganizationAsync(AuthDbContext db, long organizationId, CancellationToken ct)
+        => OrganizationActivityGuard.LockExclusiveOrganizationAsync(db, organizationId, ct);
 
     private static Task<ApplicationAccount?> LockUserAsync(AuthDbContext db, long userId, CancellationToken ct)
         => db.Users

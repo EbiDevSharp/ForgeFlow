@@ -5,7 +5,7 @@ using static ForgeFlow.Infrastructure.Organizations.Configurations.OrganizationM
 
 namespace ForgeFlow.Infrastructure.Organizations.Configurations;
 
-internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organization>
+internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organization>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<Organization> organization)
     {
@@ -19,7 +19,7 @@ internal sealed class OrganizationConfiguration : IEntityTypeConfiguration<Organ
     }
 }
 
-internal sealed class SiteConfiguration : IEntityTypeConfiguration<Site>
+internal sealed class SiteConfiguration : IEntityTypeConfiguration<Site>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<Site> site)
     {
@@ -36,7 +36,7 @@ internal sealed class SiteConfiguration : IEntityTypeConfiguration<Site>
     }
 }
 
-internal sealed class OrganizationChangeConfiguration : IEntityTypeConfiguration<OrganizationChange>
+internal sealed class OrganizationChangeConfiguration : IEntityTypeConfiguration<OrganizationChange>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<OrganizationChange> audit)
     {
@@ -61,7 +61,7 @@ internal sealed class OrganizationChangeConfiguration : IEntityTypeConfiguration
     }
 }
 
-internal sealed class DocumentSequenceConfiguration : IEntityTypeConfiguration<DocumentSequence>
+internal sealed class DocumentSequenceConfiguration : IEntityTypeConfiguration<DocumentSequence>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<DocumentSequence> docSeq)
     {

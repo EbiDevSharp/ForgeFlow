@@ -110,6 +110,33 @@ public sealed record SalesOrderDispatchedEvent(
     });
 }
 
+/// <summary>Raised when a Sales Order is closed.</summary>
+public sealed record SalesOrderClosedEvent(
+    long OrganizationId,
+    long? SiteId,
+    long SalesOrderId,
+    string OrderNumber,
+    DateTime OccurredOnUtc) : IAuditableDomainEvent
+{
+    public DateTime OccurredAtUtc => OccurredOnUtc;
+    public string EventCode => "SalesOrder.Closed";
+    public string BuildAuditJson() => EventJsonSerializer.Serialize(new { OrderNumber, SalesOrderId });
+}
+
+/// <summary>Raised when a Sales Order is cancelled.</summary>
+public sealed record SalesOrderCancelledEvent(
+    long OrganizationId,
+    long? SiteId,
+    long SalesOrderId,
+    string OrderNumber,
+    string Reason,
+    DateTime OccurredOnUtc) : IAuditableDomainEvent
+{
+    public DateTime OccurredAtUtc => OccurredOnUtc;
+    public string EventCode => "SalesOrder.Cancelled";
+    public string BuildAuditJson() => EventJsonSerializer.Serialize(new { OrderNumber, SalesOrderId, Reason });
+}
+
 /// <summary>Raised when stock is adjusted, issued, or received.</summary>
 public sealed record StockAdjustedEvent(
     long OrganizationId,
@@ -231,4 +258,45 @@ public sealed record UserAccessModifiedEvent(
     DateTime OccurredOnUtc) : IDomainEvent
 {
     public DateTime OccurredAtUtc => OccurredOnUtc;
+}
+
+/// <summary>Raised when a Purchase Order is approved.</summary>
+public sealed record PurchaseOrderApprovedEvent(
+    long OrganizationId,
+    long? SiteId,
+    long PurchaseOrderId,
+    string OrderNumber,
+    decimal TotalEstimatedAmount,
+    DateTime OccurredOnUtc) : IAuditableDomainEvent
+{
+    public DateTime OccurredAtUtc => OccurredOnUtc;
+    public string EventCode => "PurchaseOrder.Approved";
+    public string BuildAuditJson() => EventJsonSerializer.Serialize(new { OrderNumber, PurchaseOrderId, TotalEstimatedAmount });
+}
+
+/// <summary>Raised when a Purchase Order remaining balance is closed.</summary>
+public sealed record PurchaseOrderClosedEvent(
+    long OrganizationId,
+    long? SiteId,
+    long PurchaseOrderId,
+    string OrderNumber,
+    DateTime OccurredOnUtc) : IAuditableDomainEvent
+{
+    public DateTime OccurredAtUtc => OccurredOnUtc;
+    public string EventCode => "PurchaseOrder.Closed";
+    public string BuildAuditJson() => EventJsonSerializer.Serialize(new { OrderNumber, PurchaseOrderId });
+}
+
+/// <summary>Raised when a Purchase Order is cancelled.</summary>
+public sealed record PurchaseOrderCancelledEvent(
+    long OrganizationId,
+    long? SiteId,
+    long PurchaseOrderId,
+    string OrderNumber,
+    string Reason,
+    DateTime OccurredOnUtc) : IAuditableDomainEvent
+{
+    public DateTime OccurredAtUtc => OccurredOnUtc;
+    public string EventCode => "PurchaseOrder.Cancelled";
+    public string BuildAuditJson() => EventJsonSerializer.Serialize(new { OrderNumber, PurchaseOrderId, Reason });
 }

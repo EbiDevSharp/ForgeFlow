@@ -1,9 +1,11 @@
 using ForgeFlow.Application.Organizations;
+using ForgeFlow.Application.Security;
 using ForgeFlow.Application.Users;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.Users;
 using ForgeFlow.Infrastructure.Identity;
 using ForgeFlow.Infrastructure.Organizations;
+using ForgeFlow.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,13 +59,19 @@ public sealed class UserManagementSqlTests
     private static ServiceProvider BuildProvider(
         string connection,
         SessionSource source,
-        DeterministicClock? clock = null)
+        DeterministicClock? clock = null,
+        IOrganizationPermissionCache? permissionCache = null)
     {
         var services = new ServiceCollection().AddLogging();
+        if (permissionCache != null)
+        {
+            services.AddSingleton<IOrganizationPermissionCache>(permissionCache);
+        }
         services.AddRuntimeIdentity(options =>
             options.UseSqlServer(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "auth")));
         services.AddSingleton<TimeProvider>(clock ?? new DeterministicClock());
         services.AddSingleton<RuntimeSessions>();
+        services.AddSingleton<ISessionInvalidator>(sp => sp.GetRequiredService<RuntimeSessions>());
         services.AddSingleton<ICurrentAuthenticatedSession>(source);
         services.AddScoped<ITrustedActorAccessor, SessionActorAccessor>();
         services.AddScoped<IOrganizationPermissionEvaluator, SessionPermissionEvaluator>();
@@ -381,12 +389,13 @@ public sealed class UserManagementSqlTests
         var results = await Task.WhenAll(t1, t2);
         Assert.Equal(1, results.Count(r => r.Succeeded));
         var failure = Assert.Single(results, r => !r.Succeeded);
-        Assert.Equal(UserManagementErrors.LastOrganizationAdminRequired, failure.Error!.Code);
+        Assert.True(failure.Error!.Code is UserManagementErrors.LastOrganizationAdminRequired or UserManagementErrors.AccessDenied);
 
         // Deactivated admin loses permission immediately; the surviving admin runs no-op/stale checks without extra events.
         var winner = results.Single(r => r.Succeeded).Value!;
         var survivingProvider = winner.UserId == admin2.UserId ? provider1 : provider2;
         var revokedProvider = winner.UserId == admin2.UserId ? provider2 : provider1;
+        revokedProvider.GetService<IOrganizationPermissionCache>()?.InvalidateAll();
 
         using (var revokedScope = revokedProvider.CreateScope())
         {

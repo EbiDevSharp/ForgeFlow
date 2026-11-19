@@ -44,7 +44,7 @@ public sealed class SqlDocumentSequenceStore(
                 await strategy.ExecuteAsync(async () =>
                 {
                     await using var tx = await db.Database.BeginTransactionAsync(ct);
-                    await LockOrganizationAsync(db, organizationId, ct);
+                    await OrganizationActivityGuard.LockExclusiveOrganizationAsync(db, organizationId, DocumentSequenceErrors.OrganizationInvalid, DocumentSequenceErrors.NotFound, ct);
                     var existingTypes = await db.DocumentSequences
                         .Where(x => x.OrganizationId == organizationId)
                         .Select(x => x.DocumentType)
@@ -151,9 +151,10 @@ public sealed class SqlDocumentSequenceStore(
             return await strategy.ExecuteAsync(async () =>
             {
                 await using var tx = await db.Database.BeginTransactionAsync(ct);
-                var active = await LockOrganizationAsync(db, organizationId, ct);
-                if (!active)
-                    return OrganizationResult<DocumentSequenceSummary>.Failure(DocumentSequenceErrors.OrganizationInvalid);
+                var activeCheck = await OrganizationActivityGuard.RequireActiveOrganizationAsync(
+                    db, organizationId, DocumentSequenceErrors.OrganizationInvalid, DocumentSequenceErrors.NotFound, ct);
+                if (!activeCheck.Ok)
+                    return OrganizationResult<DocumentSequenceSummary>.Failure(activeCheck.Error!);
 
                 var docTypeByte = (byte)documentType;
                 await db.Database.ExecuteSqlInterpolatedAsync(
@@ -243,7 +244,7 @@ public sealed class SqlDocumentSequenceStore(
 
                 if (seq is null)
                 {
-                    await LockOrganizationAsync(db, organizationId, ct);
+                    await OrganizationActivityGuard.LockExclusiveOrganizationAsync(db, organizationId, DocumentSequenceErrors.OrganizationInvalid, DocumentSequenceErrors.NotFound, ct);
                     seq = await db.DocumentSequences
                         .SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.DocumentType == documentType, ct);
 
@@ -282,6 +283,8 @@ public sealed class SqlDocumentSequenceStore(
         if (!string.IsNullOrWhiteSpace(requestedNumber))
             return requestedNumber.Trim().ToUpperInvariant();
 
+        db.CurrentOrganizationId = organizationId;
+
         if (db.Database.CurrentTransaction is null)
             throw new InvalidOperationException(DocumentSequenceErrors.TransactionRequired);
 
@@ -302,7 +305,7 @@ public sealed class SqlDocumentSequenceStore(
             {
                 // Serialize first-time sequence creation on the parent Organization row so concurrent
                 // transactions cannot both observe null and collide on UX_DocumentSequence_Org_Type.
-                await LockOrganizationAsync(db, organizationId, ct);
+                await OrganizationActivityGuard.LockExclusiveOrganizationAsync(db, organizationId, DocumentSequenceErrors.OrganizationInvalid, DocumentSequenceErrors.NotFound, ct);
                 seq = await db.DocumentSequences
                     .SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.DocumentType == documentType, ct);
 
@@ -344,13 +347,6 @@ public sealed class SqlDocumentSequenceStore(
         {
             // best-effort detach
         }
-    }
-
-    private static async Task<bool> LockOrganizationAsync(OrganizationDbContext db, long organizationId, CancellationToken ct)
-    {
-        return await db.Database.SqlQueryRaw<bool>(
-            "SELECT [IsActive] AS [Value] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {0}", organizationId)
-            .SingleOrDefaultAsync(ct);
     }
 
     private static DocumentSequenceSummary ToSummary(DocumentSequence seq, byte[] rowVersion, DateTime utcNow, TimeZoneInfo? timeZone = null) => new(

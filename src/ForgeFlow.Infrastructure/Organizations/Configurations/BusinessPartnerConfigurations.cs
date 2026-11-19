@@ -6,7 +6,7 @@ using static ForgeFlow.Infrastructure.Organizations.Configurations.OrganizationM
 
 namespace ForgeFlow.Infrastructure.Organizations.Configurations;
 
-internal sealed class BusinessPartnerRoleDefinitionConfiguration : IEntityTypeConfiguration<BusinessPartnerRoleDefinition>
+internal sealed class BusinessPartnerRoleDefinitionConfiguration : IEntityTypeConfiguration<BusinessPartnerRoleDefinition>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<BusinessPartnerRoleDefinition> builder)
     {
@@ -27,7 +27,7 @@ internal sealed class BusinessPartnerRoleDefinitionConfiguration : IEntityTypeCo
     }
 }
 
-internal sealed class BusinessPartnerConfiguration : IEntityTypeConfiguration<BusinessPartner>
+internal sealed class BusinessPartnerConfiguration : IEntityTypeConfiguration<BusinessPartner>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<BusinessPartner> partner)
     {
@@ -77,7 +77,7 @@ internal sealed class BusinessPartnerConfiguration : IEntityTypeConfiguration<Bu
     }
 }
 
-internal sealed class BusinessPartnerRoleAssignmentConfiguration : IEntityTypeConfiguration<BusinessPartnerRoleAssignment>
+internal sealed class BusinessPartnerRoleAssignmentConfiguration : IEntityTypeConfiguration<BusinessPartnerRoleAssignment>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<BusinessPartnerRoleAssignment> builder)
     {
@@ -96,7 +96,7 @@ internal sealed class BusinessPartnerRoleAssignmentConfiguration : IEntityTypeCo
     }
 }
 
-internal sealed class IranProvinceConfiguration : IEntityTypeConfiguration<IranProvince>
+internal sealed class IranProvinceConfiguration : IEntityTypeConfiguration<IranProvince>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<IranProvince> builder)
     {
@@ -111,7 +111,7 @@ internal sealed class IranProvinceConfiguration : IEntityTypeConfiguration<IranP
     }
 }
 
-internal sealed class IranCityConfiguration : IEntityTypeConfiguration<IranCity>
+internal sealed class IranCityConfiguration : IEntityTypeConfiguration<IranCity>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<IranCity> builder)
     {

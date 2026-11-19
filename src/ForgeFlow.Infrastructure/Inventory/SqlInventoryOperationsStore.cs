@@ -1,3 +1,4 @@
+using System.Text;
 using ForgeFlow.Application.Common;
 using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Inventory;
@@ -83,7 +84,7 @@ public sealed class SqlInventoryOperationsStore(
     public Task<OrganizationResult<WarehouseSummary>> CreateWarehouse(
         CreateWarehouseRequest request,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(request.OrganizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<WarehouseSummary>.Failure(orgCheck.Error!);
@@ -109,7 +110,7 @@ public sealed class SqlInventoryOperationsStore(
         byte[] version,
         UpdateWarehouseRequest request,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<WarehouseSummary>.Failure(orgCheck.Error!);
@@ -135,7 +136,7 @@ public sealed class SqlInventoryOperationsStore(
         byte[] version,
         bool isActive,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<WarehouseSummary>.Failure(orgCheck.Error!);
@@ -359,7 +360,7 @@ public sealed class SqlInventoryOperationsStore(
         IReadOnlyList<ResolvedInventoryLineWrite> resolvedLines,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(request.OrganizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<InventoryTransactionDetails>.Failure(orgCheck.Error!);
@@ -406,12 +407,11 @@ public sealed class SqlInventoryOperationsStore(
             var outItemIds = outboundLotKeys.Select(k => k.ItemId).Distinct().ToArray();
             var candidateLots = await db.ItemLots.AsNoTracking()
                 .Where(l => l.OrganizationId == request.OrganizationId && outItemIds.Contains(l.ItemId) && l.ExpirationDate != null)
-                .Select(l => new { l.ItemId, l.LotCode, l.ExpirationDate })
                 .ToListAsync(ct);
             foreach (var key in outboundLotKeys)
             {
                 var lotMeta = candidateLots.FirstOrDefault(l => l.ItemId == key.ItemId && l.LotCode == key.LotCode);
-                if (lotMeta is not null && lotMeta.ExpirationDate.HasValue && lotMeta.ExpirationDate.Value < today)
+                if (lotMeta is not null && lotMeta.IsExpiredOn(today))
                 {
                     return OrganizationResult<InventoryTransactionDetails>.Failure(
                         InventoryErrors.LotExpired,
@@ -463,7 +463,7 @@ public sealed class SqlInventoryOperationsStore(
         string? idempotencyKey,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<InventoryTransactionDetails>.Failure(orgCheck.Error!);
@@ -617,25 +617,49 @@ public sealed class SqlInventoryOperationsStore(
 
         if (grouped.Length == 0) return;
 
-        var whIds = grouped.Select(x => x.WarehouseId).Distinct().ToArray();
-        var itemIds = grouped.Select(x => x.ItemId).Distinct().ToArray();
-        var lotCodes = grouped.Select(x => x.LotCode).Distinct().ToArray();
-
-        // Deterministically acquire row-level update locks on all existing candidate balances ordered by Id ASC
-        var existingBalances = await db.InventoryBalances
-            .FromSqlInterpolated($"SELECT * FROM [organization].[InventoryBalance] WITH (UPDLOCK, ROWLOCK) WHERE [OrganizationId] = {organizationId}")
-            .Where(b => whIds.Contains(b.WarehouseId) && itemIds.Contains(b.ItemId) && lotCodes.Contains(b.LotCode))
-            .OrderBy(b => b.Id)
-            .ToListAsync(ct);
-
-        var balanceMap = existingBalances.ToDictionary(b => (b.WarehouseId, b.ItemId, b.LotCode));
-
         // Sort grouped operations consistently by WarehouseId, ItemId, LotCode
         var sortedGrouped = grouped
             .OrderBy(g => g.WarehouseId)
             .ThenBy(g => g.ItemId)
             .ThenBy(g => g.LotCode, StringComparer.Ordinal)
             .ToArray();
+
+        // Push WarehouseId, ItemId, and LotCode predicates and ORDER BY Id directly into raw SQL (F-14)
+        List<InventoryBalance> existingBalances;
+        if (sortedGrouped.Length == 1)
+        {
+            var g = sortedGrouped[0];
+            existingBalances = await db.InventoryBalances
+                .FromSqlInterpolated($"SELECT * FROM [organization].[InventoryBalance] WITH (UPDLOCK, ROWLOCK) WHERE [OrganizationId] = {organizationId} AND [WarehouseId] = {g.WarehouseId} AND [ItemId] = {g.ItemId} AND [LotCode] = {g.LotCode}")
+                .OrderBy(b => b.Id)
+                .ToListAsync(ct);
+        }
+        else
+        {
+            var sqlBuilder = new StringBuilder();
+            sqlBuilder.Append("SELECT * FROM [organization].[InventoryBalance] WITH (UPDLOCK, ROWLOCK) WHERE [OrganizationId] = @p0 AND (");
+            var parameters = new List<object> { new SqlParameter("@p0", organizationId) };
+
+            for (var i = 0; i < sortedGrouped.Length; i++)
+            {
+                if (i > 0) sqlBuilder.Append(" OR ");
+                var wIdx = parameters.Count;
+                var iIdx = wIdx + 1;
+                var lIdx = wIdx + 2;
+                sqlBuilder.Append($"([WarehouseId] = @p{wIdx} AND [ItemId] = @p{iIdx} AND [LotCode] = @p{lIdx})");
+                parameters.Add(new SqlParameter($"@p{wIdx}", sortedGrouped[i].WarehouseId));
+                parameters.Add(new SqlParameter($"@p{iIdx}", sortedGrouped[i].ItemId));
+                parameters.Add(new SqlParameter($"@p{lIdx}", sortedGrouped[i].LotCode));
+            }
+            sqlBuilder.Append(')');
+
+            existingBalances = await db.InventoryBalances
+                .FromSqlRaw(sqlBuilder.ToString(), parameters.ToArray())
+                .OrderBy(b => b.Id)
+                .ToListAsync(ct);
+        }
+
+        var balanceMap = existingBalances.ToDictionary(b => (b.WarehouseId, b.ItemId, b.LotCode));
 
         foreach (var grp in sortedGrouped)
         {
@@ -713,7 +737,7 @@ public sealed class SqlInventoryOperationsStore(
             {
                 bal = await db.InventoryBalances
                     .FromSqlInterpolated(
-                        $"SELECT * FROM [organization].[InventoryBalance] WITH (UPDLOCK, HOLDLOCK) WHERE [OrganizationId] = {organizationId} AND [WarehouseId] = {l.WarehouseId} AND [ItemId] = {l.ItemId} AND [LotCode] = {l.LotCode}")
+                        $"SELECT * FROM [organization].[InventoryBalance] WITH (UPDLOCK, ROWLOCK) WHERE [OrganizationId] = {organizationId} AND [WarehouseId] = {l.WarehouseId} AND [ItemId] = {l.ItemId} AND [LotCode] = {l.LotCode}")
                     .SingleAsync(ct);
             }
             bal.BlockQuantity(l.BaseQuantityDelta, utcNow);
@@ -844,10 +868,10 @@ public sealed class SqlInventoryOperationsStore(
     }
 
     private async Task<OrganizationResult<T>> Write<T>(
+        long organizationId,
         OrganizationWriteAccess access,
         Func<OrganizationDbContext, Task<OrganizationResult<T>>> operation,
-        CancellationToken ct,
-        long? organizationId = null)
+        CancellationToken ct)
     {
         const int maxRetries = StockConcurrencyRetryPolicy.DefaultMaxRetries;
         for (var attempt = 0; attempt < maxRetries; attempt++)
@@ -859,7 +883,7 @@ public sealed class SqlInventoryOperationsStore(
             try
             {
                 await using var db = await Factory.CreateDbContextAsync(ct);
-                if (organizationId.HasValue) db.CurrentOrganizationId = organizationId.Value;
+                db.CurrentOrganizationId = organizationId;
                 await using var transaction = await db.Database.BeginTransactionAsync(ct);
                 var result = await operation(db);
                 if (!result.Succeeded)
@@ -892,10 +916,10 @@ public sealed class SqlInventoryOperationsStore(
             { return OrganizationResult<T>.Failure(InventoryErrors.ParentOrganizationInactive); }
             catch (InvalidOperationException ex) when (ex.Message == OrganizationAccessErrors.AccessDenied)
             { return OrganizationResult<T>.Failure(InventoryErrors.AccessDenied); }
-            catch (Exception ex) when (commitAttempted && ex is not OrganizationCommitOutcomeUnknownException)
-            { throw new OrganizationCommitOutcomeUnknownException(ex); }
             catch (Exception ex) when (commitAttempted && Unavailable(ex))
             { return OrganizationResult<T>.Failure(InventoryErrors.OutcomeUnknown); }
+            catch (Exception ex) when (commitAttempted && ex is not OrganizationCommitOutcomeUnknownException)
+            { throw new OrganizationCommitOutcomeUnknownException(ex); }
             catch (Exception ex) when (Unavailable(ex))
             {
                 await StoreDiagnosticRecorder.RecordUnavailableAsync(errorRecorder, opContext, ex, nameof(SqlInventoryOperationsStore), access.Actor.ActorId);
@@ -906,18 +930,8 @@ public sealed class SqlInventoryOperationsStore(
         return OrganizationResult<T>.Failure(InventoryErrors.ConcurrencyConflict);
     }
 
-    private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long orgId, CancellationToken ct)
-    {
-        var active = await db.Database.SqlQueryRaw<bool>(
-            "SELECT [IsActive] AS [Value] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {0}", orgId)
-            .SingleOrDefaultAsync(ct);
-        if (!active)
-        {
-            var exists = await db.Organizations.AsNoTracking().AnyAsync(o => o.Id == orgId, ct);
-            return (false, exists ? InventoryErrors.ParentOrganizationInactive : InventoryErrors.AccessDenied);
-        }
-        return (true, null);
-    }
+    private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long orgId, CancellationToken ct)
+        => OrganizationActivityGuard.RequireActiveOrganizationAsync(db, orgId, InventoryErrors.ParentOrganizationInactive, InventoryErrors.AccessDenied, ct);
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
         => ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);
@@ -931,6 +945,12 @@ public sealed class SqlInventoryOperationsStore(
     private static string ClassifyUniqueConflict(DbUpdateException ex)
         => DbUniqueConstraintExceptionTranslator.Translate(ex, InventoryErrors.ConcurrencyConflict);
 
-    private static bool Unavailable(Exception ex)
-        => ex is SqlException or TimeoutException or DbUpdateException or InvalidOperationException { InnerException: SqlException };
+    private static bool Unavailable(Exception ex) => ex switch
+    {
+        SqlException sql => sql.Number is -2 or 53 or 64 or 233 or 1205 or 1222 or 4060 or 18456 or 40197 or 40501 or 40613,
+        TimeoutException => true,
+        DbUpdateException when ex.InnerException is SqlException sql => Unavailable(sql),
+        InvalidOperationException when ex.InnerException is SqlException sql => Unavailable(sql),
+        _ => false
+    };
 }

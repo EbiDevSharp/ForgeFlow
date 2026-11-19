@@ -23,7 +23,9 @@ namespace ForgeFlow.Infrastructure.Dashboard;
 public sealed class SqlDashboardQueryStore(
     Func<IDbContextFactory<OrganizationDbContext>> getFactory,
     IErrorLogRecorder? errorRecorder = null,
-    IOperationContextAccessor? opContext = null)
+    IOperationContextAccessor? opContext = null,
+    IReportingQueryStore? reportingQueryStore = null,
+    IRoutingOperationsStore? routingOperationsStore = null)
     : IDashboardQueryStore
 {
     private IDbContextFactory<OrganizationDbContext> Factory => getFactory();
@@ -90,7 +92,7 @@ public sealed class SqlDashboardQueryStore(
             IReadOnlyList<DashboardShortageItem> topShortages = [];
             if (capabilities.Reports || capabilities.Inventory)
             {
-                var reportStore = new SqlReportingQueryStore(getFactory, errorRecorder, opContext);
+                var reportStore = reportingQueryStore ?? new SqlReportingQueryStore(getFactory, errorRecorder, opContext);
                 var dataset = await reportStore.GetShortageDataset(organizationId, siteId, null, null, ct);
                 var report = ReportingUseCases.ComputeMaterialShortage(dataset, new MaterialShortageQuery(SiteId: siteId, OnlyShortages: true));
 
@@ -177,7 +179,7 @@ public sealed class SqlDashboardQueryStore(
             IReadOnlyList<WorkCenterLoadSummary> wcLoads = [];
             if (capabilities.Routings)
             {
-                var routingStore = new SqlRoutingOperationsStore(getFactory, errorRecorder, opContext);
+                var routingStore = routingOperationsStore ?? new SqlRoutingOperationsStore(getFactory, errorRecorder, opContext);
                 wcLoads = await routingStore.GetWorkCenterLoads(organizationId, siteId, ct);
             }
 

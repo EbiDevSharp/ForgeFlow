@@ -89,10 +89,15 @@ public sealed class StockConcurrencyIntegrationTests
             db.Boms.Add(bom);
             await db.SaveChangesAsync(actor);
 
+            var version = BomVersion.CreateDraft(orgId, bom.Id, 1, 100m, pcs.Id, new DateOnly(2026, 1, 1), null, "v1");
+            version.TransitionTo(BomVersionStatus.Active);
+            db.BomVersions.Add(version);
+            await db.SaveChangesAsync(actor);
+
             var poOrder = ProductionOrder.CreateDraft(
                 orgId, siteId, "MO-CONC-01", item.Summary.Id, 100m, pcs.Id,
                 new DateOnly(2026, 11, 16), new DateOnly(2026, 11, 20),
-                bom.Id, bom.Code, 1, 1, 100m, pcs.Id, null);
+                bom.Id, bom.Code, version.Id, 1, 100m, pcs.Id, null);
             poOrder.Release(utcNow);
             db.ProductionOrders.Add(poOrder);
             await db.SaveChangesAsync(actor);
@@ -152,7 +157,7 @@ public sealed class StockConcurrencyIntegrationTests
 
         // Verification of Invariants against real SQL Server
         await using var verifyDb = await database.Factory.CreateDbContextAsync();
-        var finalBalance = await verifyDb.InventoryBalances
+        var finalBalance = await verifyDb.InventoryBalances.IgnoreQueryFilters()
             .SingleAsync(b => b.OrganizationId == orgId && b.WarehouseId == wh.Id && b.ItemId == item.Summary.Id && b.LotCode == "LOT-SHARED-01");
 
         // 1. Available quantity must NEVER be negative
@@ -165,7 +170,7 @@ public sealed class StockConcurrencyIntegrationTests
             $"OnHand ({finalBalance.OnHandBaseQuantity}) is less than Reserved ({finalBalance.ReservedBaseQuantity}) + Blocked ({finalBalance.BlockedBaseQuantity})");
 
         // 3. Total consumed + remaining on-hand must exactly equal initial 100 PCS
-        var netLedgerDelta = await verifyDb.InventoryLedgerEntries
+        var netLedgerDelta = await verifyDb.InventoryLedgerEntries.IgnoreQueryFilters()
             .Where(l => l.OrganizationId == orgId && l.WarehouseId == wh.Id && l.ItemId == item.Summary.Id && l.LotCode == "LOT-SHARED-01")
             .SumAsync(l => l.BaseQuantityDelta);
 
@@ -272,8 +277,8 @@ public sealed class StockConcurrencyIntegrationTests
         Assert.All(results, r => Assert.True(r.Succeeded, $"Failed with: {r.Error?.Code}"));
 
         await using var verifyDb = await database.Factory.CreateDbContextAsync();
-        var balA = await verifyDb.InventoryBalances.SingleAsync(b => b.OrganizationId == orgId && b.WarehouseId == wh1.Id && b.ItemId == item.Summary.Id && b.LotCode == "LOT-A");
-        var balB = await verifyDb.InventoryBalances.SingleAsync(b => b.OrganizationId == orgId && b.WarehouseId == wh2.Id && b.ItemId == item.Summary.Id && b.LotCode == "LOT-B");
+        var balA = await verifyDb.InventoryBalances.IgnoreQueryFilters().SingleAsync(b => b.OrganizationId == orgId && b.WarehouseId == wh1.Id && b.ItemId == item.Summary.Id && b.LotCode == "LOT-A");
+        var balB = await verifyDb.InventoryBalances.IgnoreQueryFilters().SingleAsync(b => b.OrganizationId == orgId && b.WarehouseId == wh2.Id && b.ItemId == item.Summary.Id && b.LotCode == "LOT-B");
 
         // Net change for both is 0 (4 * -5 + 4 * +5 = 0)
         Assert.Equal(100m, balA.OnHandBaseQuantity);
@@ -394,8 +399,8 @@ public sealed class StockConcurrencyIntegrationTests
 
         // Verify that Beta's operations never touched Alpha's balances and vice-versa
         await using var verifyDb = await database.Factory.CreateDbContextAsync();
-        var finalAlpha = await verifyDb.InventoryBalances.SingleAsync(b => b.OrganizationId == orgAlphaId && b.WarehouseId == whA.Id);
-        var finalBeta = await verifyDb.InventoryBalances.SingleAsync(b => b.OrganizationId == orgBetaId && b.WarehouseId == whB.Id);
+        var finalAlpha = await verifyDb.InventoryBalances.IgnoreQueryFilters().SingleAsync(b => b.OrganizationId == orgAlphaId && b.WarehouseId == whA.Id);
+        var finalBeta = await verifyDb.InventoryBalances.IgnoreQueryFilters().SingleAsync(b => b.OrganizationId == orgBetaId && b.WarehouseId == whB.Id);
 
         Assert.Equal(50m, finalAlpha.OnHandBaseQuantity);
         Assert.Equal(40m, finalAlpha.ReservedBaseQuantity); // 4 tasks * 10 = 40 reserved

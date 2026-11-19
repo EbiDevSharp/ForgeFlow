@@ -15,6 +15,7 @@
 @inject ITrustedActorAccessor Actors
 @inject IOrganizationPermissionEvaluator Permissions
 @inject DraftCoordinator Drafts
+@inject ILogger<Roles> Logger
 
 <PageTitle>@Text["Roles"]</PageTitle>
 <section class="organization-reader">
@@ -442,14 +443,24 @@ else
                 StateHasChanged();
             }
         }
-        catch { draftInitialized = false; }
+        catch (OperationCanceledException) { draftInitialized = false; }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to initialize draft coordinator for roles.");
+            draftInitialized = false;
+        }
     }
 
     private async Task ClearActiveDraftAsync()
     {
         if (!draftInitialized || Drafts is null) return;
         draftInitialized = false;
-        try { await Drafts.ClearAsync(); } catch { }
+        try { await Drafts.ClearAsync(); }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to clear draft in roles.");
+        }
     }
 
     private async Task<bool> Can(string permission, OrganizationScope scope)

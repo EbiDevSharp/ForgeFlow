@@ -8,12 +8,12 @@ using ForgeFlow.Domain.ProductionOrders;
 using ForgeFlow.Domain.Routings;
 using ForgeFlow.Infrastructure.Common;
 using ForgeFlow.Infrastructure.Diagnostics;
+using ForgeFlow.Infrastructure.Organizations;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 using ForgeFlow.Infrastructure.Inventory;
-using ForgeFlow.Infrastructure.Organizations;
 using ForgeFlow.Infrastructure.Routings;
 
 namespace ForgeFlow.Infrastructure.ProductionOrders;
@@ -97,7 +97,7 @@ public sealed class SqlProductionOrderOperationsStore(
         ResolvedBomSnapshotWrite snapshot,
         OrganizationWriteAccess access,
         CancellationToken ct,
-        ResolvedRoutingSnapshotWrite? routingSnapshot = null) => Write(access, async db =>
+        ResolvedRoutingSnapshotWrite? routingSnapshot = null) => Write(request.OrganizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
@@ -153,7 +153,7 @@ public sealed class SqlProductionOrderOperationsStore(
         ResolvedBomSnapshotWrite snapshot,
         OrganizationWriteAccess access,
         CancellationToken ct,
-        ResolvedRoutingSnapshotWrite? routingSnapshot = null) => Write(access, async db =>
+        ResolvedRoutingSnapshotWrite? routingSnapshot = null) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
@@ -180,7 +180,7 @@ public sealed class SqlProductionOrderOperationsStore(
         ResolvedBomSnapshotWrite snapshot,
         OrganizationWriteAccess access,
         CancellationToken ct,
-        ResolvedRoutingSnapshotWrite? routingSnapshot = null) => Write(access, async db =>
+        ResolvedRoutingSnapshotWrite? routingSnapshot = null) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
@@ -236,7 +236,7 @@ public sealed class SqlProductionOrderOperationsStore(
         decimal scrapQuantity,
         string? notes,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
@@ -309,7 +309,7 @@ public sealed class SqlProductionOrderOperationsStore(
         string orderNumber = string.Empty;
         ProductionOrderStatus previousStatus = default;
         ProductionOrderStatus nextStatus = default;
-        var result = await Write(access, async db =>
+        var result = await Write(organizationId, access, async db =>
         {
             var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
             if (!orgCheck.Ok) return OrganizationResult<ProductionOrderDetails>.Failure(orgCheck.Error!);
@@ -560,15 +560,15 @@ public sealed class SqlProductionOrderOperationsStore(
     }
 
     private async Task<OrganizationResult<T>> Write<T>(
+        long organizationId,
         OrganizationWriteAccess access,
         Func<OrganizationDbContext, Task<OrganizationResult<T>>> operation,
-        CancellationToken ct,
-        long? organizationId = null)
+        CancellationToken ct)
     {
         try
         {
             await using var strategyContext = await Factory.CreateDbContextAsync(ct);
-            if (organizationId.HasValue) strategyContext.CurrentOrganizationId = organizationId.Value;
+            strategyContext.CurrentOrganizationId = organizationId;
             var strategy = strategyContext.Database.CreateExecutionStrategy();
             return await strategy.ExecuteAsync(async () =>
             {
@@ -579,7 +579,7 @@ public sealed class SqlProductionOrderOperationsStore(
                 try
                 {
                     await using var db = await Factory.CreateDbContextAsync(ct);
-                    if (organizationId.HasValue) db.CurrentOrganizationId = organizationId.Value;
+                    db.CurrentOrganizationId = organizationId;
                     await using var transaction = await db.Database.BeginTransactionAsync(ct);
                     var result = await operation(db);
                     if (!result.Succeeded) return result;
@@ -611,14 +611,8 @@ public sealed class SqlProductionOrderOperationsStore(
         }
     }
 
-    private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
-    {
-        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT [Id] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {organizationId}", ct);
-        var org = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
-        if (org is null) return (false, ProductionOrderErrors.NotFound);
-        if (!org.IsActive) return (false, ProductionOrderErrors.ParentOrganizationInactive);
-        return (true, null);
-    }
+    private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
+        => OrganizationActivityGuard.RequireActiveOrganizationAsync(db, organizationId, ProductionOrderErrors.ParentOrganizationInactive, ProductionOrderErrors.NotFound, ct);
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
         => ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);

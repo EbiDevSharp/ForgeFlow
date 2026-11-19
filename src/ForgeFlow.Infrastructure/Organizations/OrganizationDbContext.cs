@@ -44,7 +44,7 @@ public sealed class OrganizationDbContext(
         set => _currentOrganizationId = value;
     }
 
-    internal long? CurrentOrganizationFilterId => CurrentOrganizationId;
+    public long CurrentOrganizationFilterId => CurrentOrganizationId ?? -1L;
     internal TimeProvider? Clock => clock;
     private bool failed;
     private bool inOperationScope;
@@ -224,7 +224,7 @@ public sealed class OrganizationDbContext(
     {
         modelBuilder.ApplyConfigurationsFromAssembly(
             typeof(OrganizationDbContext).Assembly,
-            t => t.Namespace == "ForgeFlow.Infrastructure.Organizations.Configurations");
+            t => typeof(Configurations.IOrganizationEntityConfiguration).IsAssignableFrom(t) && !t.IsAbstract);
         ApplyOrganizationQueryFilters(modelBuilder);
     }
 
@@ -237,6 +237,7 @@ public sealed class OrganizationDbContext(
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             if (entityType.ClrType != typeof(Organization) &&
+                entityType.ClrType != typeof(OrganizationChange) &&
                 (typeof(ForgeFlow.Domain.Common.IOrganizationEntity).IsAssignableFrom(entityType.ClrType) ||
                  (entityType.FindProperty("OrganizationId") is { ClrType: { } clrType } && clrType == typeof(long))))
             {
@@ -247,7 +248,7 @@ public sealed class OrganizationDbContext(
 
     private void ConfigureOrganizationQueryFilter<TEntity>(ModelBuilder modelBuilder) where TEntity : class
         => modelBuilder.Entity<TEntity>().HasQueryFilter(
-            e => EF.Property<long>(e, "OrganizationId") == (CurrentOrganizationId ?? -1));
+            e => EF.Property<long>(e, "OrganizationId") == CurrentOrganizationFilterId);
 
     /// <summary>
     /// Trusted caller supplies actor only after current permission evaluation. No provider or fake authorization.
@@ -379,7 +380,7 @@ public sealed class OrganizationDbContext(
         }
     }
 
-    internal static void ApplyAuditMetadata(EntityEntry[] entries, TrustedActor actor, DateTime now)
+    internal static void ApplyAuditMetadata(EntityEntry[] entries, TrustedActor? actor, DateTime now)
     {
         foreach (var entry in entries)
         {
@@ -392,7 +393,7 @@ public sealed class OrganizationDbContext(
             if (entry.State == EntityState.Added)
             {
                 entry.Property("CreatedAtUtc").CurrentValue = now;
-                entry.Property("CreatedByActorId").CurrentValue = actor.ActorId;
+                entry.Property("CreatedByActorId").CurrentValue = actor?.ActorId ?? 1L;
                 entry.Property("UpdatedAtUtc").CurrentValue = null;
                 entry.Property("UpdatedByActorId").CurrentValue = null;
             }
@@ -401,7 +402,7 @@ public sealed class OrganizationDbContext(
                 if (now < (DateTime)entry.Property("CreatedAtUtc").CurrentValue!)
                     throw new InvalidOperationException(OrganizationAccessErrors.PersistenceUnavailable);
                 entry.Property("UpdatedAtUtc").CurrentValue = now;
-                entry.Property("UpdatedByActorId").CurrentValue = actor.ActorId;
+                entry.Property("UpdatedByActorId").CurrentValue = actor?.ActorId ?? (long)entry.Property("CreatedByActorId").CurrentValue!;
             }
         }
     }
@@ -1493,7 +1494,7 @@ public sealed class OrganizationDbContext(
 
             await using DbCommand command = Database.GetDbConnection().CreateCommand();
             command.Transaction = Database.CurrentTransaction.GetDbTransaction();
-            command.CommandText = "SELECT [IsActive] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = @id";
+            command.CommandText = "SELECT [IsActive] FROM [organization].[Organization] WHERE [Id] = @id";
             var parameter = command.CreateParameter();
             parameter.ParameterName = "@id";
             parameter.Value = orgId;

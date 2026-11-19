@@ -69,10 +69,15 @@ public sealed class Routing : IHasRowVersion, IOrganizationEntity
         string? notes)
         => new(organizationId, siteId, code, name, itemId, bomVersionId, versionNumber, isDefault, notes);
 
-    public void UpdateDraft(string? name, long? bomVersionId, bool isDefault, string? notes)
+    public void EnsureDraftMutable()
     {
         if (Status != RoutingStatus.Draft)
             throw new RoutingRuleException(RoutingErrors.RoutingNotDraft);
+    }
+
+    public void UpdateDraft(string? name, long? bomVersionId, bool isDefault, string? notes)
+    {
+        EnsureDraftMutable();
 
         Name = RoutingText.RequiredName(name);
         BomVersionId = bomVersionId is > 0 ? bomVersionId : null;
@@ -83,8 +88,7 @@ public sealed class Routing : IHasRowVersion, IOrganizationEntity
     public void ReplaceOperations(
         IReadOnlyList<(int Sequence, string? OperationCode, string? OperationName, long WorkCenterId, decimal SetupMinutes, decimal RunMinutesPerUnit, decimal QueueMinutes, decimal WaitMinutes, bool RequiresQualityCheck, string? Instructions)> operations)
     {
-        if (Status != RoutingStatus.Draft)
-            throw new RoutingRuleException(RoutingErrors.RoutingNotDraft);
+        EnsureDraftMutable();
         if (operations is null || operations.Count == 0)
             throw new RoutingRuleException(RoutingErrors.EmptyOperations);
 

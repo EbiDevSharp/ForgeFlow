@@ -97,7 +97,9 @@
   - Sequentially applies all pending migrations for DiagnosticsDbContext (schema diag), AuthDbContext (schema uth), and OrganizationDbContext (default schema).
   - Inspects BootstrapState; on fresh installations, automatically bootstraps initial organization (ORG1), factory site (SITE1), and system administrator (dmin / Admin@123456!).
   - Preserves existing accounts and organizations if already initialized.
-- **Runners (un-local.bat & un-local.ps1)**:
+- **Runners (
+un-local.bat & 
+un-local.ps1)**:
   - Windows batch file and PowerShell script for single-click execution.
   - Verifies .NET 10 SDK presence.
   - Configures default local SQL connection with override support via %ConnectionStrings__ForgeFlow%.
@@ -4052,7 +4054,8 @@ ode .\scripts\drafts.test.mjs: **19 pass, 0 fail**.
 
 - **Scope**: Created offline-ready illustrated Persian HTML guides under `docs/` synchronized with `main@154ca00` (Slice 13) and established the living maintenance workflow in [`docs/README.md`](file:///d:/Projects/ForgeFlow/docs/README.md).
 - **Files Created**:
-  - [`docs/deployment-guide-fa.html`](file:///d:/Projects/ForgeFlow/docs/deployment-guide-fa.html): Deployment Manager guide covering .NET 10.0 (10.0.14+ Hosting Bundle, SDK 10.0.403), IIS + WebSocket + Data Protection, ConnectionStrings__ForgeFlow, all 3 EF Core DbContexts (AuthDbContext 6 migrations, OrganizationDbContext 12 migrations, DiagnosticsDbContext 1 migration), interactive ForgeFlow.Bootstrap (initialize-deployment / eset-password), inline SVG architecture diagram, and an interactive localStorage-persisted Go-Live checklist.
+  - [`docs/deployment-guide-fa.html`](file:///d:/Projects/ForgeFlow/docs/deployment-guide-fa.html): Deployment Manager guide covering .NET 10.0 (10.0.14+ Hosting Bundle, SDK 10.0.403), IIS + WebSocket + Data Protection, ConnectionStrings__ForgeFlow, all 3 EF Core DbContexts (AuthDbContext 6 migrations, OrganizationDbContext 12 migrations, DiagnosticsDbContext 1 migration), interactive ForgeFlow.Bootstrap (initialize-deployment / 
+eset-password), inline SVG architecture diagram, and an interactive localStorage-persisted Go-Live checklist.
   - [`docs/admin-guide-fa.html`](file:///d:/Projects/ForgeFlow/docs/admin-guide-fa.html): System Administrator illustrated end-to-end guide covering /account/login (with real captured light/dark a-IR screenshots), exact 5-group menu map, system/custom roles & permissions, Master Data, Procurement, Lab Parameters + Inspection Specs + Lot COA (/quality), Production Orders + Reservations, Inventory, Lot Traceability, Reports, Audit, and Error Logs, with inline SVG workflow diagrams.
   - Bundled offline assets: `docs/assets/Vazirmatn.woff2`, `docs/screenshots/login-light-fa.png`, `docs/screenshots/login-dark-fa.png`.
 - **Verification Evidence (2026-11-11)**:
@@ -4798,10 +4801,12 @@ ode d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs **4/4 PASS**
 ## Cross-Environment Machine Migration & Setup Automation Hotfix (2026-11-15)
 
 - **Root Causes Diagnosed**:
-  1. **.NET SDK Strict Pinning**: global.json was strictly pinned to 10.0.403 with ollForward: disable. On systems where 10.0.404 (or other .NET 10 patch versions) were installed, all dotnet CLI commands refused to run.
+  1. **.NET SDK Strict Pinning**: global.json was strictly pinned to 10.0.403 with 
+ollForward: disable. On systems where 10.0.404 (or other .NET 10 patch versions) were installed, all dotnet CLI commands refused to run.
   2. **Fresh Database Schema Migration Ordering**: On fresh installations where the testforgflow database has no prior tables, tools/ForgeFlow.Setup executed migrations in the order: DiagnosticsDbContext -> AuthDbContext -> OrganizationDbContext. AuthDbContext failed on FK_BootstrapState_Organization_OrganizationId because organization.Organization is created by OrganizationDbContext.
 - **Changes Applied**:
-  - global.json: Updated SDK version to 10.0.400 with ollForward: latestPatch, allowing seamless SDK resolution across developer machines having different .NET 10 patch releases (e.g. 10.0.400, 10.0.403, 10.0.404).
+  - global.json: Updated SDK version to 10.0.400 with 
+ollForward: latestPatch, allowing seamless SDK resolution across developer machines having different .NET 10 patch releases (e.g. 10.0.400, 10.0.403, 10.0.404).
   - tools/ForgeFlow.Setup/Program.cs: Corrected migration sequence to DiagnosticsDbContext -> OrganizationDbContext -> AuthDbContext, satisfying schema foreign key dependency requirements.
   - Executed ForgeFlow.Setup successfully: all 3 schema migrations applied, initial organization (ORG1), site (SITE1), and admin credentials bootstrapped.
 - **Verification Evidence (2026-11-15)**:
@@ -5188,7 +5193,10 @@ ode d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs **4/4 PASS**
 - **Tightened Component State Lifecycle & UI Virtualization (<Virtualize>) across Blazor Interactive Server Pages**:
   - Introduced UI virtualization (Microsoft.AspNetCore.Components.Web.Virtualization) with SpacerElement="tr" across high-volume HTML table bodies in modals and pages:
     - Audit.razor (SelectedDetails.ParsedFields)
-    - Traceability.razor (eport.BackwardEdges, eport.ForwardEdges, oot.Movements)
+    - Traceability.razor (
+eport.BackwardEdges, 
+eport.ForwardEdges, 
+oot.Movements)
     - Reports.razor (selectedShortageItem.Orders, selectedVarianceDetail.Inputs, selectedVarianceDetail.Outputs)
     - Boms.razor (simExplosion.ConsumedInputs, simExplosion.ProducedOutputs)
     - BomVersionWorkbenchModal.razor (selectedVersion.Inputs, selectedVersion.Outputs)
@@ -5583,3 +5591,176 @@ ode d:\Projects\ForgeFlow\verification\slice01-ui\browser-check.cjs **4/4 PASS**
     - Server: Development server running at `https://localhost:5001`.
     - Health check: `curl.exe -k -s -o nul -w "%{http_code}" https://localhost:5001/account/login` returned **200 OK**.
 - **Next Small Step**: Await user instructions.
+
+- **DbContext Boundary Partitioning & Marker Interface Configuration Separation (2026-11-18)**:
+  - **Configuration Separation & Marker Interfaces (`IAuthEntityConfiguration` & `IOrganizationEntityConfiguration`)**:
+    - Created `IOrganizationEntityConfiguration` marker interface under `ForgeFlow.Infrastructure.Organizations.Configurations` and tagged all 53 operational entity configuration classes across 11 files (`BomConfigurations.cs`, `BusinessPartnerConfigurations.cs`, `InventoryConfigurations.cs`, `ItemAndCatalogConfigurations.cs`, `OrganizationCoreConfigurations.cs`, `ProcurementConfigurations.cs`, `ProductionOrderConfigurations.cs`, `QualityConfigurations.cs`, `RoutingConfigurations.cs`, `SalesConfigurations.cs`, `UnitAndDimensionConfigurations.cs`).
+    - Updated `OrganizationDbContext.OnModelCreating` to apply assembly configurations using predicate `t => typeof(IOrganizationEntityConfiguration).IsAssignableFrom(t) && !t.IsAbstract`, completely decoupling it from brittle string namespace checks and preventing accidental inclusion of identity configurations.
+    - Created `IAuthEntityConfiguration` marker interface under `ForgeFlow.Infrastructure.Identity.Configurations`.
+    - Decomposed monolithic inline entity configurations in `AuthDbContext.OnModelCreating` into cohesive, modular configuration classes under `ForgeFlow.Infrastructure.Identity.Configurations`:
+      - `AuthModelConventions.cs`: centralized check constraints, UTC conversions, and seed data.
+      - `AuthAccountConfigurations.cs`: `ApplicationAccount`, `IdentityUserClaim`, `IdentityUserLogin`, `IdentityUserToken`.
+      - `AuthRoleAndPermissionConfigurations.cs`: `RoleDefinition`, `RolePermission`, `UserPermissionGrant`, `ScopedRoleAssignment`.
+      - `AuthMembershipConfigurations.cs`: `OrganizationMembership`, `SiteMembership`.
+      - `AuthSessionAndSecurityConfigurations.cs`: `AccountSession`, `BootstrapState`, `SecurityEvent`.
+      - `AuthUserPreferenceConfigurations.cs`: `UserPreference`, `UserNotificationPreference`, `UserNotification`.
+      - `AuthPasskeyConfigurations.cs`: `UserPasskey`.
+      - `AuthOrganizationAndSiteConfigurations.cs`: `Organization` and `Site` external table references configured strictly with `ExcludeFromMigrations()`.
+    - Refactored `AuthDbContext.OnModelCreating` to use `model.ApplyConfigurationsFromAssembly(typeof(AuthDbContext).Assembly, t => typeof(IAuthEntityConfiguration).IsAssignableFrom(t) && !t.IsAbstract)`, reducing `AuthDbContext.cs` from 339 lines to 54 lines.
+    - Eliminated any need for manual `modelBuilder.Ignore<...>()` calls while guaranteeing zero operational ERP domain entities bleed into `AuthDbContext`.
+  - **Context Boundary Verification & Unit Tests (`DbContextBoundaryTests.cs`)**:
+    - Added dedicated test suite `DbContextBoundaryTests.cs` verifying:
+      - `AuthDbContext_Contains_Strictly_Identity_And_Auth_Entities_And_No_Erp_Domain_Entities`: asserts exactly 19 entity types (17 auth + 2 migration-excluded organization anchors) and zero ERP domain entities.
+      - `OrganizationDbContext_Contains_Strictly_Erp_Domain_Entities_And_No_Identity_Or_Auth_Entities`: asserts all 49 operational ERP entity types exist under `"organization"` schema and zero auth/identity entities are registered.
+      - `MarkerInterfaces_Strictly_Partition_All_EntityConfigurations_Without_Overlap`: asserts all 72 configuration types in `ForgeFlow.Infrastructure` implement exactly one marker interface (19 auth, 53 organization).
+  - **Verification Evidence (2026-11-18)**:
+    - Build: `dotnet build --no-incremental` -> **0 Warnings, 0 Errors**.
+    - Model & Migration Sync: `dotnet ef migrations has-pending-model-changes` verified for both `AuthDbContext` and `OrganizationDbContext` -> **0 Pending Changes**.
+    - Full Web Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **700 Passed, 0 Failed, 82 Skipped, Total 782**.
+    - Server: Development server actively listening at `https://localhost:5001`.
+    - Health check: `curl.exe -k -s -o /dev/null -w "%{http_code}" https://localhost:5001/account/login` returned **200 OK**.
+- **Next Small Step**: Await user instructions.
+
+
+- **Domain Business Logic Encapsulation & Store Invariant Decoupling (2026-11-18)**:
+  - **Domain Encapsulation & State Transitions (`ForgeFlow.Domain`)**:
+    - Enforced strict encapsulation across core domain aggregates (`SalesOrder`, `ProductionOrder`, `PurchaseOrder`, `QualityInspection`, `StockLot`, `InventoryBalance`, `StockReservation`, `Routing`, `ProductionOrderOperation`) with private/internal setters and intention-revealing domain transition methods.
+    - Added `CanReserveStock` business capability property to `ProductionOrder` (`Status is Released or InProgress`) and `SalesOrder` (`Status is Approved or PartiallyDispatched`), eliminating status inspection logic from persistence stores.
+    - Added `EnsureDraftMutable()` guard method to `Routing`, consolidating draft validation directly inside domain entity methods (`UpdateDraft`, `ReplaceOperations`).
+    - Added explicit lifecycle methods `Activate()`, `Deactivate()`, and `SetActive(bool isActive)` to Identity and Membership records (`ScopedRoleAssignment`, `OrganizationMembership`, `SiteMembership`, `RolePermission`, `UserPermissionGrant`), eliminating direct field mutations in Infrastructure stores.
+  - **Infrastructure Store Simplification & Cleanup (`ForgeFlow.Infrastructure`)**:
+    - Cleaned up redundant manual status checks and guard conditions in `SqlProcurementOperationsStore` (removed redundant draft status checks before `po.UpdateDraft`), `SqlRoutingOperationsStore` (delegated draft and non-empty operations invariants to `routing.UpdateDraft`, `routing.EnsureDraftMutable`, and `routing.Activate`), and `SqlSalesOperationsStore` (delegated reversal state validation completely to `order.RevertDispatches`).
+    - Refactored `SqlInventoryOperationsStore` outbound lot expiration validation to delegate domain rule calculations directly to `ItemLot.IsExpiredOn(today)` rather than performing inline date comparisons in SQL projections.
+    - Replaced raw assignments `assignment.IsActive = isActive;` with `assignment.SetActive(isActive);` in `SqlUserOperationsStore` and `SqlRoleOperationsStore`.
+    - Added `<InternalsVisibleTo Include="ForgeFlow.Web.Tests" />` to `ForgeFlow.Infrastructure.csproj`.
+  - **Domain State Transition Unit Tests (`DomainStateTransitionTests.cs`)**:
+    - Added comprehensive unit test suite `tests/ForgeFlow.Web.Tests/DomainStateTransitionTests.cs` (15 tests) exercising all state transitions and invariant rules in isolation without requiring a database connection:
+      - `SalesOrder`: Draft creation, update, line replacement, approval, partial dispatch, full dispatch, close, cancel, dispatches reversal, and illegal transitions.
+      - `ProductionOrder`: Draft creation, header update, release, start, record actuals, complete, cancellation reason validation, and illegal transitions.
+      - `PurchaseOrder`: Draft creation, update, line replacement, approval, receipts application, partial receipt closing, and illegal mutations.
+      - `QualityInspection`: Multi-line inspections, mandatory checkpoint failure, concession reason validation, disposition recording, and cancel hold rules.
+      - `ItemLot`: Expiration checking with `IsExpiredOn`, manufacture vs expiration date invariant validation, and COA issuance.
+      - `InventoryBalance` & `StockReservation`: Positive and negative deltas, stock reservation, stock blocking, insufficient stock rules, reservation partial and full consumption, and release.
+      - `Routing` & `ProductionOrderOperation`: Draft mutation, operation sequence ordering, activation, obsolescence, shop-floor operation readiness, in-progress start, pause, completion, and skip.
+      - `IdentityRecords`: Role assignments and multi-tenant membership activation/deactivation encapsulation.
+  - **Verification Evidence (2026-11-18)**:
+    - Build: `dotnet build` -> **0 Warnings, 0 Errors**.
+    - Model & Migration Sync: `dotnet ef migrations has-pending-model-changes` verified for both `AuthDbContext` and `OrganizationDbContext` -> **0 Pending Changes**.
+    - Unit Tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj --filter DomainStateTransitionTests` -> **15 Passed, 0 Failed, 0 Skipped, Total 15**.
+    - Full Web Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **715 Passed, 0 Failed, 82 Skipped, Total 797** (all existing 700 + 15 new domain tests passed).
+    - Server: Development server actively listening at `https://localhost:5001`.
+    - Health check: `curl.exe -k -s -o /dev/null -w "%{http_code}" https://localhost:5001/account/login` returned **200 OK**.
+- **Next Small Step**: Await user instructions.
+
+- **Audit Regressions Resolution, Domain Events Unification, Strong RowVersion Typing & Razor Decomposition (2026-11-18)**:
+  - **Audit Telemetry & Guardrail Hardening**:
+    - Fixed silent audit rejection telemetry drop in `StockReservationSlices.ReserveSalesOrderStockAsync` by exposing `OperationRecorder` and `OpContext` on `InventorySliceSupport` and passing them to `OperationAuditHelper.RecordIfRejectedAsync`.
+    - Fixed session sliding activity tracking in `RuntimeSessions.ValidateAsync` by updating `session.LastActivityAtUtc` in memory and persisting when >= 2 minutes elapsed, preventing active Blazor SPA users from premature session timeouts.
+    - Protected Blazor dispatcher thread safety in `MainLayout.razor` by wrapping `clearDrafts` JS interop inside `await InvokeAsync(...)` with try/catch exception handling.
+  - **Domain Events Unification & Procurement Audit**:
+    - Removed duplicate redundant `*DomainEvent` records from `ProductionOrder.cs`, `SalesOrder.cs`, and `QualityInspection.cs`, standardizing on single canonical `IAuditableDomainEvent` implementations (`ProductionOrderReleasedEvent`, `ProductionOrderCompletedEvent`, `ProductionOrderCancelledEvent`, `SalesOrderApprovedEvent`, `SalesOrderDispatchedEvent`, `SalesOrderClosedEvent`, `SalesOrderCancelledEvent`, `QualityInspectionRecordedEvent`).
+    - Standardized `PurchaseOrderApprovedEvent`, `PurchaseOrderClosedEvent`, and `PurchaseOrderCancelledEvent` as `IAuditableDomainEvent`.
+    - Created `ProcurementAuditHandler.cs` and registered it in DI to automatically log business audit events for purchase order lifecycle transitions.
+    - Extended `SalesOrderAuditHandler.cs` to handle `SalesOrderClosedEvent` and `SalesOrderCancelledEvent`.
+  - **Eliminate Magic `"RowVersion"` Strings (Guardrail #2)**:
+    - Implemented `IHasRowVersion` on `ContextDimension` and `BusinessPartner`.
+    - Replaced all magic string property lookups (`EF.Property<byte[]>(..., "RowVersion")` and `db.Entry(...).Property("RowVersion")`) in `BomOperationsStore.cs` and `SqlBusinessPartnerStore.cs` with strongly-typed `IHasRowVersion.RowVersion` property access.
+  - **Dashboard Query Store DI & Debounce Disposal**:
+    - Refactored `SqlDashboardQueryStore` to receive injected `IReportingQueryStore` and `IRoutingOperationsStore` via constructor injection instead of hardcoded `new` instantiations.
+    - Registered `IReportingQueryStore`, `IRoutingOperationsStore`, and `IDashboardQueryStore` in DI container.
+    - Refactored `PartnerPicker.razor` to implement `IDisposable` and use `DebouncedSearchController` instead of an unmanaged `CancellationTokenSource`.
+  - **MainLayout Scope Parallelization & Streaming Audit CSV Export**:
+    - Parallelized 18 sequential scope loading calls in `MainLayout.razor` into a single `Task.WhenAll(...)`.
+    - Replaced SignalR Base64 CSV export buffering in `Audit.razor` with direct HTTP streaming via `/api/export/audit` using `downloadFileFromUrl`.
+  - **Razor Page Decomposition under 800 Lines (Guardrail #5)**:
+    - Extracted BOM Resolution & Explosion Simulator into `Components/Pages/BomSections/BomSimulatorPanel.razor` (357 lines).
+    - Reduced `Boms.razor` from 1,026 lines to 709 lines (< 800 lines).
+    - Verified `Sales.razor` is 699 lines (< 800 lines).
+  - **Verification Evidence (2026-11-18)**:
+    - Build: `dotnet build -c Release` -> **0 Warnings, 0 Errors**.
+    - Test Suite: `dotnet test -c Release` -> **718 Passed, 0 Failed, 82 Skipped, Total 800**.
+    - Server: Development server verified on `https://localhost:5001`.
+    - Health check: `curl.exe -k -s -o /dev/null -w "%{http_code}" https://localhost:5001/account/login` returned **200 OK**.
+- **Authentication, Passkey/WebAuthn, 2FA, Rate Limiting & Proxy Hardening (2026-11-18)**:
+  - **Enforce User Verification (UV) & Step-Up Auth on Passkeys (F-01, F-07)**:
+    - Enforced User Verification flag `((flags & 0x04) != 0)` alongside User Presence `(0x01)` in `WebAuthnVerifier.cs`.
+    - Changed `userVerification` to `"required"` in both registration and login options in `AuthenticationBackend.cs`.
+    - Bound `rp.id` and `expectedOrigin` to configured `WebAuthn` settings and `AllowedHosts` in `appsettings.json` rather than raw client host headers.
+    - Implemented `PasskeyChallengeStore` for single-use, server-side challenge verification with thread-safe expiration, preventing replay attacks within the 2-minute window.
+    - Derived 32-byte opaque random handle for WebAuthn `user.id` using `IDataProtectionProvider` and SHA-256 instead of sequential database UserId.
+    - Enforced step-up password verification (`PasskeyRegisterOptionsRequest`) requiring current password verification prior to issuing passkey registration options. Added password challenge modal in `Security.razor` (710 lines, < 800 lines).
+  - **Harden Login Timing, Lockout Throttling & Trusted 2FA Device Path (F-04, F-23)**:
+    - Implemented constant-time dummy PBKDF2 hash verification in `RuntimeSessions.cs` when user does not exist, is inactive, or is locked out, preventing username enumeration via timing side-channels.
+    - Verified password hash outside `Serializable` transaction lock, taking transaction lock only when recording failure or creating session.
+    - Added progressive delay and client-IP throttling in `RuntimeSessions.cs` to defend against denial-of-service account lockouts.
+    - Evaluated 2FA trusted device cookie on initial `LoginAsync` invocation and persisted trusted devices in `[auth].[UserToken]` with provider `ForgeFlow.2FA.TrustedDevice`.
+  - **Encrypt Sensitive 2FA Secrets at Rest (F-06)**:
+    - Enabled `ProtectPersonalData = true` in Identity and registered `DataProtectionPersonalDataProtector` with `ff-dp:v1:` prefix and seamless backward compatibility for unencrypted legacy rows.
+  - **Separate 2FA Setup Reminder Event (F-22)**:
+    - Added `TwoFactorSetupReminder` in `NotificationEventCatalog` and updated `RuntimeSessions.cs` to use the dedicated event catalog item.
+  - **Forwarded Headers, Rate Limiting & CSP Tightening (F-05, F-08, F-24)**:
+    - Configured `ForwardedHeadersOptions` with `KnownIPNetworks` and `app.UseForwardedHeaders()` before authentication in `Program.cs`.
+    - Updated `ResolveClientIp` to rely on `HttpContext.Connection.RemoteIpAddress` as the single source of truth.
+    - Ensured `RateLimitingExtensions.cs` registers all named policies with `GetNoLimiter` when `RateLimiting:Enabled` is false, preventing 500 runtime errors on rate-limited endpoints.
+    - Localized rate limit responses via `AuthenticationResources.resx` and `AuthenticationResources.fa-IR.resx`.
+    - Tightened CSP `connect-src` to `'self'` and same-origin WebSocket URI.
+  - **Verification Evidence (2026-11-18)**:
+    - Build: `dotnet build -c Release` -> **0 Warnings, 0 Errors**.
+    - Unit & Web Tests: `dotnet test -c Release` -> **722 Passed, 0 Failed, 82 Skipped, Total 804**.
+    - Tests added in `AccountSecurityTests.cs`: WebAuthn UV enforcement, passkey assertion UV enforcement, `PasskeyChallengeStore` single-use replay rejection, `PersonalDataProtector` encryption & legacy fallback, `RateLimiting` disabled fallback no-limiter verification, step-up auth password validation.
+  - **Outstanding Acceptance Gaps**: None.
+  - **Next Small Step**: Await user instructions.
+
+- **Concurrency & Lock Contention Elimination, Non-Blocking Session & Organization Reads, Inventory Index Locking, and Silent Exception Remediation (2026-11-18)**:
+  - **Eliminate Per-Request Serializable Row-Locking on Session Validation (F-02)**:
+    - Moved `app.MapStaticAssets()` prior to authentication and session middleware in `src/ForgeFlow.Web/Program.cs`, short-circuiting static asset requests (CSS, JS, fonts, images) so they bypass session and database lookup entirely.
+    - Implemented high-performance, short-lived (20-second sliding) in-memory cache for validated session principals/metadata (`SessionValidationCache`) keyed by session ID + security stamp, instantly invalidated on session revocation or security-stamp change via `ISessionInvalidator`.
+    - Added in-memory caching for user UI preferences (`UserPreferenceCache`) in `RuntimeSessions.cs` (invalidated on preference save) to eliminate per-request database preference queries.
+    - Updated `RuntimeSessions.ValidateAsync` to query session and preferences using non-blocking `READ COMMITTED` without `UPDLOCK/HOLDLOCK`, acquiring a row lock only when persisting throttled `LastActivityAtUtc` updates.
+  - **Consolidate & Remove Exclusive `UPDLOCK, HOLDLOCK` on Organization for Routine Writes (F-03)**:
+    - Created `OrganizationActivityGuard.cs` in `ForgeFlow.Infrastructure/Persistence/` consolidating active-organization checks across all SQL stores.
+    - Switched routine domain writes (inventory, sales orders, purchase orders, quality inspections, BOM operations, item catalog, document sequences) to non-blocking active checks (`AsNoTracking`), eliminating contention and bottlenecking on the `[org].[Organization]` row across concurrent users.
+    - Reserved `LockExclusiveOrganizationAsync` strictly for tenant administrative lifecycle mutations (organization deactivation, admin role management, site creation/modification).
+  - **Targeted Row-Locking with Composite Index for Inventory Balance Updates (F-14)**:
+    - Updated raw SQL balance queries in `SqlInventoryOperationsStore.cs` to leverage the composite index `(OrganizationId, WarehouseId, ItemId, LotCode)` with explicit `WITH (UPDLOCK, ROWLOCK)` hints, preventing lock escalation and table-level contention during concurrent item receipts and issues.
+  - **Catch-Block Ordering & Silent Exception Remediation (F-19, F-20)**:
+    - Reordered catch blocks in `SqlInventoryOperationsStore.Write<T>` to catch `DbUpdateConcurrencyException` prior to `DbUpdateException`.
+    - Replaced empty silent `catch { }` blocks across Razor components (`UserProfileSection.razor`, `SalesOrders.razor`, `DeliveryOrders.razor`) and `AuthenticationBackend.cs` with specific exception handling and structured `ILogger` diagnostic reporting.
+  - **Multi-Tenant Context Propagation**:
+    - Ensured `organizationId` is consistently propagated to `db.CurrentOrganizationId` on store writes across `OrganizationOperationsStore.cs` and operational stores.
+  - **Verification Evidence (2026-11-18)**:
+    - Build: `dotnet build -c Release` -> **0 Warnings, 0 Errors**.
+    - Full Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **815 Passed, 0 Failed, 1 Skipped, Total 816**.
+    - Concurrency & Multi-Tenancy Tests: Passed concurrent cross-tenant stock allocations, concurrent document sequences, barrier-synchronized role deactivations, and concurrent audit events under load.
+    - Web Server Verification: Launched in Development on `https://localhost:5001`. HTTP 200 OK verified on `https://localhost:5001/account/login`.
+  - **Outstanding Acceptance Gaps**: None.
+  - **Next Small Step**: Await user instructions.
+
+- **Production Hardening, HTTPS Redirection, Persistent DataProtection, Health Checks, Blazor Circuit Limits, i18n & Tooling Relocation (2026-11-18)**:
+  - **Production HTTPS Redirection & DataProtection Key Persistence (F-09, F-28, F-30)**:
+    - Added `app.UseHttpsRedirection()` in `Program.cs` paired with `app.UseHsts()` in non-Development environments, ensuring HTTP requests cleanly redirect to HTTPS where `__Host-` cookies and secure transports are enforced.
+    - Updated `LocalRuntimeConfiguration.cs` so that in `Production` environment, `DataProtection:KeyRingPath` is strictly validated; if missing or unconfigured, the host fails fast at startup with an `InvalidOperationException` rather than silently degrading to ephemeral in-memory / IIS AppPool keys.
+    - Updated `Run-ForgeFlow-Server.bat` to default to `ASPNETCORE_ENVIRONMENT=Production`, HTTPS-only binding (`https://0.0.0.0:5001`), certificate validation (no hardcoded `TrustServerCertificate=True`), and configurable `DataProtection__KeyRingPath`. Added `"DataProtection": { "KeyRingPath": "" }` to `appsettings.json`.
+  - **Health Checks & Blazor Circuit Limits (F-29)**:
+    - Registered health checks checking database connectivity for both `OrganizationDbContext` (via `IDbContextFactory`) and `AuthDbContext` in `src/ForgeFlow.Web/Diagnostics/DbContextHealthCheck.cs`.
+    - Implemented `DiskSpaceHealthCheck` verifying available free storage on the log/base directory drive (`Degraded` below 1 GB, `Unhealthy` below 250 MB).
+    - Exposed public lightweight `/health` endpoint (`app.MapHealthChecks("/health").AllowAnonymous()`) returning HTTP 200 `Healthy`.
+    - Configured bounded `CircuitOptions` (`DisconnectedCircuitMaxRetained = 100`, `DisconnectedCircuitRetentionPeriod = 3min`, `MaxBufferedUnacknowledgedRenderBatches = 10`) on `AddInteractiveServerComponents` in `Program.cs` to prevent unbounded memory growth.
+  - **Draft Security Transparency, ISO Country Code & Organization Clock (F-17, F-26)**:
+    - Clarified in `drafts.mjs` that client draft storage uses lightweight XOR/Base64 obfuscation for shoulder-surfing defense rather than strong cryptography, renamed helpers to `obfuscateDraft` and `deobfuscateDraft`, and strictly excluded sensitive fields via `isSensitive()`.
+    - Replaced hardcoded Persian string `"ایران"` in `BusinessPartners.razor` with ISO country code `"IR"` as default business data value, resolved via `.resx` key `Country_IR`.
+    - Updated `Audit.razor` and `Errors.razor` date pickers to bind `MaxDate` to the organization's current date via `IOrganizationClock.GetTimeZone(...)` instead of server machine `DateTimeOffset.Now`.
+  - **Dead Code Cleanup, Rate-Limiter Consolidation & Tool Relocation (F-11, F-18, F-27)**:
+    - Removed unused `editingSpec` field and `#pragma warning disable CS0414` from `Quality.razor`.
+    - Consolidated rate-limit policy constants to `RateLimitingPolicyNames.Auth` (`"auth-login"`) across `AuthenticationBackend.cs` and `RateLimitingExtensions.cs`, deleting redundant `LegacyAuth`.
+    - Relocated host CLI tools `HostLocalTestAccountCreator` and `HostRecovery` out of production `ForgeFlow.Infrastructure` into `tools/ForgeFlow.LocalTestAccount` and `tools/ForgeFlow.LocalTestRecovery`.
+    - Created repository packaging script `22.bat` that packages the repository while excluding `.local/` runtime keys, `.git`, `bin`, and `obj`, while keeping `Migrations/` intact for auditability.
+    - Implemented `TestAssemblyInitializer.cs` (`[ModuleInitializer]`) that automatically discovers local SQL Server / LocalDB instances on startup, enabling single-command test runs (`dotnet test`) without requiring manual environment variable configuration.
+  - **Verification Evidence (2026-11-18)**:
+    - Build: `dotnet build -c Release` -> **0 Warnings, 0 Errors**.
+    - Full Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj` -> **818 Passed, 0 Failed, 1 Skipped, Total 819** (auto-detected SQL Server).
+    - Packaging Script: Tested `22.bat` -> successfully created package excluding `.local/` and keeping `Migrations/`.
+    - Health Check Verification: `curl.exe -k -s -D - https://localhost:5001/health` -> **HTTP 200 OK (Healthy)**.
+    - Web Server Verification: Development server listening on `https://localhost:5001`. `curl.exe -k -s -D - https://localhost:5001/account/login` -> **HTTP 200 OK**.
+  - **Outstanding Acceptance Gaps**: None.
+  - **Next Small Step**: Await user instructions.

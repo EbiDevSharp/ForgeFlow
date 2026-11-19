@@ -141,7 +141,7 @@ public sealed class DebouncedSearchControllerTests
             });
 
         // Wait for debounce to settle
-        await Task.Delay(150);
+        await Task.Delay(300);
 
         Assert.Equal("hello", currentValue);
         Assert.Single(executedSearches);

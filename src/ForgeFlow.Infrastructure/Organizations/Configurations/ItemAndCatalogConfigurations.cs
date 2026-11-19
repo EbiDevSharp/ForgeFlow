@@ -7,7 +7,7 @@ using static ForgeFlow.Infrastructure.Organizations.Configurations.OrganizationM
 
 namespace ForgeFlow.Infrastructure.Organizations.Configurations;
 
-internal sealed class ClassificationSetConfiguration : IEntityTypeConfiguration<ClassificationSet>
+internal sealed class ClassificationSetConfiguration : IEntityTypeConfiguration<ClassificationSet>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<ClassificationSet> classSet)
     {
@@ -33,7 +33,7 @@ internal sealed class ClassificationSetConfiguration : IEntityTypeConfiguration<
     }
 }
 
-internal sealed class ClassificationConfiguration : IEntityTypeConfiguration<Classification>
+internal sealed class ClassificationConfiguration : IEntityTypeConfiguration<Classification>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<Classification> classification)
     {
@@ -64,7 +64,7 @@ internal sealed class ClassificationConfiguration : IEntityTypeConfiguration<Cla
     }
 }
 
-internal sealed class ItemConfiguration : IEntityTypeConfiguration<Item>
+internal sealed class ItemConfiguration : IEntityTypeConfiguration<Item>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<Item> item)
     {
@@ -101,7 +101,7 @@ internal sealed class ItemConfiguration : IEntityTypeConfiguration<Item>
     }
 }
 
-internal sealed class ItemClassificationConfiguration : IEntityTypeConfiguration<ItemClassification>
+internal sealed class ItemClassificationConfiguration : IEntityTypeConfiguration<ItemClassification>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<ItemClassification> itemClass)
     {
@@ -125,7 +125,7 @@ internal sealed class ItemClassificationConfiguration : IEntityTypeConfiguration
     }
 }
 
-internal sealed class ItemUnitConversionConfiguration : IEntityTypeConfiguration<ItemUnitConversion>
+internal sealed class ItemUnitConversionConfiguration : IEntityTypeConfiguration<ItemUnitConversion>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<ItemUnitConversion> itemConv)
     {
@@ -157,7 +157,7 @@ internal sealed class ItemUnitConversionConfiguration : IEntityTypeConfiguration
     }
 }
 
-internal sealed class AttributeDefinitionConfiguration : IEntityTypeConfiguration<AttributeDefinition>
+internal sealed class AttributeDefinitionConfiguration : IEntityTypeConfiguration<AttributeDefinition>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<AttributeDefinition> attrDef)
     {
@@ -188,7 +188,7 @@ internal sealed class AttributeDefinitionConfiguration : IEntityTypeConfiguratio
     }
 }
 
-internal sealed class ItemAttributeValueConfiguration : IEntityTypeConfiguration<ItemAttributeValue>
+internal sealed class ItemAttributeValueConfiguration : IEntityTypeConfiguration<ItemAttributeValue>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<ItemAttributeValue> attrVal)
     {

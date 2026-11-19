@@ -6,5 +6,6 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../../src/ForgeFlow.Infrastructure/ForgeFlow.Infrastructure.csproj" />
+    <ProjectReference Include="../ForgeFlow.LocalTestRecovery/ForgeFlow.LocalTestRecovery.csproj" />
   </ItemGroup>
 </Project>

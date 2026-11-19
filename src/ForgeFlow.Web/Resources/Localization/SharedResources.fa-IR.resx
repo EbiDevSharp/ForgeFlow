@@ -3064,4 +3064,5 @@
   <data name="Auth.RateLimitExceeded" xml:space="preserve"><value>تعداد درخواست‌های احراز هویت بیش از حد مجاز است. لطفاً {0} ثانیه دیگر دوباره تلاش کنید.</value></data>
   <data name="Export.RateLimitExceeded" xml:space="preserve"><value>تعداد درخواست‌های خروجی فایل بیش از حد مجاز است. لطفاً {0} ثانیه دیگر دوباره تلاش کنید.</value></data>
   <data name="Common.RateLimitExceeded" xml:space="preserve"><value>تعداد درخواست‌ها بیش از حد مجاز است. لطفاً {0} ثانیه دیگر دوباره تلاش کنید.</value></data>
+  <data name="Country_IR" xml:space="preserve"><value>ایران</value></data>
 </root>

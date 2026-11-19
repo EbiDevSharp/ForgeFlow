@@ -139,7 +139,6 @@ public sealed class UnitOperationsStore(
         CancellationToken ct)
         => Write(organizationId, access, async db =>
         {
-            await LockOrganization(db, organizationId, ct);
             var orgRow = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
             if (orgRow is null) return OrganizationResult<UnitSummary>.Failure(UnitErrors.NotFound);
             if (isActive && !orgRow.IsActive) return OrganizationResult<UnitSummary>.Failure(UnitErrors.ParentOrganizationInactive);
@@ -290,7 +289,6 @@ public sealed class UnitOperationsStore(
         CancellationToken ct)
         => Write(organizationId, access, async db =>
         {
-            await LockOrganization(db, organizationId, ct);
             var orgRow = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
             if (orgRow is null) return OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.NotFound);
             if (isActive && !orgRow.IsActive) return OrganizationResult<UnitConversionSummary>.Failure(UnitErrors.ParentOrganizationInactive);
@@ -510,7 +508,6 @@ public sealed class UnitOperationsStore(
         CancellationToken ct)
         => Write(organizationId, access, async db =>
         {
-            await LockOrganization(db, organizationId, ct);
             var orgRow = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
             if (orgRow is null) return OrganizationResult<CurrencySummary>.Failure(UnitErrors.NotFound);
             if (isActive && !orgRow.IsActive) return OrganizationResult<CurrencySummary>.Failure(UnitErrors.ParentOrganizationInactive);
@@ -621,17 +618,8 @@ public sealed class UnitOperationsStore(
         { return OrganizationResult<T>.Failure(UnitErrors.PersistenceUnavailable); }
     }
 
-    private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
-    {
-        await LockOrganization(db, organizationId, ct);
-        var org = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
-        if (org is null) return (false, UnitErrors.NotFound);
-        if (!org.IsActive) return (false, UnitErrors.ParentOrganizationInactive);
-        return (true, null);
-    }
-
-    private static Task LockOrganization(OrganizationDbContext db, long id, CancellationToken ct)
-        => db.Database.ExecuteSqlInterpolatedAsync($"SELECT [Id] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {id}", ct);
+    private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
+        => OrganizationActivityGuard.RequireActiveOrganizationAsync(db, organizationId, UnitErrors.ParentOrganizationInactive, UnitErrors.NotFound, ct);
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
         => entity is ForgeFlow.Domain.Common.IHasRowVersion hasVersion && hasVersion.RowVersion.Length > 0

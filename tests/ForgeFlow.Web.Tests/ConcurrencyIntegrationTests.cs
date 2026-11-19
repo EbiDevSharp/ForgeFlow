@@ -82,7 +82,7 @@ public sealed class ConcurrencyIntegrationTests
 
         // Verify state in DB
         await using var verifyDb = await database.Factory.CreateDbContextAsync();
-        var finalSeq = await verifyDb.DocumentSequences.SingleAsync(s => s.OrganizationId == orgId && s.DocumentType == DocumentSequenceType.SalesOrder);
+        var finalSeq = await verifyDb.DocumentSequences.IgnoreQueryFilters().SingleAsync(s => s.OrganizationId == orgId && s.DocumentType == DocumentSequenceType.SalesOrder);
         Assert.Equal(21, finalSeq.NextNumber);
     }
 
@@ -160,13 +160,13 @@ public sealed class ConcurrencyIntegrationTests
 
         // Direct DB verification
         await using var verifyDb = await database.Factory.CreateDbContextAsync();
-        var bal = await verifyDb.InventoryBalances.SingleAsync(b => b.OrganizationId == orgId && b.WarehouseId == wh.Id && b.ItemId == item.Summary.Id);
+        var bal = await verifyDb.InventoryBalances.IgnoreQueryFilters().SingleAsync(b => b.OrganizationId == orgId && b.WarehouseId == wh.Id && b.ItemId == item.Summary.Id);
         Assert.Equal(10m, bal.OnHandBaseQuantity);
         Assert.Equal(9m, bal.ReservedBaseQuantity);
         Assert.Equal(1m, bal.AvailableBaseQuantity);
         Assert.True(bal.AvailableBaseQuantity >= 0m);
 
-        var totalActiveReserved = await verifyDb.StockReservations
+        var totalActiveReserved = await verifyDb.StockReservations.IgnoreQueryFilters()
             .Where(r => r.OrganizationId == orgId && r.SalesOrderId == so.Summary.Id && r.Status == ReservationStatus.Active)
             .SumAsync(r => r.ReservedBaseQuantity);
         Assert.Equal(9m, totalActiveReserved);
@@ -244,10 +244,10 @@ public sealed class ConcurrencyIntegrationTests
         Assert.All(allResults, r => Assert.True(r.Succeeded, $"Failed: {r.Error?.Code}"));
 
         await using var verifyDb = await database.Factory.CreateDbContextAsync();
-        var bal = await verifyDb.InventoryBalances.SingleAsync(b => b.OrganizationId == orgId && b.WarehouseId == wh.Id && b.ItemId == item.Summary.Id);
+        var bal = await verifyDb.InventoryBalances.IgnoreQueryFilters().SingleAsync(b => b.OrganizationId == orgId && b.WarehouseId == wh.Id && b.ItemId == item.Summary.Id);
         Assert.Equal(80m, bal.OnHandBaseQuantity);
 
-        var netLedgerDelta = await verifyDb.InventoryLedgerEntries
+        var netLedgerDelta = await verifyDb.InventoryLedgerEntries.IgnoreQueryFilters()
             .Where(l => l.OrganizationId == orgId && l.WarehouseId == wh.Id && l.ItemId == item.Summary.Id)
             .SumAsync(l => l.BaseQuantityDelta);
         Assert.Equal(80m, netLedgerDelta); // 100 initial - 60 issues + 40 receipts = 80

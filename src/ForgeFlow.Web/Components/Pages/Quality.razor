@@ -24,6 +24,7 @@
 @inject CulturePolicy Culture
 @inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
+@inject ILogger<Quality> Logger
 
 <PageTitle>@Text["QualityControl"] - @Text["AppTitle"]</PageTitle>
 
@@ -344,7 +345,6 @@
     public void Dispose()
     {
         _searchController.Dispose();
-        editingSpec = null;
         specLines.Clear();
         activeWarehouses = [];
         activeItems = [];
@@ -363,7 +363,6 @@
         specModalOpen = open;
         if (!open)
         {
-            editingSpec = null;
             specLines.Clear();
         }
     }
@@ -387,9 +386,6 @@
 
     private bool paramModalOpen;
     private bool specModalOpen;
-#pragma warning disable CS0414
-    private QualitySpecSummary? editingSpec;
-#pragma warning restore CS0414
     private readonly List<SpecLineEditRow> specLines = [];
 
     private sealed class SpecLineEditRow
@@ -461,7 +457,12 @@
             scopeIndex = 0;
             await RefreshScopeStateAsync();
         }
-        catch { pageError = "ReadError"; }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to initialize quality page.");
+            pageError = "ReadError";
+        }
         finally { initialLoading = false; }
     }
 

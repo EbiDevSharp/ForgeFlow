@@ -1,9 +1,11 @@
 using System.Globalization;
 using System.Net;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Threading.RateLimiting;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Infrastructure.Identity;
+using ForgeFlow.Web.Hosting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Antiforgery;
@@ -194,6 +196,23 @@ public static class AuthenticationBackend
     private const string TwoFactorPendingPurpose = "ForgeFlow.TwoFactorPending.v1";
     private const string RememberTwoFactorPurpose = "ForgeFlow.Remember2FA.v1";
     private const string PasskeyChallengePurpose = "ForgeFlow.PasskeyChallenge.v1";
+    public static bool IsStaticAssetPath(string? path) =>
+        path is not null && (
+            path.StartsWith("/_content/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/_framework/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/fonts/", StringComparison.OrdinalIgnoreCase) ||
+            path.StartsWith("/images/", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".css", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".mjs", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".woff", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".ico", StringComparison.OrdinalIgnoreCase) ||
+            path.EndsWith(".webmanifest", StringComparison.OrdinalIgnoreCase));
+
     public static IServiceCollection AddAuthenticationBackend(this IServiceCollection services,IConfiguration configuration)
     {
         // Identity contexts live only in RuntimeSessions' fresh operation scopes, not circuit services.
@@ -204,6 +223,9 @@ public static class AuthenticationBackend
         });
         services.AddSingleton<TimeProvider>(TimeProvider.System);
         services.Configure<RuntimeSessionOptions>(configuration.GetSection("ForgeFlow:Auth:Sessions"));
+        services.AddSingleton<PasskeyChallengeStore>();
+        services.Configure<WebAuthnOptions>(configuration.GetSection(WebAuthnOptions.SectionName));
+        services.Configure<WebAuthnOptions>(configuration.GetSection("ForgeFlow:WebAuthn"));
         services.AddSingleton<RuntimeSessions>();
         services.AddSingleton<ForgeFlow.Application.Users.IUserNotificationPublisher>(sp => sp.GetRequiredService<RuntimeSessions>());
         services.AddSingleton<ForgeFlow.Application.Security.ISessionInvalidator>(sp => sp.GetRequiredService<RuntimeSessions>());
@@ -218,6 +240,9 @@ public static class AuthenticationBackend
             options.Cookie.HttpOnly=true; options.Cookie.SecurePolicy=CookieSecurePolicy.Always; options.Cookie.SameSite=SameSiteMode.Lax;
             options.ExpireTimeSpan=RuntimeSessions.Lifetime; options.SlidingExpiration=false;
             options.Events.OnValidatePrincipal=async context => {
+                if (IsStaticAssetPath(context.HttpContext.Request.Path.Value))
+                    return;
+
                 var reference=SessionClaims.Read(context.Principal!);
                 var code=reference is null ? "Auth.SessionInvalid" : await context.HttpContext.RequestServices.GetRequiredService<RuntimeSessions>().ValidateAsync(reference,context.HttpContext.RequestAborted);
                 if (code!="Auth.Valid") {
@@ -245,7 +270,10 @@ public static class AuthenticationBackend
                 context.Response.Headers.TryAdd("X-Frame-Options", "DENY");
                 context.Response.Headers.TryAdd("Referrer-Policy", "strict-origin-when-cross-origin");
                 context.Response.Headers.TryAdd("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-                const string cspPolicy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:";
+                var host = context.Request.Host.Value;
+                var wsScheme = string.Equals(context.Request.Scheme, "https", StringComparison.OrdinalIgnoreCase) ? "wss" : "ws";
+                var sameOriginWs = string.IsNullOrEmpty(host) ? string.Empty : $" {wsScheme}://{host}";
+                var cspPolicy = $"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'{sameOriginWs};";
                 if (!context.Response.Headers.TryGetValue("Content-Security-Policy", out var existingCsp) ||
                     string.Equals(existingCsp.ToString(), "frame-ancestors 'self'", StringComparison.OrdinalIgnoreCase))
                 {
@@ -261,14 +289,14 @@ public static class AuthenticationBackend
     {
         app.MapGet("/account/antiforgery",AntiforgeryToken);
         app.MapGet("/account/avatar", Avatar);
-        app.MapPost("/account/sign-in",Login).WithName("Auth.Login").RequireRateLimiting("auth-login");
-        app.MapPost("/account/sign-in-2fa",LoginTwoFactor).WithName("Auth.LoginTwoFactor").RequireRateLimiting("auth-login");
-        app.MapPost("/account/passkey/register-options", PasskeyRegisterOptions);
-        app.MapPost("/account/passkey/register-verify", PasskeyRegisterVerify);
-        app.MapPost("/account/passkey/login-options", PasskeyLoginOptions);
-        app.MapPost("/account/passkey/login-verify", PasskeyLoginVerify).RequireRateLimiting("auth-login");
+        app.MapPost("/account/sign-in",Login).WithName("Auth.Login").RequireRateLimiting(RateLimitingPolicyNames.Auth);
+        app.MapPost("/account/sign-in-2fa",LoginTwoFactor).WithName("Auth.LoginTwoFactor").RequireRateLimiting(RateLimitingPolicyNames.Auth);
+        app.MapPost("/account/passkey/register-options", PasskeyRegisterOptions).RequireRateLimiting(RateLimitingPolicyNames.Auth);
+        app.MapPost("/account/passkey/register-verify", PasskeyRegisterVerify).RequireRateLimiting(RateLimitingPolicyNames.Auth);
+        app.MapPost("/account/passkey/login-options", PasskeyLoginOptions).RequireRateLimiting(RateLimitingPolicyNames.Auth);
+        app.MapPost("/account/passkey/login-verify", PasskeyLoginVerify).RequireRateLimiting(RateLimitingPolicyNames.Auth);
         app.MapPost("/account/logout",Logout).WithName("Auth.Logout");
-        app.MapPost("/account/change-password-submit",ChangePasswordSubmit).WithName("Auth.ChangePassword").RequireRateLimiting("auth-login");
+        app.MapPost("/account/change-password-submit",ChangePasswordSubmit).WithName("Auth.ChangePassword").RequireRateLimiting(RateLimitingPolicyNames.Auth);
     }
 
     public static async Task<IResult> Avatar(HttpContext context, RuntimeSessions sessions)
@@ -322,40 +350,9 @@ public static class AuthenticationBackend
         finally { context.User=current; }
     }
     public static string? ResolveClientIp(HttpContext context)
-    {
-        if (context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwarded))
-        {
-            foreach (var rawHeader in forwarded)
-            {
-                if (string.IsNullOrWhiteSpace(rawHeader)) continue;
-                foreach (var segment in rawHeader.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                {
-                    if (TryParseIpToken(segment, out var ip))
-                        return NormalizeIp(ip);
-                }
-            }
-        }
-
-        return context.Connection.RemoteIpAddress is { } remote
+        => context.Connection.RemoteIpAddress is { } remote
             ? NormalizeIp(remote)
             : null;
-    }
-
-    private static bool TryParseIpToken(string raw, out IPAddress address)
-    {
-        var candidate = raw.Trim();
-        if (candidate.StartsWith('[') && candidate.IndexOf(']') is > 1 and var closeIdx)
-        {
-            candidate = candidate[1..closeIdx];
-        }
-        else if (candidate.Count(c => c == ':') == 1)
-        {
-            var colonIdx = candidate.IndexOf(':');
-            if (colonIdx > 0 && int.TryParse(candidate[(colonIdx + 1)..], out _))
-                candidate = candidate[..colonIdx];
-        }
-        return IPAddress.TryParse(candidate, out address!);
-    }
 
     private static string NormalizeIp(IPAddress address) =>
         address.IsIPv4MappedToIPv6 ? address.MapToIPv4().ToString() : address.ToString();
@@ -380,31 +377,33 @@ public static class AuthenticationBackend
             ? rawDevice
             : null;
         var deviceToken = existingDeviceToken ?? Guid.NewGuid().ToString("N");
-        var result=await sessions.LoginAsync(form["username"].ToString(),form["password"].ToString(),context.RequestAborted,ResolveClientIp(context),initialCulture,string.IsNullOrWhiteSpace(userAgent) ? null : userAgent,deviceToken);
+        var dp = context.RequestServices.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
+        var hasRememberCookie = context.Request.Cookies.TryGetValue(RememberTwoFactorCookieName, out var remRaw)
+            && TryReadProtectedTwoFactorToken(dp, RememberTwoFactorPurpose, remRaw, out _, out _);
+
+        var result = await sessions.LoginAsync(
+            form["username"].ToString(),
+            form["password"].ToString(),
+            context.RequestAborted,
+            ResolveClientIp(context),
+            initialCulture,
+            string.IsNullOrWhiteSpace(userAgent) ? null : userAgent,
+            deviceToken,
+            twoFactorDeviceTrusted: hasRememberCookie);
+
         if (result.Code == "Auth.TwoFactorRequired" && result.PendingUserId is { } pendingUserId && !string.IsNullOrEmpty(result.PendingSecurityStamp))
         {
-            var dp = context.RequestServices.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>();
-            if (context.Request.Cookies.TryGetValue(RememberTwoFactorCookieName, out var remRaw)
-                && TryReadProtectedTwoFactorToken(dp, RememberTwoFactorPurpose, remRaw, out var remUserId, out var remStamp)
-                && remUserId == pendingUserId
-                && string.Equals(remStamp, result.PendingSecurityStamp, StringComparison.Ordinal))
+            var pendingToken = CreateProtectedTwoFactorToken(dp, TwoFactorPendingPurpose, pendingUserId, result.PendingSecurityStamp, TimeSpan.FromMinutes(5));
+            context.Response.Cookies.Append(TwoFactorPendingCookieName, pendingToken, new CookieOptions
             {
-                result = await sessions.LoginAsync(form["username"].ToString(), form["password"].ToString(), context.RequestAborted, ResolveClientIp(context), initialCulture, string.IsNullOrWhiteSpace(userAgent) ? null : userAgent, deviceToken, twoFactorDeviceTrusted: true);
-            }
-            else
-            {
-                var pendingToken = CreateProtectedTwoFactorToken(dp, TwoFactorPendingPurpose, pendingUserId, result.PendingSecurityStamp, TimeSpan.FromMinutes(5));
-                context.Response.Cookies.Append(TwoFactorPendingCookieName, pendingToken, new CookieOptions
-                {
-                    Path = "/",
-                    HttpOnly = true,
-                    Secure = true,
-                    SameSite = SameSiteMode.Lax,
-                    IsEssential = true,
-                    MaxAge = TimeSpan.FromMinutes(5)
-                });
-                return Results.LocalRedirect("/account/login-2fa");
-            }
+                Path = "/",
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Lax,
+                IsEssential = true,
+                MaxAge = TimeSpan.FromMinutes(5)
+            });
+            return Results.LocalRedirect("/account/login-2fa");
         }
         if (result.Session is null) return Error(context,result.Code,result.Code=="Auth.ServiceUnavailable" ? 503 : 401);
         try {
@@ -589,6 +588,7 @@ public static class AuthenticationBackend
         }
     }
 
+    public sealed record PasskeyRegisterOptionsRequest(string? CurrentPassword);
     private sealed record PasskeyRegisterVerifyRequest(string? DisplayName, string? ClientDataJson, string? AttestationObject);
     private sealed record PasskeyLoginVerifyRequest(string? CredentialId, string? ClientDataJson, string? AuthenticatorData, string? Signature);
 
@@ -607,14 +607,33 @@ public static class AuthenticationBackend
         }
     }
 
-    private static string IssuePasskeyChallengeCookie(HttpContext context, long userId)
+    public static (string RpId, string ExpectedOrigin, string RpName) ResolveWebAuthnConfiguration(HttpContext context)
+    {
+        var options = context.RequestServices.GetService<Microsoft.Extensions.Options.IOptions<WebAuthnOptions>>()?.Value
+            ?? new WebAuthnOptions();
+
+        var rpName = string.IsNullOrWhiteSpace(options.RpName) ? "ForgeFlow" : options.RpName;
+        var rpId = !string.IsNullOrWhiteSpace(options.RpId) ? options.RpId : context.Request.Host.Host;
+        var expectedOrigin = !string.IsNullOrWhiteSpace(options.Origin)
+            ? options.Origin
+            : $"{context.Request.Scheme}://{context.Request.Host}";
+
+        return (rpId, expectedOrigin, rpName);
+    }
+
+    private static string IssuePasskeyChallenge(HttpContext context, long userId, PasskeyChallengeStore challengeStore, bool stepUpVerified = false)
     {
         var dp = context.RequestServices.GetRequiredService<IDataProtectionProvider>();
-        var challengeBytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        var challengeBytes = RandomNumberGenerator.GetBytes(32);
         var challengeB64Url = WebAuthnVerifier.ToBase64Url(challengeBytes);
+        var challengeKey = Guid.NewGuid().ToString("N");
         var expiresTicks = DateTimeOffset.UtcNow.AddMinutes(2).UtcTicks;
+
+        challengeStore.StoreChallenge(challengeKey, userId, challengeB64Url, TimeSpan.FromMinutes(2), stepUpVerified);
+
         var token = dp.CreateProtector(PasskeyChallengePurpose)
-            .Protect($"{userId.ToString(CultureInfo.InvariantCulture)}|{expiresTicks.ToString(CultureInfo.InvariantCulture)}|{challengeB64Url}");
+            .Protect($"{userId.ToString(CultureInfo.InvariantCulture)}|{expiresTicks.ToString(CultureInfo.InvariantCulture)}|{challengeKey}");
+
         context.Response.Cookies.Append(PasskeyChallengeCookieName, token, new CookieOptions
         {
             Path = "/",
@@ -627,11 +646,13 @@ public static class AuthenticationBackend
         return challengeB64Url;
     }
 
-    private static bool TryConsumePasskeyChallengeCookie(HttpContext context, long expectedUserId, out string challengeB64Url)
+    private static bool TryConsumePasskeyChallenge(HttpContext context, long expectedUserId, PasskeyChallengeStore challengeStore, out string challengeB64Url, out bool stepUpVerified)
     {
         challengeB64Url = string.Empty;
+        stepUpVerified = false;
         if (!context.Request.Cookies.TryGetValue(PasskeyChallengeCookieName, out var raw) || string.IsNullOrWhiteSpace(raw))
             return false;
+
         context.Response.Cookies.Delete(PasskeyChallengeCookieName, new CookieOptions { Path = "/", Secure = true, HttpOnly = true, SameSite = SameSiteMode.Lax });
         try
         {
@@ -643,8 +664,10 @@ public static class AuthenticationBackend
             if (second <= first + 1) return false;
             if (!long.TryParse(plain[..first], NumberStyles.None, CultureInfo.InvariantCulture, out var uid) || uid != expectedUserId) return false;
             if (!long.TryParse(plain[(first + 1)..second], NumberStyles.None, CultureInfo.InvariantCulture, out var exp) || DateTimeOffset.UtcNow.UtcTicks > exp) return false;
-            challengeB64Url = plain[(second + 1)..];
-            return !string.IsNullOrWhiteSpace(challengeB64Url);
+            var challengeKey = plain[(second + 1)..];
+            if (string.IsNullOrWhiteSpace(challengeKey)) return false;
+
+            return challengeStore.TryConsume(challengeKey, expectedUserId, out challengeB64Url, out stepUpVerified);
         }
         catch
         {
@@ -652,7 +675,12 @@ public static class AuthenticationBackend
         }
     }
 
-    public static async Task<IResult> PasskeyRegisterOptions(HttpContext context, IAntiforgery antiforgery, RuntimeSessions sessions)
+    public static async Task<IResult> PasskeyRegisterOptions(
+        HttpContext context,
+        IAntiforgery antiforgery,
+        RuntimeSessions sessions,
+        UserManager<ApplicationAccount> userManager,
+        PasskeyChallengeStore challengeStore)
     {
         context.Response.Headers.CacheControl = "no-store";
         if (!await ValidateJsonAntiforgeryAsync(context, antiforgery))
@@ -662,16 +690,39 @@ public static class AuthenticationBackend
         if (reference is null)
             return Error(context, "Auth.SessionInvalid", 401);
 
+        PasskeyRegisterOptionsRequest? payload = null;
+        try
+        {
+            payload = await context.Request.ReadFromJsonAsync<PasskeyRegisterOptionsRequest>(context.RequestAborted);
+        }
+        catch
+        {
+            return Error(context, "Auth.RequestRejected", 400);
+        }
+
+        if (string.IsNullOrWhiteSpace(payload?.CurrentPassword))
+            return Error(context, "Auth.CurrentPasswordInvalid", 400);
+
+        var user = await userManager.FindByIdAsync(reference.UserId.ToString(CultureInfo.InvariantCulture));
+        if (user is null || !user.IsActive || !await userManager.CheckPasswordAsync(user, payload.CurrentPassword))
+            return Error(context, "Auth.CurrentPasswordInvalid", 400);
+
         var existingIds = await sessions.GetActivePasskeyCredentialIdsAsync(reference, context.RequestAborted);
-        var challenge = IssuePasskeyChallengeCookie(context, reference.UserId);
-        var userIdBytes = BitConverter.GetBytes(reference.UserId);
+        var challenge = IssuePasskeyChallenge(context, reference.UserId, challengeStore, stepUpVerified: true);
+
+        var dp = context.RequestServices.GetRequiredService<IDataProtectionProvider>();
+        var userHandleProtector = dp.CreateProtector("ForgeFlow.WebAuthn.UserHandle.v1");
+        var userHandleBytes = SHA256.HashData(userHandleProtector.Protect(BitConverter.GetBytes(reference.UserId)));
+        var userHandleB64Url = WebAuthnVerifier.ToBase64Url(userHandleBytes);
+
         var displayName = string.IsNullOrWhiteSpace(reference.DisplayName) ? reference.UserId.ToString(CultureInfo.InvariantCulture) : reference.DisplayName!;
+        var (rpId, _, rpName) = ResolveWebAuthnConfiguration(context);
 
         return Results.Json(new
         {
             challenge,
-            rp = new { id = context.Request.Host.Host, name = "ForgeFlow" },
-            user = new { id = WebAuthnVerifier.ToBase64Url(userIdBytes), name = displayName, displayName },
+            rp = new { id = rpId, name = rpName },
+            user = new { id = userHandleB64Url, name = displayName, displayName },
             pubKeyCredParams = new object[]
             {
                 new { type = "public-key", alg = WebAuthnVerifier.AlgEs256 },
@@ -680,11 +731,15 @@ public static class AuthenticationBackend
             timeout = 60000,
             attestation = "none",
             excludeCredentials = existingIds.Select(id => new { type = "public-key", id = WebAuthnVerifier.ToBase64Url(id) }),
-            authenticatorSelection = new { residentKey = "preferred", userVerification = "preferred" }
+            authenticatorSelection = new { residentKey = "preferred", userVerification = "required" }
         });
     }
 
-    public static async Task<IResult> PasskeyRegisterVerify(HttpContext context, IAntiforgery antiforgery, RuntimeSessions sessions)
+    public static async Task<IResult> PasskeyRegisterVerify(
+        HttpContext context,
+        IAntiforgery antiforgery,
+        RuntimeSessions sessions,
+        PasskeyChallengeStore challengeStore)
     {
         context.Response.Headers.CacheControl = "no-store";
         if (!await ValidateJsonAntiforgeryAsync(context, antiforgery))
@@ -694,12 +749,13 @@ public static class AuthenticationBackend
         if (reference is null)
             return Error(context, "Auth.SessionInvalid", 401);
 
-        if (!TryConsumePasskeyChallengeCookie(context, reference.UserId, out var expectedChallenge))
+        if (!TryConsumePasskeyChallenge(context, reference.UserId, challengeStore, out var expectedChallenge, out var stepUpVerified) || !stepUpVerified)
             return Error(context, "Auth.RequestRejected", 400);
 
         PasskeyRegisterVerifyRequest? payload;
         try { payload = await context.Request.ReadFromJsonAsync<PasskeyRegisterVerifyRequest>(context.RequestAborted); }
-        catch { return Error(context, "Auth.RequestRejected", 400); }
+        catch (System.Text.Json.JsonException) { return Error(context, "Auth.RequestRejected", 400); }
+        catch (BadHttpRequestException) { return Error(context, "Auth.RequestRejected", 400); }
         if (payload is null || string.IsNullOrWhiteSpace(payload.ClientDataJson) || string.IsNullOrWhiteSpace(payload.AttestationObject))
             return Error(context, "Auth.RequestRejected", 400);
 
@@ -709,10 +765,9 @@ public static class AuthenticationBackend
             clientDataBytes = WebAuthnVerifier.FromBase64Url(payload.ClientDataJson);
             attestationBytes = WebAuthnVerifier.FromBase64Url(payload.AttestationObject);
         }
-        catch { return Error(context, "Auth.PasskeyInvalid", 400); }
+        catch (FormatException) { return Error(context, "Auth.PasskeyInvalid", 400); }
 
-        var expectedOrigin = $"{context.Request.Scheme}://{context.Request.Host}";
-        var expectedRpId = context.Request.Host.Host;
+        var (expectedRpId, expectedOrigin, _) = ResolveWebAuthnConfiguration(context);
         var verified = WebAuthnVerifier.VerifyRegistration(clientDataBytes, attestationBytes, expectedChallenge, expectedOrigin, expectedRpId);
         if (verified is null)
             return Error(context, "Auth.PasskeyInvalid", 400);
@@ -725,23 +780,31 @@ public static class AuthenticationBackend
         return Results.Json(new { code, message = localizer[code].Value });
     }
 
-    public static async Task<IResult> PasskeyLoginOptions(HttpContext context, IAntiforgery antiforgery)
+    public static async Task<IResult> PasskeyLoginOptions(
+        HttpContext context,
+        IAntiforgery antiforgery,
+        PasskeyChallengeStore challengeStore)
     {
         context.Response.Headers.CacheControl = "no-store";
         if (!await ValidateJsonAntiforgeryAsync(context, antiforgery))
             return Error(context, "Auth.RequestRejected", 400);
 
-        var challenge = IssuePasskeyChallengeCookie(context, 0);
+        var challenge = IssuePasskeyChallenge(context, 0, challengeStore, stepUpVerified: false);
+        var (rpId, _, _) = ResolveWebAuthnConfiguration(context);
         return Results.Json(new
         {
             challenge,
-            rpId = context.Request.Host.Host,
+            rpId = rpId,
             timeout = 60000,
-            userVerification = "preferred"
+            userVerification = "required"
         });
     }
 
-    public static async Task<IResult> PasskeyLoginVerify(HttpContext context, IAntiforgery antiforgery, RuntimeSessions sessions)
+    public static async Task<IResult> PasskeyLoginVerify(
+        HttpContext context,
+        IAntiforgery antiforgery,
+        RuntimeSessions sessions,
+        PasskeyChallengeStore challengeStore)
     {
         context.Response.Headers.CacheControl = "no-store";
         if (!await ValidateJsonAntiforgeryAsync(context, antiforgery))
@@ -749,12 +812,13 @@ public static class AuthenticationBackend
         if (context.User.Identity?.IsAuthenticated == true)
             return Error(context, "Auth.RequestRejected", 400);
 
-        if (!TryConsumePasskeyChallengeCookie(context, 0, out var expectedChallenge))
+        if (!TryConsumePasskeyChallenge(context, 0, challengeStore, out var expectedChallenge, out _))
             return Error(context, "Auth.RequestRejected", 400);
 
         PasskeyLoginVerifyRequest? payload;
         try { payload = await context.Request.ReadFromJsonAsync<PasskeyLoginVerifyRequest>(context.RequestAborted); }
-        catch { return Error(context, "Auth.RequestRejected", 400); }
+        catch (System.Text.Json.JsonException) { return Error(context, "Auth.RequestRejected", 400); }
+        catch (BadHttpRequestException) { return Error(context, "Auth.RequestRejected", 400); }
         if (payload is null || string.IsNullOrWhiteSpace(payload.CredentialId) || string.IsNullOrWhiteSpace(payload.ClientDataJson)
             || string.IsNullOrWhiteSpace(payload.AuthenticatorData) || string.IsNullOrWhiteSpace(payload.Signature))
             return Error(context, "Auth.RequestRejected", 400);
@@ -767,7 +831,7 @@ public static class AuthenticationBackend
             authDataBytes = WebAuthnVerifier.FromBase64Url(payload.AuthenticatorData);
             sigBytes = WebAuthnVerifier.FromBase64Url(payload.Signature);
         }
-        catch { return Error(context, "Auth.LoginRejected", 401); }
+        catch (FormatException) { return Error(context, "Auth.LoginRejected", 401); }
 
         var initialCulture = ForgeFlow.Web.Localization.CulturePolicy.Normalize(CultureInfo.CurrentUICulture.Name);
         var userAgent = context.Request.Headers.UserAgent.ToString();
@@ -776,8 +840,7 @@ public static class AuthenticationBackend
             : null;
         var deviceToken = existingDeviceToken ?? Guid.NewGuid().ToString("N");
 
-        var expectedOrigin = $"{context.Request.Scheme}://{context.Request.Host}";
-        var expectedRpId = context.Request.Host.Host;
+        var (expectedRpId, expectedOrigin, _) = ResolveWebAuthnConfiguration(context);
 
         var result = await sessions.LoginWithPasskeyAsync(
             credIdBytes,

@@ -12,6 +12,7 @@
 @inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
 @inject IServiceProvider Services
+@inject ILogger<Home> Logger
 
 <PageTitle>@Text["Home"] - @Text["AppTitle"]</PageTitle>
 
@@ -414,7 +415,11 @@
             if (status is { TwoFactorEnabled: false } && (status.SnoozedUntilUtc is null || status.SnoozedUntilUtc < DateTime.UtcNow))
                 showTwoFactorBanner = true;
         }
-        catch { }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to check two factor reminder status.");
+        }
     }
 
     private async Task SnoozeTwoFactorBannerAsync()

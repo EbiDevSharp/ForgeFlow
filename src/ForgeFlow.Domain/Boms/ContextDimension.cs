@@ -3,7 +3,7 @@ using ForgeFlow.Domain.Common;
 namespace ForgeFlow.Domain.Boms;
 
 /// <summary>Extensible manufacturing context dimension per organization (e.g., PLANT, PRODUCTION_LINE, MARKET).</summary>
-public sealed class ContextDimension : IOrganizationEntity
+public sealed class ContextDimension : IOrganizationEntity, IHasRowVersion
 {
     private ContextDimension()
     {
@@ -27,6 +27,7 @@ public sealed class ContextDimension : IOrganizationEntity
     public string Code { get; private set; }
     public string Name { get; private set; }
     public bool IsActive { get; private set; } = true;
+    public byte[] RowVersion { get; private set; } = [];
 
     public static ContextDimension Create(long organizationId, string? code, string? name)
         => new(organizationId, code, name);

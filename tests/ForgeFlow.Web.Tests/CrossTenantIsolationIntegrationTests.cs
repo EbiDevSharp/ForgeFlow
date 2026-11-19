@@ -258,10 +258,10 @@ public sealed class CrossTenantIsolationIntegrationTests
 
         // H. Audit Log Isolation
         await using var verifyDb = await database.Factory.CreateDbContextAsync();
-        var alphaChanges = await verifyDb.OrganizationChanges.Where(c => c.OrganizationId == orgAlphaId).ToListAsync();
+        var alphaChanges = await verifyDb.OrganizationChanges.IgnoreQueryFilters().Where(c => c.OrganizationId == orgAlphaId).ToListAsync();
         Assert.NotEmpty(alphaChanges);
 
-        var betaChanges = await verifyDb.OrganizationChanges.Where(c => c.OrganizationId == orgBetaId).ToListAsync();
+        var betaChanges = await verifyDb.OrganizationChanges.IgnoreQueryFilters().Where(c => c.OrganizationId == orgBetaId).ToListAsync();
         Assert.DoesNotContain(betaChanges, c => c.OrganizationId == orgAlphaId);
     }
 

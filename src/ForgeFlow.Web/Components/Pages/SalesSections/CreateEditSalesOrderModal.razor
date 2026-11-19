@@ -18,6 +18,7 @@
 @inject IOrganizationClock Clock
 @inject IStringLocalizer<SharedResources> Text
 @inject CulturePolicy Culture
+@inject ILogger<CreateEditSalesOrderModal> Logger
 @implements IDisposable
 
 <ForgeFormDialog Width="1020px" IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged"
@@ -316,7 +317,11 @@
             }
             itemStockSummary = dict;
         }
-        catch { }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load stock balance summary for warehouse {WarehouseId}.", forWarehouseId);
+        }
     }
 
     private async Task ChangeSiteAsync(ChangeEventArgs e)

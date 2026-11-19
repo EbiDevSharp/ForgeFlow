@@ -13,6 +13,8 @@ public sealed class InventorySliceSupport(
     IUserOperationRecorder? operationRecorder = null,
     IOperationContextAccessor? opContext = null)
 {
+    public IUserOperationRecorder? OperationRecorder => operationRecorder;
+    public IOperationContextAccessor? OpContext => opContext;
     public async ValueTask<(TrustedActor? Actor, string? Error)> AuthorizeAsync(
         OrganizationScope? scope,
         string permission,

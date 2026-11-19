@@ -1,10 +1,12 @@
 using ForgeFlow.Application.BusinessPartners;
 using ForgeFlow.Application.BusinessPartners.Slices;
 using ForgeFlow.Application.Common;
+using ForgeFlow.Application.Diagnostics;
 using ForgeFlow.Application.Inventory;
 using ForgeFlow.Application.Inventory.Slices;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.BusinessPartners;
+using ForgeFlow.Domain.Diagnostics;
 using ForgeFlow.Domain.Inventory;
 using Xunit;
 
@@ -144,5 +146,44 @@ public sealed class VerticalSliceDecompositionTests
 
         Assert.False(result.Succeeded);
         Assert.Equal(InventoryErrors.ProductionOrderInvalid, result.Error!.Code);
+    }
+
+    private sealed class CapturingOperationRecorder : IUserOperationRecorder
+    {
+        public List<UserOperationRecordRequest> Entries { get; } = [];
+        public Task RecordAsync(UserOperationRecordRequest request, CancellationToken ct = default)
+        {
+            Entries.Add(request);
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task StockReservationSlices_Records_Rejection_Telemetry_When_Invalid_Quantity()
+    {
+        var actor = new TrustedActor(10, ActorProvenance.AuthenticatedSession, Guid.NewGuid(), Guid.NewGuid());
+        var actors = new StubActorAccessor(actor);
+        var permissions = new StubPermissionEvaluator(true);
+        var recorder = new CapturingOperationRecorder();
+        var support = new InventorySliceSupport(actors, permissions, recorder);
+        var slices = new StockReservationSlices(new StubReservationStore(), new StubInventoryStore(), support);
+
+        var scope = new OrganizationScope.Organization(100);
+        var request = new ReserveSalesOrderStockRequest(
+            OrganizationId: 100,
+            SalesOrderId: 55,
+            SalesOrderLineId: 10,
+            ItemId: 20,
+            Quantity: -5m);
+
+        var result = await slices.ReserveSalesOrderStockAsync(scope, request);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(InventoryErrors.QuantityInvalid, result.Error!.Code);
+        Assert.Single(recorder.Entries);
+        Assert.Equal(UserOperationCatalog.SalesActionRejected, recorder.Entries[0].OperationCode);
+        Assert.Equal(UserOperationOutcome.BusinessRuleRejected, recorder.Entries[0].Outcome);
+        Assert.Equal("StockReservation", recorder.Entries[0].TargetEntityType);
+        Assert.Equal("55", recorder.Entries[0].TargetEntityRef);
     }
 }

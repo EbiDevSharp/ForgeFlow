@@ -244,4 +244,26 @@ public sealed class BomTests
         Assert.NotEqual("WriteUnavailable", RolePermissionLocalization.FailureKey(BomErrors.AmbiguousResolution));
         Assert.NotEqual("WriteUnavailable", RolePermissionLocalization.FailureKey(BomErrors.MainOutputRequired));
     }
+
+    [Fact]
+    public void BomSimulatorPanel_Has_Expected_Parameters_And_Methods()
+    {
+        var panelType = typeof(ForgeFlow.Web.Components.Pages.BomSections.BomSimulatorPanel);
+        Assert.NotNull(panelType);
+
+        var currentScopeProp = panelType.GetProperty("CurrentScope");
+        Assert.NotNull(currentScopeProp);
+        Assert.True(currentScopeProp.IsDefined(typeof(ParameterAttribute), false));
+
+        var currentOrgIdProp = panelType.GetProperty("CurrentOrgId");
+        Assert.NotNull(currentOrgIdProp);
+        Assert.True(currentOrgIdProp.IsDefined(typeof(ParameterAttribute), false));
+
+        var mfgItemsProp = panelType.GetProperty("ManufacturableItems");
+        Assert.NotNull(mfgItemsProp);
+        Assert.True(mfgItemsProp.IsDefined(typeof(ParameterAttribute), false));
+
+        var clearMethod = panelType.GetMethod("ClearResults");
+        Assert.NotNull(clearMethod);
+    }
 }

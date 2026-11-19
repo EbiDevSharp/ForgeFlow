@@ -8,6 +8,7 @@
 @inject UserDisplayPreferences DisplayPreferences
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
+@inject ILogger<MainLayout> Logger
 
 <AuthorizeView Context="shellAuth">
 <Authorized>
@@ -240,7 +241,11 @@
                 }
             }
         }
-        catch { }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load preferences during layout initialization.");
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -266,32 +271,83 @@
                     await sessions.TouchSessionActivityAsync(reference, CancellationToken.None);
             }
         }
-        catch { }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to touch session activity.");
+        }
         var state = await AuthProvider.GetAuthenticationStateAsync();
         wasAuthenticated = state.User.Identity?.IsAuthenticated == true;
         try
         {
-            orgScopes = await ReadScopes.LoadOrganizationScopesAsync();
-            readScopes = await ReadScopes.Load();
-            userScopes = await ReadScopes.LoadUserScopesAsync();
-            roleScopes = await ReadScopes.LoadRoleScopesAsync();
-            auditScopes = await ReadScopes.LoadAuditScopesAsync();
-            unitScopes = await ReadScopes.LoadUnitScopesAsync();
-            itemScopes = await ReadScopes.LoadItemScopesAsync();
-            bomScopes = await ReadScopes.LoadBomScopesAsync();
-            routingScopes = await ReadScopes.LoadRoutingScopesAsync();
-            productionOrderScopes = await ReadScopes.LoadProductionOrderScopesAsync();
-            inventoryScopes = await ReadScopes.LoadInventoryScopesAsync();
-            reportScopes = await ReadScopes.LoadReportScopesAsync();
-            qualityScopes = await ReadScopes.LoadQualityScopesAsync();
-            procurementScopes = await ReadScopes.LoadProcurementScopesAsync();
-            salesScopes = await ReadScopes.LoadSalesScopesAsync();
-            docSequenceScopes = await ReadScopes.LoadDocumentSequenceScopesAsync();
-            diagnosticScopes = await ReadScopes.LoadDiagnosticScopesAsync();
-            businessPartnerScopes = await ReadScopes.LoadBusinessPartnerScopesAsync();
+            var orgTask = ReadScopes.LoadOrganizationScopesAsync();
+            var readTask = ReadScopes.Load();
+            var userTask = ReadScopes.LoadUserScopesAsync();
+            var roleTask = ReadScopes.LoadRoleScopesAsync();
+            var auditTask = ReadScopes.LoadAuditScopesAsync();
+            var unitTask = ReadScopes.LoadUnitScopesAsync();
+            var itemTask = ReadScopes.LoadItemScopesAsync();
+            var bomTask = ReadScopes.LoadBomScopesAsync();
+            var routingTask = ReadScopes.LoadRoutingScopesAsync();
+            var prodOrderTask = ReadScopes.LoadProductionOrderScopesAsync();
+            var invTask = ReadScopes.LoadInventoryScopesAsync();
+            var reportTask = ReadScopes.LoadReportScopesAsync();
+            var qualityTask = ReadScopes.LoadQualityScopesAsync();
+            var procTask = ReadScopes.LoadProcurementScopesAsync();
+            var salesTask = ReadScopes.LoadSalesScopesAsync();
+            var docSeqTask = ReadScopes.LoadDocumentSequenceScopesAsync();
+            var diagTask = ReadScopes.LoadDiagnosticScopesAsync();
+            var bpTask = ReadScopes.LoadBusinessPartnerScopesAsync();
+
+            await Task.WhenAll(
+                orgTask, readTask, userTask, roleTask, auditTask,
+                unitTask, itemTask, bomTask, routingTask, prodOrderTask,
+                invTask, reportTask, qualityTask, procTask, salesTask,
+                docSeqTask, diagTask, bpTask);
+
+            orgScopes = await orgTask;
+            readScopes = await readTask;
+            userScopes = await userTask;
+            roleScopes = await roleTask;
+            auditScopes = await auditTask;
+            unitScopes = await unitTask;
+            itemScopes = await itemTask;
+            bomScopes = await bomTask;
+            routingScopes = await routingTask;
+            productionOrderScopes = await prodOrderTask;
+            inventoryScopes = await invTask;
+            reportScopes = await reportTask;
+            qualityScopes = await qualityTask;
+            procurementScopes = await procTask;
+            salesScopes = await salesTask;
+            docSequenceScopes = await docSeqTask;
+            diagnosticScopes = await diagTask;
+            businessPartnerScopes = await bpTask;
         }
-        catch
+        catch (OperationCanceledException)
         {
+            orgScopes = [];
+            readScopes = [];
+            userScopes = [];
+            roleScopes = [];
+            auditScopes = [];
+            unitScopes = [];
+            itemScopes = [];
+            bomScopes = [];
+            routingScopes = [];
+            productionOrderScopes = [];
+            inventoryScopes = [];
+            reportScopes = [];
+            qualityScopes = [];
+            procurementScopes = [];
+            salesScopes = [];
+            docSequenceScopes = [];
+            diagnosticScopes = [];
+            businessPartnerScopes = [];
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load read scopes in MainLayout.");
             orgScopes = [];
             readScopes = [];
             userScopes = [];
@@ -321,7 +377,18 @@
             var state = await stateTask;
             var isAuthenticated = state.User.Identity?.IsAuthenticated == true;
             if (wasAuthenticated && !isAuthenticated && authUi is not null)
-                await authUi.InvokeVoidAsync("clearDrafts");
+            {
+                await InvokeAsync(async () =>
+                {
+                    try
+                    {
+                        if (authUi is not null)
+                            await authUi.InvokeVoidAsync("clearDrafts");
+                    }
+                    catch (Microsoft.JSInterop.JSDisconnectedException) { }
+                    catch (Microsoft.JSInterop.JSException) { }
+                });
+            }
             wasAuthenticated = isAuthenticated;
         }
         catch (Microsoft.JSInterop.JSDisconnectedException) { }

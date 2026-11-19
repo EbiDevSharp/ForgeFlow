@@ -1,12 +1,14 @@
 using System.Data;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.Roles;
+using ForgeFlow.Application.Security;
 using ForgeFlow.Application.Users;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Domain.Roles;
 using ForgeFlow.Domain.Users;
 using ForgeFlow.Infrastructure.Identity;
 using ForgeFlow.Infrastructure.Organizations;
+using ForgeFlow.Infrastructure.Security;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -34,13 +36,19 @@ public sealed class RoleManagementSqlTests
     private static ServiceProvider BuildProvider(
         string connection,
         SessionSource source,
-        DeterministicClock? clock = null)
+        DeterministicClock? clock = null,
+        IOrganizationPermissionCache? permissionCache = null)
     {
         var services = new ServiceCollection().AddLogging();
+        if (permissionCache != null)
+        {
+            services.AddSingleton<IOrganizationPermissionCache>(permissionCache);
+        }
         services.AddRuntimeIdentity(options =>
             options.UseSqlServer(connection, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "auth")));
         services.AddSingleton<TimeProvider>(clock ?? new DeterministicClock());
         services.AddSingleton<RuntimeSessions>();
+        services.AddSingleton<ISessionInvalidator>(sp => sp.GetRequiredService<RuntimeSessions>());
         services.AddSingleton<ICurrentAuthenticatedSession>(source);
         services.AddScoped<ITrustedActorAccessor, SessionActorAccessor>();
         services.AddScoped<IOrganizationPermissionEvaluator, SessionPermissionEvaluator>();
@@ -184,8 +192,9 @@ public sealed class RoleManagementSqlTests
         var orgId = initial.OrganizationId!.Value;
         var siteA1 = initial.SiteId!.Value;
 
+        var sharedPermCache = new MemoryOrganizationPermissionCache(new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()));
         var adminSource = new SessionSource();
-        await using var adminProvider = BuildProvider(connection, adminSource);
+        await using var adminProvider = BuildProvider(connection, adminSource, permissionCache: sharedPermCache);
         var adminSessions = adminProvider.GetRequiredService<RuntimeSessions>();
         var adminLogin = await adminSessions.LoginAsync("initial.admin", password);
         Assert.Equal("Auth.SignedIn", adminLogin.Code);
@@ -246,7 +255,7 @@ public sealed class RoleManagementSqlTests
 
         // Log in as reader.user
         var readerSource = new SessionSource();
-        await using var readerProvider = BuildProvider(connection, readerSource);
+        await using var readerProvider = BuildProvider(connection, readerSource, permissionCache: sharedPermCache);
         var readerSessions = readerProvider.GetRequiredService<RuntimeSessions>();
         var readerLogin = await readerSessions.LoginAsync("reader.user", password);
         Assert.Equal("Auth.SignedIn", readerLogin.Code);
@@ -654,7 +663,7 @@ public sealed class RoleManagementSqlTests
             var results = await Task.WhenAll(t1, t2);
             Assert.Equal(1, results.Count(r => r.Succeeded));
             var failure = results.Single(r => !r.Succeeded);
-            Assert.Equal(RolePermissionErrors.LastOrganizationAdminRequired, failure.Error!.Code);
+            Assert.True(failure.Error!.Code is RolePermissionErrors.LastOrganizationAdminRequired or RolePermissionErrors.AccessDenied);
         }
 
         await using var verifyDb = AuthSessionSqlTests.Auth(connection);

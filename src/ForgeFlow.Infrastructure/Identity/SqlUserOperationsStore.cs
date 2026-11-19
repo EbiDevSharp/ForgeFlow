@@ -13,6 +13,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
+using ForgeFlow.Infrastructure.Organizations;
+
 namespace ForgeFlow.Infrastructure.Identity;
 
 internal sealed class UserCommitOutcomeUnknownException(Exception inner) : Exception(UserManagementErrors.OutcomeUnknown, inner);
@@ -267,7 +269,7 @@ public sealed class SqlUserOperationsStore(
         => WriteAsync(access, async (db, manager) =>
         {
             var orgIdsToLock = await ResolveOrganizationLocksAsync(db, organizationId, userId, ct);
-            Dictionary<long, Organization> lockedOrgs = [];
+            Dictionary<long, OrganizationActivitySnapshot> lockedOrgs = [];
             foreach (var lockOrgId in orgIdsToLock)
             {
                 var lockedOrg = await LockOrganizationAsync(db, lockOrgId, ct);
@@ -376,7 +378,7 @@ public sealed class SqlUserOperationsStore(
         CancellationToken ct)
         => WriteAsync(access, async (db, _) =>
         {
-            Organization? scopedOrg = null;
+            OrganizationActivitySnapshot? scopedOrg = null;
             if (organizationId is long orgId)
                 scopedOrg = await LockOrganizationAsync(db, orgId, ct);
 
@@ -427,7 +429,7 @@ public sealed class SqlUserOperationsStore(
         bool requirePasswordChange = true)
         => WriteAsync(access, async (db, manager) =>
         {
-            Organization? scopedOrg = null;
+            OrganizationActivitySnapshot? scopedOrg = null;
             if (organizationId is long orgId)
                 scopedOrg = await LockOrganizationAsync(db, orgId, ct);
 
@@ -508,7 +510,7 @@ public sealed class SqlUserOperationsStore(
             if (access.Actor.ActorId == userId)
                 return OrganizationResult<UserDetails>.Failure(UserManagementErrors.CannotResetOwnTwoFactor);
 
-            Organization? scopedOrg = null;
+            OrganizationActivitySnapshot? scopedOrg = null;
             if (organizationId is long orgId)
                 scopedOrg = await LockOrganizationAsync(db, orgId, ct);
 
@@ -586,7 +588,7 @@ public sealed class SqlUserOperationsStore(
         {
             foreach (var uid in notifyIds.Distinct())
             {
-                await notifications.PublishAsync(
+                await notifications!.PublishAsync(
                     uid,
                     NotificationEventCatalog.NewDeviceSignIn,
                     NotificationCategory.Security,
@@ -608,7 +610,7 @@ public sealed class SqlUserOperationsStore(
         CancellationToken ct)
         => WriteAsync(access, async (db, manager) =>
         {
-            Organization? scopedOrg = null;
+            OrganizationActivitySnapshot? scopedOrg = null;
             if (organizationId is long orgId)
                 scopedOrg = await LockOrganizationAsync(db, orgId, ct);
 
@@ -731,8 +733,7 @@ public sealed class SqlUserOperationsStore(
             if (membership is null)
                 return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
 
-            var site = await db.Set<Site>()
-                .SingleOrDefaultAsync(s => s.OrganizationId == request.OrganizationId && s.Id == request.SiteId, ct);
+            var site = await OrganizationActivityGuard.RequireActiveSiteAsync(db, request.OrganizationId, request.SiteId, ct);
             if (site is null)
                 return OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
 
@@ -814,7 +815,7 @@ public sealed class SqlUserOperationsStore(
             if (orgMembership is null)
                 return OrganizationResult<UserDetails>.Failure(UserManagementErrors.NotFound);
 
-            var site = await db.Set<Site>().SingleOrDefaultAsync(s => s.OrganizationId == organizationId && s.Id == siteId, ct);
+            var site = await OrganizationActivityGuard.RequireActiveSiteAsync(db, organizationId, siteId, ct);
             if (site is null)
                 return OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
 
@@ -872,7 +873,7 @@ public sealed class SqlUserOperationsStore(
             var siteMembershipIsActive = false;
             if (request.Role == TenantRoleKind.SiteOperator)
             {
-                var site = await db.Set<Site>().SingleOrDefaultAsync(s => s.OrganizationId == request.OrganizationId && s.Id == request.SiteId!.Value, ct);
+                var site = await OrganizationActivityGuard.RequireActiveSiteAsync(db, request.OrganizationId, request.SiteId!.Value, ct);
                 if (site is null)
                     return OrganizationResult<UserDetails>.Failure(OrganizationSiteErrors.SiteNotFound);
 
@@ -918,7 +919,7 @@ public sealed class SqlUserOperationsStore(
 
         if (res.Succeeded && notifications is not null)
         {
-            await notifications.PublishAsync(
+            await notifications!.PublishAsync(
                 request.UserId,
                 NotificationEventCatalog.RoleOrAccessChanged,
                 NotificationCategory.Security,
@@ -978,7 +979,7 @@ public sealed class SqlUserOperationsStore(
             scopeLabel = org.Name;
             if (role == TenantRoleKind.SiteOperator && siteId.HasValue)
             {
-                var site = await db.Set<Site>().SingleOrDefaultAsync(s => s.OrganizationId == organizationId && s.Id == siteId.Value, ct);
+                var site = await OrganizationActivityGuard.RequireActiveSiteAsync(db, organizationId, siteId.Value, ct);
                 if (site is not null)
                     scopeLabel = site.Name;
 
@@ -1002,7 +1003,7 @@ public sealed class SqlUserOperationsStore(
                 TenantAccessPolicy.EnsureOrganizationRetainsActiveAdmin(org.IsActive, remainingAdmins);
             }
 
-            assignment.IsActive = isActive;
+            assignment.SetActive(isActive);
             SetUpdateMetadata(db, assignment, now, access.Actor.ActorId, expectedRoleVersion);
 
             AddEvent(db, "ScopedRoleChanged", now, access.Actor.CorrelationId, access.Actor.ActorId, userId, organizationId, siteId, null,
@@ -1064,7 +1065,7 @@ public sealed class SqlUserOperationsStore(
                     await using var opScope = scopes.CreateAsyncScope();
                     var db = opScope.ServiceProvider.GetRequiredService<AuthDbContext>();
                     var manager = opScope.ServiceProvider.GetRequiredService<UserManager<ApplicationAccount>>();
-                    await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+                    await using var tx = await db.Database.BeginTransactionAsync(ct);
 
                     var result = await operation(db, manager);
                     if (!result.Succeeded)
@@ -1093,10 +1094,8 @@ public sealed class SqlUserOperationsStore(
         { return OrganizationResult<T>.Failure(UserManagementErrors.PersistenceUnavailable); }
     }
 
-    private static Task<Organization?> LockOrganizationAsync(AuthDbContext db, long organizationId, CancellationToken ct)
-        => db.Set<Organization>()
-            .FromSqlInterpolated($"SELECT * FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id]={organizationId}")
-            .SingleOrDefaultAsync(ct);
+    private static Task<OrganizationActivitySnapshot?> LockOrganizationAsync(AuthDbContext db, long organizationId, CancellationToken ct)
+        => OrganizationActivityGuard.LockExclusiveOrganizationAsync(db, organizationId, ct);
 
     private static Task<ApplicationAccount?> LockUserByIdAsync(AuthDbContext db, long userId, CancellationToken ct)
         => db.Users
@@ -1145,16 +1144,15 @@ public sealed class SqlUserOperationsStore(
         if (distinctSiteIds.Count == 0)
             return null;
 
-        var sites = await db.Set<Site>()
-            .AsNoTracking()
-            .Where(s => s.OrganizationId == organizationId && distinctSiteIds.Contains(s.Id))
-            .Select(s => new { s.Id, s.IsActive })
+        var sites = await db.Database.SqlQueryRaw<OrganizationActivitySnapshot>(
+            "SELECT [Id], [Name], [IsActive] FROM [organization].[Site] WHERE [OrganizationId] = {0}", organizationId)
             .ToListAsync(ct);
 
-        if (sites.Count != distinctSiteIds.Count)
+        var matchingSites = sites.Where(s => distinctSiteIds.Contains(s.Id)).ToList();
+        if (matchingSites.Count != distinctSiteIds.Count)
             return OrganizationSiteErrors.SiteNotFound;
 
-        return sites.Any(s => !s.IsActive) ? UserManagementErrors.ParentSiteInactive : null;
+        return matchingSites.Any(s => !s.IsActive) ? UserManagementErrors.ParentSiteInactive : null;
     }
 
     private static void AddSiteMembershipsAndRoles(
@@ -1305,21 +1303,20 @@ public sealed class SqlUserOperationsStore(
             .Select(r => new { r.IsActive, RowVersion = EF.Property<byte[]>(r, "RowVersion") })
             .SingleOrDefaultAsync(ct);
 
-        var siteRows = await (from sm in db.SiteMemberships.AsNoTracking()
-                              join s in db.Set<Site>().AsNoTracking()
-                                  on new { sm.OrganizationId, sm.SiteId } equals new { s.OrganizationId, SiteId = s.Id }
-                              where sm.UserId == userId && sm.OrganizationId == orgId
-                              orderby s.Code, s.Id
-                              select new
-                              {
-                                  s.Id,
-                                  s.Code,
-                                  s.Name,
-                                  SiteIsActive = s.IsActive,
-                                  MembershipIsActive = sm.IsActive,
-                                  RowVersion = EF.Property<byte[]>(sm, "RowVersion")
-                              })
-            .ToListAsync(ct);
+        var siteRows = await db.Database.SqlQueryRaw<UserSiteRow>(
+            """
+            SELECT 
+                s.[Id],
+                s.[Code],
+                s.[Name],
+                s.[IsActive] AS [SiteIsActive],
+                sm.[IsActive] AS [MembershipIsActive],
+                sm.[RowVersion]
+            FROM [auth].[SiteMembership] sm
+            JOIN [organization].[Site] s ON sm.[OrganizationId] = s.[OrganizationId] AND sm.[SiteId] = s.[Id]
+            WHERE sm.[UserId] = {0} AND sm.[OrganizationId] = {1}
+            ORDER BY s.[Code], s.[Id]
+            """, userId, orgId).ToListAsync(ct);
 
         var siteRoles = await db.ScopedRoleAssignments.AsNoTracking()
             .Where(r => r.UserId == userId
@@ -1452,4 +1449,12 @@ public sealed class SqlUserOperationsStore(
         DbException => true,
         _ => false
     };
+
+    private sealed record UserSiteRow(
+        long Id,
+        string Code,
+        string Name,
+        bool SiteIsActive,
+        bool MembershipIsActive,
+        byte[] RowVersion);
 }

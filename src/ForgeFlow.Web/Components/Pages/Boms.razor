@@ -150,206 +150,12 @@
         }
         else
         {
-            <div class="write-card">
-                <h2 class="audit-section-heading">@Text["BomSimulatorHeading"]</h2>
-                <p class="write-hint">@Text["BomSimulatorHint"]</p>
-
-                <div class="write-grid">
-                    <div class="write-field">
-                        <label for="sim-item">@Text["BomPrimaryItemLabel"]</label>
-                        <select id="sim-item" @bind="simItemId">
-                            <option value="0">@Text["BomSelectItemOption"]</option>
-                            @foreach (var item in manufacturableItems)
-                            {
-                                <option value="@item.Id">@item.Code — @item.Name</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="write-field">
-                        <label for="sim-date">@Text["BomProductionDateLabel"]</label>
-                        <BitDatePicker @bind-Value="SimDateOffset"
-                                       Culture="@Culture.PickerCulture"
-                                       DateFormat="@PickerDateFormat"
-                                       ShowTimePicker="false"
-                                       AllowTextInput="false"
-                                       AutoClose="true"
-                                       ShowGoToToday="true"
-                                       GoToTodayTitle="@Text["BomDateToday"]"
-                                       GoToTodayIcon="@TodayIcon"
-                                       Icon="@CalendarIcon"
-                                       NextMonthNavIcon="@NextNavIcon"
-                                       PrevMonthNavIcon="@PrevNavIcon"
-                                       NextYearNavIcon="@NextYearIcon"
-                                       PrevYearNavIcon="@PrevYearIcon"
-                                       ClearButtonIcon="@CloseIcon"
-                                       Class="bom-dtp" />
-                    </div>
-                    <div class="write-field">
-                        <label for="sim-qty">@Text["BomRequestedQtyLabel"]</label>
-                        <input id="sim-qty" type="text" inputmode="decimal" dir="ltr" @bind="simQtyText" />
-                    </div>
-                    <div class="write-field">
-                        <label for="sim-unit">@Text["BomRequestedUnitLabel"]</label>
-                        <select id="sim-unit" @bind="simUnitId">
-                            <option value="0">@Text["BomDefaultBaseUnitOption"]</option>
-                            @foreach (var u in activeUnits)
-                            {
-                                <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
-                            }
-                        </select>
-                    </div>
-                </div>
-
-                <div class="item-sub-card">
-                    <div class="audit-modal-title-row">
-                        <strong>@Text["BomContextPairsLabel"]</strong>
-                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
-                                   IsEnabled="@(activeDimensions.Count > 0)" OnClick="AddSimulatorContextPair">
-                            @Text["BomAddContextPairBtn"]
-                        </BitButton>
-                    </div>
-                    @if (simContextPairs.Count == 0)
-                    {
-                        <p class="write-hint">@Text["BomNoContextPairsHint"]</p>
-                    }
-                    else
-                    {
-                        @foreach (var pair in simContextPairs)
-                        {
-                            <div class="bom-cond-row">
-                                <select aria-label="@Text["BomDimLabel"]" @bind="pair.DimensionCode">
-                                    @foreach (var dim in activeDimensions)
-                                    {
-                                        <option value="@dim.Code">@RolePermissionLocalization.ContextDimensionDisplayName(dim.Code, dim.Name, Text) (@dim.Code)</option>
-                                    }
-                                </select>
-                                <span>=</span>
-                                <input type="text" dir="ltr" maxlength="100" @bind="pair.Value" placeholder="@Text["BomConditionValuePlaceholder"]" />
-                                <BitButton Variant="BitVariant.Text" Size="BitSize.Small" OnClick="() => simContextPairs.Remove(pair)">
-                                    @Text["BomRemoveRowBtn"]
-                                </BitButton>
-                            </div>
-                        }
-                    }
-                </div>
-
-                <div class="write-actions">
-                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
-                               IsEnabled="@(!simRunning && simItemId > 0)" OnClick="RunResolveAsync">
-                        @Text["BomResolveBtn"]
-                    </BitButton>
-                    <BitButton Size="BitSize.Small"
-                               IsEnabled="@(!simRunning && simItemId > 0)" OnClick="RunExplodeAsync">
-                        @Text["BomExplodeBtn"]
-                    </BitButton>
-                </div>
-
-                @if (simError is not null)
-                {
-                    <p role="alert" class="write-error">@Text[simError]</p>
-                }
-
-                @if (simResolution is not null)
-                {
-                    <div class="converter-result-card" role="status">
-                        <div class="audit-modal-title-row">
-                            <span class="audit-modal-code"><bdi dir="ltr">@simResolution.BomCode</bdi> — @simResolution.BomName</span>
-                            <span class="read-badge active">v@(simResolution.VersionNumber)</span>
-                        </div>
-                        <div class="converter-meta">
-                            @Text["BomBaseOutputSummary", simResolution.BaseOutputQuantity.ToString("G29", CultureInfo.InvariantCulture), simResolution.BaseOutputUnitSymbol, Formatter.Date(simResolution.EffectiveFromDate), simResolution.EffectiveToDate is DateOnly toDate ? Formatter.Date(toDate) : "∞"]
-                        </div>
-                    </div>
-                }
-
-                @if (simExplosion is not null)
-                {
-                    <div class="item-sub-card">
-                        <h3 class="audit-section-heading">@Text["BomExplosionInputsHeading"]</h3>
-                        @if (simExplosion.ConsumedInputs.Count == 0)
-                        {
-                            <p class="read-empty">@Text["ReadEmpty"]</p>
-                        }
-                        else
-                        {
-                            <div class="audit-fields-box" style="overflow-x:auto;">
-                                <table class="audit-fields-table">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">@Text["BomLevelColumn"]</th>
-                                            <th scope="col">@Text["BomParentItemColumn"]</th>
-                                            <th scope="col">@Text["BomLineItemColumn"]</th>
-                                            <th scope="col">@Text["BomNetQtyColumn"]</th>
-                                            <th scope="col">@Text["BomScrapColumn"]</th>
-                                            <th scope="col">@Text["BomGrossQtyColumn"]</th>
-                                            <th scope="col">@Text["BomLineUnitColumn"]</th>
-                                            <th scope="col">@Text["ReadStatus"]</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <Virtualize Items="simExplosion.ConsumedInputs.AsCollection()" Context="line" ItemSize="40" OverscanCount="5" SpacerElement="tr">
-                                            <tr>
-                                                <td><span class="bom-tree-level">L@(line.Level)</span></td>
-                                                <td><bdi dir="ltr">@line.ParentItemCode</bdi></td>
-                                                <td><bdi dir="ltr">@line.ItemCode</bdi> — @line.ItemName</td>
-                                                <td><bdi dir="ltr">@line.NetQuantity.ToString("G29", CultureInfo.InvariantCulture)</bdi></td>
-                                                <td><bdi dir="ltr">@line.ScrapPercentage.ToString("G29", CultureInfo.InvariantCulture)%</bdi></td>
-                                                <td><strong><bdi dir="ltr">@line.GrossQuantity.ToString("G29", CultureInfo.InvariantCulture)</bdi></strong></td>
-                                                <td><bdi dir="ltr">@line.UnitSymbol</bdi></td>
-                                                <td>
-                                                    <div class="cap-badge-row">
-                                                        @if (line.IsSubAssembly)
-                                                        {
-                                                            <span class="cap-badge">@Text["BomSubAssemblyBadge"]</span>
-                                                        }
-                                                        @if (line.IsOptional)
-                                                        {
-                                                            <span class="cap-badge">@Text["BomOptionalBadge"]</span>
-                                                        }
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        </Virtualize>
-                                    </tbody>
-                                </table>
-                            </div>
-                        }
-
-                        <h3 class="audit-section-heading">@Text["BomExplosionOutputsHeading"]</h3>
-                        @if (simExplosion.ProducedOutputs.Count == 0)
-                        {
-                            <p class="read-empty">@Text["ReadEmpty"]</p>
-                        }
-                        else
-                        {
-                            <div class="audit-fields-box" style="overflow-x:auto;">
-                                <table class="audit-fields-table">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">@Text["BomLevelColumn"]</th>
-                                            <th scope="col">@Text["BomLineItemColumn"]</th>
-                                            <th scope="col">@Text["BomOutputTypeColumn"]</th>
-                                            <th scope="col">@Text["BomProducedQtyColumn"]</th>
-                                            <th scope="col">@Text["BomLineUnitColumn"]</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <Virtualize Items="simExplosion.ProducedOutputs.AsCollection()" Context="line" ItemSize="40" OverscanCount="5" SpacerElement="tr">
-                                            <tr>
-                                                <td><span class="bom-tree-level">L@(line.Level)</span></td>
-                                                <td><bdi dir="ltr">@line.ItemCode</bdi> — @line.ItemName</td>
-                                                <td><span class="read-badge @OutputTypeCss(line.OutputType)">@Text[OutputTypeKey(line.OutputType)]</span></td>
-                                                <td><strong><bdi dir="ltr">@line.ProducedQuantity.ToString("G29", CultureInfo.InvariantCulture)</bdi></strong></td>
-                                                <td><bdi dir="ltr">@line.UnitSymbol</bdi></td>
-                                            </tr>
-                                        </Virtualize>
-                                    </tbody>
-                                </table>
-                            </div>
-                        }
-                    </div>
-                }
-            </div>
+            <BomSimulatorPanel @ref="bomSimulatorPanel"
+                               CurrentScope="@CurrentScope"
+                               CurrentOrgId="@CurrentOrgId"
+                               ManufacturableItems="@manufacturableItems"
+                               ActiveUnits="@activeUnits"
+                               ActiveDimensions="@activeDimensions" />
         }
     }
 
@@ -425,22 +231,6 @@
     private static readonly int[] PageSizeOptions = [10, 25, 50, 100];
     private static readonly BitIconInfo EditIcon = BitIconInfo.Css("ff-icon ff-icon--edit");
     private static readonly BitIconInfo VersionsIcon = BitIconInfo.Css("ff-icon ff-icon--versions");
-    private static readonly BitIconInfo CalendarIcon = BitIconInfo.Css("ff-icon ff-icon--calendar");
-    private static readonly BitIconInfo TodayIcon = BitIconInfo.Css("ff-icon ff-icon--today");
-    private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
-    private BitIconInfo NextNavIcon => BitIconInfo.Css(Culture.Direction == "rtl" ? "ff-icon ff-icon--chevron-prev" : "ff-icon ff-icon--chevron-next");
-    private BitIconInfo PrevNavIcon => BitIconInfo.Css(Culture.Direction == "rtl" ? "ff-icon ff-icon--chevron-next" : "ff-icon ff-icon--chevron-prev");
-    private BitIconInfo NextYearIcon => BitIconInfo.Css(Culture.Direction == "rtl" ? "ff-icon ff-icon--chevrons-prev" : "ff-icon ff-icon--chevrons-next");
-    private BitIconInfo PrevYearIcon => BitIconInfo.Css(Culture.Direction == "rtl" ? "ff-icon ff-icon--chevrons-next" : "ff-icon ff-icon--chevrons-prev");
-    private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
-
-    private DateTimeOffset? SimDateOffset
-    {
-        get => ToDateTimeOffset(simDate);
-        set { if (value.HasValue) simDate = DateOnly.FromDateTime(value.Value.Date); }
-    }
-    private static DateTimeOffset ToDateTimeOffset(DateOnly date) =>
-        new(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
     private static readonly BitDialogClassStyles DialogClasses = new()
     {
         Container = "read-dialog",
@@ -452,6 +242,7 @@
 
     private BomGrid? bomsGrid;
     private ContextDimensionGrid? dimsGrid;
+    private BomSimulatorPanel? bomSimulatorPanel;
 
     private IReadOnlyList<OrganizationScope> available = [];
     private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
@@ -471,15 +262,12 @@
     {
         _searchController.Dispose();
         selectedBom = null;
-        simExplosion = null;
-        simResolution = null;
         selectedDim = null;
         activeUnits.Clear();
         allActiveItems.Clear();
         manufacturableItems.Clear();
         consumableItems.Clear();
         activeDimensions.Clear();
-        simContextPairs.Clear();
     }
     private string bomItemFilter = string.Empty;
 
@@ -501,14 +289,6 @@
     private BomDetails? selectedBom;
     private ContextDimensionSummary? selectedDim;
 
-    private long simItemId, simUnitId;
-    private DateOnly simDate = DateOnly.FromDateTime(DateTime.UtcNow);
-    private string simQtyText = "1";
-    private readonly List<SimContextPair> simContextPairs = [];
-    private bool simRunning;
-    private string? simError;
-    private BomResolutionResultDto? simResolution;
-    private BomExplosionResultDto? simExplosion;
 
     private OrganizationScope? CurrentScope => scopeIndex >= 0 && scopeIndex < available.Count ? available[scopeIndex] : null;
     private long CurrentOrgId => CurrentScope switch
@@ -649,7 +429,6 @@
             allActiveItems = itemRes.Value.ToList();
             manufacturableItems = allActiveItems.Where(x => x.CanBeManufactured).ToList();
             consumableItems = allActiveItems.Where(x => x.CanBeConsumed).ToList();
-            if (simItemId == 0 && manufacturableItems.Count > 0) simItemId = manufacturableItems[0].Id;
         }
 
         var dimRes = await dimTask;
@@ -678,8 +457,7 @@
         pageNotice = null;
         if (tab != TabSimulator)
         {
-            simExplosion = null;
-            simResolution = null;
+            bomSimulatorPanel?.ClearResults();
         }
         await RefreshActiveGridAsync();
     }
@@ -898,77 +676,6 @@
         finally { seedingDimensions = false; }
     }
 
-    private void AddSimulatorContextPair()
-    {
-        if (activeDimensions.Count == 0) return;
-        simContextPairs.Add(new SimContextPair { DimensionCode = activeDimensions[0].Code, Value = string.Empty });
-    }
-
-    private Dictionary<string, string>? BuildSimulatorContext()
-    {
-        if (simContextPairs.Count == 0) return null;
-        var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var pair in simContextPairs)
-        {
-            if (!string.IsNullOrWhiteSpace(pair.DimensionCode) && !string.IsNullOrWhiteSpace(pair.Value))
-                dict[pair.DimensionCode] = pair.Value.Trim();
-        }
-        return dict.Count == 0 ? null : dict;
-    }
-
-    private async Task RunResolveAsync()
-    {
-        if (CurrentScope is null || simItemId <= 0) return;
-        simRunning = true;
-        simError = null;
-        simExplosion = null;
-        try
-        {
-            var res = await BomService.ResolveBom(CurrentScope,
-                new ResolveBomRequest(CurrentOrgId, simItemId, simDate, BuildSimulatorContext()));
-            if (!res.Succeeded)
-            {
-                simResolution = null;
-                simError = RolePermissionLocalization.FailureKey(res.Error!.Code);
-                return;
-            }
-            simResolution = res.Value;
-        }
-        finally { simRunning = false; }
-    }
-
-    private async Task RunExplodeAsync()
-    {
-        if (CurrentScope is null || simItemId <= 0) return;
-        if (!TryParsePositiveDecimal(simQtyText, out var qty))
-        {
-            simError = "BomErrorQuantityInvalid";
-            return;
-        }
-        simRunning = true;
-        simError = null;
-        try
-        {
-            long? unitId = simUnitId > 0 ? simUnitId : null;
-            var res = await BomService.ExplodeBom(CurrentScope,
-                new ExplodeBomRequest(CurrentOrgId, simItemId, simDate, qty, unitId, BuildSimulatorContext()));
-            if (!res.Succeeded)
-            {
-                simExplosion = null;
-                simError = RolePermissionLocalization.FailureKey(res.Error!.Code);
-                return;
-            }
-            simExplosion = res.Value;
-            var resolveRes = await BomService.ResolveBom(CurrentScope,
-                new ResolveBomRequest(CurrentOrgId, simItemId, simDate, BuildSimulatorContext()));
-            simResolution = resolveRes.Succeeded ? resolveRes.Value : null;
-        }
-        finally { simRunning = false; }
-    }
-
-    private static bool TryParsePositiveDecimal(string raw, out decimal value) =>
-        decimal.TryParse(raw?.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out value) && value > 0m;
-
     private string ScopeLabel(OrganizationScope scope) => scope switch
     {
         OrganizationScope.Organization o when scopeLabels.TryGetValue(scope, out var info) && info.OrgCode is not null
@@ -999,28 +706,4 @@
         BomVersionStatus.Obsolete => "bom-status-obsolete",
         _ => "bom-status-draft"
     };
-
-    private static string OutputTypeKey(BomOutputType outputType) => outputType switch
-    {
-        BomOutputType.MainProduct => "BomOutMainProduct",
-        BomOutputType.CoProduct => "BomOutCoProduct",
-        BomOutputType.ByProduct => "BomOutByProduct",
-        BomOutputType.Waste => "BomOutWaste",
-        _ => "BomOutMainProduct"
-    };
-
-    private static string OutputTypeCss(BomOutputType outputType) => outputType switch
-    {
-        BomOutputType.MainProduct => "bom-out-main",
-        BomOutputType.CoProduct => "bom-out-coproduct",
-        BomOutputType.ByProduct => "bom-out-byproduct",
-        BomOutputType.Waste => "bom-out-waste",
-        _ => "bom-out-main"
-    };
-
-    private sealed class SimContextPair
-    {
-        public string DimensionCode { get; set; } = string.Empty;
-        public string Value { get; set; } = string.Empty;
-    }
 }

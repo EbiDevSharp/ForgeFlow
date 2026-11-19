@@ -273,21 +273,38 @@ public sealed class DiagnosticTests
     }
 
     [Fact]
-    public void D10_client_ip_resolver_reads_forwarded_for_and_normalizes_addresses()
+    public async Task D10_client_ip_resolver_reads_forwarded_for_and_normalizes_addresses()
     {
-        var forwarded = new Microsoft.AspNetCore.Http.DefaultHttpContext();
-        forwarded.Request.Headers["X-Forwarded-For"] = "203.0.113.9, 10.0.0.5";
-        forwarded.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
-        Assert.Equal("203.0.113.9", ForgeFlow.Web.Authentication.AuthenticationBackend.ResolveClientIp(forwarded));
+        // 1. Standard IPv4 resolution via RemoteIpAddress
+        var standard = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        standard.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("203.0.113.9");
+        Assert.Equal("203.0.113.9", ForgeFlow.Web.Authentication.AuthenticationBackend.ResolveClientIp(standard));
 
-        var mappedWithPort = new Microsoft.AspNetCore.Http.DefaultHttpContext();
-        mappedWithPort.Request.Headers["X-Forwarded-For"] = "198.51.100.7:51432";
-        Assert.Equal("198.51.100.7", ForgeFlow.Web.Authentication.AuthenticationBackend.ResolveClientIp(mappedWithPort));
+        // 2. IPv6-mapped IPv4 address normalizes to clean IPv4
+        var ipv6Mapped = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        ipv6Mapped.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("::ffff:192.168.1.24");
+        Assert.Equal("192.168.1.24", ForgeFlow.Web.Authentication.AuthenticationBackend.ResolveClientIp(ipv6Mapped));
 
-        var ipv6MappedFallback = new Microsoft.AspNetCore.Http.DefaultHttpContext();
-        ipv6MappedFallback.Request.Headers["X-Forwarded-For"] = "not-an-ip";
-        ipv6MappedFallback.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("::ffff:192.168.1.24");
-        Assert.Equal("192.168.1.24", ForgeFlow.Web.Authentication.AuthenticationBackend.ResolveClientIp(ipv6MappedFallback));
+        // 3. Null RemoteIpAddress returns null
+        var empty = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        Assert.Null(ForgeFlow.Web.Authentication.AuthenticationBackend.ResolveClientIp(empty));
+
+        // 4. ForwardedHeadersMiddleware processes X-Forwarded-For only when remote IP matches a known proxy
+        var options = new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions
+        {
+            ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+        };
+        options.KnownProxies.Add(System.Net.IPAddress.Loopback);
+        var middleware = new Microsoft.AspNetCore.HttpOverrides.ForwardedHeadersMiddleware(
+            innerContext => Task.CompletedTask,
+            Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance,
+            Microsoft.Extensions.Options.Options.Create(options));
+
+        var proxyContext = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        proxyContext.Connection.RemoteIpAddress = System.Net.IPAddress.Loopback;
+        proxyContext.Request.Headers["X-Forwarded-For"] = "203.0.113.9";
+        await middleware.Invoke(proxyContext);
+        Assert.Equal("203.0.113.9", ForgeFlow.Web.Authentication.AuthenticationBackend.ResolveClientIp(proxyContext));
     }
 
     private sealed class CapturingOperationRecorder : IUserOperationRecorder

@@ -64,9 +64,16 @@ public static class OrganizationPersistenceRegistration
         services.AddScoped<IDomainEventHandler<ProductionOrderStartedEvent>>(sp => sp.GetRequiredService<ProductionOrderAuditHandler>());
         services.AddScoped<IDomainEventHandler<ProductionOrderCancelledEvent>>(sp => sp.GetRequiredService<ProductionOrderAuditHandler>());
 
+        services.AddScoped<ProcurementAuditHandler>();
+        services.AddScoped<IDomainEventHandler<PurchaseOrderApprovedEvent>>(sp => sp.GetRequiredService<ProcurementAuditHandler>());
+        services.AddScoped<IDomainEventHandler<PurchaseOrderClosedEvent>>(sp => sp.GetRequiredService<ProcurementAuditHandler>());
+        services.AddScoped<IDomainEventHandler<PurchaseOrderCancelledEvent>>(sp => sp.GetRequiredService<ProcurementAuditHandler>());
+
         services.AddScoped<SalesOrderAuditHandler>();
         services.AddScoped<IDomainEventHandler<SalesOrderApprovedEvent>>(sp => sp.GetRequiredService<SalesOrderAuditHandler>());
         services.AddScoped<IDomainEventHandler<SalesOrderDispatchedEvent>>(sp => sp.GetRequiredService<SalesOrderAuditHandler>());
+        services.AddScoped<IDomainEventHandler<SalesOrderClosedEvent>>(sp => sp.GetRequiredService<SalesOrderAuditHandler>());
+        services.AddScoped<IDomainEventHandler<SalesOrderCancelledEvent>>(sp => sp.GetRequiredService<SalesOrderAuditHandler>());
 
         services.AddScoped<InventoryAuditHandler>();
         services.AddScoped<IDomainEventHandler<StockAdjustedEvent>>(sp => sp.GetRequiredService<InventoryAuditHandler>());
@@ -152,11 +159,12 @@ public static class OrganizationPersistenceRegistration
                 provider.GetService<IOrganizationClock>()),
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
             provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
+        services.AddScoped<IReportingQueryStore>(provider => new SqlReportingQueryStore(
+            () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+            provider.GetService<IErrorLogRecorder>(),
+            provider.GetService<IOperationContextAccessor>()));
         services.AddScoped<ReportingUseCases>(provider => new ReportingUseCases(
-            new SqlReportingQueryStore(
-                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
-                provider.GetService<IErrorLogRecorder>(),
-                provider.GetService<IOperationContextAccessor>()),
+            provider.GetRequiredService<IReportingQueryStore>(),
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
             provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
         services.AddScoped<QualityUseCases>(provider => new QualityUseCases(
@@ -184,11 +192,12 @@ public static class OrganizationPersistenceRegistration
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
             provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>(),
             provider.GetService<TimeProvider>()));
+        services.AddScoped<IRoutingOperationsStore>(provider => new SqlRoutingOperationsStore(
+            () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+            provider.GetService<IErrorLogRecorder>(),
+            provider.GetService<IOperationContextAccessor>()));
         services.AddScoped<RoutingUseCases>(provider => new RoutingUseCases(
-            new SqlRoutingOperationsStore(
-                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
-                provider.GetService<IErrorLogRecorder>(),
-                provider.GetService<IOperationContextAccessor>()),
+            provider.GetRequiredService<IRoutingOperationsStore>(),
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
             provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>()));
         services.AddScoped<IStockReservationStore>(provider => new SqlStockReservationStore(
@@ -214,11 +223,14 @@ public static class OrganizationPersistenceRegistration
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
             provider.GetService<IUserOperationRecorder>(), provider.GetService<IOperationContextAccessor>(),
             provider.GetService<TimeProvider>()));
+        services.AddScoped<IDashboardQueryStore>(provider => new SqlDashboardQueryStore(
+            () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
+            provider.GetService<IErrorLogRecorder>(),
+            provider.GetService<IOperationContextAccessor>(),
+            provider.GetService<IReportingQueryStore>(),
+            provider.GetService<IRoutingOperationsStore>()));
         services.AddScoped<DashboardUseCases>(provider => new DashboardUseCases(
-            new SqlDashboardQueryStore(
-                () => provider.GetRequiredService<IDbContextFactory<OrganizationDbContext>>(),
-                provider.GetService<IErrorLogRecorder>(),
-                provider.GetService<IOperationContextAccessor>()),
+            provider.GetRequiredService<IDashboardQueryStore>(),
             provider.GetService<ITrustedActorAccessor>(), provider.GetService<IOrganizationPermissionEvaluator>(),
             provider.GetService<TimeProvider>(),
             provider.GetService<IOrganizationClock>()));

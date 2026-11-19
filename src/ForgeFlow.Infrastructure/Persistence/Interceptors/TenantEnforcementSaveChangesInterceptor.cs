@@ -54,6 +54,9 @@ public sealed class TenantEnforcementSaveChangesInterceptor : SaveChangesInterce
         OrganizationDbContext.ValidateEntries(entries);
 
         // Strict Multi-Tenant Isolation Enforcement (Guardrail FFA-010)
+        var addedNewOrgs = entries.Where(e => e.Entity is Organization && e.State == EntityState.Added)
+            .Select(e => (Organization)e.Entity).ToHashSet();
+
         foreach (var entry in entries)
         {
             var entityOrgId = OrganizationDbContext.ResolveEntityOrganizationId(entry.Entity);
@@ -61,6 +64,14 @@ public sealed class TenantEnforcementSaveChangesInterceptor : SaveChangesInterce
             // New Organization entities receive their ID upon SQL Server insert identity generation.
             if (entry.Entity is Organization && entry.State == EntityState.Added)
                 continue;
+
+            // When creating a new organization graph with child entities (e.g. Site) in the same save,
+            // the child entities have OrganizationId == 0 until SQL Server identity generation fixup.
+            if (entityOrgId <= 0 && entry.State == EntityState.Added && addedNewOrgs.Count > 0)
+            {
+                if (entry.Entity is Site site && addedNewOrgs.Any(o => o.Sites.Contains(site)))
+                    continue;
+            }
 
             if (entityOrgId <= 0)
                 throw new InvalidOperationException(OrganizationAccessErrors.AccessDenied);

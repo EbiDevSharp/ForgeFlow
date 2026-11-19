@@ -23,6 +23,7 @@
 @inject CulturePolicy Culture
 @inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
+@inject ILogger<PurchaseOrders> Logger
 
 <PageTitle>@Text["PurchaseOrders"] - @Text["AppTitle"]</PageTitle>
 
@@ -851,7 +852,11 @@
         catch (OperationCanceledException)
         {
         }
-        catch { pageError = "ReadError"; }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to initialize purchase orders page.");
+            pageError = "ReadError";
+        }
         finally
         {
             if (ReferenceEquals(_loadCts, cts))

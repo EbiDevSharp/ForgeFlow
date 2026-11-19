@@ -3,9 +3,11 @@ using System.Reflection;
 using System.Xml.Linq;
 using Bit.BlazorUI;
 using ForgeFlow.Application.Audit;
+using ForgeFlow.Application.Common;
 using ForgeFlow.Application.Organizations;
 using ForgeFlow.Domain.Audit;
 using ForgeFlow.Domain.Roles;
+using ForgeFlow.Infrastructure.Common;
 using ForgeFlow.Infrastructure.Identity;
 using ForgeFlow.Web.Components.Pages;
 using ForgeFlow.Web.Localization;
@@ -143,6 +145,8 @@ public sealed class AuditTests
 
         services.AddSingleton(new CulturePolicy());
         services.AddSingleton<DisplayFormatter>();
+        services.AddSingleton<IOrganizationClock, OrganizationClock>();
+        services.AddSingleton<IOrganizationTimeZoneProvider, DefaultOrganizationTimeZoneProvider>();
         services.AddSingleton<IStringLocalizer<SharedResources>>(new CatalogLocalizer(catalog));
         services.AddSingleton<NavigationManager>(new FakeNav("https://localhost:5001/organizations/1/audit"));
 

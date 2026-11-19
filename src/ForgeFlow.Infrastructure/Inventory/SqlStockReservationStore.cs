@@ -100,7 +100,7 @@ public sealed class SqlStockReservationStore(
         long baseUnitId,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(request.OrganizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(orgCheck.Error!);
@@ -111,7 +111,7 @@ public sealed class SqlStockReservationStore(
         var so = await db.SalesOrders.Include(x => x.Lines)
             .SingleOrDefaultAsync(x => x.OrganizationId == request.OrganizationId && x.Id == request.SalesOrderId, ct);
         if (so is null) return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.ProductionOrderInvalid);
-        if (so.Status is not (Domain.Sales.SalesOrderStatus.Approved or Domain.Sales.SalesOrderStatus.PartiallyDispatched))
+        if (!so.CanReserveStock)
             return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.ReservationNotAllowedForOrderState);
 
         if (request.SalesOrderLineId is > 0 && !so.Lines.Any(l => l.Id == request.SalesOrderLineId.Value && l.ItemId == request.ItemId))
@@ -209,7 +209,7 @@ public sealed class SqlStockReservationStore(
         long baseUnitId,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(request.OrganizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(orgCheck.Error!);
@@ -218,7 +218,7 @@ public sealed class SqlStockReservationStore(
             .FromSqlInterpolated($"SELECT * FROM [organization].[ProductionOrder] WITH (UPDLOCK, ROWLOCK) WHERE [OrganizationId] = {request.OrganizationId} AND [Id] = {request.ProductionOrderId}")
             .SingleOrDefaultAsync(ct);
         if (po is null) return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.ProductionOrderInvalid);
-        if (po.Status is not (ProductionOrderStatus.Released or ProductionOrderStatus.InProgress))
+        if (!po.CanReserveStock)
             return OrganizationResult<IReadOnlyList<StockReservationSummary>>.Failure(InventoryErrors.ReservationNotAllowedForOrderState);
 
         var site = await db.Sites.AsNoTracking().SingleOrDefaultAsync(s => s.OrganizationId == request.OrganizationId && s.Id == po.SiteId, ct);
@@ -313,7 +313,7 @@ public sealed class SqlStockReservationStore(
         byte[] version,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<StockReservationSummary>.Failure(orgCheck.Error!);
@@ -505,10 +505,10 @@ public sealed class SqlStockReservationStore(
     }
 
     private async Task<OrganizationResult<T>> Write<T>(
+        long organizationId,
         OrganizationWriteAccess access,
         Func<OrganizationDbContext, Task<OrganizationResult<T>>> operation,
-        CancellationToken ct,
-        long? organizationId = null)
+        CancellationToken ct)
     {
         const int maxRetries = StockConcurrencyRetryPolicy.DefaultMaxRetries;
         for (var attempt = 0; attempt < maxRetries; attempt++)
@@ -520,7 +520,7 @@ public sealed class SqlStockReservationStore(
             try
             {
                 await using var db = await Factory.CreateDbContextAsync(ct);
-                if (organizationId.HasValue) db.CurrentOrganizationId = organizationId.Value;
+                db.CurrentOrganizationId = organizationId;
                 await using var transaction = await db.Database.BeginTransactionAsync(ct);
                 var result = await operation(db);
                 if (!result.Succeeded) return result;
@@ -560,13 +560,9 @@ public sealed class SqlStockReservationStore(
         return OrganizationResult<T>.Failure(InventoryErrors.ConcurrencyConflict);
     }
 
-    private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
-    {
-        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT [Id] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {organizationId}", ct);
-        var org = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().SingleOrDefaultAsync(o => o.Id == organizationId, ct);
-        if (org is null || !org.IsActive) return (false, InventoryErrors.ParentOrganizationInactive);
-        return (true, null);
-    }
+    private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
+        => OrganizationActivityGuard.RequireActiveOrganizationAsync(
+            db, organizationId, InventoryErrors.ParentOrganizationInactive, InventoryErrors.ParentOrganizationInactive, ct);
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
         => entity is ForgeFlow.Domain.Common.IHasRowVersion hasVersion && hasVersion.RowVersion.Length > 0

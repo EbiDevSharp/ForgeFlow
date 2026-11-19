@@ -241,13 +241,13 @@ public sealed class SaveChangesInterceptorPipelineTests
             notes: "Test PO");
 
         po.Release(now);
-        Assert.Equal(2, po.DomainEvents.Count);
+        Assert.Single(po.DomainEvents);
 
         db.ProductionOrders.Add(po);
 
         await db.SaveChangesAsync();
 
-        Assert.Equal(2, dispatcher.DispatchedEvents.Count);
+        Assert.Single(dispatcher.DispatchedEvents);
         Assert.Contains(dispatcher.DispatchedEvents, e => e is ProductionOrderReleasedEvent released && released.OrderNumber == "PO-DISP-01");
         Assert.Empty(po.DomainEvents);
     }

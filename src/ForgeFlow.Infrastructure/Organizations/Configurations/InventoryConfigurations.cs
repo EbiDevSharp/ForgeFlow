@@ -12,7 +12,7 @@ using static ForgeFlow.Infrastructure.Organizations.Configurations.OrganizationM
 
 namespace ForgeFlow.Infrastructure.Organizations.Configurations;
 
-internal sealed class WarehouseConfiguration : IEntityTypeConfiguration<Warehouse>
+internal sealed class WarehouseConfiguration : IEntityTypeConfiguration<Warehouse>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<Warehouse> wh)
     {
@@ -35,7 +35,7 @@ internal sealed class WarehouseConfiguration : IEntityTypeConfiguration<Warehous
     }
 }
 
-internal sealed class InventoryTransactionConfiguration : IEntityTypeConfiguration<InventoryTransaction>
+internal sealed class InventoryTransactionConfiguration : IEntityTypeConfiguration<InventoryTransaction>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<InventoryTransaction> txn)
     {
@@ -95,7 +95,7 @@ internal sealed class InventoryTransactionConfiguration : IEntityTypeConfigurati
     }
 }
 
-internal sealed class InventoryLedgerEntryConfiguration : IEntityTypeConfiguration<InventoryLedgerEntry>
+internal sealed class InventoryLedgerEntryConfiguration : IEntityTypeConfiguration<InventoryLedgerEntry>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<InventoryLedgerEntry> ledger)
     {
@@ -144,7 +144,7 @@ internal sealed class InventoryLedgerEntryConfiguration : IEntityTypeConfigurati
     }
 }
 
-internal sealed class InventoryBalanceConfiguration : IEntityTypeConfiguration<InventoryBalance>
+internal sealed class InventoryBalanceConfiguration : IEntityTypeConfiguration<InventoryBalance>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<InventoryBalance> bal)
     {
@@ -185,7 +185,7 @@ internal sealed class InventoryBalanceConfiguration : IEntityTypeConfiguration<I
     }
 }
 
-internal sealed class ItemLotConfiguration : IEntityTypeConfiguration<ItemLot>
+internal sealed class ItemLotConfiguration : IEntityTypeConfiguration<ItemLot>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<ItemLot> itemLot)
     {
@@ -214,7 +214,7 @@ internal sealed class ItemLotConfiguration : IEntityTypeConfiguration<ItemLot>
     }
 }
 
-internal sealed class StockReservationConfiguration : IEntityTypeConfiguration<StockReservation>
+internal sealed class StockReservationConfiguration : IEntityTypeConfiguration<StockReservation>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<StockReservation> sr)
     {

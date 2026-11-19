@@ -1,6 +1,8 @@
 @using ForgeFlow.Application.BusinessPartners
 @using ForgeFlow.Application.Organizations
 @using ForgeFlow.Domain.BusinessPartners
+@using ForgeFlow.Web.Common
+@implements IDisposable
 @inject BusinessPartnerUseCases BpService
 @inject IStringLocalizer<SharedResources> Text
 @inject NavigationManager Navigation
@@ -184,7 +186,12 @@
     private int totalPages = 1;
     private List<PartnerLookupItem> items = [];
     private PartnerLookupItem? selectedItem;
-    private CancellationTokenSource? searchCts;
+    private readonly DebouncedSearchController _searchController = new(250);
+
+    public void Dispose()
+    {
+        _searchController.Dispose();
+    }
 
     private static readonly BitDialogClassStyles ModalClasses = new()
     {
@@ -253,40 +260,30 @@
         isOpen = true;
         search = string.Empty;
         currentPage = 1;
-        await LoadPageAsync(1);
+        await _searchController.RunImmediateAsync(async ct => await LoadPageAsync(1, ct));
     }
 
-    private async Task OnSearchInputAsync(ChangeEventArgs e)
+    private Task OnSearchInputAsync(ChangeEventArgs e)
     {
-        search = e.Value?.ToString() ?? string.Empty;
-        searchCts?.Cancel();
-        searchCts = new CancellationTokenSource();
-        var token = searchCts.Token;
-
-        try
-        {
-            await Task.Delay(250, token);
-            if (!token.IsCancellationRequested)
-            {
-                await LoadPageAsync(1);
-            }
-        }
-        catch (TaskCanceledException) { }
+        return _searchController.OnInputDebouncedAsync(
+            e,
+            v => search = v,
+            async ct => await LoadPageAsync(1, ct));
     }
 
     private async Task ClearSearchAsync()
     {
         search = string.Empty;
-        await LoadPageAsync(1);
+        await _searchController.RunImmediateAsync(async ct => await LoadPageAsync(1, ct));
     }
 
     private async Task GoToPageAsync(int page)
     {
         if (page < 1 || page > totalPages) return;
-        await LoadPageAsync(page);
+        await _searchController.RunImmediateAsync(async ct => await LoadPageAsync(page, ct));
     }
 
-    private async Task LoadPageAsync(int page)
+    private async Task LoadPageAsync(int page, CancellationToken ct = default)
     {
         if (Scope is null || OrganizationId <= 0) return;
         loading = true;
@@ -295,7 +292,7 @@
 
         try
         {
-            var res = await BpService.SearchLookup(Scope, OrganizationId, new PartnerLookupQuery(search, Role, page, PageSize));
+            var res = await BpService.SearchLookup(Scope, OrganizationId, new PartnerLookupQuery(search, Role, page, PageSize), ct);
             if (res.Succeeded && res.Value is not null)
             {
                 items = res.Value.Items.ToList();
@@ -308,6 +305,10 @@
                 totalCount = 0;
                 totalPages = 1;
             }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Newer search supersedes this in-flight request
         }
         finally
         {

@@ -10,7 +10,7 @@ using static ForgeFlow.Infrastructure.Organizations.Configurations.OrganizationM
 
 namespace ForgeFlow.Infrastructure.Organizations.Configurations;
 
-internal sealed class ProductionOrderConfiguration : IEntityTypeConfiguration<ProductionOrder>
+internal sealed class ProductionOrderConfiguration : IEntityTypeConfiguration<ProductionOrder>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<ProductionOrder> po)
     {
@@ -85,7 +85,7 @@ internal sealed class ProductionOrderConfiguration : IEntityTypeConfiguration<Pr
     }
 }
 
-internal sealed class ProductionOrderInputConfiguration : IEntityTypeConfiguration<ProductionOrderInput>
+internal sealed class ProductionOrderInputConfiguration : IEntityTypeConfiguration<ProductionOrderInput>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<ProductionOrderInput> poInput)
     {
@@ -130,7 +130,7 @@ internal sealed class ProductionOrderInputConfiguration : IEntityTypeConfigurati
     }
 }
 
-internal sealed class ProductionOrderOutputConfiguration : IEntityTypeConfiguration<ProductionOrderOutput>
+internal sealed class ProductionOrderOutputConfiguration : IEntityTypeConfiguration<ProductionOrderOutput>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<ProductionOrderOutput> poOutput)
     {
@@ -165,7 +165,7 @@ internal sealed class ProductionOrderOutputConfiguration : IEntityTypeConfigurat
     }
 }
 
-internal sealed class ProductionOrderContextConfiguration : IEntityTypeConfiguration<ProductionOrderContext>
+internal sealed class ProductionOrderContextConfiguration : IEntityTypeConfiguration<ProductionOrderContext>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<ProductionOrderContext> poCtx)
     {
@@ -189,7 +189,7 @@ internal sealed class ProductionOrderContextConfiguration : IEntityTypeConfigura
     }
 }
 
-internal sealed class ProductionOrderOperationConfiguration : IEntityTypeConfiguration<ProductionOrderOperation>
+internal sealed class ProductionOrderOperationConfiguration : IEntityTypeConfiguration<ProductionOrderOperation>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<ProductionOrderOperation> poOp)
     {

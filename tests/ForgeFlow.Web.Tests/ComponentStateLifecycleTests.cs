@@ -50,8 +50,8 @@ public sealed class ComponentStateLifecycleTests
     [InlineData("Pages/Reports.razor", "selectedShortageItem.Orders")]
     [InlineData("Pages/Reports.razor", "selectedVarianceDetail.Inputs")]
     [InlineData("Pages/Reports.razor", "selectedVarianceDetail.Outputs")]
-    [InlineData("Pages/Boms.razor", "simExplosion.ConsumedInputs")]
-    [InlineData("Pages/Boms.razor", "simExplosion.ProducedOutputs")]
+    [InlineData("Pages/BomSections/BomSimulatorPanel.razor", "simExplosion.ConsumedInputs")]
+    [InlineData("Pages/BomSections/BomSimulatorPanel.razor", "simExplosion.ProducedOutputs")]
     [InlineData("Pages/BomSections/BomVersionWorkbenchModal.razor", "selectedVersion.Inputs")]
     [InlineData("Pages/BomSections/BomVersionWorkbenchModal.razor", "selectedVersion.Outputs")]
     [InlineData("Pages/Inventory.razor", "selectedTxn.Entries")]
@@ -108,24 +108,24 @@ public sealed class ComponentStateLifecycleTests
     {
         var boms = new Boms();
         var selectedBomField = typeof(Boms).GetField("selectedBom", BindingFlags.NonPublic | BindingFlags.Instance);
-        var simExplosionField = typeof(Boms).GetField("simExplosion", BindingFlags.NonPublic | BindingFlags.Instance);
-        var simResolutionField = typeof(Boms).GetField("simResolution", BindingFlags.NonPublic | BindingFlags.Instance);
-
         Assert.NotNull(selectedBomField);
+        boms.Dispose();
+        Assert.Null(selectedBomField.GetValue(boms));
+
+        var panel = new ForgeFlow.Web.Components.Pages.BomSections.BomSimulatorPanel();
+        var simExplosionField = typeof(ForgeFlow.Web.Components.Pages.BomSections.BomSimulatorPanel).GetField("simExplosion", BindingFlags.NonPublic | BindingFlags.Instance);
+        var simResolutionField = typeof(ForgeFlow.Web.Components.Pages.BomSections.BomSimulatorPanel).GetField("simResolution", BindingFlags.NonPublic | BindingFlags.Instance);
+
         Assert.NotNull(simExplosionField);
         Assert.NotNull(simResolutionField);
 
-        // Populate dummy state
         var dummyExplosion = new BomExplosionResultDto(1, "ITEM", "Item Name", 10m, 1, "EA", "EA", 1, 1, [], []);
-        simExplosionField.SetValue(boms, dummyExplosion);
-        Assert.NotNull(simExplosionField.GetValue(boms));
+        simExplosionField.SetValue(panel, dummyExplosion);
+        Assert.NotNull(simExplosionField.GetValue(panel));
 
-        // Call Dispose
-        boms.Dispose();
-
-        Assert.Null(selectedBomField.GetValue(boms));
-        Assert.Null(simExplosionField.GetValue(boms));
-        Assert.Null(simResolutionField.GetValue(boms));
+        panel.ClearResults();
+        Assert.Null(simExplosionField.GetValue(panel));
+        Assert.Null(simResolutionField.GetValue(panel));
     }
 
     [Fact]
@@ -199,15 +199,16 @@ public sealed class ComponentStateLifecycleTests
     public void Quality_Dispose_Cleans_SpecLines_And_Parameters()
     {
         var q = new Quality();
-        var editingSpecField = typeof(Quality).GetField("editingSpec", BindingFlags.NonPublic | BindingFlags.Instance);
         var specLinesField = typeof(Quality).GetField("specLines", BindingFlags.NonPublic | BindingFlags.Instance);
+        var activeWarehousesField = typeof(Quality).GetField("activeWarehouses", BindingFlags.NonPublic | BindingFlags.Instance);
 
-        Assert.NotNull(editingSpecField);
         Assert.NotNull(specLinesField);
+        Assert.NotNull(activeWarehousesField);
 
         q.Dispose();
 
-        Assert.Null(editingSpecField.GetValue(q));
+        var specLines = (System.Collections.IList)specLinesField.GetValue(q)!;
+        Assert.Empty(specLines);
     }
 
     [Fact]

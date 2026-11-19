@@ -112,7 +112,7 @@ public sealed class SqlSalesOperationsStore(
         CreateCustomerRequest request,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(request.OrganizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<CustomerSummary>.Failure(orgCheck.Error!);
@@ -146,7 +146,7 @@ public sealed class SqlSalesOperationsStore(
         byte[] version,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<CustomerSummary>.Failure(orgCheck.Error!);
@@ -171,7 +171,7 @@ public sealed class SqlSalesOperationsStore(
         byte[] version,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<CustomerSummary>.Failure(orgCheck.Error!);
@@ -294,7 +294,7 @@ public sealed class SqlSalesOperationsStore(
         IReadOnlyList<ResolvedSalesOrderLine> resolvedLines,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(request.OrganizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<SalesOrderDetails>.Failure(orgCheck.Error!);
@@ -366,7 +366,7 @@ public sealed class SqlSalesOperationsStore(
         byte[] version,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<SalesOrderDetails>.Failure(orgCheck.Error!);
@@ -424,7 +424,7 @@ public sealed class SqlSalesOperationsStore(
         byte[] version,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<SalesOrderDetails>.Failure(orgCheck.Error!);
@@ -448,7 +448,7 @@ public sealed class SqlSalesOperationsStore(
         byte[] version,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<SalesOrderDetails>.Failure(orgCheck.Error!);
@@ -474,7 +474,7 @@ public sealed class SqlSalesOperationsStore(
         byte[] version,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<SalesOrderDetails>.Failure(orgCheck.Error!);
@@ -679,7 +679,7 @@ public sealed class SqlSalesOperationsStore(
         IReadOnlyList<ResolvedDeliveryOrderLine> resolvedLines,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<DeliveryOrderDetails>.Failure(orgCheck.Error!);
@@ -866,7 +866,7 @@ public sealed class SqlSalesOperationsStore(
         byte[] version,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<DeliveryOrderDetails>.Failure(orgCheck.Error!);
@@ -885,8 +885,6 @@ public sealed class SqlSalesOperationsStore(
         var order = await db.SalesOrders.Include(o => o.Lines)
             .SingleOrDefaultAsync(o => o.OrganizationId == organizationId && o.Id == delivery.SalesOrderId, ct);
         if (order is null) return OrganizationResult<DeliveryOrderDetails>.Failure(SalesErrors.NotFound);
-        if (order.Status is SalesOrderStatus.Closed or SalesOrderStatus.Cancelled)
-            return OrganizationResult<DeliveryOrderDetails>.Failure(SalesErrors.InvalidTransition);
 
         delivery.Reverse(reason, utcNow);
 
@@ -1247,10 +1245,10 @@ public sealed class SqlSalesOperationsStore(
     }
 
     private async Task<OrganizationResult<T>> Write<T>(
+        long organizationId,
         OrganizationWriteAccess access,
         Func<OrganizationDbContext, Task<OrganizationResult<T>>> action,
-        CancellationToken ct,
-        long? organizationId = null)
+        CancellationToken ct)
     {
         const int maxRetries = StockConcurrencyRetryPolicy.DefaultMaxRetries;
         for (var attempt = 0; attempt < maxRetries; attempt++)
@@ -1262,7 +1260,7 @@ public sealed class SqlSalesOperationsStore(
             try
             {
                 await using var db = await dbFactory().CreateDbContextAsync(ct);
-                if (organizationId.HasValue) db.CurrentOrganizationId = organizationId.Value;
+                db.CurrentOrganizationId = organizationId;
                 await using var transaction = await db.Database.BeginTransactionAsync(ct);
                 var result = await action(db);
                 if (!result.Succeeded) return result;
@@ -1309,18 +1307,8 @@ public sealed class SqlSalesOperationsStore(
         return OrganizationResult<T>.Failure(SalesErrors.ConcurrencyConflict);
     }
 
-    private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
-    {
-        var active = await db.Database.SqlQueryRaw<bool>(
-            "SELECT [IsActive] AS [Value] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {0}", organizationId)
-            .SingleOrDefaultAsync(ct);
-        if (!active)
-        {
-            var exists = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().AnyAsync(o => o.Id == organizationId, ct);
-            return (false, exists ? SalesErrors.ParentOrganizationInactive : SalesErrors.NotFound);
-        }
-        return (true, null);
-    }
+    private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
+        => OrganizationActivityGuard.RequireActiveOrganizationAsync(db, organizationId, SalesErrors.ParentOrganizationInactive, SalesErrors.NotFound, ct);
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
         => entity is ForgeFlow.Domain.Common.IHasRowVersion hasVersion && hasVersion.RowVersion.Length > 0

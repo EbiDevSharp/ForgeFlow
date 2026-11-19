@@ -62,6 +62,7 @@ public sealed class SalesOrder : IHasRowVersion, IHasDomainEvents, IOrganization
     public long CustomerId { get; private set; }
     public string OrderNumber { get; private set; }
     public SalesOrderStatus Status { get; private set; } = SalesOrderStatus.Draft;
+    public bool CanReserveStock => Status is SalesOrderStatus.Approved or SalesOrderStatus.PartiallyDispatched;
     public DateOnly OrderDate { get; private set; }
     public DateOnly? RequestedDeliveryDate { get; private set; }
     public long? SourceWarehouseId { get; private set; }
@@ -150,7 +151,6 @@ public sealed class SalesOrder : IHasRowVersion, IHasDomainEvents, IOrganization
         Status = SalesOrderStatus.Approved;
         ApprovedAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
         _domainEvents.Add(new SalesOrderApprovedEvent(OrganizationId, SiteId, Id, OrderNumber, CalculateTotalAmount(), ApprovedAtUtc.Value));
-        _domainEvents.Add(new SalesOrderApprovedDomainEvent(OrganizationId, SiteId, OrderNumber, ApprovedAtUtc.Value));
     }
 
     public void RecordDispatch(long deliveryOrderId, string deliveryOrderNumber, DateTime utcNow)
@@ -207,7 +207,7 @@ public sealed class SalesOrder : IHasRowVersion, IHasDomainEvents, IOrganization
 
         Status = SalesOrderStatus.Closed;
         ClosedAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
-        _domainEvents.Add(new SalesOrderClosedDomainEvent(OrganizationId, SiteId, OrderNumber, ClosedAtUtc.Value));
+        _domainEvents.Add(new SalesOrderClosedEvent(OrganizationId, SiteId, Id, OrderNumber, ClosedAtUtc.Value));
     }
 
     public void Cancel(string? reason, DateTime utcNow)
@@ -221,13 +221,9 @@ public sealed class SalesOrder : IHasRowVersion, IHasDomainEvents, IOrganization
         CancellationReason = SalesText.RequiredReason(reason);
         Status = SalesOrderStatus.Cancelled;
         CancelledAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
-        _domainEvents.Add(new SalesOrderCancelledDomainEvent(OrganizationId, SiteId, OrderNumber, CancellationReason, CancelledAtUtc.Value));
+        _domainEvents.Add(new SalesOrderCancelledEvent(OrganizationId, SiteId, Id, OrderNumber, CancellationReason, CancelledAtUtc.Value));
     }
 
     public decimal CalculateTotalAmount()
         => _lines.Sum(l => l.OrderedQuantity * (l.UnitPrice ?? 0m));
 }
-
-public sealed record SalesOrderApprovedDomainEvent(long OrganizationId, long SiteId, string OrderNumber, DateTime OccurredAtUtc) : IDomainEvent;
-public sealed record SalesOrderClosedDomainEvent(long OrganizationId, long SiteId, string OrderNumber, DateTime OccurredAtUtc) : IDomainEvent;
-public sealed record SalesOrderCancelledDomainEvent(long OrganizationId, long SiteId, string OrderNumber, string Reason, DateTime OccurredAtUtc) : IDomainEvent;

@@ -123,7 +123,7 @@ public sealed class SqlBusinessPartnerStore(
             {
                 b,
                 RoleIds = b.Roles.Select(r => r.RoleId).ToList(),
-                RowVersion = EF.Property<byte[]>(b, "RowVersion")
+                RowVersion = b.RowVersion
             })
             .ToListAsync(ct);
 
@@ -144,7 +144,7 @@ public sealed class SqlBusinessPartnerStore(
             {
                 b,
                 Roles = b.Roles.Select(r => new BusinessPartnerRoleDto(r.RoleId, r.RoleDefinition != null ? r.RoleDefinition.Code : (r.RoleId == 1 ? "SUPPLIER" : r.RoleId == 2 ? "CUSTOMER" : "CONTRACTOR"), r.RoleDefinition != null ? r.RoleDefinition.Name : (r.RoleId == 1 ? "Supplier" : r.RoleId == 2 ? "Customer" : "Contractor"))).ToList(),
-                RowVersion = EF.Property<byte[]>(b, "RowVersion")
+                RowVersion = b.RowVersion
             })
             .SingleOrDefaultAsync(ct);
 
@@ -245,7 +245,7 @@ public sealed class SqlBusinessPartnerStore(
             r.RoleId == 1 ? "SUPPLIER" : r.RoleId == 2 ? "CUSTOMER" : "CONTRACTOR",
             r.RoleId == 1 ? "Supplier" : r.RoleId == 2 ? "Customer" : "Contractor")).ToList();
 
-        var ver = (byte[])db.Entry(partner).Property("RowVersion").CurrentValue!;
+        var ver = partner.RowVersion;
         return OrganizationResult<BusinessPartnerDetail>.Success(ToDetail(partner, rolesDto, ver));
     }, ct);
 
@@ -359,7 +359,7 @@ public sealed class SqlBusinessPartnerStore(
             r.RoleId == 1 ? "SUPPLIER" : r.RoleId == 2 ? "CUSTOMER" : "CONTRACTOR",
             r.RoleId == 1 ? "Supplier" : r.RoleId == 2 ? "Customer" : "Contractor")).ToList();
 
-        var ver = (byte[])db.Entry(partner).Property("RowVersion").CurrentValue!;
+        var ver = partner.RowVersion;
         return OrganizationResult<BusinessPartnerDetail>.Success(ToDetail(partner, rolesDto, ver));
     }, ct);
 
@@ -397,7 +397,7 @@ public sealed class SqlBusinessPartnerStore(
         }
 
         var roleIds = partner.Roles.Select(r => r.RoleId).ToList();
-        var ver = (byte[])db.Entry(partner).Property("RowVersion").CurrentValue!;
+        var ver = partner.RowVersion;
         return OrganizationResult<BusinessPartnerSummary>.Success(ToSummary(partner, roleIds, ver));
     }, ct);
 
@@ -449,23 +449,17 @@ public sealed class SqlBusinessPartnerStore(
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] expectedVersion)
     {
-        var current = (byte[])db.Entry(entity).Property("RowVersion").CurrentValue!;
+        var current = entity is ForgeFlow.Domain.Common.IHasRowVersion hasVersion && hasVersion.RowVersion.Length > 0
+            ? hasVersion.RowVersion
+            : (byte[])db.Entry(entity).Property("RowVersion").CurrentValue!;
         return StructuralComparisons.StructuralEqualityComparer.Equals(current, expectedVersion);
     }
 
-    private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(
+    private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(
         OrganizationDbContext db,
         long organizationId,
         CancellationToken ct)
-    {
-        var org = await db.Organizations
-            .FromSqlInterpolated($"SELECT * FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {organizationId}")
-            .SingleOrDefaultAsync(ct);
-
-        if (org is null) return (false, BusinessPartnerErrors.NotFound);
-        if (!org.IsActive) return (false, "BusinessPartner.ParentOrganizationInactive");
-        return (true, null);
-    }
+        => OrganizationActivityGuard.RequireActiveOrganizationAsync(db, organizationId, "BusinessPartner.ParentOrganizationInactive", BusinessPartnerErrors.NotFound, ct);
 
     public Task<OrganizationPage<PartnerLookupItem>> SearchLookup(
         long organizationId,

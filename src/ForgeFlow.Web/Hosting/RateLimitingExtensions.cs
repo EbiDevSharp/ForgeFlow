@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
+using ForgeFlow.Web.Authentication;
 using ForgeFlow.Web.Localization;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Localization;
 
 namespace ForgeFlow.Web.Hosting;
 
@@ -18,6 +20,11 @@ public static class RateLimitingExtensions
 
         if (!options.Enabled)
         {
+            services.AddRateLimiter(limiterOptions =>
+            {
+                limiterOptions.AddPolicy(RateLimitingPolicyNames.Auth, _ => RateLimitPartition.GetNoLimiter("no-limiter"));
+                limiterOptions.AddPolicy(RateLimitingPolicyNames.Export, _ => RateLimitPartition.GetNoLimiter("no-limiter"));
+            });
             return services;
         }
 
@@ -27,7 +34,6 @@ public static class RateLimitingExtensions
 
             // Auth policy (sliding window partitioned by client IP)
             ConfigureAuthPolicy(limiterOptions, RateLimitingPolicyNames.Auth, options.Auth);
-            ConfigureAuthPolicy(limiterOptions, RateLimitingPolicyNames.LegacyAuth, options.Auth);
 
             // Export policy (fixed window partitioned by User ID / Actor ID / IP)
             limiterOptions.AddPolicy(RateLimitingPolicyNames.Export, context =>
@@ -64,25 +70,18 @@ public static class RateLimitingExtensions
                     || httpContext.Request.Path.StartsWithSegments("/account")
                     || httpContext.Request.Path.StartsWithSegments("/api");
 
-                var isPersian = CultureInfo.CurrentUICulture.Name.StartsWith("fa", StringComparison.OrdinalIgnoreCase)
-                    || CultureInfo.CurrentCulture.Name.StartsWith("fa", StringComparison.OrdinalIgnoreCase);
-
                 var endpoint = httpContext.GetEndpoint();
                 var policyAttr = endpoint?.Metadata.GetMetadata<EnableRateLimitingAttribute>();
                 var isExport = policyAttr?.PolicyName == RateLimitingPolicyNames.Export
                     || httpContext.Request.Path.Value?.Contains("export", StringComparison.OrdinalIgnoreCase) == true;
 
-                var (code, enMessage, faMessage) = isExport
-                    ? (
-                        "Export.RateLimitExceeded",
-                        $"Too many export requests. Please try again in {retryAfterSeconds} seconds.",
-                        $"تعداد درخواست‌های دریافت گزارش و خروجی بیش از حد مجاز است. لطفاً {retryAfterSeconds} ثانیه دیگر دوباره تلاش کنید.")
-                    : (
-                        "Auth.RateLimitExceeded",
-                        $"Too many sign-in attempts. Please try again in {retryAfterSeconds} seconds.",
-                        $"تعداد تلاش‌های ورود بیش از حد مجاز است. لطفاً {retryAfterSeconds} ثانیه دیگر دوباره تلاش کنید.");
-
-                var message = isPersian ? faMessage : enMessage;
+                var code = isExport ? "Export.RateLimitExceeded" : "Auth.RateLimitExceeded";
+                var localizer = httpContext.RequestServices.GetService<IStringLocalizer<AuthenticationResources>>();
+                var message = localizer is not null && !localizer[code].ResourceNotFound
+                    ? localizer[code, retryAfterSeconds].Value
+                    : (isExport
+                        ? $"Too many export requests. Please try again in {retryAfterSeconds} seconds."
+                        : $"Too many sign-in attempts. Please try again in {retryAfterSeconds} seconds.");
 
                 if (isJson)
                 {

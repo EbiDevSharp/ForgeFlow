@@ -22,7 +22,7 @@
   <data name="Auth.PasskeyRemoved" xml:space="preserve"><value>کلید عبور حذف شد.</value></data>
   <data name="Auth.PasskeyInvalid" xml:space="preserve"><value>تأیید کلید عبور ناموفق بود. دوباره تلاش کنید.</value></data>
   <data name="Auth.PasskeyNotFound" xml:space="preserve"><value>کلید عبور مورد نظر یافت نشد.</value></data>
-  <data name="Auth.RateLimitExceeded" xml:space="preserve"><value>تعداد درخواست‌های احراز هویت بیش از حد مجاز است. لطفاً {0} ثانیه دیگر دوباره تلاش کنید.</value></data>
+  <data name="Auth.RateLimitExceeded" xml:space="preserve"><value>تعداد تلاش‌های ورود بیش از حد مجاز است. لطفاً {0} ثانیه دیگر دوباره تلاش کنید.</value></data>
   <data name="Export.RateLimitExceeded" xml:space="preserve"><value>تعداد درخواست‌های خروجی فایل بیش از حد مجاز است. لطفاً {0} ثانیه دیگر دوباره تلاش کنید.</value></data>
   <data name="Common.RateLimitExceeded" xml:space="preserve"><value>تعداد درخواست‌ها بیش از حد مجاز است. لطفاً {0} ثانیه دیگر دوباره تلاش کنید.</value></data>
   <data name="Auth.ConcurrentSessionLimitReached" xml:space="preserve"><value>حداکثر تعداد نشست‌های همزمان مجاز برای این حساب تکمیل شده است.</value></data>

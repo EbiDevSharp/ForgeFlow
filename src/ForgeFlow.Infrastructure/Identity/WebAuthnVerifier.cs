@@ -151,8 +151,9 @@ public static class WebAuthnVerifier
 
         var flags = authData[32];
         var userPresent = (flags & 0x01) != 0;
+        var userVerified = (flags & 0x04) != 0;
         var attested = (flags & 0x40) != 0;
-        if (!userPresent) return false;
+        if (!userPresent || !userVerified) return false;
         if (requireAttestedCredentialData && !attested) return false;
 
         signCount = BinaryPrimitives.ReadUInt32BigEndian(authData.AsSpan(33, 4));

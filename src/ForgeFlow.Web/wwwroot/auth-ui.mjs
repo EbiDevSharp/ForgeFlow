@@ -450,12 +450,12 @@ async function fetchJsonWithCsrf(url, bodyObj) {
     return response;
 }
 
-window.__forgeflowPasskeyRegister = async (displayName, unsupportedMsg) => {
+window.__forgeflowPasskeyRegister = async (displayName, currentPassword, unsupportedMsg) => {
     if (!window.PublicKeyCredential || !navigator.credentials?.create) {
         return { ok: false, message: unsupportedMsg || '' };
     }
     try {
-        const optResp = await fetchJsonWithCsrf('/account/passkey/register-options', {});
+        const optResp = await fetchJsonWithCsrf('/account/passkey/register-options', { currentPassword: currentPassword || '' });
         if (!optResp.ok) return { ok: false, message: await responseMessage(optResp, '') };
         const opts = await optResp.json();
         opts.challenge = b64UrlToBytes(opts.challenge);

@@ -8,7 +8,7 @@ using static ForgeFlow.Infrastructure.Organizations.Configurations.OrganizationM
 
 namespace ForgeFlow.Infrastructure.Organizations.Configurations;
 
-internal sealed class WorkCenterConfiguration : IEntityTypeConfiguration<WorkCenter>
+internal sealed class WorkCenterConfiguration : IEntityTypeConfiguration<WorkCenter>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<WorkCenter> workCenter)
     {
@@ -45,7 +45,7 @@ internal sealed class WorkCenterConfiguration : IEntityTypeConfiguration<WorkCen
     }
 }
 
-internal sealed class RoutingConfiguration : IEntityTypeConfiguration<Routing>
+internal sealed class RoutingConfiguration : IEntityTypeConfiguration<Routing>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<Routing> routing)
     {
@@ -91,7 +91,7 @@ internal sealed class RoutingConfiguration : IEntityTypeConfiguration<Routing>
     }
 }
 
-internal sealed class RoutingOperationConfiguration : IEntityTypeConfiguration<RoutingOperation>
+internal sealed class RoutingOperationConfiguration : IEntityTypeConfiguration<RoutingOperation>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<RoutingOperation> routingOp)
     {

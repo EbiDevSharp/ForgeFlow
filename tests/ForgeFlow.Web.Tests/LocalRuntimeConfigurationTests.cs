@@ -101,15 +101,35 @@ public sealed class LocalRuntimeConfigurationTests
         Assert.Equal("FF-RUNTIME-SmokeKeyDirectoryMustBeEmpty", error.Message);
     }
 
-    [Theory]
-    [InlineData("Production")]
-    [InlineData("Staging")]
-    public void Deployment_environments_ignore_local_smoke_configuration(string environment)
+    [Fact]
+    public void Staging_environment_ignores_local_smoke_configuration()
     {
-        var builder = CreateBuilder(environment, "invalid-fixture");
+        var builder = CreateBuilder("Staging", "invalid-fixture");
         var originalServices = builder.Services.ToArray();
         Assert.Null(LocalRuntimeConfiguration.Configure(builder));
         Assert.Equal(originalServices, builder.Services.ToArray());
+    }
+
+    [Fact]
+    public void Production_environment_requires_keyring_path()
+    {
+        var builder = CreateBuilder("Production", "invalid-fixture");
+        var ex = Assert.Throws<InvalidOperationException>(() => LocalRuntimeConfiguration.Configure(builder));
+        Assert.Contains("DataProtection:KeyRingPath", ex.Message);
+    }
+
+    [Fact]
+    public async Task Production_environment_configures_dataprotection_when_keyring_path_provided()
+    {
+        using var directory = new TestDirectory();
+        var builder = CreateBuilder("Production", null);
+        builder.Configuration["DataProtection:KeyRingPath"] = directory.Path;
+        Assert.Null(LocalRuntimeConfiguration.Configure(builder));
+        await using var app = builder.Build();
+        var keys = app.Services.GetRequiredService<IOptions<KeyManagementOptions>>().Value;
+        var repository = Assert.IsType<FileSystemXmlRepository>(keys.XmlRepository);
+        Assert.Equal(directory.Path, repository.Directory.FullName);
+        Assert.Equal("ForgeFlow", app.Services.GetRequiredService<IOptions<DataProtectionOptions>>().Value.ApplicationDiscriminator);
     }
 
     [Fact]

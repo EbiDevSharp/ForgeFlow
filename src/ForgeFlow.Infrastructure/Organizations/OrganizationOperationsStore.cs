@@ -66,7 +66,7 @@ public sealed class OrganizationOperationsStore(Func<IDbContextFactory<Organizat
     };
 
     public Task<OrganizationResult<OrganizationDetails>> CreateOrganization(CreateOrganization request, OrganizationWriteAccess access, CancellationToken ct)
-        => Write(access, async db =>
+        => Write(null, access, async db =>
         {
             var org = Organization.Create(request.Code, request.Name);
             db.Add(org);
@@ -75,7 +75,7 @@ public sealed class OrganizationOperationsStore(Func<IDbContextFactory<Organizat
         }, ct);
 
     public Task<OrganizationResult<SiteDetails>> CreateSite(CreateSite request, OrganizationWriteAccess access, CancellationToken ct)
-        => Write(access, async db =>
+        => Write(request.OrganizationId, access, async db =>
         {
             await Lock(db, request.OrganizationId, ct);
             var org = await db.Organizations.SingleOrDefaultAsync(o => o.Id == request.OrganizationId, ct);
@@ -86,7 +86,7 @@ public sealed class OrganizationOperationsStore(Func<IDbContextFactory<Organizat
         }, ct);
 
     public Task<OrganizationResult<OrganizationDetails>> UpdateOrganization(long id, byte[] version, OrganizationMutation mutation, string? name, OrganizationWriteAccess access, CancellationToken ct)
-        => Write(access, async db =>
+        => Write(id, access, async db =>
         {
             await Lock(db, id, ct);
             var org = await db.Organizations.SingleOrDefaultAsync(o => o.Id == id, ct);
@@ -104,7 +104,7 @@ public sealed class OrganizationOperationsStore(Func<IDbContextFactory<Organizat
         }, ct);
 
     public Task<OrganizationResult<SiteDetails>> UpdateSite(long organizationId, long id, byte[] version, OrganizationMutation mutation, string? name, OrganizationWriteAccess access, CancellationToken ct)
-        => Write(access, async db =>
+        => Write(organizationId, access, async db =>
         {
             await Lock(db, organizationId, ct);
             var org = await db.Organizations.SingleOrDefaultAsync(o => o.Id == organizationId, ct);
@@ -128,34 +128,39 @@ public sealed class OrganizationOperationsStore(Func<IDbContextFactory<Organizat
     private static Task Lock(OrganizationDbContext db, long id, CancellationToken ct)
         => db.Database.ExecuteSqlInterpolatedAsync($"SELECT [Id] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {id}", ct);
 
-    private async Task<OrganizationResult<T>> Write<T>(OrganizationWriteAccess access,
+    private async Task<OrganizationResult<T>> Write<T>(long? organizationId, OrganizationWriteAccess access,
         Func<OrganizationDbContext, Task<OrganizationResult<T>>> operation, CancellationToken ct)
     {
         try
         {
-            await using var strategyContext = await factory.CreateDbContextAsync(ct);
-            var strategy = strategyContext.Database.CreateExecutionStrategy();
-            return await strategy.ExecuteAsync(async () =>
+            using (organizationId.HasValue ? AmbientOrganizationAccessor.BeginScope(organizationId.Value) : null)
             {
-                // Revalidate on each attempt and discard its context/transaction before any replay.
-                if (!await access.Revalidate(ct)) return OrganizationResult<T>.Failure(OrganizationAccessErrors.AccessDenied);
-                var commitAttempted = false;
-                try
+                await using var strategyContext = await factory.CreateDbContextAsync(ct);
+                if (organizationId.HasValue) strategyContext.CurrentOrganizationId = organizationId.Value;
+                var strategy = strategyContext.Database.CreateExecutionStrategy();
+                return await strategy.ExecuteAsync(async () =>
                 {
-                    await using var db = await factory.CreateDbContextAsync(ct);
-                    await using var transaction = await db.Database.BeginTransactionAsync(ct);
-                    var result = await operation(db);
-                    if (!result.Succeeded) return result;
-                    commitAttempted = true;
-                    await transaction.CommitAsync(ct);
-                    return result;
-                }
-                catch (Exception ex) when (commitAttempted && ex is not OrganizationCommitOutcomeUnknownException)
-                {
-                    // Includes a disposal failure after a successful commit: never let a retry strategy replay it.
-                    throw new OrganizationCommitOutcomeUnknownException(ex);
-                }
-            });
+                    // Revalidate on each attempt and discard its context/transaction before any replay.
+                    if (!await access.Revalidate(ct)) return OrganizationResult<T>.Failure(OrganizationAccessErrors.AccessDenied);
+                    var commitAttempted = false;
+                    try
+                    {
+                        await using var db = await factory.CreateDbContextAsync(ct);
+                        if (organizationId.HasValue) db.CurrentOrganizationId = organizationId.Value;
+                        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+                        var result = await operation(db);
+                        if (!result.Succeeded) return result;
+                        commitAttempted = true;
+                        await transaction.CommitAsync(ct);
+                        return result;
+                    }
+                    catch (Exception ex) when (commitAttempted && ex is not OrganizationCommitOutcomeUnknownException)
+                    {
+                        // Includes a disposal failure after a successful commit: never let a retry strategy replay it.
+                        throw new OrganizationCommitOutcomeUnknownException(ex);
+                    }
+                });
+            }
         }
         catch (OrganizationSiteRuleException ex) { return OrganizationResult<T>.Failure(ex.Code, ex.Parameters); }
         catch (DbUpdateConcurrencyException) { return OrganizationResult<T>.Failure(OrganizationAccessErrors.ConcurrencyConflict); }

@@ -7,12 +7,15 @@ using System.Text;
 using ForgeFlow.Application.Users;
 using ForgeFlow.Infrastructure.Identity;
 using ForgeFlow.Web.Authentication;
+using ForgeFlow.Web.Hosting;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace ForgeFlow.Web.Tests;
@@ -165,7 +168,7 @@ public sealed class AccountSecurityTests
 
         var authData = new byte[32 + 1 + 4 + 16 + 2 + credId.Length + coseKey.Length];
         rpHash.CopyTo(authData, 0);
-        authData[32] = 0x41; // UP + AT
+        authData[32] = 0x45; // UP (0x01) + UV (0x04) + AT (0x40)
         BinaryPrimitives.WriteUInt32BigEndian(authData.AsSpan(33, 4), 1);
         BinaryPrimitives.WriteUInt16BigEndian(authData.AsSpan(53, 2), (ushort)credId.Length);
         credId.CopyTo(authData, 55);
@@ -186,15 +189,25 @@ public sealed class AccountSecurityTests
         Assert.Equal(WebAuthnVerifier.AlgEs256, verified!.Algorithm);
         Assert.Equal(credId, verified.CredentialId);
 
+        // F-01: Without User Verification (0x41 instead of 0x45), registration is rejected
+        var noUvAuthData = (byte[])authData.Clone();
+        noUvAuthData[32] = 0x41; // UP + AT, missing UV
+        var attWriterNoUv = new CborWriter();
+        attWriterNoUv.WriteStartMap(2);
+        attWriterNoUv.WriteTextString("fmt"); attWriterNoUv.WriteTextString("none");
+        attWriterNoUv.WriteTextString("authData"); attWriterNoUv.WriteByteString(noUvAuthData);
+        attWriterNoUv.WriteEndMap();
+        Assert.Null(WebAuthnVerifier.VerifyRegistration(regClientData, attWriterNoUv.Encode(), regChallenge, origin, rpId));
+
         // Wrong origin rejected
         Assert.Null(WebAuthnVerifier.VerifyRegistration(regClientData, attObj, regChallenge, "https://evil.example", rpId));
 
-        // Assertion with signCount = 2
+        // Assertion with signCount = 2, with UP (0x01) + UV (0x04) = 0x05
         var assertChallenge = WebAuthnVerifier.ToBase64Url(RandomNumberGenerator.GetBytes(32));
         var assertClientData = Encoding.UTF8.GetBytes($"{{\"type\":\"webauthn.get\",\"challenge\":\"{assertChallenge}\",\"origin\":\"{origin}\"}}");
         var assertAuthData = new byte[37];
         rpHash.CopyTo(assertAuthData, 0);
-        assertAuthData[32] = 0x01; // UP
+        assertAuthData[32] = 0x05; // UP + UV
         BinaryPrimitives.WriteUInt32BigEndian(assertAuthData.AsSpan(33, 4), 2);
 
         var clientHash = SHA256.HashData(assertClientData);
@@ -204,7 +217,118 @@ public sealed class AccountSecurityTests
         Assert.True(WebAuthnVerifier.VerifyAssertion(assertClientData, assertAuthData, sig, verified.PublicKeyCose, verified.Algorithm, 1, assertChallenge, origin, rpId, out var newCount));
         Assert.Equal(2, newCount);
 
+        // F-01: Assertion without User Verification (0x01 instead of 0x05) is rejected
+        var noUvAssertAuthData = (byte[])assertAuthData.Clone();
+        noUvAssertAuthData[32] = 0x01; // UP only, no UV
+        var noUvPayload = noUvAssertAuthData.Concat(clientHash).ToArray();
+        var noUvSig = key.SignData(noUvPayload, HashAlgorithmName.SHA256, DSASignatureFormat.Rfc3279DerSequence);
+        Assert.False(WebAuthnVerifier.VerifyAssertion(assertClientData, noUvAssertAuthData, noUvSig, verified.PublicKeyCose, verified.Algorithm, 1, assertChallenge, origin, rpId, out _));
+
         // SignCount replay (<= storedSignCount) rejected
         Assert.False(WebAuthnVerifier.VerifyAssertion(assertClientData, assertAuthData, sig, verified.PublicKeyCose, verified.Algorithm, 2, assertChallenge, origin, rpId, out _));
+    }
+
+    [Fact]
+    public void PasskeyChallengeStore_enforces_single_use_and_rejects_replay_or_expiration()
+    {
+        var store = new PasskeyChallengeStore();
+        var key = Guid.NewGuid().ToString("N");
+        var challenge = "test-challenge-123";
+
+        store.StoreChallenge(key, 42, challenge, TimeSpan.FromMinutes(2), stepUpVerified: true);
+
+        // First consume succeeds
+        var consumed = store.TryConsume(key, 42, out var consumedChallenge, out var stepUp);
+        Assert.True(consumed);
+        Assert.Equal(challenge, consumedChallenge);
+        Assert.True(stepUp);
+
+        // Immediate second consume fails (single-use / replay protection)
+        var replay = store.TryConsume(key, 42, out _, out _);
+        Assert.False(replay);
+
+        // Mismatched userId fails
+        var otherKey = Guid.NewGuid().ToString("N");
+        store.StoreChallenge(otherKey, 99, challenge, TimeSpan.FromMinutes(2), stepUpVerified: false);
+        Assert.False(store.TryConsume(otherKey, 100, out _, out _));
+
+        // Expired challenge fails
+        var expiredKey = Guid.NewGuid().ToString("N");
+        store.StoreChallenge(expiredKey, 42, challenge, TimeSpan.FromMilliseconds(-10), stepUpVerified: true);
+        Assert.False(store.TryConsume(expiredKey, 42, out _, out _));
+    }
+
+    [Fact]
+    public void PersonalDataProtector_encrypts_and_reads_backward_compatible_plaintext()
+    {
+        var services = new ServiceCollection();
+        services.AddDataProtection().UseEphemeralDataProtectionProvider();
+        using var sp = services.BuildServiceProvider();
+        var dp = sp.GetRequiredService<IDataProtectionProvider>();
+        var protector = new DataProtectionPersonalDataProtector(dp);
+
+        var secret = "JBSWY3DPEHPK3PXP";
+        var encrypted = protector.Protect(secret);
+        Assert.NotNull(encrypted);
+        Assert.StartsWith("ff-dp:v1:", encrypted, StringComparison.Ordinal);
+        Assert.NotEqual(secret, encrypted);
+
+        var decrypted = protector.Unprotect(encrypted);
+        Assert.Equal(secret, decrypted);
+
+        // Backward compatibility: existing plaintext rows without prefix unprotect seamlessly
+        var legacy = "LEGACY-UNENCRYPTED-SECRET";
+        var unprotectLegacy = protector.Unprotect(legacy);
+        Assert.Equal(legacy, unprotectLegacy);
+    }
+
+    [Fact]
+    public void RateLimiting_disabled_registers_no_limiters_for_all_policies()
+    {
+        var services = new ServiceCollection();
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["RateLimiting:Enabled"] = "false"
+            })
+            .Build();
+
+        services.AddLogging();
+        services.AddLocalization(o => o.ResourcesPath = "Resources");
+        services.AddForgeFlowRateLimiting(config);
+        using var sp = services.BuildServiceProvider();
+
+        var rateLimiterOptions = sp.GetRequiredService<IOptions<RateLimiterOptions>>().Value;
+        Assert.NotNull(rateLimiterOptions);
+        var options = sp.GetRequiredService<RateLimitingOptions>();
+        Assert.False(options.Enabled);
+    }
+
+    [Fact]
+    public async Task PasskeyRegisterOptions_requires_step_up_current_password()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddLocalization(o => o.ResourcesPath = "Resources");
+        services.AddDataProtection().UseEphemeralDataProtectionProvider();
+        services.AddAntiforgery();
+        services.AddAuthenticationBackend(new ConfigurationBuilder().Build());
+        using var sp = services.BuildServiceProvider();
+        using var scope = sp.CreateScope();
+
+        var csrf = scope.ServiceProvider.GetRequiredService<IAntiforgery>();
+        var sessions = scope.ServiceProvider.GetRequiredService<RuntimeSessions>();
+        var challengeStore = scope.ServiceProvider.GetRequiredService<PasskeyChallengeStore>();
+
+        var ctx = new DefaultHttpContext { RequestServices = scope.ServiceProvider };
+        ctx.Request.Scheme = "https";
+        ctx.Request.Method = "POST";
+        ctx.Request.ContentType = "application/json";
+        ctx.Response.Body = new MemoryStream();
+
+        var result = await AuthenticationBackend.PasskeyRegisterOptions(ctx, csrf, sessions, null!, challengeStore);
+        await result.ExecuteAsync(ctx);
+        // Missing CSRF token returns 400 RequestRejected
+        Assert.Equal(400, ctx.Response.StatusCode);
     }
 }

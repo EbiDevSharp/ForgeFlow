@@ -6,6 +6,7 @@
 @inject DisplayFormatter Format
 @inject IServiceProvider Services
 @inject NavigationManager Navigation
+@inject ILogger<NotificationBell> Logger
 
 <AuthorizeView>
     <Authorized>
@@ -152,7 +153,11 @@
             if (render)
                 StateHasChanged();
         }
-        catch { }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to refresh notification bell count/items.");
+        }
     }
 
     private void OnUserNotificationsChanged(long userId)

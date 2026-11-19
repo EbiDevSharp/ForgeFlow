@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -67,6 +68,9 @@ public sealed class RuntimeSessions(
     private readonly ConcurrentDictionary<long, ConcurrentDictionary<Guid, byte>> _userSessions = new();
     private readonly ConcurrentDictionary<Guid, SemaphoreSlim> _sessionLocks = new();
     private readonly ConcurrentDictionary<long, object> _userSyncRoots = new();
+    private readonly ConcurrentDictionary<long, UserPreferencesSnapshot> _userPreferencesCache = new();
+    private readonly ConcurrentDictionary<long, int?> _userIdleTimeoutCache = new();
+    private static readonly TimeSpan ValidationCacheWindow = TimeSpan.FromSeconds(20);
 
     public event Action<Guid, string>? SessionRevoked;
     public event Action<long, string>? UserSessionsRevoked;
@@ -159,6 +163,8 @@ public sealed class RuntimeSessions(
     public void RevokeUserSessions(long userId, string reason, string? exceptSecurityStamp = null, Guid? exceptSessionId = null)
     {
         permCache?.InvalidateUser(userId);
+        _userPreferencesCache.TryRemove(userId, out _);
+        _userIdleTimeoutCache.TryRemove(userId, out _);
         if (_userSessions.TryGetValue(userId, out var userSet))
         {
             foreach (var sId in userSet.Keys)
@@ -334,9 +340,133 @@ public sealed class RuntimeSessions(
                 return false;
             }
         }
-        return session.RevokedAtUtc is null && session.IssuedAtUtc <= now && session.ExpiresAtUtc > now
+        var isValid = session.RevokedAtUtc is null && session.IssuedAtUtc <= now && session.ExpiresAtUtc > now
             && reference.SecurityStamp == user.SecurityStamp && reference.SecurityStamp == session.SecurityStampSnapshot;
+
+        if (isValid)
+        {
+            if (_sessions.TryGetValue(session.Id, out var state))
+            {
+                state.LastActivityAtUtc = now;
+            }
+
+            if (now - session.LastActivityAtUtc >= TimeSpan.FromMinutes(2))
+            {
+                session.LastActivityAtUtc = now < session.IssuedAtUtc ? session.IssuedAtUtc : now;
+                if (_sessions.TryGetValue(session.Id, out var s))
+                {
+                    s.LastPersistedActivityAtUtc = session.LastActivityAtUtc;
+                }
+            }
+        }
+        return isValid;
     }
+
+    private static readonly ApplicationAccount s_dummyAccount = new();
+    private static readonly string s_dummyHash = new PasswordHasher<ApplicationAccount>().HashPassword(s_dummyAccount, "ForgeFlow#DummyPass123!");
+
+    private sealed class LoginThrottleState
+    {
+        public int Failures;
+        public DateTime LastFailureUtc;
+    }
+
+    private static readonly ConcurrentDictionary<string, LoginThrottleState> s_loginThrottles = new(StringComparer.Ordinal);
+
+    private static async Task ApplyLoginThrottlingAsync(string normalizedUser, string? clientIp, CancellationToken ct)
+    {
+        var key = $"{normalizedUser}:{clientIp ?? "unknown"}";
+        if (s_loginThrottles.TryGetValue(key, out var state))
+        {
+            var elapsed = DateTime.UtcNow - state.LastFailureUtc;
+            if (elapsed < TimeSpan.FromMinutes(5) && state.Failures >= 3)
+            {
+                var delayMs = Math.Min(2000, 250 * (1 << Math.Min(state.Failures - 3, 3)));
+                await Task.Delay(delayMs, ct);
+            }
+        }
+    }
+
+    private static void RecordLoginFailure(string normalizedUser, string? clientIp)
+    {
+        var key = $"{normalizedUser}:{clientIp ?? "unknown"}";
+        s_loginThrottles.AddOrUpdate(key,
+            _ => new LoginThrottleState { Failures = 1, LastFailureUtc = DateTime.UtcNow },
+            (_, existing) =>
+            {
+                var elapsed = DateTime.UtcNow - existing.LastFailureUtc;
+                if (elapsed > TimeSpan.FromMinutes(15))
+                    return new LoginThrottleState { Failures = 1, LastFailureUtc = DateTime.UtcNow };
+                return new LoginThrottleState { Failures = existing.Failures + 1, LastFailureUtc = DateTime.UtcNow };
+            });
+    }
+
+    private static bool IsIpThrottledForAccount(string normalizedUser, string? clientIp)
+    {
+        var key = $"{normalizedUser}:{clientIp ?? "unknown"}";
+        return s_loginThrottles.TryGetValue(key, out var state) && state.Failures >= 5 && (DateTime.UtcNow - state.LastFailureUtc) < TimeSpan.FromMinutes(5);
+    }
+
+    private static void ClearLoginFailure(string normalizedUser, string? clientIp)
+    {
+        var key = $"{normalizedUser}:{clientIp ?? "unknown"}";
+        s_loginThrottles.TryRemove(key, out _);
+    }
+
+    public const string TrustedDeviceLoginProvider = "ForgeFlow.2FA.TrustedDevice";
+
+    private static async Task<bool> IsDeviceTrustedAsync(AuthDbContext db, long userId, string? deviceToken, string? securityStamp, CancellationToken ct)
+    {
+        var tokenHash = ComputeDeviceTokenHash(deviceToken);
+        if (tokenHash is null || string.IsNullOrEmpty(securityStamp))
+            return false;
+
+        var record = await db.UserTokens.AsNoTracking()
+            .SingleOrDefaultAsync(t => t.UserId == userId && t.LoginProvider == TrustedDeviceLoginProvider && t.Name == tokenHash, ct);
+        if (record?.Value is null)
+            return false;
+
+        var parts = record.Value.Split('|');
+        if (parts.Length != 2)
+            return false;
+
+        if (!long.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var expTicks))
+            return false;
+
+        if (DateTimeOffset.UtcNow.UtcTicks > expTicks)
+            return false;
+
+        return string.Equals(parts[1], securityStamp, StringComparison.Ordinal);
+    }
+
+    private static async Task SaveTrustedDeviceAsync(AuthDbContext db, long userId, string deviceToken, string securityStamp, CancellationToken ct)
+    {
+        var tokenHash = ComputeDeviceTokenHash(deviceToken);
+        if (tokenHash is null || string.IsNullOrEmpty(securityStamp))
+            return;
+
+        var expTicks = DateTimeOffset.UtcNow.AddDays(30).UtcTicks;
+        var value = $"{expTicks}|{securityStamp}";
+
+        var existing = await db.UserTokens
+            .SingleOrDefaultAsync(t => t.UserId == userId && t.LoginProvider == TrustedDeviceLoginProvider && t.Name == tokenHash, ct);
+
+        if (existing is not null)
+        {
+            existing.Value = value;
+        }
+        else
+        {
+            db.UserTokens.Add(new IdentityUserToken<long>
+            {
+                UserId = userId,
+                LoginProvider = TrustedDeviceLoginProvider,
+                Name = tokenHash,
+                Value = value
+            });
+        }
+    }
+
     public async Task<SessionLoginResult> LoginAsync(string username, string password, CancellationToken ct = default, string? clientIp = null, string? initialCulture = null, string? userAgent = null, string? deviceToken = null, bool twoFactorDeviceTrusted = false)
     {
         var stage = "store-open";
@@ -348,29 +478,65 @@ public sealed class RuntimeSessions(
         {
             await using var scope = scopes.CreateAsyncScope(); var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
             var manager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationAccount>>();
-            await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
+
+            await db.Database.OpenConnectionAsync(ct);
             stage = "account-lookup";
             var correlation = Guid.NewGuid(); var now = Now;
             var validInput = username.Length is > 0 and <= 128 && password.Length is > 0 and <= 128
                 && username.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '.' or '_' or '-' or '@' or '+');
             var normalized = validInput ? manager.NormalizeName(username) : null;
-            var user = normalized is null ? null : await db.Users.FromSqlInterpolated($"SELECT * FROM [auth].[User] WITH (UPDLOCK,HOLDLOCK) WHERE [NormalizedUserName]={normalized}").SingleOrDefaultAsync(ct);
-            var allowed = user is not null && user.IsActive && !Locked(user,now);
+
+            if (normalized is not null)
+            {
+                await ApplyLoginThrottlingAsync(normalized, normalizedIp, ct);
+            }
+
+            var userCandidate = normalized is null
+                ? null
+                : await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.NormalizedUserName == normalized, ct);
+            var allowed = userCandidate is not null && userCandidate.IsActive && !Locked(userCandidate, now);
+
             stage = "credential-validation";
-            if (!allowed || !await manager.CheckPasswordAsync(user!,password))
+            bool passwordValid;
+            if (allowed && !string.IsNullOrEmpty(userCandidate!.PasswordHash))
+            {
+                passwordValid = manager.PasswordHasher.VerifyHashedPassword(userCandidate, userCandidate.PasswordHash, password) == PasswordVerificationResult.Success;
+            }
+            else
+            {
+                // Dummy PBKDF2 hash verification ensures constant execution time regardless of account existence/status
+                manager.PasswordHasher.VerifyHashedPassword(s_dummyAccount, s_dummyHash, password);
+                passwordValid = false;
+            }
+
+            if (!allowed || !passwordValid)
             {
                 logger.LogWarning("AUTH-LOGIN stage={Stage} outcome=rejected", stage);
-                if (allowed && user!.LockoutEnabled)
+                if (normalized is not null)
+                {
+                    RecordLoginFailure(normalized, normalizedIp);
+                }
+
+                await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+                var user = userCandidate is null
+                    ? null
+                    : await db.Users.FromSqlInterpolated($"SELECT * FROM [auth].[User] WITH (UPDLOCK,HOLDLOCK) WHERE [Id]={userCandidate.Id}").SingleOrDefaultAsync(ct);
+
+                var isThrottled = normalized is not null && IsIpThrottledForAccount(normalized, normalizedIp);
+                if (allowed && user is not null && user.LockoutEnabled)
                 {
                     stage = "identity-lockout-update";
                     var update = await manager.AccessFailedAsync(user);
                     if (!update.Succeeded) { logger.LogWarning("AUTH-LOGIN stage=identity-lockout-update outcome=unavailable codes={Codes}", string.Join(",", update.Errors.Select(error => error.Code))); return new("Auth.ServiceUnavailable"); }
-                    if (Locked(user,Now))
-                    { await Revoke(db,user.Id,"AccountLocked",Now,correlation,ct); Event(db,"AccountLocked",Now,correlation,user.Id); }
+                    if (Locked(user, Now))
+                    {
+                        await Revoke(db, user.Id, "AccountLocked", Now, correlation, ct);
+                        Event(db, "AccountLocked", Now, correlation, user.Id);
+                    }
                 }
-                else if (user is not null && (!user.IsActive || Locked(user,now)))
-                    await Revoke(db,user.Id,user.IsActive ? "AccountLocked" : "AccountDisabled",now,correlation,ct);
-                Event(db,"SignInFailed",now,correlation,user?.Id,outcome:1,dataJson:eventDataJson);
+                else if (user is not null && (!user.IsActive || Locked(user, now)))
+                    await Revoke(db, user.Id, user.IsActive ? "AccountLocked" : "AccountDisabled", now, correlation, ct);
+                Event(db, "SignInFailed", now, correlation, user?.Id, outcome: 1, dataJson: eventDataJson);
                 var notifiedFailure = false;
                 if (allowed && user is not null && user.AccessFailedCount >= 1)
                 {
@@ -386,53 +552,82 @@ public sealed class RuntimeSessions(
                         now,
                         ct);
                 }
-                await db.SaveChangesAsync(ct); if (!await Commit(tx,ct,[password, username])) return new("Auth.ServiceUnavailable");
+                await db.SaveChangesAsync(ct); if (!await Commit(tx, ct, [password, username])) return new("Auth.ServiceUnavailable");
                 if (notifiedFailure && user is not null) liveChannel?.NotifyUser(user.Id);
                 return new("Auth.LoginRejected");
             }
+
+            if (normalized is not null)
+            {
+                ClearLoginFailure(normalized, normalizedIp);
+            }
+
+            await using var successTx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var lockedUser = await db.Users.FromSqlInterpolated($"SELECT * FROM [auth].[User] WITH (UPDLOCK,HOLDLOCK) WHERE [Id]={userCandidate!.Id}").SingleOrDefaultAsync(ct);
+            if (lockedUser is null || !lockedUser.IsActive || Locked(lockedUser, now))
+            {
+                Event(db, "SignInFailed", now, correlation, lockedUser?.Id, outcome: 1, dataJson: eventDataJson);
+                await db.SaveChangesAsync(ct);
+                await Commit(successTx, ct, [password, username]);
+                return new("Auth.LoginRejected");
+            }
+
             stage = "identity-reset-failures";
-            var reset = await manager.ResetAccessFailedCountAsync(user!);
+            var reset = await manager.ResetAccessFailedCountAsync(lockedUser);
             if (!reset.Succeeded) { logger.LogWarning("AUTH-LOGIN stage=identity-reset-failures outcome=unavailable codes={Codes}", string.Join(",", reset.Errors.Select(error => error.Code))); return new("Auth.ServiceUnavailable"); }
 
-            if (user!.TwoFactorEnabled && !twoFactorDeviceTrusted)
+            if (lockedUser.TwoFactorEnabled)
             {
-                await db.SaveChangesAsync(ct);
-                if (!await Commit(tx, ct, [password, username])) return new("Auth.ServiceUnavailable");
-                return new("Auth.TwoFactorRequired", PendingUserId: user.Id, PendingSecurityStamp: user.SecurityStamp);
+                var isTrusted = twoFactorDeviceTrusted && await IsDeviceTrustedAsync(db, lockedUser.Id, deviceToken, lockedUser.SecurityStamp, ct);
+                if (!isTrusted)
+                {
+                    await db.SaveChangesAsync(ct);
+                    if (!await Commit(successTx, ct, [password, username])) return new("Auth.ServiceUnavailable");
+                    return new("Auth.TwoFactorRequired", PendingUserId: lockedUser.Id, PendingSecurityStamp: lockedUser.SecurityStamp);
+                }
             }
 
             stage = "session-save";
-            await Revoke(db,user!.Id,"StampChanged",Now,correlation,ct,user.SecurityStamp);
-            // Same account lock as recovery: stamp is read only after taking it.
-            var issued=Now;
-            var hasPriorSessions = await db.Sessions.AsNoTracking().AnyAsync(s => s.UserId == user.Id, ct);
+            await Revoke(db, lockedUser.Id, "StampChanged", Now, correlation, ct, lockedUser.SecurityStamp);
+            var issued = Now;
+            var hasPriorSessions = await db.Sessions.AsNoTracking().AnyAsync(s => s.UserId == lockedUser.Id, ct);
             var isKnownDevice = !hasPriorSessions || (deviceTokenHash is not null
-                ? await db.Sessions.AsNoTracking().AnyAsync(s => s.UserId == user.Id && s.DeviceTokenHash == deviceTokenHash, ct)
+                ? await db.Sessions.AsNoTracking().AnyAsync(s => s.UserId == lockedUser.Id && s.DeviceTokenHash == deviceTokenHash, ct)
                 : await db.Sessions.AsNoTracking().AnyAsync(s =>
-                    s.UserId == user.Id
+                    s.UserId == lockedUser.Id
                     && s.IpAddress == normalizedIp
                     && s.DeviceSummary == (userAgent == null ? null : deviceSummary), ct));
 
-            var limitError = await EnforceConcurrentSessionLimitAsync(db, user, issued, correlation, ct);
+            var limitError = await EnforceConcurrentSessionLimitAsync(db, lockedUser, issued, correlation, ct);
             if (limitError is not null)
             {
                 await db.SaveChangesAsync(ct);
-                if (!await Commit(tx, ct, [password, username])) return new("Auth.ServiceUnavailable");
+                if (!await Commit(successTx, ct, [password, username])) return new("Auth.ServiceUnavailable");
                 return new(limitError);
             }
 
-            var session = new AccountSession { Id = Guid.NewGuid(), UserId = user!.Id, SecurityStampSnapshot = user.SecurityStamp!,
-                IpAddress = normalizedIp, DeviceSummary = userAgent is null ? null : deviceSummary, DeviceTokenHash = deviceTokenHash, IsMobileDevice = isMobile,
-                IssuedAtUtc = issued, LastActivityAtUtc = issued, ExpiresAtUtc = issued.Add(Lifetime) };
+            var session = new AccountSession
+            {
+                Id = Guid.NewGuid(),
+                UserId = lockedUser.Id,
+                SecurityStampSnapshot = lockedUser.SecurityStamp!,
+                IpAddress = normalizedIp,
+                DeviceSummary = userAgent is null ? null : deviceSummary,
+                DeviceTokenHash = deviceTokenHash,
+                IsMobileDevice = isMobile,
+                IssuedAtUtc = issued,
+                LastActivityAtUtc = issued,
+                ExpiresAtUtc = issued.Add(Lifetime)
+            };
             db.Sessions.Add(session);
-            Event(db,"SessionIssued",session.IssuedAtUtc,correlation,user.Id,session.Id,true,dataJson:eventDataJson);
+            Event(db, "SessionIssued", session.IssuedAtUtc, correlation, lockedUser.Id, session.Id, true, dataJson: eventDataJson);
 
             var notifiedNewDevice = false;
             if (hasPriorSessions && !isKnownDevice)
             {
                 notifiedNewDevice = await TryQueueNotificationAsync(
                     db,
-                    user.Id,
+                    lockedUser.Id,
                     NotificationEventCatalog.NewDeviceSignIn,
                     NotificationCategory.Security,
                     NotificationSeverity.Warning,
@@ -443,15 +638,15 @@ public sealed class RuntimeSessions(
                     ct);
             }
 
-            var existingPref = await db.UserPreferences.SingleOrDefaultAsync(p => p.UserId == user.Id, ct);
+            var existingPref = await db.UserPreferences.SingleOrDefaultAsync(p => p.UserId == lockedUser.Id, ct);
             if (existingPref is null)
             {
-                var seedLanguage = UserPreferenceCatalog.NormalizeLanguage(user.PreferredCulture)
+                var seedLanguage = UserPreferenceCatalog.NormalizeLanguage(lockedUser.PreferredCulture)
                     ?? UserPreferenceCatalog.NormalizeLanguage(initialCulture)
                     ?? UserPreferenceCatalog.PersianLanguage;
                 existingPref = new UserPreference
                 {
-                    UserId = user.Id,
+                    UserId = lockedUser.Id,
                     Language = seedLanguage,
                     Theme = UserPreferenceCatalog.LightTheme,
                     CalendarSystem = UserPreferenceCatalog.DefaultCalendarForLanguage(seedLanguage),
@@ -462,14 +657,14 @@ public sealed class RuntimeSessions(
             }
 
             var notifiedTwoFactorReminder = false;
-            if (!user.TwoFactorEnabled && existingPref.TwoFactorOneTimeNotifiedAtUtc is null)
+            if (lockedUser.RequireTwoFactorSetup && !lockedUser.TwoFactorEnabled && existingPref.TwoFactorOneTimeNotifiedAtUtc is null)
             {
                 existingPref.TwoFactorOneTimeNotifiedAtUtc = issued;
                 existingPref.UpdatedAtUtc = issued < existingPref.CreatedAtUtc ? existingPref.CreatedAtUtc : issued;
                 notifiedTwoFactorReminder = await TryQueueNotificationAsync(
                     db,
-                    user.Id,
-                    NotificationEventCatalog.NewDeviceSignIn,
+                    lockedUser.Id,
+                    NotificationEventCatalog.TwoFactorSetupReminder,
                     NotificationCategory.Security,
                     NotificationSeverity.Info,
                     NotificationTemplateCatalog.TwoFactorReminder,
@@ -479,10 +674,10 @@ public sealed class RuntimeSessions(
                     ct);
             }
 
-            await db.SaveChangesAsync(ct); stage = "session-commit"; if (!await Commit(tx,ct,[password, username])) return new("Auth.ServiceUnavailable");
-            RegisterSessionInMemory(session.Id, user.Id, user.SecurityStamp!, session.IssuedAtUtc, session.ExpiresAtUtc, session.LastActivityAtUtc);
-            if (notifiedNewDevice || notifiedTwoFactorReminder) liveChannel?.NotifyUser(user.Id);
-            return new("Auth.SignedIn",new(user.Id,session.Id,user.SecurityStamp!,user.UserName),new DateTimeOffset(session.ExpiresAtUtc), RequireTwoFactorSetup: user.RequireTwoFactorSetup, RequirePasswordChange: user.RequirePasswordChange);
+            await db.SaveChangesAsync(ct); stage = "session-commit"; if (!await Commit(successTx, ct, [password, username])) return new("Auth.ServiceUnavailable");
+            RegisterSessionInMemory(session.Id, lockedUser.Id, lockedUser.SecurityStamp!, session.IssuedAtUtc, session.ExpiresAtUtc, session.LastActivityAtUtc);
+            if (notifiedNewDevice || notifiedTwoFactorReminder) liveChannel?.NotifyUser(lockedUser.Id);
+            return new("Auth.SignedIn", new(lockedUser.Id, session.Id, lockedUser.SecurityStamp!, lockedUser.UserName), new DateTimeOffset(session.ExpiresAtUtc), RequireTwoFactorSetup: lockedUser.RequireTwoFactorSetup, RequirePasswordChange: lockedUser.RequirePasswordChange);
         }
         catch (Exception e) when (AvailableFailure(e))
         {
@@ -541,11 +736,12 @@ public sealed class RuntimeSessions(
         if (reference.UserId <= 0 || reference.SessionId == Guid.Empty || string.IsNullOrEmpty(reference.SecurityStamp))
             return "Auth.SessionInvalid";
 
+        var now = Now;
         if (_sessions.TryGetValue(reference.SessionId, out var cachedState))
         {
             if (cachedState.IsRevoked)
                 return "Auth.SessionInvalid";
-            if (cachedState.ExpiresAtUtc <= Now)
+            if (cachedState.ExpiresAtUtc <= now)
             {
                 cachedState.MarkRevoked("Expired");
                 return "Auth.SessionInvalid";
@@ -555,33 +751,116 @@ public sealed class RuntimeSessions(
                 cachedState.MarkRevoked("StampChanged");
                 return "Auth.SessionInvalid";
             }
+            // Fast in-memory cache hit if validated within sliding window (F-02)
+            if (cachedState.LastValidatedAtUtc != default && now - cachedState.LastValidatedAtUtc < ValidationCacheWindow)
+            {
+                cachedState.LastActivityAtUtc = now;
+                return "Auth.Valid";
+            }
         }
 
         var sessionLock = _sessionLocks.GetOrAdd(reference.SessionId, _ => new SemaphoreSlim(1, 1));
         await sessionLock.WaitAsync(ct);
         try
         {
-            if (_sessions.TryGetValue(reference.SessionId, out var stateAfterLock) && stateAfterLock.IsRevoked)
-                return "Auth.SessionInvalid";
-
-            await using var scope = scopes.CreateAsyncScope(); var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-            await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,ct);
-            var valid = await Eligible(db,reference,Guid.NewGuid(),ct);
-            await db.SaveChangesAsync(ct); if (!await Commit(tx,ct)) return "Auth.ServiceUnavailable";
-
-            if (valid)
+            now = Now;
+            if (_sessions.TryGetValue(reference.SessionId, out var stateAfterLock))
             {
-                if (!_sessions.TryGetValue(reference.SessionId, out _))
+                if (stateAfterLock.IsRevoked)
+                    return "Auth.SessionInvalid";
+                if (stateAfterLock.LastValidatedAtUtc != default && now - stateAfterLock.LastValidatedAtUtc < ValidationCacheWindow)
                 {
-                    RegisterSessionInMemory(reference.SessionId, reference.UserId, reference.SecurityStamp, Now, Now.Add(Lifetime), Now);
+                    stateAfterLock.LastActivityAtUtc = now;
+                    return "Auth.Valid";
+                }
+            }
+
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+
+            // Non-blocking read committed user lookup without UPDLOCK/HOLDLOCK (F-02)
+            var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == reference.UserId, ct);
+            if (user is null)
+            {
+                RevokeSession(reference.SessionId, "ValidationFailed");
+                return "Auth.SessionInvalid";
+            }
+
+            var session = await db.Sessions.SingleOrDefaultAsync(s => s.Id == reference.SessionId && s.UserId == reference.UserId, ct);
+            if (session is null)
+            {
+                RevokeSession(reference.SessionId, "ValidationFailed");
+                return "Auth.SessionInvalid";
+            }
+
+            var correlation = Guid.NewGuid();
+            var reason = !user.IsActive ? "AccountDisabled" : Locked(user, now) ? "AccountLocked" : user.SecurityStamp != session.SecurityStampSnapshot ? "StampChanged" : null;
+            if (reason is not null)
+            {
+                await using var tx = await db.Database.BeginTransactionAsync(ct);
+                await Revoke(db, user.Id, reason, now, correlation, ct, user.SecurityStamp);
+                await db.SaveChangesAsync(ct);
+                await Commit(tx, ct);
+                return "Auth.SessionInvalid";
+            }
+
+            if (session.RevokedAtUtc is null)
+            {
+                if (!_userIdleTimeoutCache.TryGetValue(user.Id, out var idleTimeoutMinutes))
+                {
+                    idleTimeoutMinutes = await db.UserPreferences.AsNoTracking()
+                        .Where(p => p.UserId == user.Id)
+                        .Select(p => p.IdleTimeoutMinutes)
+                        .SingleOrDefaultAsync(ct);
+                    _userIdleTimeoutCache[user.Id] = idleTimeoutMinutes;
+                }
+
+                if (idleTimeoutMinutes is 15 or 30 or 60 && now - session.LastActivityAtUtc > TimeSpan.FromMinutes(idleTimeoutMinutes.Value))
+                {
+                    await using var tx = await db.Database.BeginTransactionAsync(ct);
+                    session.RevokedAtUtc = now < session.IssuedAtUtc ? session.IssuedAtUtc : now;
+                    session.RevokeReason = "IdleTimeout";
+                    Event(db, "SessionRevoked", now, correlation, user.Id, session.Id);
+                    await db.SaveChangesAsync(ct);
+                    await Commit(tx, ct);
+                    RevokeSession(session.Id, "IdleTimeout");
+                    return "Auth.SessionInvalid";
+                }
+            }
+
+            var isValid = session.RevokedAtUtc is null && session.IssuedAtUtc <= now && session.ExpiresAtUtc > now
+                && reference.SecurityStamp == user.SecurityStamp && reference.SecurityStamp == session.SecurityStampSnapshot;
+
+            if (!isValid)
+            {
+                RevokeSession(reference.SessionId, "ValidationFailed");
+                return "Auth.SessionInvalid";
+            }
+
+            // Persistence of throttled LastActivityAtUtc (>= 2 minutes elapsed)
+            if (now - session.LastActivityAtUtc >= TimeSpan.FromMinutes(2))
+            {
+                session.LastActivityAtUtc = now < session.IssuedAtUtc ? session.IssuedAtUtc : now;
+                await db.SaveChangesAsync(ct);
+            }
+
+            if (_sessions.TryGetValue(reference.SessionId, out var existingState))
+            {
+                existingState.LastActivityAtUtc = now;
+                existingState.LastValidatedAtUtc = now;
+                if (session.LastActivityAtUtc == now)
+                {
+                    existingState.LastPersistedActivityAtUtc = session.LastActivityAtUtc;
                 }
             }
             else
             {
-                RevokeSession(reference.SessionId, "ValidationFailed");
+                RegisterSessionInMemory(reference.SessionId, reference.UserId, reference.SecurityStamp, session.IssuedAtUtc, session.ExpiresAtUtc, session.LastActivityAtUtc);
+                if (_sessions.TryGetValue(reference.SessionId, out var s))
+                    s.LastValidatedAtUtc = now;
             }
 
-            return valid ? "Auth.Valid" : "Auth.SessionInvalid";
+            return "Auth.Valid";
         }
         catch (Exception e) when (AvailableFailure(e)) { Failure("validate-session", e, reference.SecurityStamp); Unavailable(); return "Auth.ServiceUnavailable"; }
         finally
@@ -771,7 +1050,12 @@ public sealed class RuntimeSessions(
                 });
             }
             await db.SaveChangesAsync(ct);
-            return await Commit(tx, ct) ? "Culture.ProfileSaved" : "Culture.ProfileSyncFailed";
+            var committed = await Commit(tx, ct);
+            if (committed)
+            {
+                _userPreferencesCache.TryRemove(reference.UserId, out _);
+            }
+            return committed ? "Culture.ProfileSaved" : "Culture.ProfileSyncFailed";
         }
         catch (Exception e) when (AvailableFailure(e)) { Failure("culture-preference", e, reference.SecurityStamp); Unavailable(); return "Culture.ProfileSyncFailed"; }
     }
@@ -779,6 +1063,9 @@ public sealed class RuntimeSessions(
     public async Task<UserPreferencesSnapshot?> GetPreferencesAsync(SessionReference reference, CancellationToken ct = default)
     {
         if (reference.UserId <= 0 || reference.SessionId == Guid.Empty) return null;
+        if (_userPreferencesCache.TryGetValue(reference.UserId, out var cached))
+            return cached;
+
         try
         {
             await using var scope = scopes.CreateAsyncScope();
@@ -808,7 +1095,9 @@ public sealed class RuntimeSessions(
             var calendar = UserPreferenceCatalog.NormalizeCalendar(row.CalendarSystem)
                 ?? UserPreferenceCatalog.DefaultCalendarForLanguage(language);
             var timeZone = UserPreferenceCatalog.NormalizeTimeZoneId(row.TimeZoneId) ?? UserPreferenceCatalog.DefaultTimeZoneId;
-            return new UserPreferencesSnapshot(language, theme, calendar, timeZone);
+            var snapshot = new UserPreferencesSnapshot(language, theme, calendar, timeZone);
+            _userPreferencesCache[reference.UserId] = snapshot;
+            return snapshot;
         }
         catch (Exception e) when (AvailableFailure(e))
         {
@@ -884,7 +1173,9 @@ public sealed class RuntimeSessions(
             if (!await Commit(tx, ct))
                 return new("Auth.ServiceUnavailable");
 
-            return new("Preferences.Saved", new UserPreferencesSnapshot(language, theme, calendar, timeZoneId));
+            var snapshot = new UserPreferencesSnapshot(language, theme, calendar, timeZoneId);
+            _userPreferencesCache[reference.UserId] = snapshot;
+            return new("Preferences.Saved", snapshot);
         }
         catch (Exception e) when (AvailableFailure(e))
         {
@@ -1309,7 +1600,12 @@ public sealed class RuntimeSessions(
             });
 
             await db.SaveChangesAsync(ct);
-            return await Commit(tx, ct) ? "Site.Switched" : "Auth.ServiceUnavailable";
+            var committed = await Commit(tx, ct);
+            if (committed)
+            {
+                _userPreferencesCache.TryRemove(reference.UserId, out _);
+            }
+            return committed ? "Site.Switched" : "Auth.ServiceUnavailable";
         }
         catch (Exception e) when (AvailableFailure(e))
         {
@@ -1943,7 +2239,11 @@ public sealed class RuntimeSessions(
             db.Sessions.Add(session);
             Event(db, "SessionIssued", session.IssuedAtUtc, correlation, user.Id, session.Id, true, dataJson: eventDataJson);
             if (rememberDevice)
+            {
+                if (!string.IsNullOrWhiteSpace(deviceToken))
+                    await SaveTrustedDeviceAsync(db, user.Id, deviceToken, user.SecurityStamp!, ct);
                 Event(db, "DeviceTrusted", session.IssuedAtUtc, correlation, user.Id, session.Id, true, dataJson: eventDataJson);
+            }
 
             var notifiedNewDevice = false;
             if (hasPriorSessions && !isKnownDevice)
@@ -2281,7 +2581,13 @@ public sealed class RuntimeSessions(
                 dataJson: JsonSerializer.Serialize(new { minutes }));
 
             await db.SaveChangesAsync(ct);
-            return await Commit(tx, ct) ? "Security.IdleTimeoutSaved" : "Auth.ServiceUnavailable";
+            var committed = await Commit(tx, ct);
+            if (committed)
+            {
+                _userIdleTimeoutCache[reference.UserId] = minutes;
+                return "Security.IdleTimeoutSaved";
+            }
+            return "Auth.ServiceUnavailable";
         }
         catch (Exception e) when (AvailableFailure(e))
         {
@@ -2469,6 +2775,27 @@ public sealed class RuntimeSessions(
         catch (Exception e) when (AvailableFailure(e))
         {
             Failure("passkey-remove", e, reference.SecurityStamp);
+            Unavailable();
+            return "Auth.ServiceUnavailable";
+        }
+    }
+
+    public async Task<string> RevokeTrustedDevicesAsync(SessionReference reference, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var tokens = await db.UserTokens.Where(t => t.UserId == reference.UserId && t.LoginProvider == TrustedDeviceLoginProvider).ToListAsync(ct);
+            if (tokens.Count > 0)
+            {
+                db.UserTokens.RemoveRange(tokens);
+                await db.SaveChangesAsync(ct);
+            }
+            return "Security.TrustedDevicesRevoked";
+        }
+        catch (Exception e) when (AvailableFailure(e))
+        {
             Unavailable();
             return "Auth.ServiceUnavailable";
         }

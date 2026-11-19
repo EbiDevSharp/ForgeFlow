@@ -8,4 +8,9 @@
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ForgeFlow.Web.Tests" />
+    <InternalsVisibleTo Include="ForgeFlow.LocalTestRecovery" />
+    <InternalsVisibleTo Include="ForgeFlow.LocalTestAccount" />
+  </ItemGroup>
 </Project>

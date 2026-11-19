@@ -343,13 +343,15 @@ public static class NotificationEventCatalog
     public const string FailedSignInAttempt = "FailedSignInAttempt";
     public const string RoleOrAccessChanged = "RoleOrAccessChanged";
     public const string MyProductionOrders = "MyProductionOrders";
+    public const string TwoFactorSetupReminder = "TwoFactorSetupReminder";
 
     public static IReadOnlyList<string> All { get; } =
     [
         NewDeviceSignIn,
         FailedSignInAttempt,
         RoleOrAccessChanged,
-        MyProductionOrders
+        MyProductionOrders,
+        TwoFactorSetupReminder
     ];
 
     public static string? Normalize(string? code)

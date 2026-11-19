@@ -1,6 +1,11 @@
 const ttl = 30 * 60 * 1000;
 const maximumBytes = 16384;
-const ENVELOPE_PREFIX = 'ff-sec-draft:';
+// NOTE (F-17): Client draft storage in sessionStorage uses lightweight XOR/Base64 obfuscation
+// to defend against casual shoulder-surfing and accidental inspection. It is intentionally NOT
+// strong cryptographic encryption. All sensitive fields (passwords, credentials, tokens, secrets,
+// authentication and card data) are strictly excluded from draft storage via isSensitive().
+const OBFUSCATION_PREFIX = 'ff-obf-draft:';
+const LEGACY_ENVELOPE_PREFIX = 'ff-sec-draft:';
 const SENSITIVE_PATTERN = /^(?=.*(password|secret|token|credential|auth|cvv|pin|card)).*$/i;
 
 let active;
@@ -26,7 +31,7 @@ function getTabKey() {
     }
 }
 
-function scramble(text, key) {
+function obfuscateDraft(text, key) {
     const encoder = new TextEncoder();
     const bytes = encoder.encode(text);
     const keyBytes = encoder.encode(key || 'ff-key');
@@ -38,15 +43,20 @@ function scramble(text, key) {
     for (let i = 0; i < out.length; i++) {
         binary += String.fromCharCode(out[i]);
     }
-    return ENVELOPE_PREFIX + btoa(binary);
+    return OBFUSCATION_PREFIX + btoa(binary);
 }
 
-function unscramble(encoded, key) {
-    if (!encoded || !encoded.startsWith(ENVELOPE_PREFIX)) {
+function deobfuscateDraft(encoded, key) {
+    let prefix = null;
+    if (encoded && encoded.startsWith(OBFUSCATION_PREFIX)) {
+        prefix = OBFUSCATION_PREFIX;
+    } else if (encoded && encoded.startsWith(LEGACY_ENVELOPE_PREFIX)) {
+        prefix = LEGACY_ENVELOPE_PREFIX;
+    } else {
         return encoded;
     }
     try {
-        const base64 = encoded.slice(ENVELOPE_PREFIX.length);
+        const base64 = encoded.slice(prefix.length);
         const binary = atob(base64);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) {
@@ -68,9 +78,9 @@ function unscramble(encoded, key) {
 export function decode(raw, definition, now = Date.now()) {
     if (raw === null || raw === undefined) return { status: 'Missing', snapshot: null };
     try {
-        if (typeof raw === 'string' && raw.startsWith(ENVELOPE_PREFIX)) {
-            raw = unscramble(raw, getTabKey());
-            if (raw === null) throw new Error('decrypt');
+        if (typeof raw === 'string' && (raw.startsWith(OBFUSCATION_PREFIX) || raw.startsWith(LEGACY_ENVELOPE_PREFIX))) {
+            raw = deobfuscateDraft(raw, getTabKey());
+            if (raw === null) throw new Error('deobfuscate');
         }
         if (raw.length > maximumBytes) throw new Error('size');
         const data = JSON.parse(raw);
@@ -120,7 +130,7 @@ function save() {
         const snapshot = capture();
         const plain = JSON.stringify({ version: active.definition.version, scope: active.definition.scope, savedAt: Date.now(), snapshot });
         if (decode(plain, active.definition).status !== 'Restored') throw new Error('invalid');
-        const protectedData = scramble(plain, getTabKey());
+        const protectedData = obfuscateDraft(plain, getTabKey());
         sessionStorage.setItem(active.key, protectedData);
         return true;
     } catch {
@@ -137,7 +147,9 @@ export function purgeExpiredDrafts(now = Date.now()) {
             if (k && k.startsWith('forgeflow.draft:')) {
                 const val = sessionStorage.getItem(k);
                 if (!val) { sessionStorage.removeItem(k); continue; }
-                const plain = val.startsWith(ENVELOPE_PREFIX) ? unscramble(val, key) : val;
+                const plain = (val.startsWith(OBFUSCATION_PREFIX) || val.startsWith(LEGACY_ENVELOPE_PREFIX))
+                    ? deobfuscateDraft(val, key)
+                    : val;
                 try {
                     const data = JSON.parse(plain);
                     if (!Number.isSafeInteger(data.savedAt) || now - data.savedAt > ttl) {

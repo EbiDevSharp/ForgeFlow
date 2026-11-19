@@ -356,6 +356,15 @@
                            placeholder="@Text["SecurityPasskeyNamePlaceholder"]"
                            @bind="newPasskeyName" />
                 </div>
+                <div class="sec-field">
+                    <label for="passkey-password">@Text["CurrentPasswordLabel"]</label>
+                    <input id="passkey-password"
+                           type="password"
+                           autocomplete="current-password"
+                           class="sec-text-input"
+                           placeholder="@Text["CurrentPasswordLabel"]"
+                           @bind="passkeyPassword" />
+                </div>
             </div>
             <div class="sec-modal-foot">
                 <BitButton Variant="BitVariant.Outline" IsEnabled="@(!busy)" OnClick="CloseAddPasskey">
@@ -396,6 +405,7 @@
 
     private bool showAddPasskeyDialog;
     private string newPasskeyName = string.Empty;
+    private string passkeyPassword = string.Empty;
     private sealed record JsPasskeyResult(bool ok, string? message);
 
     protected override async Task OnInitializedAsync()
@@ -602,6 +612,7 @@
     {
         dialogError = null;
         newPasskeyName = string.Empty;
+        passkeyPassword = string.Empty;
         showAddPasskeyDialog = true;
     }
 
@@ -609,6 +620,7 @@
     {
         showAddPasskeyDialog = false;
         newPasskeyName = string.Empty;
+        passkeyPassword = string.Empty;
         dialogError = null;
     }
 
@@ -617,12 +629,18 @@
         dialogError = null;
         errorMessage = null;
         statusMessage = null;
+        if (string.IsNullOrWhiteSpace(passkeyPassword))
+        {
+            dialogError = Text["SecurityErrorCurrentPassword"];
+            return;
+        }
         busy = true;
         try
         {
             var res = await JS.InvokeAsync<JsPasskeyResult>(
                 "window.__forgeflowPasskeyRegister",
                 newPasskeyName,
+                passkeyPassword,
                 Text["SecurityPasskeyUnsupported"].Value);
             if (!res.ok)
             {

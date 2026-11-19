@@ -197,7 +197,6 @@ public sealed class QualityInspection : IHasRowVersion, IHasDomainEvents, IOrgan
         if (Status == QualityInspectionStatus.Completed)
         {
             _domainEvents.Add(new QualityInspectionRecordedEvent(OrganizationId, SiteId, Id, InspectionNumber, DefectReasonCode ?? (RejectedBaseQuantity > 0 ? "Rejected" : "Accepted"), utcNow));
-            _domainEvents.Add(new QualityInspectionCompletedDomainEvent(OrganizationId, SiteId, InspectionNumber, utcNow));
         }
     }
 
@@ -214,7 +213,6 @@ public sealed class QualityInspection : IHasRowVersion, IHasDomainEvents, IOrgan
         InspectedAtUtc = utcNow;
         InspectedByActorId = actorId;
         Status = QualityInspectionStatus.Cancelled;
-        _domainEvents.Add(new QualityInspectionCancelledDomainEvent(OrganizationId, SiteId, InspectionNumber, utcNow));
     }
 
     private void EnsureMutable()
@@ -223,6 +221,3 @@ public sealed class QualityInspection : IHasRowVersion, IHasDomainEvents, IOrgan
             throw new QualityRuleException(QualityErrors.InspectionAlreadyTerminal);
     }
 }
-
-public sealed record QualityInspectionCompletedDomainEvent(long OrganizationId, long SiteId, string InspectionNumber, DateTime OccurredAtUtc) : IDomainEvent;
-public sealed record QualityInspectionCancelledDomainEvent(long OrganizationId, long SiteId, string InspectionNumber, DateTime OccurredAtUtc) : IDomainEvent;

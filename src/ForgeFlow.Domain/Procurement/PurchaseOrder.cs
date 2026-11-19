@@ -1,4 +1,5 @@
 using ForgeFlow.Domain.Common;
+using ForgeFlow.Domain.Events;
 
 namespace ForgeFlow.Domain.Procurement;
 
@@ -142,7 +143,7 @@ public sealed class PurchaseOrder : IHasRowVersion, IHasDomainEvents, IOrganizat
 
         Status = PurchaseOrderStatus.Approved;
         ApprovedAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
-        _domainEvents.Add(new PurchaseOrderApprovedDomainEvent(OrganizationId, SiteId, OrderNumber, ApprovedAtUtc.Value));
+        _domainEvents.Add(new PurchaseOrderApprovedEvent(OrganizationId, SiteId, Id, OrderNumber, CalculateTotalEstimatedAmount(), ApprovedAtUtc.Value));
     }
 
     public void ApplyReceipts(IReadOnlyList<(long LineId, decimal ReceivedBaseDelta)> receipts)
@@ -227,7 +228,7 @@ public sealed class PurchaseOrder : IHasRowVersion, IHasDomainEvents, IOrganizat
 
         Status = PurchaseOrderStatus.Closed;
         ClosedAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
-        _domainEvents.Add(new PurchaseOrderClosedDomainEvent(OrganizationId, SiteId, OrderNumber, ClosedAtUtc.Value));
+        _domainEvents.Add(new PurchaseOrderClosedEvent(OrganizationId, SiteId, Id, OrderNumber, ClosedAtUtc.Value));
     }
 
     public void Cancel(string? reason, DateTime utcNow)
@@ -242,13 +243,9 @@ public sealed class PurchaseOrder : IHasRowVersion, IHasDomainEvents, IOrganizat
         CancellationReason = ProcurementText.RequiredReason(reason);
         Status = PurchaseOrderStatus.Cancelled;
         CancelledAtUtc = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
-        _domainEvents.Add(new PurchaseOrderCancelledDomainEvent(OrganizationId, SiteId, OrderNumber, CancellationReason, CancelledAtUtc.Value));
+        _domainEvents.Add(new PurchaseOrderCancelledEvent(OrganizationId, SiteId, Id, OrderNumber, CancellationReason, CancelledAtUtc.Value));
     }
 
     public decimal CalculateTotalEstimatedAmount()
         => _lines.Sum(l => l.OrderedQuantity * (l.UnitPrice ?? 0m));
 }
-
-public sealed record PurchaseOrderApprovedDomainEvent(long OrganizationId, long SiteId, string OrderNumber, DateTime OccurredAtUtc) : IDomainEvent;
-public sealed record PurchaseOrderClosedDomainEvent(long OrganizationId, long SiteId, string OrderNumber, DateTime OccurredAtUtc) : IDomainEvent;
-public sealed record PurchaseOrderCancelledDomainEvent(long OrganizationId, long SiteId, string OrderNumber, string Reason, DateTime OccurredAtUtc) : IDomainEvent;

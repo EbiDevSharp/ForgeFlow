@@ -13,6 +13,7 @@
 @inject CulturePolicy Culture
 @inject DisplayFormatter Format
 @inject IJSRuntime JS
+@inject ForgeFlow.Application.Common.IOrganizationClock Clock
 @inject IStringLocalizer<SharedResources> Text
 
 <PageTitle>@Text["Audit"] - @Text["AppTitle"]</PageTitle>
@@ -116,7 +117,7 @@
                                Class="bom-dtp"
                                Culture="@Culture.PickerCulture"
                                DateFormat="@PickerDateFormat"
-                               MaxDate="@DateTimeOffset.Now"
+                               MaxDate="@MaxDate"
                                ShowTimePicker="false"
                                AllowTextInput="false"
                                AutoClose="true"
@@ -137,7 +138,7 @@
                                Class="bom-dtp"
                                Culture="@Culture.PickerCulture"
                                DateFormat="@PickerDateFormat"
-                               MaxDate="@DateTimeOffset.Now"
+                               MaxDate="@MaxDate"
                                ShowTimePicker="false"
                                AllowTextInput="false"
                                AutoClose="true"
@@ -441,6 +442,21 @@
             EventCodeFilter = string.Empty;
     }
 
+    private DateTimeOffset MaxDate
+    {
+        get
+        {
+            var orgId = SelectedScope switch
+            {
+                OrganizationScope.Organization o => o.OrganizationId,
+                OrganizationScope.Site s => s.OrganizationId,
+                _ => OrganizationId ?? 0
+            };
+            var tz = Clock.GetTimeZone(orgId);
+            return TimeZoneInfo.ConvertTime(Clock.UtcNowOffset, tz);
+        }
+    }
+
     private AuditListQuery BuildQuery(int page, int pageSize) => new(
         Category,
         string.IsNullOrWhiteSpace(EventCodeFilter) ? null : EventCodeFilter,
@@ -578,30 +594,58 @@
         FailureKey = null;
         try
         {
-            var cols = new CsvExportColumnHeaders(
-                [
-                    Text["AuditTimeColumn"],
-                    Text["AuditCategoryLabel"],
-                    Text["AuditEventColumn"],
-                    Text["AuditActorColumn"],
-                    Text["AuditSubjectColumn"],
-                    Text["AuditOutcomeColumn"],
-                    Text["AuditColSite"],
-                    Text["AuditColCorrelation"]
-                ],
-                $"{Text["AuditExportFileName"]}-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv");
-
-            var res = await AuditQueries.ExportAuditCsv(SelectedScope, BuildQuery(1, 100), cols);
-            if (!res.Succeeded)
+            var query = BuildQuery(1, 100);
+            var orgId = SelectedScope switch
             {
-                FailureKey = RolePermissionLocalization.FailureKey(res.Error!.Code);
-                return;
+                OrganizationScope.Organization o => o.OrganizationId,
+                OrganizationScope.Site s => s.OrganizationId,
+                _ => 0L
+            };
+            var queryParams = new List<string>
+            {
+                $"organizationId={orgId}"
+            };
+            if (SelectedScope is OrganizationScope.Site siteScope)
+            {
+                queryParams.Add($"siteId={siteScope.SiteId}");
+            }
+            if (query.Category != AuditCategory.All)
+            {
+                queryParams.Add($"category={query.Category}");
+            }
+            if (!string.IsNullOrWhiteSpace(query.EventCode))
+            {
+                queryParams.Add($"eventCode={Uri.EscapeDataString(query.EventCode)}");
+            }
+            if (!string.IsNullOrWhiteSpace(query.Search))
+            {
+                queryParams.Add($"search={Uri.EscapeDataString(query.Search)}");
+            }
+            if (query.ActorUserId is long uid && uid > 0)
+            {
+                queryParams.Add($"actorUserId={uid}");
+            }
+            if (query.OutcomeFilter != AuditOutcomeFilter.All)
+            {
+                queryParams.Add($"outcomeFilter={query.OutcomeFilter}");
+            }
+            if (query.FromDate is DateOnly from)
+            {
+                queryParams.Add($"fromDate={from:yyyy-MM-dd}");
+            }
+            if (query.ToDate is DateOnly to)
+            {
+                queryParams.Add($"toDate={to:yyyy-MM-dd}");
             }
 
-            var file = res.Value!;
+            var url = $"/api/export/audit?{string.Join("&", queryParams)}";
             downloadJs ??= await JS.InvokeAsync<IJSObjectReference>("import", "./report-download.js");
-            await downloadJs.InvokeVoidAsync("downloadBase64File", file.FileName, file.ContentType, Convert.ToBase64String(file.Bytes));
+            await downloadJs.InvokeVoidAsync("downloadFileFromUrl", url);
             PageNotice = Text["AuditExportSuccessNotice"];
+        }
+        catch
+        {
+            FailureKey = "AuditExportFailed";
         }
         finally
         {

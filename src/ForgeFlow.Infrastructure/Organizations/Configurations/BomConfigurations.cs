@@ -8,7 +8,7 @@ using static ForgeFlow.Infrastructure.Organizations.Configurations.OrganizationM
 
 namespace ForgeFlow.Infrastructure.Organizations.Configurations;
 
-internal sealed class BomConfiguration : IEntityTypeConfiguration<Bom>
+internal sealed class BomConfiguration : IEntityTypeConfiguration<Bom>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<Bom> bom)
     {
@@ -37,7 +37,7 @@ internal sealed class BomConfiguration : IEntityTypeConfiguration<Bom>
     }
 }
 
-internal sealed class BomVersionConfiguration : IEntityTypeConfiguration<BomVersion>
+internal sealed class BomVersionConfiguration : IEntityTypeConfiguration<BomVersion>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<BomVersion> ver)
     {
@@ -72,7 +72,7 @@ internal sealed class BomVersionConfiguration : IEntityTypeConfiguration<BomVers
     }
 }
 
-internal sealed class BomInputConfiguration : IEntityTypeConfiguration<BomInput>
+internal sealed class BomInputConfiguration : IEntityTypeConfiguration<BomInput>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<BomInput> bomInput)
     {
@@ -108,7 +108,7 @@ internal sealed class BomInputConfiguration : IEntityTypeConfiguration<BomInput>
     }
 }
 
-internal sealed class BomOutputConfiguration : IEntityTypeConfiguration<BomOutput>
+internal sealed class BomOutputConfiguration : IEntityTypeConfiguration<BomOutput>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<BomOutput> bomOutput)
     {
@@ -142,7 +142,7 @@ internal sealed class BomOutputConfiguration : IEntityTypeConfiguration<BomOutpu
     }
 }
 
-internal sealed class BomApplicabilityConfiguration : IEntityTypeConfiguration<BomApplicability>
+internal sealed class BomApplicabilityConfiguration : IEntityTypeConfiguration<BomApplicability>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<BomApplicability> app)
     {
@@ -166,7 +166,7 @@ internal sealed class BomApplicabilityConfiguration : IEntityTypeConfiguration<B
     }
 }
 
-internal sealed class BomApplicabilityConditionConfiguration : IEntityTypeConfiguration<BomApplicabilityCondition>
+internal sealed class BomApplicabilityConditionConfiguration : IEntityTypeConfiguration<BomApplicabilityCondition>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<BomApplicabilityCondition> cond)
     {

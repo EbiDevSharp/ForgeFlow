@@ -1,6 +1,7 @@
 using ForgeFlow.Application.Audit;
 using ForgeFlow.Application.Roles;
 using ForgeFlow.Application.Users;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -9,6 +10,72 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace ForgeFlow.Infrastructure.Identity;
+
+public sealed class DataProtectionLookupProtectorKeyRing : ILookupProtectorKeyRing
+{
+    private const string DefaultKeyId = "k1";
+    public string CurrentKeyId => DefaultKeyId;
+    public string this[string keyId] => keyId;
+    public IEnumerable<string> GetAllKeyIds() => [DefaultKeyId];
+}
+
+public sealed class DataProtectionLookupProtector(IDataProtectionProvider provider) : ILookupProtector
+{
+    private readonly IDataProtector _protector = provider.CreateProtector("ForgeFlow.Identity.LookupData.v1");
+    private const string Prefix = "ff-dp:v1:";
+
+    public string Protect(string keyId, string? data)
+    {
+        if (string.IsNullOrEmpty(data)) return data ?? string.Empty;
+        return Prefix + _protector.Protect(data);
+    }
+
+    public string Unprotect(string keyId, string? data)
+    {
+        if (string.IsNullOrEmpty(data)) return data ?? string.Empty;
+        if (data.StartsWith(Prefix, StringComparison.Ordinal))
+        {
+            try
+            {
+                return _protector.Unprotect(data[Prefix.Length..]);
+            }
+            catch
+            {
+                return data;
+            }
+        }
+        return data;
+    }
+}
+
+public sealed class DataProtectionPersonalDataProtector(IDataProtectionProvider provider) : IPersonalDataProtector
+{
+    private readonly IDataProtector _protector = provider.CreateProtector("ForgeFlow.Identity.PersonalData.v1");
+    private const string Prefix = "ff-dp:v1:";
+
+    public string Protect(string? data)
+    {
+        if (string.IsNullOrEmpty(data)) return data ?? string.Empty;
+        return Prefix + _protector.Protect(data);
+    }
+
+    public string Unprotect(string? data)
+    {
+        if (string.IsNullOrEmpty(data)) return data ?? string.Empty;
+        if (data.StartsWith(Prefix, StringComparison.Ordinal))
+        {
+            try
+            {
+                return _protector.Unprotect(data[Prefix.Length..]);
+            }
+            catch
+            {
+                return data;
+            }
+        }
+        return data;
+    }
+}
 
 public static class IdentityPersistence
 {
@@ -57,6 +124,10 @@ public static class IdentityPersistence
                 ?? new ForgeFlow.Infrastructure.Persistence.Interceptors.AuthImmutableHistorySaveChangesInterceptor();
             opts.AddInterceptors(interceptor);
         });
+        services.AddDataProtection();
+        services.TryAddSingleton<ILookupProtectorKeyRing, DataProtectionLookupProtectorKeyRing>();
+        services.TryAddSingleton<ILookupProtector, DataProtectionLookupProtector>();
+        services.TryAddSingleton<IPersonalDataProtector, DataProtectionPersonalDataProtector>();
         services.AddIdentityCore<ApplicationAccount>(identity => {
             identity.Stores.SchemaVersion = IdentitySchemaVersions.Version1;
             identity.Password.RequiredLength = 12;

@@ -204,6 +204,12 @@
           "System.Security.Cryptography.Pkcs": "[10.0.13, )"
         }
       },
+      "forgeflow.localtestrecovery": {
+        "type": "Project",
+        "dependencies": {
+          "ForgeFlow.Infrastructure": "[1.0.0, )"
+        }
+      },
       "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
         "type": "CentralTransitive",
         "requested": "[10.0.14, )",

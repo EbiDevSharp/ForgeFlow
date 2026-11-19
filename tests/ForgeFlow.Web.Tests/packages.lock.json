@@ -285,7 +285,8 @@
       "forgeflow.bootstrap": {
         "type": "Project",
         "dependencies": {
-          "ForgeFlow.Infrastructure": "[1.0.0, )"
+          "ForgeFlow.Infrastructure": "[1.0.0, )",
+          "ForgeFlow.LocalTestRecovery": "[1.0.0, )"
         }
       },
       "forgeflow.domain": {

@@ -13,6 +13,27 @@ public static class LocalRuntimeConfiguration
     // enters these local branches and retains deployment-managed defaults.
     public static IDisposable? Configure(WebApplicationBuilder builder)
     {
+        if (builder.Environment.IsProduction())
+        {
+            var keyRingPath = builder.Configuration["DataProtection:KeyRingPath"];
+            if (string.IsNullOrWhiteSpace(keyRingPath))
+            {
+                throw new InvalidOperationException("DataProtection:KeyRingPath must be configured in Production environment to ensure encryption key persistence.");
+            }
+
+            var keyDirectory = new DirectoryInfo(keyRingPath);
+            if (!keyDirectory.Exists)
+            {
+                keyDirectory.Create();
+            }
+
+            builder.Services.AddDataProtection()
+                .SetApplicationName("ForgeFlow")
+                .PersistKeysToFileSystem(keyDirectory);
+
+            return null;
+        }
+
         var smokeTest = builder.Environment.IsEnvironment(SmokeEnvironment);
         if (!builder.Environment.IsDevelopment() && !smokeTest)
             return null;

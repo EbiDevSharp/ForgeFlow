@@ -17,6 +17,7 @@
 @inject IOrganizationPermissionEvaluator Permissions
 @inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
+@inject ILogger<Routings> Logger
 
 <PageTitle>@Text["Routings"] - @Text["AppTitle"]</PageTitle>
 
@@ -513,7 +514,12 @@
             scopeIndex = 0;
             await RefreshScopeStateAsync();
         }
-        catch { pageError = "ReadError"; }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to initialize routings page.");
+            pageError = "ReadError";
+        }
         finally { initialLoading = false; }
     }
 

@@ -10,12 +10,12 @@ using ForgeFlow.Domain.Quality;
 using ForgeFlow.Domain.Units;
 using ForgeFlow.Infrastructure.Common;
 using ForgeFlow.Infrastructure.Diagnostics;
+using ForgeFlow.Infrastructure.Organizations;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
 using ForgeFlow.Infrastructure.Inventory;
-using ForgeFlow.Infrastructure.Organizations;
 
 namespace ForgeFlow.Infrastructure.Procurement;
 
@@ -86,7 +86,7 @@ public sealed class SqlProcurementOperationsStore(
     public Task<OrganizationResult<SupplierSummary>> CreateSupplier(
         CreateSupplierRequest request,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(request.OrganizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<SupplierSummary>.Failure(orgCheck.Error!);
@@ -119,7 +119,7 @@ public sealed class SqlProcurementOperationsStore(
         byte[] version,
         UpdateSupplierRequest request,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<SupplierSummary>.Failure(orgCheck.Error!);
@@ -145,7 +145,7 @@ public sealed class SqlProcurementOperationsStore(
         byte[] version,
         bool isActive,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<SupplierSummary>.Failure(orgCheck.Error!);
@@ -360,7 +360,7 @@ public sealed class SqlProcurementOperationsStore(
         CreatePurchaseOrderRequest request,
         IReadOnlyList<ResolvedPurchaseOrderLineWrite> resolvedLines,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(request.OrganizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<PurchaseOrderDetails>.Failure(orgCheck.Error!);
@@ -425,7 +425,7 @@ public sealed class SqlProcurementOperationsStore(
         UpdatePurchaseOrderRequest request,
         IReadOnlyList<ResolvedPurchaseOrderLineWrite> resolvedLines,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<PurchaseOrderDetails>.Failure(orgCheck.Error!);
@@ -438,7 +438,6 @@ public sealed class SqlProcurementOperationsStore(
             .SingleOrDefaultAsync(p => p.OrganizationId == organizationId && p.Id == id, ct);
         if (po is null) return OrganizationResult<PurchaseOrderDetails>.Failure(ProcurementErrors.NotFound);
         if (!Matches(db, po, version)) return OrganizationResult<PurchaseOrderDetails>.Failure(ProcurementErrors.ConcurrencyConflict);
-        if (po.Status != PurchaseOrderStatus.Draft) return OrganizationResult<PurchaseOrderDetails>.Failure(ProcurementErrors.NotDraft);
 
         var site = await db.Sites.AsNoTracking()
             .SingleOrDefaultAsync(s => s.OrganizationId == organizationId && s.Id == po.SiteId, ct);
@@ -491,7 +490,7 @@ public sealed class SqlProcurementOperationsStore(
         byte[] version,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<PurchaseOrderDetails>.Failure(orgCheck.Error!);
@@ -523,7 +522,7 @@ public sealed class SqlProcurementOperationsStore(
         byte[] version,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<PurchaseOrderDetails>.Failure(orgCheck.Error!);
@@ -551,7 +550,7 @@ public sealed class SqlProcurementOperationsStore(
         string? reason,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(organizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, organizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<PurchaseOrderDetails>.Failure(orgCheck.Error!);
@@ -580,7 +579,7 @@ public sealed class SqlProcurementOperationsStore(
         IReadOnlyList<ResolvedPurchaseOrderReceiptLine> resolvedLines,
         DateTime utcNow,
         OrganizationWriteAccess access,
-        CancellationToken ct) => Write(access, async db =>
+        CancellationToken ct) => Write(request.OrganizationId, access, async db =>
     {
         var orgCheck = await LockAndRequireActiveOrganization(db, request.OrganizationId, ct);
         if (!orgCheck.Ok) return OrganizationResult<PurchaseOrderReceiptResult>.Failure(orgCheck.Error!);
@@ -822,15 +821,15 @@ public sealed class SqlProcurementOperationsStore(
     }
 
     private async Task<OrganizationResult<T>> Write<T>(
+        long organizationId,
         OrganizationWriteAccess access,
         Func<OrganizationDbContext, Task<OrganizationResult<T>>> operation,
-        CancellationToken ct,
-        long? organizationId = null)
+        CancellationToken ct)
     {
         try
         {
             await using var strategyContext = await Factory.CreateDbContextAsync(ct);
-            if (organizationId.HasValue) strategyContext.CurrentOrganizationId = organizationId.Value;
+            strategyContext.CurrentOrganizationId = organizationId;
             var strategy = strategyContext.Database.CreateExecutionStrategy();
             return await strategy.ExecuteAsync(async () =>
             {
@@ -841,8 +840,8 @@ public sealed class SqlProcurementOperationsStore(
                 try
                 {
                     await using var db = await Factory.CreateDbContextAsync(ct);
-                    if (organizationId.HasValue) db.CurrentOrganizationId = organizationId.Value;
-                    await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+                    db.CurrentOrganizationId = organizationId;
+                    await using var transaction = await db.Database.BeginTransactionAsync(ct);
                     var result = await operation(db);
                     if (!result.Succeeded) return result;
                     commitAttempted = true;
@@ -894,18 +893,8 @@ public sealed class SqlProcurementOperationsStore(
         }
     }
 
-    private static async Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
-    {
-        var active = await db.Database.SqlQueryRaw<bool>(
-            "SELECT [IsActive] AS [Value] FROM [organization].[Organization] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {0}", organizationId)
-            .SingleOrDefaultAsync(ct);
-        if (!active)
-        {
-            var exists = await db.Organizations.IgnoreAutoIncludes().AsNoTracking().AnyAsync(o => o.Id == organizationId, ct);
-            return (false, exists ? ProcurementErrors.ParentOrganizationInactive : ProcurementErrors.NotFound);
-        }
-        return (true, null);
-    }
+    private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
+        => OrganizationActivityGuard.RequireActiveOrganizationAsync(db, organizationId, ProcurementErrors.ParentOrganizationInactive, ProcurementErrors.NotFound, ct);
 
     private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
         => entity is ForgeFlow.Domain.Common.IHasRowVersion hasVersion && hasVersion.RowVersion.Length > 0

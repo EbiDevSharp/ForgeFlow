@@ -521,7 +521,7 @@ public sealed class ResourceContractTests
             ["BpEconomicCode"] = 0, ["BpCompanyName"] = 0, ["BpNationalLegalId"] = 0,
             ["BpContactInfo"] = 0, ["BpMobile"] = 0, ["BpPhone"] = 0, ["BpEmail"] = 0, ["BpWebsite"] = 0,
             ["BpAddressInfo"] = 0, ["BpCountryProvince"] = 0, ["BpCityAddress"] = 0, ["BpCity"] = 0,
-            ["BpCountry"] = 0, ["BpProvince"] = 0, ["BpAddress"] = 0,
+            ["BpCountry"] = 0, ["BpProvince"] = 0, ["BpAddress"] = 0, ["Country_IR"] = 0,
             ["BpCreateButton"] = 0, ["BpCreateTitle"] = 0, ["BpEditTitle"] = 0, ["BpDetailTitle"] = 0,
             ["BpRoleRequired"] = 0, ["BpConfirmDeactivate"] = 1, ["BpConfirmActivate"] = 1,
             ["BpAllRoles"] = 0, ["BpFilterRole"] = 0,
@@ -707,6 +707,7 @@ public sealed class ResourceContractTests
              "DocSeqErrorYearModeInvalid", "DocSeqErrorPaddingInvalid", "DocSeqErrorNextNumberInvalid",
              "BpPersonTypeInvalid", "BpWebsiteInvalid",
              "DiagErrorReferenceInvalid", "DiagOperationCodeInvalid", "DiagSiteRequiresOrganization",
+             "AuditColCorrelation", "AuditColSite", "AuditExportFileName",
              "Auth.RateLimitExceeded", "Export.RateLimitExceeded", "Common.RateLimitExceeded"]);
         used[nameof(SharedResources)].UnionWith(ForgeFlow.Application.Audit.AuditEventCatalog.All.Select(d => d.ResourceKey));
         Assert.Equal(Contracts[nameof(SharedResources)].Keys.Order(), used[nameof(SharedResources)].Order());

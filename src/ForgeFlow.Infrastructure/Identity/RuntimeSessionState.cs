@@ -12,6 +12,7 @@ public sealed class RuntimeSessionState
     public DateTime ExpiresAtUtc { get; }
     public DateTime LastActivityAtUtc { get; set; }
     public DateTime? LastPersistedActivityAtUtc { get; set; }
+    public DateTime LastValidatedAtUtc { get; set; }
     public bool IsRevoked => Volatile.Read(ref _isRevoked) == 1;
     public string? RevokeReason { get; private set; }
     public int ActiveCircuits => Volatile.Read(ref _activeCircuits);

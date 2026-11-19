@@ -3064,4 +3064,5 @@
   <data name="Auth.RateLimitExceeded" xml:space="preserve"><value>Too many authentication attempts. Please try again in {0} seconds.</value></data>
   <data name="Export.RateLimitExceeded" xml:space="preserve"><value>Too many export requests. Please try again in {0} seconds.</value></data>
   <data name="Common.RateLimitExceeded" xml:space="preserve"><value>Too many requests. Please try again in {0} seconds.</value></data>
+  <data name="Country_IR" xml:space="preserve"><value>Iran</value></data>
 </root>

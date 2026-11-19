@@ -340,6 +340,26 @@ public sealed class SessionConcurrencyAndSyncTests
     }
 
     [Fact]
+    public async Task TouchSessionActivityAsync_Refreshes_LastActivityAtUtc_Sliding_Expiration()
+    {
+        using var sp = BuildAuthServices();
+        var sessions = sp.GetRequiredService<RuntimeSessions>();
+
+        var sessionId = Guid.NewGuid();
+        var userId = 950L;
+        var stamp = "active-stamp";
+        var initialActivity = DateTime.UtcNow.AddMinutes(-5);
+
+        sessions.RegisterSessionInMemory(sessionId, userId, stamp, initialActivity, DateTime.UtcNow.AddHours(8), initialActivity);
+        var reference = new SessionReference(userId, sessionId, stamp);
+
+        await sessions.TouchSessionActivityAsync(reference, CancellationToken.None);
+
+        Assert.True(sessions.TryGetSessionState(sessionId, out var state));
+        Assert.True(state!.LastActivityAtUtc > initialActivity);
+    }
+
+    [Fact]
     public async Task Concurrent_Validations_For_Same_Session_Are_ThreadSafe()
     {
         using var sp = BuildAuthServices();

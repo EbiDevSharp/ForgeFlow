@@ -15,3 +15,12 @@ export function downloadBase64File(fileName, contentType, base64) {
     document.body.removeChild(anchor);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+export function downloadFileFromUrl(url) {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+}

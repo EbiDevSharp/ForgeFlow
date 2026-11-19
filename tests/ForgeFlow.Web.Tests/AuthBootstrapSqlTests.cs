@@ -43,8 +43,9 @@ public sealed class AuthBootstrapSqlTests
         await Migrate(connection);
         await using (var auth = Auth(connection))
         {
-            Assert.False(auth.Database.HasPendingModelChanges()); Assert.Single(await auth.Database.GetAppliedMigrationsAsync());
-            Assert.Equal(11, await auth.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id=SCHEMA_ID('auth')").SingleAsync());
+            Assert.False(auth.Database.HasPendingModelChanges());
+            Assert.Equal(10, (await auth.Database.GetAppliedMigrationsAsync()).Count());
+            Assert.Equal(18, await auth.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id=SCHEMA_ID('auth')").SingleAsync());
             // Empty auth rollback/reapply leaves pre-existing Organization/Site data untouched.
             await auth.GetService<IMigrator>().MigrateAsync("0"); await auth.Database.MigrateAsync();
         }
@@ -52,10 +53,10 @@ public sealed class AuthBootstrapSqlTests
         Assert.Equal("Auth.BootstrapPartial", result.Code);
         await using var verify = Auth(connection); Assert.Empty(await verify.Users.ToListAsync());
         Assert.Equal((byte)0, (await verify.BootstrapStates.SingleAsync()).State);
-        await using var stored = database.Context(); var existing = await stored.Organizations.SingleAsync();
+        await using var stored = database.Context(); var existing = await stored.Organizations.IgnoreQueryFilters().Include(o => o.Sites).SingleAsync();
         Assert.Equal("EXISTING", existing.Code); Assert.Single(existing.Sites);
         Assert.True(version.SequenceEqual(stored.Entry(existing).Property<byte[]>("RowVersion").CurrentValue!));
-        Assert.Equal(2, await stored.OrganizationChanges.CountAsync());
+        Assert.Equal(2, await stored.OrganizationChanges.IgnoreQueryFilters().CountAsync());
     }
 
     [OrganizationSqlServerFact]
@@ -77,7 +78,7 @@ public sealed class AuthBootstrapSqlTests
         Assert.Empty(await auth.Sessions.ToListAsync());
         var events = await auth.SecurityEvents.ToListAsync(); Assert.Equal(5, events.Count);
         Assert.All(events, e => { Assert.Equal((byte)2, e.ActorKind); Assert.Null(e.ActorUserId); Assert.Equal(account.Id, e.SubjectUserId); Assert.False(string.IsNullOrWhiteSpace(e.HostOperatorReference)); });
-        await using var business = database.Context(); var audits = await business.OrganizationChanges.ToListAsync(); Assert.Equal(2, audits.Count);
+        await using var business = database.Context(); var audits = await business.OrganizationChanges.IgnoreQueryFilters().ToListAsync(); Assert.Equal(2, audits.Count);
         Assert.All(audits, a => { Assert.Equal(account.Id, a.ActorId); Assert.Equal(result.OrganizationId, a.OrganizationId); });
         Assert.Single(audits.Select(a => a.CorrelationId).Concat(events.Select(e => e.CorrelationId)).Distinct());
         Assert.Equal("Auth.AlreadyInitialized", (await bootstrap.InitializeAsync(request, AuthBootstrapTests.Password(), Consent())).Code);
@@ -85,6 +86,7 @@ public sealed class AuthBootstrapSqlTests
         Assert.Equal("Auth.BootstrapClosed", (await bootstrap.InitializeAsync(request with { OrganizationCode = "DIFFERENT" }, password, Consent())).Code);
         Assert.Single(await auth.Users.ToListAsync()); Assert.Equal(5, await auth.SecurityEvents.CountAsync());
         await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(() => auth.GetService<IMigrator>().MigrateAsync("0"));
+        await auth.Database.MigrateAsync();
         // A completed marker with missing required links is partial, never repaired or adopted.
         await auth.Database.ExecuteSqlRawAsync("DELETE FROM [auth].[ScopedRoleAssignment]");
         Assert.Equal("Auth.BootstrapPartial", (await bootstrap.InitializeAsync(request, password, Consent())).Code);
@@ -175,7 +177,7 @@ public sealed class AuthBootstrapSqlTests
         Assert.Single(results, r => r.Code == "Auth.Initialized");
         Assert.Single(results, r => r.Code == (sameOperation ? "Auth.AlreadyInitialized" : "Auth.BootstrapClosed"));
         await using var auth = Auth(connection); Assert.Single(await auth.Users.ToListAsync()); Assert.Single(await auth.ScopedRoleAssignments.ToListAsync());
-        await using var business = database.Context(); Assert.Single(await business.Organizations.ToListAsync()); Assert.Single(await business.Sites.ToListAsync());
+        await using var business = database.Context(); Assert.Single(await business.Organizations.ToListAsync()); Assert.Single(await business.Sites.IgnoreQueryFilters().ToListAsync());
     }
 
     [OrganizationSqlServerFact]
@@ -219,6 +221,6 @@ public sealed class AuthBootstrapSqlTests
         Assert.Equal("Auth.BootstrapOutcomeUnknown", result.Code);
         Assert.Equal("Auth.AlreadyInitialized", (await new HostBootstrapper(connection).InitializeAsync(request, AuthBootstrapTests.Password(), Consent())).Code);
         await using var auth = Auth(connection); Assert.Single(await auth.Users.ToListAsync()); Assert.Equal(5, await auth.SecurityEvents.CountAsync());
-        await using var business = database.Context(); Assert.Single(await business.Organizations.ToListAsync()); Assert.Equal(2, await business.OrganizationChanges.CountAsync());
+        await using var business = database.Context(); Assert.Single(await business.Organizations.ToListAsync()); Assert.Equal(2, await business.OrganizationChanges.IgnoreQueryFilters().CountAsync());
     }
 }

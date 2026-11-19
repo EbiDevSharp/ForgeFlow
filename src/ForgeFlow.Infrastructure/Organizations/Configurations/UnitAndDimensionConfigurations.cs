@@ -7,7 +7,7 @@ using static ForgeFlow.Infrastructure.Organizations.Configurations.OrganizationM
 
 namespace ForgeFlow.Infrastructure.Organizations.Configurations;
 
-internal sealed class UnitConfiguration : IEntityTypeConfiguration<Unit>
+internal sealed class UnitConfiguration : IEntityTypeConfiguration<Unit>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<Unit> unit)
     {
@@ -38,7 +38,7 @@ internal sealed class UnitConfiguration : IEntityTypeConfiguration<Unit>
     }
 }
 
-internal sealed class UnitConversionConfiguration : IEntityTypeConfiguration<UnitConversion>
+internal sealed class UnitConversionConfiguration : IEntityTypeConfiguration<UnitConversion>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<UnitConversion> conversion)
     {
@@ -66,7 +66,7 @@ internal sealed class UnitConversionConfiguration : IEntityTypeConfiguration<Uni
     }
 }
 
-internal sealed class CurrencyConfiguration : IEntityTypeConfiguration<Currency>
+internal sealed class CurrencyConfiguration : IEntityTypeConfiguration<Currency>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<Currency> currency)
     {
@@ -96,7 +96,7 @@ internal sealed class CurrencyConfiguration : IEntityTypeConfiguration<Currency>
     }
 }
 
-internal sealed class ContextDimensionConfiguration : IEntityTypeConfiguration<ContextDimension>
+internal sealed class ContextDimensionConfiguration : IEntityTypeConfiguration<ContextDimension>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<ContextDimension> dim)
     {

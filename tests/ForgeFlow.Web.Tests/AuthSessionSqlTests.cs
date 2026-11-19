@@ -136,6 +136,7 @@ public sealed class AuthSessionSqlTests
         Assert.False((await permissions.EvaluateAsync(actor!,new OrganizationScope.Organization(initial.OrganizationId.Value),OrganizationPermissions.SitesRead,default)).IsAllowed);
         Assert.False((await permissions.EvaluateAsync(actor!,new OrganizationScope.Site(initial.OrganizationId.Value,long.MaxValue),OrganizationPermissions.SitesRead,default)).IsAllowed);
         await using(var db=Auth(connection)) await db.Database.ExecuteSqlRawAsync("UPDATE [auth].[SiteMembership] SET IsActive=0");
+        provider.GetService<ForgeFlow.Application.Security.IOrganizationPermissionCache>()?.InvalidateAll();
         Assert.False((await permissions.EvaluateAsync(actor!,new OrganizationScope.Site(initial.OrganizationId.Value,initial.SiteId.Value),OrganizationPermissions.SitesRead,default)).IsAllowed);
     }
     [OrganizationSqlServerFact]

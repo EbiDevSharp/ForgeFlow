@@ -9,6 +9,7 @@
 @inject IOrganizationPermissionEvaluator Permissions
 @inject DraftCoordinator Drafts
 @inject CulturePolicy Culture
+@inject ILogger<OrganizationReader> Logger
 
 <PageTitle>@Text[IsSites ? "Sites" : "Organizations"]</PageTitle>
 <section class="organization-reader">
@@ -282,7 +283,14 @@ protected override async Task OnParametersSetAsync()
  if (!Current(request)) return;
  if (SiteId > 0 || (!IsSites && OrganizationId > 0))
      await Detail(new ReadRow(IsSites ? SiteId : OrganizationId, "", "", false));
- } catch { if (Current(request)) error = "ReadError"; } finally { if (Current(request)) initialLoading = false; }
+ }
+ catch (OperationCanceledException) { }
+ catch (Exception ex)
+ {
+     Logger.LogWarning(ex, "Failed to initialize organization reader.");
+     if (Current(request)) error = "ReadError";
+ }
+ finally { if (Current(request)) initialLoading = false; }
 }
 private async Task RefreshScopeWriteFlags(int request)
 {
@@ -339,7 +347,12 @@ private async Task<BitDataGridReadResult<ReadRow>> ReadGridAsync(BitDataGridRead
  return new(rows, result.Value.Total);
  }
  } catch (OperationCanceledException) { return new([], 0); }
- catch { if (Current(token)) { error = "ReadError"; StateHasChanged(); } return new([], 0); }
+ catch (Exception ex)
+ {
+     Logger.LogWarning(ex, "Failed to query organization reader data provider.");
+     if (Current(token)) { error = "ReadError"; StateHasChanged(); }
+     return new([], 0);
+ }
 }
 private string? selectedVersion, editName, writeError;
 private bool canRename, canSetActive, confirming, saving, saved, discardConfirm, reloadConfirm;
@@ -374,13 +387,23 @@ protected override async Task OnAfterRenderAsync(bool firstRender)
    StateHasChanged();
   }
  }
- catch { draftInitialized = false; }
+ catch (OperationCanceledException) { draftInitialized = false; }
+ catch (Exception ex)
+ {
+     Logger.LogWarning(ex, "Failed to initialize draft coordinator for organization reader.");
+     draftInitialized = false;
+ }
 }
 private async Task ClearActiveDraftAsync()
 {
  if (!draftInitialized || Drafts is null) return;
  draftInitialized = false;
- try { await Drafts.ClearAsync(); } catch { }
+ try { await Drafts.ClearAsync(); }
+ catch (OperationCanceledException) { }
+ catch (Exception ex)
+ {
+     Logger.LogWarning(ex, "Failed to clear draft in organization reader.");
+ }
 }
 private void OnEditDismissing(BitDialogDismissArgs args)
 {
@@ -440,7 +463,13 @@ private async Task SubmitCreate()
  await ClearActiveDraftAsync();
  pageNotice = Text[sites ? "CreateSiteSucceeded" : "CreateOrgSucceeded", createdCode!];
  await ReloadGridFromFirstPage();
- } catch { if (Current(token)) createError = "WriteUnavailable"; }
+ }
+ catch (OperationCanceledException) { }
+ catch (Exception ex)
+ {
+     Logger.LogError(ex, "Failed to create organization or site.");
+     if (Current(token)) createError = "WriteUnavailable";
+ }
  finally { if (Current(token)) creating = false; }
 }
 private async Task<bool> Can(string permission, OrganizationScope scope)
@@ -501,7 +530,13 @@ private async Task Write(bool rename)
   if (rename) await ClearActiveDraftAsync();
   rows = rows.Select(r => r.Id == updated.Id ? updated : r).ToList();
   if (grid is not null) await grid.RefreshAsync();
-  } catch { if (Current(token)) writeError = "WriteUnavailable"; }
+  }
+  catch (OperationCanceledException) { }
+  catch (Exception ex)
+  {
+      Logger.LogError(ex, "Failed to save organization or site update.");
+      if (Current(token)) writeError = "WriteUnavailable";
+  }
   finally { if (Current(token)) saving = false; }
 }
 private Task Detail(ReadRow row) => OpenDialog(row, edit: false);
@@ -538,6 +573,12 @@ private async Task OpenDialog(ReadRow row, bool edit)
   }
  }
  detailOpen = true;
- } catch { if (Current(request)) error = "ReadError"; }
+ }
+ catch (OperationCanceledException) { }
+ catch (Exception ex)
+ {
+     Logger.LogWarning(ex, "Failed to open organization or site dialog.");
+     if (Current(request)) error = "ReadError";
+ }
 }
 }

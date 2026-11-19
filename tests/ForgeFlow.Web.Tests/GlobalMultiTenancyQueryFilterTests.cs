@@ -66,6 +66,7 @@ public sealed class GlobalMultiTenancyQueryFilterTests
 
         var entityTypes = model.GetEntityTypes()
             .Where(e => e.ClrType != typeof(Organization) &&
+                        e.ClrType != typeof(OrganizationChange) &&
                         (typeof(IOrganizationEntity).IsAssignableFrom(e.ClrType) ||
                          (e.FindProperty("OrganizationId") is { ClrType: { } clrType } && clrType == typeof(long))))
             .ToList();

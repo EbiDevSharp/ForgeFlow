@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using ForgeFlow.Web.Authentication;
+using ForgeFlow.Web.Hosting;
 using ForgeFlow.Web.Localization;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
@@ -44,6 +45,7 @@ public sealed class AuthHttpHost : IAsyncDisposable
         builder.Services.AddLocalization(o=>o.ResourcesPath="Resources"); builder.Services.AddAntiforgery();
         builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
         builder.Services.AddAuthenticationBackend(builder.Configuration);
+        builder.Services.AddForgeFlowRateLimiting(builder.Configuration);
         var app=builder.Build(); app.UseRequestLocalization(CulturePolicy.Configure); app.UseAuthentication(); app.UseAuthorization(); app.UseRateLimiter(); app.UseAntiforgery();
         app.MapAuthenticationBackend();
         app.MapGet("/test/token",(HttpContext context,IAntiforgery antiforgery)=>new { token=antiforgery.GetAndStoreTokens(context).RequestToken });

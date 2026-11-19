@@ -93,6 +93,9 @@ public sealed class RolePermission
     public long RoleId { get; internal set; }
     public string PermissionCode { get; internal set; } = null!;
     public bool IsActive { get; internal set; }
+    public void Activate() => IsActive = true;
+    public void Deactivate() => IsActive = false;
+    public void SetActive(bool isActive) => IsActive = isActive;
 }
 
 public sealed class UserPermissionGrant
@@ -104,6 +107,9 @@ public sealed class UserPermissionGrant
     public long? SiteId { get; internal set; }
     public string PermissionCode { get; internal set; } = null!;
     public bool IsActive { get; internal set; }
+    public void Activate() => IsActive = true;
+    public void Deactivate() => IsActive = false;
+    public void SetActive(bool isActive) => IsActive = isActive;
 }
 
 public sealed class OrganizationMembership
@@ -111,6 +117,9 @@ public sealed class OrganizationMembership
     public long UserId { get; internal set; }
     public long OrganizationId { get; internal set; }
     public bool IsActive { get; internal set; }
+    public void Activate() => IsActive = true;
+    public void Deactivate() => IsActive = false;
+    public void SetActive(bool isActive) => IsActive = isActive;
 }
 public sealed class SiteMembership
 {
@@ -118,6 +127,9 @@ public sealed class SiteMembership
     public long OrganizationId { get; internal set; }
     public long SiteId { get; internal set; }
     public bool IsActive { get; internal set; }
+    public void Activate() => IsActive = true;
+    public void Deactivate() => IsActive = false;
+    public void SetActive(bool isActive) => IsActive = isActive;
 }
 public sealed class ScopedRoleAssignment
 {
@@ -128,6 +140,9 @@ public sealed class ScopedRoleAssignment
     public long? OrganizationId { get; internal set; }
     public long? SiteId { get; internal set; }
     public bool IsActive { get; internal set; }
+    public void Activate() => IsActive = true;
+    public void Deactivate() => IsActive = false;
+    public void SetActive(bool isActive) => IsActive = isActive;
 }
 public sealed class AccountSession : ForgeFlow.Domain.Common.IHasRowVersion
 {

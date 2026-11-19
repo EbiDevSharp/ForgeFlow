@@ -81,23 +81,23 @@ public sealed class HostBootstrapper(string provisioningConnection,
         if (state.State == 1)
         {
             var consistent = await auth.Users.AnyAsync(u => u.Id == state.FirstUserId, ct)
-                && await business.Sites.AnyAsync(s => s.Id == state.SiteId && s.OrganizationId == state.OrganizationId, ct)
+                && await business.Sites.IgnoreQueryFilters().AnyAsync(s => s.Id == state.SiteId && s.OrganizationId == state.OrganizationId, ct)
                 && await auth.OrganizationMemberships.AnyAsync(m => m.UserId == state.FirstUserId && m.OrganizationId == state.OrganizationId, ct)
                 && await auth.SiteMemberships.AnyAsync(m => m.UserId == state.FirstUserId && m.OrganizationId == state.OrganizationId && m.SiteId == state.SiteId, ct)
                 && await auth.ScopedRoleAssignments.AnyAsync(r => r.UserId == state.FirstUserId && r.OrganizationId == state.OrganizationId && r.RoleId == FixedAccessRoles.OrganizationAdministrator, ct);
             if (!consistent) return new("Auth.BootstrapPartial", request.OperationId);
             if (state.OperationId == request.OperationId &&
                 (!await auth.Users.AnyAsync(u => u.Id == state.FirstUserId && u.NormalizedUserName == request.UserName.ToUpperInvariant(), ct)
-                || !await business.Organizations.AnyAsync(o => o.Id == state.OrganizationId && o.Code == organization.Code, ct)
-                || !await business.Sites.AnyAsync(s => s.Id == state.SiteId && s.Code == organization.Sites.Single().Code, ct)))
+                || !await business.Organizations.IgnoreQueryFilters().AnyAsync(o => o.Id == state.OrganizationId && o.Code == organization.Code, ct)
+                || !await business.Sites.IgnoreQueryFilters().AnyAsync(s => s.Id == state.SiteId && s.Code == organization.Sites.Single().Code, ct)))
                 return new("Auth.BootstrapClosed", request.OperationId);
             return state.OperationId == request.OperationId
                 ? new("Auth.AlreadyInitialized", request.OperationId, state.FirstUserId, state.OrganizationId, state.SiteId)
                 : new("Auth.BootstrapClosed", request.OperationId);
         }
         // Do not adopt any pre-existing data, including orphan security/support records.
-        if (state.State != 0 || await auth.Users.AnyAsync(ct) || await business.Organizations.AnyAsync(ct)
-            || await business.Sites.AnyAsync(ct) || await business.OrganizationChanges.AnyAsync(ct)
+        if (state.State != 0 || await auth.Users.AnyAsync(ct) || await business.Organizations.IgnoreQueryFilters().AnyAsync(ct)
+            || await business.Sites.IgnoreQueryFilters().AnyAsync(ct) || await business.OrganizationChanges.IgnoreQueryFilters().AnyAsync(ct)
             || await auth.OrganizationMemberships.AnyAsync(ct) || await auth.SiteMemberships.AnyAsync(ct)
             || await auth.ScopedRoleAssignments.AnyAsync(ct) || await auth.Sessions.AnyAsync(ct) || await auth.SecurityEvents.AnyAsync(ct)
             || await auth.Set<IdentityUserClaim<long>>().AnyAsync(ct) || await auth.Set<IdentityUserLogin<long>>().AnyAsync(ct) || await auth.Set<IdentityUserToken<long>>().AnyAsync(ct))

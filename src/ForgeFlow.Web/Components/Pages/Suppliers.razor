@@ -11,6 +11,7 @@
 @inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
 @inject NavigationManager Navigation
+@inject ILogger<Suppliers> Logger
 
 <PageTitle>@Text["Suppliers"] - @Text["AppTitle"]</PageTitle>
 
@@ -354,7 +355,12 @@
             scopeIndex = 0;
             await RefreshScopeStateAsync();
         }
-        catch { pageError = "ReadError"; }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to initialize suppliers page.");
+            pageError = "ReadError";
+        }
         finally { initialLoading = false; }
     }
 

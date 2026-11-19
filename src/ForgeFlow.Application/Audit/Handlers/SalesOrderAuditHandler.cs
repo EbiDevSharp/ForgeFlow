@@ -9,7 +9,9 @@ namespace ForgeFlow.Application.Audit.Handlers;
 /// </summary>
 public sealed class SalesOrderAuditHandler(IAuditTrailSinkAccessor sinkAccessor) :
     IDomainEventHandler<SalesOrderApprovedEvent>,
-    IDomainEventHandler<SalesOrderDispatchedEvent>
+    IDomainEventHandler<SalesOrderDispatchedEvent>,
+    IDomainEventHandler<SalesOrderClosedEvent>,
+    IDomainEventHandler<SalesOrderCancelledEvent>
 {
     public Task HandleAsync(SalesOrderApprovedEvent domainEvent, CancellationToken cancellationToken = default)
     {
@@ -22,6 +24,26 @@ public sealed class SalesOrderAuditHandler(IAuditTrailSinkAccessor sinkAccessor)
     }
 
     public Task HandleAsync(SalesOrderDispatchedEvent domainEvent, CancellationToken cancellationToken = default)
+    {
+        sinkAccessor.CurrentSink?.Record(
+            domainEvent.OrganizationId,
+            domainEvent.SiteId,
+            domainEvent.EventCode,
+            domainEvent.BuildAuditJson());
+        return Task.CompletedTask;
+    }
+
+    public Task HandleAsync(SalesOrderClosedEvent domainEvent, CancellationToken cancellationToken = default)
+    {
+        sinkAccessor.CurrentSink?.Record(
+            domainEvent.OrganizationId,
+            domainEvent.SiteId,
+            domainEvent.EventCode,
+            domainEvent.BuildAuditJson());
+        return Task.CompletedTask;
+    }
+
+    public Task HandleAsync(SalesOrderCancelledEvent domainEvent, CancellationToken cancellationToken = default)
     {
         sinkAccessor.CurrentSink?.Record(
             domainEvent.OrganizationId,

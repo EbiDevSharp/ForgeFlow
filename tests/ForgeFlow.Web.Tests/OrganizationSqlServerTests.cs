@@ -29,12 +29,12 @@ public sealed class OrganizationSqlServerTests
         await using var database = await DisposableDatabase.Create();
         await using var db = database.Context();
         Assert.False(db.Database.HasPendingModelChanges());
-        Assert.Equal(48, await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id = SCHEMA_ID('organization')").SingleAsync());
+        Assert.Equal(53, await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id = SCHEMA_ID('organization')").SingleAsync());
         await db.GetService<IMigrator>().MigrateAsync("0");
         Assert.Equal(0, await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id = SCHEMA_ID('organization')").SingleAsync());
         await db.Database.MigrateAsync();
-        Assert.Equal(48, await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id = SCHEMA_ID('organization')").SingleAsync());
-        Assert.Equal(15, (await db.Database.GetAppliedMigrationsAsync()).Count());
+        Assert.Equal(53, await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS [Value] FROM sys.tables WHERE schema_id = SCHEMA_ID('organization')").SingleAsync());
+        Assert.Equal(17, (await db.Database.GetAppliedMigrationsAsync()).Count());
     }
 
     [OrganizationSqlServerFact]
@@ -55,6 +55,7 @@ public sealed class OrganizationSqlServerTests
         }
         await using (var db = database.Context())
         {
+            db.CurrentOrganizationId = alphaId;
             var alpha = await db.Organizations.SingleAsync(o => o.Id == alphaId);
             Assert.Single(alpha.Sites); // EF materialized the complete aggregate, including inactive children.
             alpha.Sites[0].Deactivate();
@@ -120,7 +121,7 @@ public sealed class OrganizationSqlServerTests
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => second.SaveChangesAsync(Attribution()));
         await using var verify = database.Context();
         Assert.Equal("First", (await verify.Organizations.SingleAsync()).Name);
-        Assert.Equal(2, await verify.OrganizationChanges.CountAsync());
+        Assert.Equal(2, await verify.OrganizationChanges.IgnoreQueryFilters().CountAsync());
     }
 
     [OrganizationSqlServerFact]

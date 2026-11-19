@@ -10,7 +10,7 @@ using static ForgeFlow.Infrastructure.Organizations.Configurations.OrganizationM
 
 namespace ForgeFlow.Infrastructure.Organizations.Configurations;
 
-internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
+internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<Customer> customer)
     {
@@ -41,7 +41,7 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
     }
 }
 
-internal sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrder>
+internal sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrder>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<SalesOrder> salesOrder)
     {
@@ -92,7 +92,7 @@ internal sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOr
     }
 }
 
-internal sealed class SalesOrderLineConfiguration : IEntityTypeConfiguration<SalesOrderLine>
+internal sealed class SalesOrderLineConfiguration : IEntityTypeConfiguration<SalesOrderLine>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<SalesOrderLine> soLine)
     {
@@ -136,7 +136,7 @@ internal sealed class SalesOrderLineConfiguration : IEntityTypeConfiguration<Sal
     }
 }
 
-internal sealed class DeliveryOrderConfiguration : IEntityTypeConfiguration<DeliveryOrder>
+internal sealed class DeliveryOrderConfiguration : IEntityTypeConfiguration<DeliveryOrder>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<DeliveryOrder> deliveryOrder)
     {
@@ -180,7 +180,7 @@ internal sealed class DeliveryOrderConfiguration : IEntityTypeConfiguration<Deli
     }
 }
 
-internal sealed class DeliveryOrderLineConfiguration : IEntityTypeConfiguration<DeliveryOrderLine>
+internal sealed class DeliveryOrderLineConfiguration : IEntityTypeConfiguration<DeliveryOrderLine>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<DeliveryOrderLine> doLine)
     {

@@ -10,7 +10,7 @@ using static ForgeFlow.Infrastructure.Organizations.Configurations.OrganizationM
 
 namespace ForgeFlow.Infrastructure.Organizations.Configurations;
 
-internal sealed class QualityInspectionConfiguration : IEntityTypeConfiguration<QualityInspection>
+internal sealed class QualityInspectionConfiguration : IEntityTypeConfiguration<QualityInspection>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<QualityInspection> qi)
     {
@@ -74,7 +74,7 @@ internal sealed class QualityInspectionConfiguration : IEntityTypeConfiguration<
     }
 }
 
-internal sealed class QualityInspectionLineConfiguration : IEntityTypeConfiguration<QualityInspectionLine>
+internal sealed class QualityInspectionLineConfiguration : IEntityTypeConfiguration<QualityInspectionLine>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<QualityInspectionLine> qiLine)
     {
@@ -118,7 +118,7 @@ internal sealed class QualityInspectionLineConfiguration : IEntityTypeConfigurat
     }
 }
 
-internal sealed class QualityParameterConfiguration : IEntityTypeConfiguration<QualityParameter>
+internal sealed class QualityParameterConfiguration : IEntityTypeConfiguration<QualityParameter>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<QualityParameter> qParam)
     {
@@ -149,7 +149,7 @@ internal sealed class QualityParameterConfiguration : IEntityTypeConfiguration<Q
     }
 }
 
-internal sealed class QualitySpecConfiguration : IEntityTypeConfiguration<QualitySpec>
+internal sealed class QualitySpecConfiguration : IEntityTypeConfiguration<QualitySpec>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<QualitySpec> qSpec)
     {
@@ -190,7 +190,7 @@ internal sealed class QualitySpecConfiguration : IEntityTypeConfiguration<Qualit
     }
 }
 
-internal sealed class QualitySpecLineConfiguration : IEntityTypeConfiguration<QualitySpecLine>
+internal sealed class QualitySpecLineConfiguration : IEntityTypeConfiguration<QualitySpecLine>, IOrganizationEntityConfiguration
 {
     public void Configure(EntityTypeBuilder<QualitySpecLine> qSpecLine)
     {
