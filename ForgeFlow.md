@@ -5904,3 +5904,11 @@ oot.Movements)
     - `dotnet build tools/ForgeFlow.Setup/ForgeFlow.Setup.csproj -c Release` -> **Build succeeded. 0 Warning(s), 0 Error(s)**.
     - `cmd.exe /c run-local.bat` executed with zero square boxes, clean English output, and the background watcher automatically loaded `https://localhost:5001/account/login` (HTTP 200) the instant Kestrel was ready.
     - Server running live at `https://localhost:5001`.
+- **Runner Script Console Persistence Hardening (2026-11-19)**:
+  - **Issues Identified**:
+    - The use of `start "" /b` to launch the background browser readiness watcher in `run-local.bat` and `Run-ForgeFlow-Server.bat` caused PowerShell to share the CMD window's standard input stream (`stdin`). Upon watcher completion and process exit, the shared standard input received an EOF signal, triggering immediate shutdown of `dotnet run` and satisfying `pause`, which caused the console window to prematurely close.
+  - **Changes**:
+    - `run-local.bat` & `Run-ForgeFlow-Server.bat`: Removed the `/b` flag from `start ""` so PowerShell executes as an independent, fully detached background process (`-WindowStyle Hidden`), leaving CMD's standard input uninterrupted.
+    - Added clean termination banner (`ForgeFlow Web Server has stopped. Press any key to exit.`) and `pause >nul` upon application exit.
+  - **Verification Evidence (2026-11-19)**:
+    - Executed `cmd.exe /c run-local.bat`: Verified that the console window stays permanently open and active, while the detached background watcher successfully monitors port 5001 and triggers the browser. Kestrel remains actively serving requests (`Now listening on: https://localhost:5001`, HTTP 200).

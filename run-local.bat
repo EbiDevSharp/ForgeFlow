@@ -64,9 +64,13 @@ echo.
 set "ASPNETCORE_ENVIRONMENT=Development"
 set "ASPNETCORE_URLS=https://localhost:5001"
 
-:: Launch background watcher that waits for HTTP 200 before opening browser
-start "" /b powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0scripts\launch-browser-when-ready.ps1"
+:: Launch independent background watcher that waits for HTTP 200 before opening browser
+start "" powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0scripts\launch-browser-when-ready.ps1"
 
 dotnet run --project src\ForgeFlow.Web\ForgeFlow.Web.csproj -c Release
 
-pause
+echo.
+echo ==============================================================================
+echo ForgeFlow Web Server has stopped. Press any key to exit.
+echo ==============================================================================
+pause >nul

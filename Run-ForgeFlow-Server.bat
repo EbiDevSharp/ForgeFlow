@@ -37,8 +37,8 @@ if "%ASPNETCORE_URLS%"=="" (
 
 cd /d "%~dp0src\ForgeFlow.Web"
 
-:: Launch background watcher that waits for HTTP 200 before opening browser
-start "" /b powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0scripts\launch-browser-when-ready.ps1"
+:: Launch independent background watcher that waits for HTTP 200 before opening browser
+start "" powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0scripts\launch-browser-when-ready.ps1"
 
 if exist "bin\Release\net10.0\ForgeFlow.Web.exe" (
     echo [OK] Launching ForgeFlow Production Server...
@@ -50,4 +50,8 @@ if exist "bin\Release\net10.0\ForgeFlow.Web.exe" (
     dotnet run -c Release
 )
 
-pause
+echo.
+echo ==============================================================================
+echo ForgeFlow Server has stopped. Press any key to exit.
+echo ==============================================================================
+pause >nul
