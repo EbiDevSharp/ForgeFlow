@@ -56,6 +56,7 @@ public sealed class DataProtectionPersonalDataProtector(IDataProtectionProvider 
     public string Protect(string? data)
     {
         if (string.IsNullOrEmpty(data)) return data ?? string.Empty;
+        if (data.StartsWith(Prefix, StringComparison.Ordinal)) return data;
         return Prefix + _protector.Protect(data);
     }
 
@@ -68,7 +69,11 @@ public sealed class DataProtectionPersonalDataProtector(IDataProtectionProvider 
             {
                 return _protector.Unprotect(data[Prefix.Length..]);
             }
-            catch
+            catch (System.Security.Cryptography.CryptographicException)
+            {
+                return data;
+            }
+            catch (FormatException)
             {
                 return data;
             }

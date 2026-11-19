@@ -5789,3 +5789,76 @@ oot.Movements)
     - Live Review Verification: Review server running at `https://localhost:5001`. Verified HTTP 200 OK on `https://localhost:5001/health` and `https://localhost:5001/account/login`.
   - **Outstanding Acceptance Gaps**: None.
   - **Next Small Step**: Await user instructions.
+
+- **Phased Audit Remediation — Phase 1: Critical Runtime, Security & Endpoint Bugs (2026-11-19)**:
+  - **Changes**:
+    - `src/ForgeFlow.Web/Program.cs`: Removed the dead no-op static-asset short-circuit middleware and moved `app.MapStaticAssets()` before `app.UseAuthentication()` so static asset requests do not enter auth/session validation.
+    - `src/ForgeFlow.Web/Components/Layout/MainLayout.razor`: Added `ObjectDisposedException`, `OperationCanceledException`, and logged fallback `Exception` catch handlers to `async void AuthenticationStateChanged(...)` to prevent unhandled host process crashes on circuit teardown.
+    - `src/ForgeFlow.Web/Hosting/ExportEndpoints.cs`: Added `group.RequireAuthorization()` on `/api/export`, replaced hardcoded English CSV headers with `IStringLocalizer<SharedResources>` keys (`AuditTimeColumn`, `AuditCategoryLabel`, `AuditEventColumn`, `AuditActorColumn`, `AuditSubjectColumn`, `AuditOutcomeColumn`, `AuditColSite`, `AuditColCorrelation`), switched timestamping to `TimeProvider`, and introduced `DeferredCsvResponseStream` so `Content-Type` / `Content-Disposition` headers are only sent once CSV bytes actually begin streaming (returning clean JSON `403`/`400` `ProblemDetails` on authorization or query failures).
+    - `src/ForgeFlow.Infrastructure/Identity/RuntimeSessions.cs`: Replaced unbounded `static ConcurrentDictionary<string, LoginThrottleState> s_loginThrottles` with a bounded `MemoryCache` (`SizeLimit = 10_000`, 15-minute sliding expiration, `Size = 1`) to prevent memory exhaustion under spray attacks.
+    - `src/ForgeFlow.Web/Authentication/AuthenticationBackend.cs`: Replaced silent empty `catch (Exception) { }` during password-change sign-out rollback with structured `ILogger` diagnostics.
+    - `tests/ForgeFlow.Web.Tests/Phase1RemediationTests.cs`: Added 4 targeted tests verifying `/api/export/audit` authorization metadata, `en-US`/`fa-IR` CSV header localization, and bounded `MemoryCache` login throttling.
+  - **Verification Evidence (2026-11-19)**:
+    - Build: `dotnet build ForgeFlow.slnx -c Release` -> **0 Warnings, 0 Errors**.
+    - Targeted Tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter Phase1RemediationTests` -> **4 Passed, 0 Failed, 0 Skipped, Total 4**.
+    - Full Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build` -> **825 Passed, 0 Failed, 1 Skipped, Total 826**.
+    - Live Review Verification: Development server actively listening at `https://localhost:5001`. Verified `HTTP 200` (`Healthy`) on `https://localhost:5001/health`, `HTTP 200` on `https://localhost:5001/account/login`, and clean JSON `Auth.SessionInvalid` rejection (no `.csv` attachment) on unauthenticated `GET https://localhost:5001/api/export/audit?organizationId=1`.
+  - **Outstanding Acceptance Gaps**: Phases 2–6 of the approved remediation plan remain pending.
+  - **Next Small Step**: Proceed to Phase 2 (2FA Secret Encryption at Rest) upon user confirmation.
+
+- **Phased Audit Remediation — Phase 2: 2FA Secret Encryption at Rest (2026-11-19)**:
+  - **Changes**:
+    - `src/ForgeFlow.Infrastructure/Identity/IdentityPersistence.cs`: Made `DataProtectionPersonalDataProtector.Protect` idempotent (skipping values already prefixed with `ff-dp:v1:`) and replaced bare `catch` in `Unprotect` with explicit `CryptographicException` / `FormatException` handlers.
+    - `src/ForgeFlow.Infrastructure/Identity/AuthDbContext.cs`: Injected optional `IPersonalDataProtector?`, wired an EF Core `ValueConverter<string?, string?>` onto `IdentityUserToken<long>.Value` (encrypting all writes with `ff-dp:v1:` while preserving backward-compatible reads of legacy plaintext tokens), and added `AuthModelCacheKeyFactory` keyed by protector instance.
+    - `tests/ForgeFlow.Web.Tests/Phase2EncryptionTests.cs`: Added 3 tests verifying protector idempotency/legacy fallback, `HasPendingModelChanges() == false`, and `ValueConverter` encryption on `IdentityUserToken<long>.Value`.
+  - **Verification Evidence (2026-11-19)**:
+    - Build & Targeted Tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter Phase2EncryptionTests` -> **3 Passed, 0 Failed, 0 Skipped**.
+  - **Next Small Step**: Phase 3 (SQL Lock Scope Optimization & Magic `"RowVersion"` Elimination).
+
+- **Phased Audit Remediation — Phase 3: SQL Lock Scope Optimization & Magic `"RowVersion"` Elimination (2026-11-19)**:
+  - **Changes**:
+    - `src/ForgeFlow.Infrastructure/Inventory/InventoryBalanceLockHelper.cs`: Added shared deterministic row-level balance locking helper targeting exact sorted `(WarehouseId, ItemId, LotCode)` keys with `WITH (UPDLOCK, ROWLOCK)`.
+    - `src/ForgeFlow.Infrastructure/Inventory/SqlInventoryOperationsStore.cs` & `src/ForgeFlow.Infrastructure/Sales/SqlSalesOperationsStore.cs`: Replaced duplicated/broad warehouse-wide and tenant-wide balance lock queries with `InventoryBalanceLockHelper.LockBalancesAsync`.
+    - `src/ForgeFlow.Infrastructure/Identity/IdentityRecords.cs`, `SqlRoleOperationsStore.cs`, `SqlUserOperationsStore.cs`, `BomOperationsStore.cs`, `SqlBusinessPartnerStore.cs`: Implemented `IHasRowVersion` on Auth entities (`ApplicationAccount`, `RoleDefinition`, `RolePermission`, `UserPermissionGrant`, `OrganizationMembership`, `SiteMembership`, `ScopedRoleAssignment`) and eliminated all magic-string `"RowVersion"` shadow property lookups.
+  - **Verification Evidence (2026-11-19)**:
+    - Build & Targeted SQL Tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~SalesDispatchSqlTests|FullyQualifiedName~RoleManagementSqlTests|FullyQualifiedName~UserManagementSqlTests|FullyQualifiedName~DbContextBoundaryTests"` -> **14 Passed, 0 Failed, 0 Skipped**.
+  - **Next Small Step**: Phase 4 (Blazor Modal Lifecycles, PersianCalendar Safety & Localization Hygiene).
+
+- **Phased Audit Remediation — Phase 4: Blazor Modal Lifecycles, PersianCalendar Safety & Localization Hygiene (2026-11-19)**:
+  - **Changes**:
+    - `src/ForgeFlow.Web/Localization/DatePickerHelper.cs`: Added centralized `ToDateTimeOffset` / `FromDateTimeOffset` helpers guarding `default(DateOnly)` (`0001-01-01`) under `PersianCalendar` and enforcing `TimeSpan.Zero`.
+    - `src/ForgeFlow.Web/Components/Pages/SalesSections/CreateEditSalesOrderModal.razor` & `BomSections/BomVersionsModal.razor`: Adopted `DatePickerHelper` for date bindings.
+    - `src/ForgeFlow.Web/Components/Layout/ForgeFormDialog.razor`, `QualityParameterModal.razor`, `QualitySpecModal.razor`, `CreateEditSalesOrderModal.razor`, `PostDispatchModal.razor`, `SalesReserveStockModal.razor`, `BomVersionsModal.razor`, `BomVersionWorkbenchModal.razor`: Added `IsBusy` / `OnDismissing` (`BitDialogDismissArgs`) save-in-flight protection and `IsOpenChanged.InvokeAsync(true)` in `BomVersionsModal.Open`.
+    - `src/ForgeFlow.Web/Resources/Localization/SharedResources.*.resx`, `PermissionAccordionPanel.razor`, `Users.razor`, `tests/ForgeFlow.Web.Tests/ResourceContractTests.cs`: Added `ListSeparator` resource key (`", "` in `en-US`, `"، "` in `fa-IR`) and replaced hardcoded Persian comma separators.
+    - `tests/ForgeFlow.Web.Tests/Phase4UiHygieneTests.cs`: Added tests for `DatePickerHelper` (`default(DateOnly)` + `PersianCalendar`) and culture-aware `ListSeparator`.
+  - **Verification Evidence (2026-11-19)**:
+    - Build & Targeted Tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~Phase4UiHygieneTests|FullyQualifiedName~ResourceContractTests|FullyQualifiedName~BomTests"` -> **24 Passed, 0 Failed, 0 Skipped**.
+  - **Next Small Step**: Phase 5 (Infrastructure God-Class Decomposition).
+
+- **Phased Audit Remediation — Phase 5: Infrastructure God-Class Decomposition (2026-11-19)**:
+  - **Changes**:
+    - `src/ForgeFlow.Infrastructure/Organizations/Auditing/OrganizationAuditChangeSerializer.cs`: Extracted the ~1,000-line audit-change serialization and entity-to-organization/site resolution logic out of `OrganizationDbContext.cs` (reducing `OrganizationDbContext.cs` from 1,620 to 638 lines).
+    - `src/ForgeFlow.Infrastructure/Identity/RuntimeSessions.cs` & `src/ForgeFlow.Infrastructure/Identity/Sessions/*.cs`: Converted `RuntimeSessions` (3,325 lines) to a `partial` class split into 7 focused files under 650 lines each (`RuntimeSessions.cs`, `RuntimeSessions.Authentication.cs`, `RuntimeSessions.Validation.cs`, `RuntimeSessions.ProfileAndPreferences.cs`, `RuntimeSessions.Notifications.cs`, `RuntimeSessions.TwoFactor.cs`, `RuntimeSessions.Passkeys.cs`).
+  - **Verification Evidence (2026-11-19)**:
+    - Build & Targeted Tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --filter "FullyQualifiedName~SecurityAuditTests|FullyQualifiedName~SaveChangesInterceptorPipelineTests|FullyQualifiedName~SessionConcurrencyAndSyncTests|FullyQualifiedName~Phase1RemediationTests|FullyQualifiedName~Phase2EncryptionTests"` -> **56 Passed, 0 Failed, 0 Skipped**.
+  - **Next Small Step**: Phase 6 (Oversized Razor Pages Modularization under 800 lines).
+
+- **Phased Audit Remediation — Phase 6: Oversized Razor Pages Modularization under 800 Lines (2026-11-19)**:
+  - **Changes**:
+    - Decomposed all oversized Razor pages and section components using `*Sections/*.razor` subcomponents (preserving `@bind-IsOpen:after` lifecycle hooks and ASP.NET Core localization contracts) so every `.razor` file under `src/ForgeFlow.Web/Components/Pages` is strictly `< 800` lines:
+      - `BomVersionWorkbenchModal.razor` (`BomSections/BomVersionApplicabilitySection.razor`, `BomVersionOutputsSection.razor`)
+      - `Reports.razor` (`ReportSections/ReportDetailModals.razor`, `ReportVarianceSection.razor`)
+      - `BusinessPartners.razor` (`BusinessPartnerSections/BusinessPartnerDetailAndToggleModals.razor`, `BusinessPartnerGridSection.razor`, `BusinessPartnerFormModal.razor`)
+      - `PurchaseOrders.razor` (`PurchaseOrderSections/PurchaseOrderDetailModal.razor`, `PurchaseOrderGridSection.razor`, `PurchaseOrderReceiveModal.razor`, `PurchaseOrderEditorModal.razor`, `PurchaseOrderFilterToolbar.razor`)
+      - `Inventory.razor` (`InventorySections/InventoryWarehouseModal.razor`, `InventoryDetailsModal.razor`, `InventoryPostModal.razor`, `InventoryGridsSection.razor`, `InventoryToolbarSection.razor`)
+      - `Units.razor` (`UnitSections/UnitGridsSection.razor`, `UnitModals.razor`, `UnitConversionModals.razor`, `CurrencyEditModal.razor`, `UnitCreateCurrencyAndConverterDialogs.razor`)
+      - `ProductionOrders.razor` (`ProductionOrderSections/ProductionOrderGridSection.razor`, `ProductionOrderOperationsAndInputsSection.razor`, `ProductionOrderWorkbenchModal.razor`, `ProductionOrderCreateDialog.razor`, `ProductionOrderReserveDialog.razor`)
+      - `Users.razor` (`UserSections/UserDetailModal.razor`, `UserCreateModal.razor`, `UserPermissionsModal.razor`, `UserResetAndAttachDialogs.razor`)
+      - `Routings.razor` (`RoutingSections/RoutingGridSection.razor`) and `Quality.razor` (`QualitySections/QualityToolbarSection.razor`)
+    - Updated `tests/ForgeFlow.Web.Tests/ComponentStateLifecycleTests.cs` and `tests/ForgeFlow.Web.Tests/UserManagementPageTests.cs` to target the extracted section components.
+  - **Verification Evidence (2026-11-19)**:
+    - Line-Count Check: All `.razor` files under `src/ForgeFlow.Web/Components/Pages` confirmed `< 800` lines.
+    - Full Solution Build: `dotnet build ForgeFlow.slnx -c Release --no-restore` -> **Build succeeded. 0 Warning(s), 0 Error(s)**.
+    - Full Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build` -> **831 Passed, 0 Failed, 1 Skipped (`AuthHttpTests.Real_http_enforces_antiforgery_local_targets_cookie_security_and_outage_denial`), Total 832**.
+    - Live Development Server (`https://localhost:5001`): `GET /health` -> **HTTP 200 (`Healthy`)**, `GET /account/login` -> **HTTP 200**.
+  - **Remaining Gaps**: Live UI manual/browser acceptance across `fa-IR` (RTL), `en-US` (LTR), and mobile viewports remains open for user review on the running Development instance.

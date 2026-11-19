@@ -725,14 +725,12 @@ public sealed class SqlSalesOperationsStore(
         foreach (var q in latestInspections)
             coaByLot.TryAdd((q.ItemId, q.LotCode), (q.Id, q.CertificateNumber));
 
-        var targetLotCodes = resolvedLines.Select(l => l.LotCode).Distinct().ToArray();
-
-        // Deterministically acquire row-level update locks on matching inventory balances ordered by Id ASC
-        var balancesList = await db.InventoryBalances
-            .FromSqlInterpolated($"SELECT * FROM [organization].[InventoryBalance] WITH (UPDLOCK, ROWLOCK) WHERE [OrganizationId] = {organizationId} AND [WarehouseId] = {request.WarehouseId}")
-            .Where(b => itemIds.Contains(b.ItemId) && targetLotCodes.Contains(b.LotCode))
-            .OrderBy(b => b.Id)
-            .ToListAsync(ct);
+        // Deterministically acquire targeted row-level update locks on matching inventory balances ordered by Id ASC
+        var balancesList = await ForgeFlow.Infrastructure.Inventory.InventoryBalanceLockHelper.LockBalancesAsync(
+            db,
+            organizationId,
+            resolvedLines.Select(l => (request.WarehouseId, l.ItemId, l.LotCode)),
+            ct);
 
         var balances = balancesList.ToDictionary(b => (b.ItemId, b.LotCode));
 
@@ -894,13 +892,11 @@ public sealed class SqlSalesOperationsStore(
             .ToArray();
         order.RevertDispatches(revertDeltas);
 
-        var itemIds = delivery.Lines.Select(l => l.ItemId).Distinct().ToArray();
-        var lotCodes = delivery.Lines.Select(l => l.LotCode).Distinct().ToArray();
-        var balancesList = await db.InventoryBalances
-            .FromSqlInterpolated($"SELECT * FROM [organization].[InventoryBalance] WITH (UPDLOCK, ROWLOCK) WHERE [OrganizationId] = {organizationId} AND [WarehouseId] = {delivery.WarehouseId}")
-            .Where(b => itemIds.Contains(b.ItemId) && lotCodes.Contains(b.LotCode))
-            .OrderBy(b => b.Id)
-            .ToListAsync(ct);
+        var balancesList = await ForgeFlow.Infrastructure.Inventory.InventoryBalanceLockHelper.LockBalancesAsync(
+            db,
+            organizationId,
+            delivery.Lines.Select(l => (delivery.WarehouseId, l.ItemId, l.LotCode)),
+            ct);
 
         var balances = balancesList.ToDictionary(b => (b.ItemId, b.LotCode));
 
@@ -977,15 +973,11 @@ public sealed class SqlSalesOperationsStore(
 
         if (openRes.Count == 0) return;
 
-        var whIds = openRes.Select(r => r.WarehouseId).Distinct().ToArray();
-        var itemIds = openRes.Select(r => r.ItemId).Distinct().ToArray();
-        var lotCodes = openRes.Select(r => r.LotCode).Distinct().ToArray();
-
-        var balancesList = await db.InventoryBalances
-            .FromSqlInterpolated($"SELECT * FROM [organization].[InventoryBalance] WITH (UPDLOCK, ROWLOCK) WHERE [OrganizationId] = {organizationId}")
-            .Where(b => whIds.Contains(b.WarehouseId) && itemIds.Contains(b.ItemId) && lotCodes.Contains(b.LotCode))
-            .OrderBy(b => b.Id)
-            .ToListAsync(ct);
+        var balancesList = await ForgeFlow.Infrastructure.Inventory.InventoryBalanceLockHelper.LockBalancesAsync(
+            db,
+            organizationId,
+            openRes.Select(r => (r.WarehouseId, r.ItemId, r.LotCode)),
+            ct);
 
         var balances = balancesList.ToDictionary(b => (b.WarehouseId, b.ItemId, b.LotCode));
 

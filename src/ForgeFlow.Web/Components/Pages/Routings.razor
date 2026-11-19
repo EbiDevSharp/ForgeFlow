@@ -101,55 +101,18 @@
             </div>
         </div>
 
-        <div class="read-grid-card">
-            <div class="read-grid">
-                <BitDataGrid @ref="grid" TItem="RoutingSummary" OnRead="ReadRoutingsAsync" Pageable="true" PageSize="25"
-                             Resizable="true" WrapCellText="true"
-                             PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["Routings"]">
-                    <Columns>
-                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["ReadCode"]">
-                            <Template Context="r">
-                                <bdi dir="ltr"><strong>@r.Code</strong> v@(r.VersionNumber)</bdi>
-                                @if (r.IsDefault)
-                                {
-                                    <span class="cap-badge">@Text["RtDefaultBadge"]</span>
-                                }
-                            </Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["ReadName"]">
-                            <Template Context="r">@r.Name</Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["PoSiteColumn"]">
-                            <Template Context="r"><bdi dir="ltr">@r.SiteCode</bdi></Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["PoItemColumn"]">
-                            <Template Context="r"><bdi dir="ltr">@r.ItemSku</bdi> — @r.ItemName</Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["RtOpsSummaryCol"]">
-                            <Template Context="r">
-                                <bdi dir="ltr">@r.OperationCount · @Format.Number(r.TotalSetupMinutes) + @Format.Number(r.TotalRunMinutesPerUnit)/u</bdi>
-                            </Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["ReadStatus"]">
-                            <Template Context="r">
-                                <span class="read-badge @StatusBadgeClass(r.Status)">@StatusLabel(r.Status)</span>
-                            </Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="RoutingSummary" Title="@Text["ReadActions"]">
-                            <Template Context="r">
-                                <div class="read-row-actions">
-                                    <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
-                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                   IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
-                                                   OnClick="() => OpenWorkbenchAsync(r.Id)" />
-                                    </BitTooltip>
-                                </div>
-                            </Template>
-                        </BitDataGridColumn>
-                    </Columns>
-                </BitDataGrid>
-            </div>
-        </div>
+@using ForgeFlow.Web.Components.Pages.RoutingSections
+        <RoutingGridSection @ref="gridSection"
+                            CurrentScope="@CurrentScope"
+                            SiteFilter="@siteFilter"
+                            StatusFilter="@statusFilter"
+                            AppliedSearch="@appliedSearch"
+                            PageSizeOptions="@PageSizeOptions"
+                            GridStrings="@GridStrings"
+                            StatusBadgeClass="@StatusBadgeClass"
+                            StatusLabel="@StatusLabel"
+                            OnOpenWorkbench="OpenWorkbenchAsync"
+                            OnPageError="err => { pageError = err; StateHasChanged(); }" />
     }
 
     <ForgeFormDialog Width="760px" @bind-IsOpen="createOpen"
@@ -423,7 +386,7 @@
         Overlay = "read-dialog-overlay"
     };
 
-    private BitDataGrid<RoutingSummary>? grid;
+    private RoutingGridSection? gridSection;
 
     private bool initialLoading = true;
     private string? pageError;
@@ -610,43 +573,8 @@
         await ReloadGridFromFirstPageAsync();
     }
 
-    private async Task ReloadGridFromFirstPageAsync()
-    {
-        if (grid is null) return;
-        if (grid.CurrentPage <= 1) await grid.RefreshAsync();
-        else await grid.GoToPageAsync(1);
-    }
-
-    private async Task<BitDataGridReadResult<RoutingSummary>> ReadRoutingsAsync(BitDataGridReadRequest request)
-    {
-        var scope = CurrentScope;
-        if (scope is null) return new([], 0);
-        var orgId = ScopeOrganizationId(scope);
-        var size = Math.Clamp(request.Take ?? 25, 1, 100);
-        var page = (request.Skip / size) + 1;
-        RoutingStatus? parsedStatus = byte.TryParse(statusFilter, out var st) && Enum.IsDefined((RoutingStatus)st) ? (RoutingStatus)st : null;
-        long? filterSite = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
-
-        try
-        {
-            var res = await RoutingService.ListRoutings(scope, orgId,
-                new RoutingListQuery(filterSite, null, parsedStatus, appliedSearch, page, size), request.CancellationToken);
-            if (!res.Succeeded)
-            {
-                pageError = RolePermissionLocalization.FailureKey(res.Error!.Code);
-                StateHasChanged();
-                return new([], 0);
-            }
-            return new(res.Value!.Items.ToList(), res.Value.Total);
-        }
-        catch (OperationCanceledException) { return new([], 0); }
-        catch
-        {
-            pageError = "ReadError";
-            StateHasChanged();
-            return new([], 0);
-        }
-    }
+    private Task ReloadGridFromFirstPageAsync()
+        => gridSection?.ReloadFromFirstPageAsync() ?? Task.CompletedTask;
 
     private void OpenCreateModal()
     {
@@ -765,7 +693,7 @@
             if (!res.Succeeded) { workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
             await PopulateWorkbenchAsync(res.Value!);
             workbenchSaved = Text["RtSavedNotice"];
-            if (grid is not null) await grid.RefreshAsync();
+            if (gridSection is not null) await gridSection.RefreshAsync();
         }
         finally { modalBusy = false; }
     }
@@ -788,7 +716,7 @@
             if (!res.Succeeded) { workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
             await PopulateWorkbenchAsync(res.Value!);
             workbenchSaved = Text["RtOpsSavedNotice"];
-            if (grid is not null) await grid.RefreshAsync();
+            if (gridSection is not null) await gridSection.RefreshAsync();
         }
         finally { modalBusy = false; }
     }
@@ -807,7 +735,7 @@
             if (!res.Succeeded) { workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
             await PopulateWorkbenchAsync(res.Value!);
             workbenchSaved = Text["RtActivatedNotice"];
-            if (grid is not null) await grid.RefreshAsync();
+            if (gridSection is not null) await gridSection.RefreshAsync();
         }
         finally { modalBusy = false; }
     }
@@ -826,7 +754,7 @@
             if (!res.Succeeded) { workbenchError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
             await PopulateWorkbenchAsync(res.Value!);
             workbenchSaved = Text["RtObsoletedNotice"];
-            if (grid is not null) await grid.RefreshAsync();
+            if (gridSection is not null) await gridSection.RefreshAsync();
         }
         finally { modalBusy = false; }
     }

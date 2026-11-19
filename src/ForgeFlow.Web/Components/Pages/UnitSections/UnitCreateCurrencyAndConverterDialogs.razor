@@ -1,0 +1,159 @@
+@using System.Globalization
+@using ForgeFlow.Application.Units
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@CreateCurrencyOpen" IsOpenChanged="CreateCurrencyOpenChanged"
+           OnDismissing="OnCreateCurrencyDismissing"
+           Title="@Text["CurrencyCreateTitle"]" AriaLabel="@Text["CurrencyCreateTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            <form class="write-panel" @onsubmit:preventDefault>
+                <div class="read-field">
+                    <label for="create-cur-code">@Text["ReadCode"]</label>
+                    <input id="create-cur-code" value="@CreateCurrencyCode" @oninput="e => CreateCurrencyCodeChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" maxlength="3" dir="ltr" disabled="@CurrencySaving" />
+                    <span class="write-hint">@Text["CurrencyCodeHint"]</span>
+                </div>
+                <div class="read-field">
+                    <label for="create-cur-name">@Text["ReadName"]</label>
+                    <input id="create-cur-name" value="@CreateCurrencyName" @oninput="e => CreateCurrencyNameChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" maxlength="200" disabled="@CurrencySaving" />
+                </div>
+                <div class="read-field">
+                    <label for="create-cur-symbol">@Text["UnitSymbolLabel"]</label>
+                    <input id="create-cur-symbol" value="@CreateCurrencySymbol" @oninput="e => CreateCurrencySymbolChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" maxlength="32" disabled="@CurrencySaving" />
+                </div>
+                <div class="read-field">
+                    <label for="create-cur-precision">@Text["UnitPrecisionLabel"]</label>
+                    <select id="create-cur-precision" value="@CreateCurrencyPrecision" @onchange="OnPrecisionChanged" disabled="@CurrencySaving">
+                        @for (byte p = 0; p <= 6; p++)
+                        {
+                            <option value="@p">@p</option>
+                        }
+                    </select>
+                </div>
+
+                @if (CreateCurrencyDiscardConfirm)
+                {
+                    <div class="write-confirm" role="alertdialog" aria-labelledby="create-cur-discard-text">
+                        <p id="create-cur-discard-text">@Text["WriteDiscardConfirm"]</p>
+                        <div class="write-actions">
+                            <BitButton Size="BitSize.Small" OnClick="OnConfirmCreateCurrencyDiscard">@Text["WriteDiscard"]</BitButton>
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => CreateCurrencyDiscardConfirmChanged.InvokeAsync(false)">@Text["WriteKeepEditing"]</BitButton>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="write-actions">
+                        <BitButton Size="BitSize.Small" IsEnabled="@(!CurrencySaving && !string.IsNullOrWhiteSpace(CreateCurrencyCode) && !string.IsNullOrWhiteSpace(CreateCurrencyName) && !string.IsNullOrWhiteSpace(CreateCurrencySymbol))"
+                                   OnClick="OnSubmitCreateCurrency">@Text["CreateSubmit"]</BitButton>
+                    </div>
+                }
+
+                @if (CurrencySaving) { <p role="status">@Text["WriteSaving"]</p> }
+                @if (CurrencyError is not null) { <p role="alert" class="write-error">@Text[CurrencyError]</p> }
+            </form>
+        </div>
+    </Body>
+</BitDialog>
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@ConverterOpen" IsOpenChanged="ConverterOpenChanged"
+           Title="@Text["UnitConverterTitle"]" AriaLabel="@Text["UnitConverterTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            <form class="write-panel" @onsubmit:preventDefault>
+                <div class="read-field">
+                    <label for="calc-qty">@Text["UnitConverterQuantityLabel"]</label>
+                    <input id="calc-qty" type="number" step="0.000001" min="0.000001" value="@CalcQuantityText" @oninput="e => CalcQuantityTextChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" />
+                </div>
+                <div class="read-field">
+                    <label for="calc-from">@Text["UnitConversionFromLabel"]</label>
+                    <select id="calc-from" value="@CalcFromUnitId" @onchange="e => OnUnitChanged(CalcFromUnitIdChanged, e)">
+                        @foreach (var u in ActiveUnits)
+                        {
+                            <option value="@u.Id">@FormatUnitOption(u)</option>
+                        }
+                    </select>
+                </div>
+                <div class="read-field">
+                    <label for="calc-to">@Text["UnitConversionToLabel"]</label>
+                    <select id="calc-to" value="@CalcToUnitId" @onchange="e => OnUnitChanged(CalcToUnitIdChanged, e)">
+                        @foreach (var u in ActiveUnits)
+                        {
+                            <option value="@u.Id">@FormatUnitOption(u)</option>
+                        }
+                    </select>
+                </div>
+                <div class="write-actions">
+                    <BitButton Size="BitSize.Small" IsEnabled="@(!Calculating && CalcFromUnitId > 0 && CalcToUnitId > 0)"
+                               OnClick="OnCalculateConversion">@Text["UnitConverterCalculate"]</BitButton>
+                </div>
+
+                @if (CalcError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[CalcError]</p>
+                }
+                else if (CalcResult is not null)
+                {
+                    <div class="converter-result-card" role="status">
+                        <span class="converter-formula">@FormattedEquation</span>
+                        <span class="converter-meta">
+                            @Text["UnitConverterHops", CalcResult.Hops, CalcResult.EffectiveFactor.ToString("0.######", CultureInfo.InvariantCulture)]
+                        </span>
+                    </div>
+                }
+            </form>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+
+    [Parameter] public bool CreateCurrencyOpen { get; set; }
+    [Parameter] public EventCallback<bool> CreateCurrencyOpenChanged { get; set; }
+    [Parameter] public EventCallback<BitDialogDismissArgs> OnCreateCurrencyDismissing { get; set; }
+    [Parameter] public string CreateCurrencyCode { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> CreateCurrencyCodeChanged { get; set; }
+    [Parameter] public string CreateCurrencyName { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> CreateCurrencyNameChanged { get; set; }
+    [Parameter] public string CreateCurrencySymbol { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> CreateCurrencySymbolChanged { get; set; }
+    [Parameter] public byte CreateCurrencyPrecision { get; set; }
+    [Parameter] public EventCallback<byte> CreateCurrencyPrecisionChanged { get; set; }
+    [Parameter] public bool CreateCurrencyDiscardConfirm { get; set; }
+    [Parameter] public EventCallback<bool> CreateCurrencyDiscardConfirmChanged { get; set; }
+    [Parameter] public EventCallback OnConfirmCreateCurrencyDiscard { get; set; }
+    [Parameter] public EventCallback OnSubmitCreateCurrency { get; set; }
+    [Parameter] public bool CurrencySaving { get; set; }
+    [Parameter] public string? CurrencyError { get; set; }
+
+    [Parameter] public bool ConverterOpen { get; set; }
+    [Parameter] public EventCallback<bool> ConverterOpenChanged { get; set; }
+    [Parameter] public string CalcQuantityText { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> CalcQuantityTextChanged { get; set; }
+    [Parameter] public long CalcFromUnitId { get; set; }
+    [Parameter] public EventCallback<long> CalcFromUnitIdChanged { get; set; }
+    [Parameter] public long CalcToUnitId { get; set; }
+    [Parameter] public EventCallback<long> CalcToUnitIdChanged { get; set; }
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public Func<UnitSummary, string> FormatUnitOption { get; set; } = u => $"{u.Code} — {u.Name}";
+    [Parameter] public bool Calculating { get; set; }
+    [Parameter] public EventCallback OnCalculateConversion { get; set; }
+    [Parameter] public string? CalcError { get; set; }
+    [Parameter] public UnitConversionPreviewResult? CalcResult { get; set; }
+    [Parameter] public string FormattedEquation { get; set; } = string.Empty;
+
+    private Task OnPrecisionChanged(ChangeEventArgs e)
+        => byte.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var p)
+            ? CreateCurrencyPrecisionChanged.InvokeAsync(p)
+            : Task.CompletedTask;
+
+    private Task OnUnitChanged(EventCallback<long> cb, ChangeEventArgs e)
+        => long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+            ? cb.InvokeAsync(id)
+            : Task.CompletedTask;
+}

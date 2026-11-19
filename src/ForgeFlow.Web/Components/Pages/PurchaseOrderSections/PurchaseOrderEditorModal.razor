@@ -1,0 +1,223 @@
+@using System.Globalization
+@using ForgeFlow.Application.BusinessPartners
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Procurement
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Organizations
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+@inject CulturePolicy Culture
+
+<ForgeFormDialog Width="1020px" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged" IsBusy="@ModalBusy"
+                 Title="@(IsEditingDraft ? Text["ProcPoEditTitle"] : Text["ProcPoCreateTitle"])"
+                 Subtitle="@Text["ProcPoModalSubtitle"]"
+                 CloseTitle="@Text["ReadClose"]">
+    <ChildContent>
+        @if (ModalError is not null)
+        {
+            <p role="alert" class="write-error">@ModalError</p>
+        }
+
+        <div class="proc-po-section-head">
+            <span class="proc-po-section-bar" aria-hidden="true"></span>
+            <h3>@Text["ProcGeneralInfoSection"]</h3>
+        </div>
+
+        <div class="proc-po-general-grid">
+            <div class="proc-po-field">
+                <label for="proc-po-num">@Text["ProcPoNumberLabel"]</label>
+                <input id="proc-po-num" type="text" maxlength="32" class="@((IsEditingDraft || !PoAllowOverride) ? "proc-input-readonly" : string.Empty)"
+                       value="@EditOrderNumber" @oninput="e => EditOrderNumberChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"
+                       dir="ltr" readonly="@(IsEditingDraft || !PoAllowOverride)" />
+            </div>
+            <div class="proc-po-field">
+                <PartnerPicker Value="@EditSupplierId"
+                               ValueChanged="EditSupplierIdChanged"
+                               Role="PartnerLookupRole.Supplier"
+                               Scope="CurrentScope"
+                               OrganizationId="CurrentOrgId"
+                               Label="@Text["ProcSupplierLabel"]"
+                               Placeholder="@Text["ProcSelectSupplierPlaceholder"]"
+                               InitialName="@EditSupplierName"
+                               InitialCode="@EditSupplierCode"
+                               Required="true" />
+            </div>
+            <div class="proc-po-field">
+                <label for="proc-po-site">@Text["PoSiteColumn"]</label>
+                <select id="proc-po-site" value="@EditSiteId" @onchange="OnEditorSiteChanged" disabled="@(IsEditingDraft || CurrentScope is OrganizationScope.Site)">
+                    @foreach (var s in AuthorizedSites)
+                    {
+                        <option value="@s.Id">@s.Code — @s.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="proc-po-field">
+                <label>@Text["ProcOrderDateLabel"]</label>
+                <BitDatePicker Value="@EditOrderDateOffset" ValueChanged="EditOrderDateOffsetChanged" Class="bom-dtp proc-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                               Placeholder="@Text["ProcSelectDatePlaceholder"]"
+                               ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowGoToToday="true"
+                               GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                               NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon"
+                               NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+            </div>
+            <div class="proc-po-field">
+                <label>@Text["ProcExpectedDateLabel"]</label>
+                <BitDatePicker Value="@EditExpectedDateOffset" ValueChanged="EditExpectedDateOffsetChanged" Class="bom-dtp proc-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                               Placeholder="@Text["ProcSelectDatePlaceholder"]"
+                               ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowGoToToday="true"
+                               GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                               NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon"
+                               NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+            </div>
+            <div class="proc-po-field">
+                <label for="proc-po-currency">@Text["ProcCurrencyLabel"]</label>
+                <select id="proc-po-currency" value="@EditCurrencyCode" @onchange="e => EditCurrencyCodeChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)">
+                    @foreach (var cur in ActiveCurrencies)
+                    {
+                        <option value="@cur.Code">@cur.Code — @cur.Name (@cur.Symbol)</option>
+                    }
+                    @if (!string.IsNullOrEmpty(EditCurrencyCode) && ActiveCurrencies.All(c => c.Code != EditCurrencyCode))
+                    {
+                        <option value="@EditCurrencyCode">@EditCurrencyCode</option>
+                    }
+                </select>
+            </div>
+
+            <div class="proc-po-field">
+                <label for="proc-po-wh">@Text["ProcTargetWarehouseLabel"]</label>
+                <select id="proc-po-wh" value="@EditTargetWarehouseId" @onchange="OnWarehouseChanged">
+                    <option value="0">@Text["ProcSelectWarehousePlaceholder"]</option>
+                    @foreach (var w in SiteWarehouses)
+                    {
+                        <option value="@w.Id">@w.Code — @w.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="proc-po-field proc-po-notes-span">
+                <label for="proc-po-notes">@Text["PoNotesLabel"]</label>
+                <input id="proc-po-notes" type="text" maxlength="500" value="@EditNotes"
+                       @oninput="e => EditNotesChanged.InvokeAsync(e.Value?.ToString())"
+                       placeholder="@Text["ProcNotesOptionalPlaceholder"]" />
+            </div>
+        </div>
+
+        <div class="proc-po-section-head proc-po-section-head--split">
+            <div class="proc-po-section-title">
+                <span class="proc-po-section-bar" aria-hidden="true"></span>
+                <h3>@Text["ProcLinesSection"]</h3>
+            </div>
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Icon="@PlusIcon" Class="proc-po-add-line-btn" OnClick="OnAddDraftLine">
+                @Text["ProcAddLineBtn"]
+            </BitButton>
+        </div>
+
+        <div class="proc-lines-card">
+            <div class="proc-lines-table">
+                <div class="proc-lines-grid proc-lines-head">
+                    <span>@Text["PoItemColumn"]</span>
+                    <span>@Text["BomQuantityColumn"]</span>
+                    <span>@Text["BomLineUnitColumn"]</span>
+                    <span>@Text["ProcUnitPriceLabel"]</span>
+                    <span>@Text["ProcLineAmountLabel"]</span>
+                    <span>@Text["PoNotesLabel"]</span>
+                    <span aria-hidden="true"></span>
+                </div>
+                @foreach (var line in DraftLines)
+                {
+                    <div class="proc-lines-grid proc-lines-row">
+                        <select aria-label="@Text["PoItemColumn"]" value="@line.ItemId" @onchange="e => OnLineItemChanged.InvokeAsync((line, e))">
+                            <option value="0">@Text["ProcSelectItemPlaceholder"]</option>
+                            @foreach (var it in PurchasableItems)
+                            {
+                                <option value="@it.Id">@it.Code — @it.Name</option>
+                            }
+                        </select>
+                        <input type="number" step="0.000001" min="0.000001" aria-label="@Text["BomQuantityColumn"]" @bind="line.Quantity" @bind:event="oninput" dir="ltr" />
+                        <select aria-label="@Text["BomLineUnitColumn"]" @bind="line.UnitId">
+                            @foreach (var u in ActiveUnits)
+                            {
+                                <option value="@u.Id">@u.Code (@u.Symbol)</option>
+                            }
+                        </select>
+                        <input type="number" step="0.0001" min="0" aria-label="@Text["ProcUnitPriceLabel"]" placeholder="0" @bind="line.UnitPrice" @bind:event="oninput" dir="ltr" />
+                        <div class="proc-line-amount" dir="ltr">
+                            @(line.UnitPrice.HasValue && line.Quantity > 0m ? Format.Number(line.Quantity * line.UnitPrice.Value) : "—")
+                        </div>
+                        <input type="text" maxlength="300" aria-label="@Text["PoNotesLabel"]" placeholder="@Text["PoNotesLabel"]" @bind="line.Notes" />
+                        <button type="button" class="proc-line-del-btn" aria-label="@Text["BomRemoveRowBtn"]" title="@Text["BomRemoveRowBtn"]"
+                                disabled="@(DraftLines.Count <= 1)" @onclick="() => DraftLines.Remove(line)">
+                            <span class="ff-icon ff-icon--trash" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </ChildContent>
+    <FooterActions>
+        <BitButton Class="proc-po-primary-btn" IsEnabled="@(!ModalBusy)" OnClick="OnSubmitDraft">@Text["PoSaveDraftButton"]</BitButton>
+        <BitButton Variant="BitVariant.Outline" Class="proc-po-cancel-btn" IsEnabled="@(!ModalBusy)" OnClick="() => IsOpenChanged.InvokeAsync(false)">@Text["WriteCancel"]</BitButton>
+    </FooterActions>
+    <FooterEnd>
+        <div class="proc-po-footer-total">
+            <span class="proc-po-total-label">@Text["ProcGrandTotalLabel"]</span>
+            <strong class="proc-po-total-val" dir="ltr">@Format.CurrencyAmount(DraftEstimatedTotal, EditCurrencyCode)</strong>
+        </div>
+    </FooterEnd>
+</ForgeFormDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public bool IsEditingDraft { get; set; }
+    [Parameter] public bool PoAllowOverride { get; set; }
+    [Parameter] public string? ModalError { get; set; }
+    [Parameter] public string EditOrderNumber { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> EditOrderNumberChanged { get; set; }
+    [Parameter] public long EditSupplierId { get; set; }
+    [Parameter] public EventCallback<long> EditSupplierIdChanged { get; set; }
+    [Parameter] public string? EditSupplierName { get; set; }
+    [Parameter] public string? EditSupplierCode { get; set; }
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public long EditSiteId { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnEditorSiteChanged { get; set; }
+    [Parameter] public IReadOnlyList<ProductionOrderSiteInfo> AuthorizedSites { get; set; } = [];
+    [Parameter] public DateTimeOffset? EditOrderDateOffset { get; set; }
+    [Parameter] public EventCallback<DateTimeOffset?> EditOrderDateOffsetChanged { get; set; }
+    [Parameter] public DateTimeOffset? EditExpectedDateOffset { get; set; }
+    [Parameter] public EventCallback<DateTimeOffset?> EditExpectedDateOffsetChanged { get; set; }
+    [Parameter] public string EditCurrencyCode { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> EditCurrencyCodeChanged { get; set; }
+    [Parameter] public IReadOnlyList<CurrencySummary> ActiveCurrencies { get; set; } = [];
+    [Parameter] public long EditTargetWarehouseId { get; set; }
+    [Parameter] public EventCallback<long> EditTargetWarehouseIdChanged { get; set; }
+    [Parameter] public IReadOnlyList<WarehouseSummary> SiteWarehouses { get; set; } = [];
+    [Parameter] public string? EditNotes { get; set; }
+    [Parameter] public EventCallback<string?> EditNotesChanged { get; set; }
+    [Parameter] public List<PurchaseOrders.DraftLineRow> DraftLines { get; set; } = [];
+    [Parameter] public IReadOnlyList<ItemSummary> PurchasableItems { get; set; } = [];
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public EventCallback OnAddDraftLine { get; set; }
+    [Parameter] public EventCallback<(PurchaseOrders.DraftLineRow Line, ChangeEventArgs Args)> OnLineItemChanged { get; set; }
+    [Parameter] public decimal DraftEstimatedTotal { get; set; }
+    [Parameter] public bool ModalBusy { get; set; }
+    [Parameter] public EventCallback OnSubmitDraft { get; set; }
+    [Parameter] public string PickerDateFormat { get; set; } = "yyyy-MM-dd";
+    [Parameter] public BitIconInfo? TodayIcon { get; set; }
+    [Parameter] public BitIconInfo? CalendarIcon { get; set; }
+    [Parameter] public BitIconInfo? NextNavIcon { get; set; }
+    [Parameter] public BitIconInfo? PrevNavIcon { get; set; }
+    [Parameter] public BitIconInfo? NextYearIcon { get; set; }
+    [Parameter] public BitIconInfo? PrevYearIcon { get; set; }
+    [Parameter] public BitIconInfo? CloseIcon { get; set; }
+    [Parameter] public BitIconInfo? PlusIcon { get; set; }
+
+    private Task OnWarehouseChanged(ChangeEventArgs e)
+        => long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+            ? EditTargetWarehouseIdChanged.InvokeAsync(id)
+            : Task.CompletedTask;
+}

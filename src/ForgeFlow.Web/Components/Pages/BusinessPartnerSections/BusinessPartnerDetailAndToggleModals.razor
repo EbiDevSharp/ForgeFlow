@@ -1,0 +1,191 @@
+@using ForgeFlow.Application.BusinessPartners
+@using ForgeFlow.Domain.BusinessPartners
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="680px" MaxWidth="calc(100vw - 24px)" Classes="@DetailDialogClasses" IsOpen="@DetailModalOpen" IsOpenChanged="DetailModalOpenChanged"
+           Title="@Text["BpDetailTitle"]" AriaLabel="@Text["BpDetailTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (DetailItem is not null)
+        {
+            <div class="bp-detail-dialog-body">
+                <div class="bp-detail-hero">
+                    <div class="bp-person-avatar @(DetailItem.PersonType == PersonType.Legal ? "bp-person-avatar--legal" : "bp-person-avatar--natural")" style="width: 52px; height: 52px;">
+                        @if (DetailItem.PersonType == PersonType.Legal)
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 28px; height: 28px;">
+                                <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                                <path d="M9 22v-4h6v4"></path>
+                                <path d="M8 6h.01"></path>
+                                <path d="M16 6h.01"></path>
+                                <path d="M8 10h.01"></path>
+                                <path d="M16 10h.01"></path>
+                                <path d="M8 14h.01"></path>
+                                <path d="M16 14h.01"></path>
+                            </svg>
+                        }
+                        else
+                        {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 28px; height: 28px;">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                        }
+                    </div>
+                    <div class="bp-detail-hero-info">
+                        <h3 class="bp-detail-name">@DetailItem.Name</h3>
+                        <div class="bp-detail-meta">
+                            <span class="bp-detail-code"><bdi dir="ltr">@DetailItem.Code</bdi></span>
+                            <span class="bp-detail-sep">•</span>
+                            <span class="read-badge @(DetailItem.IsActive ? "active" : "inactive")">
+                                @(DetailItem.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
+                            </span>
+                            <span class="bp-detail-sep">•</span>
+                            <span class="bp-detail-type">@(DetailItem.PersonType == PersonType.Legal ? Text["BpPersonLegal"] : Text["BpPersonNatural"])</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bp-detail-card">
+                    <h4 class="bp-detail-card-title">@Text["BpRolesLabel"]</h4>
+                    <div class="bp-roles-wrap">
+                        @foreach (var r in DetailItem.Roles)
+                        {
+                            <span class="bp-role-badge @GetRoleBadgeClass(r.Id)">@RoleName(r.Id)</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="bp-detail-card">
+                    <h4 class="bp-detail-card-title">@Text["BpGeneralInfo"]</h4>
+                    <div class="audit-meta-grid">
+                        @if (DetailItem.PersonType == PersonType.Legal)
+                        {
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["BpCompanyName"]</span>
+                                <span class="audit-meta-val">@(DetailItem.CompanyName ?? DetailItem.Name)</span>
+                            </div>
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["BpNationalLegalId"]</span>
+                                <span class="audit-meta-val"><bdi dir="ltr">@(DetailItem.NationalLegalId ?? "—")</bdi></span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(DetailItem.FirstName) || !string.IsNullOrWhiteSpace(DetailItem.LastName))
+                            {
+                                <div class="audit-meta-row">
+                                    <span class="audit-meta-label">@Text["BpContactPerson"]</span>
+                                    <span class="audit-meta-val">@($"{DetailItem.FirstName} {DetailItem.LastName}".Trim())</span>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["BpFullName"]</span>
+                                <span class="audit-meta-val">@DetailItem.Name</span>
+                            </div>
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["BpFirstName"]</span>
+                                <span class="audit-meta-val">@(DetailItem.FirstName ?? "—")</span>
+                            </div>
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["BpLastName"]</span>
+                                <span class="audit-meta-val">@(DetailItem.LastName ?? "—")</span>
+                            </div>
+                            <div class="audit-meta-row">
+                                <span class="audit-meta-label">@Text["BpNationalCode"]</span>
+                                <span class="audit-meta-val"><bdi dir="ltr">@(DetailItem.NationalCode ?? "—")</bdi></span>
+                            </div>
+                        }
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["BpEconomicCode"]</span>
+                            <span class="audit-meta-val"><bdi dir="ltr">@(DetailItem.EconomicCode ?? "—")</bdi></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bp-detail-card">
+                    <h4 class="bp-detail-card-title">@Text["BpContactInfo"]</h4>
+                    <div class="audit-meta-grid">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["BpMobile"]</span>
+                            <span class="audit-meta-val"><bdi dir="ltr">@(DetailItem.Mobile ?? "—")</bdi></span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["BpPhone"]</span>
+                            <span class="audit-meta-val"><bdi dir="ltr">@(DetailItem.Phone ?? "—")</bdi></span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["BpEmail"]</span>
+                            <span class="audit-meta-val"><bdi dir="ltr">@(DetailItem.Email ?? "—")</bdi></span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["BpWebsite"]</span>
+                            <span class="audit-meta-val"><bdi dir="ltr">@(DetailItem.Website ?? "—")</bdi></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bp-detail-card">
+                    <h4 class="bp-detail-card-title">@Text["BpAddressInfo"]</h4>
+                    <div class="audit-meta-grid">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["BpCountryProvince"]</span>
+                            <span class="audit-meta-val">@($"{ResolveCountry(DetailItem.Country)} - {DetailItem.Province}".Trim(' ', '-'))</span>
+                        </div>
+                        <div class="audit-meta-row" style="grid-column: 1 / -1;">
+                            <span class="audit-meta-label">@Text["BpCityAddress"]</span>
+                            <span class="audit-meta-val">@($"{DetailItem.City} - {DetailItem.Address}".Trim(' ', '-'))</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+<BitDialog Width="440px" MaxWidth="calc(100vw - 24px)" Classes="@DetailDialogClasses" IsOpen="@ConfirmToggleOpen" IsOpenChanged="ConfirmToggleOpenChanged"
+           Title="@Text[TargetIsActive ? "WriteDeactivate" : "WriteActivate"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="write-dialog-body">
+            @if (TargetIsActive)
+            {
+                <p>@Text["BpConfirmDeactivate", TargetName]</p>
+            }
+            else
+            {
+                <p>@Text["BpConfirmActivate", TargetName]</p>
+            }
+            <div class="write-actions">
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => ConfirmToggleOpenChanged.InvokeAsync(false)">
+                    @Text["WriteCancel"]
+                </BitButton>
+                <BitButton Size="BitSize.Small"
+                           Class="@(TargetIsActive ? "write-danger-btn" : string.Empty)"
+                           IsEnabled="@(!Toggling)"
+                           OnClick="OnExecuteToggleActive">
+                    @Text[TargetIsActive ? "WriteDeactivate" : "WriteActivate"]
+                </BitButton>
+            </div>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public BitDialogClassStyles? DetailDialogClasses { get; set; }
+    [Parameter] public bool DetailModalOpen { get; set; }
+    [Parameter] public EventCallback<bool> DetailModalOpenChanged { get; set; }
+    [Parameter] public BusinessPartnerDetail? DetailItem { get; set; }
+    [Parameter] public Func<int, string> GetRoleBadgeClass { get; set; } = _ => string.Empty;
+    [Parameter] public Func<int, string> RoleName { get; set; } = _ => string.Empty;
+    [Parameter] public Func<string?, string> ResolveCountry { get; set; } = c => c ?? string.Empty;
+
+    [Parameter] public bool ConfirmToggleOpen { get; set; }
+    [Parameter] public EventCallback<bool> ConfirmToggleOpenChanged { get; set; }
+    [Parameter] public bool TargetIsActive { get; set; }
+    [Parameter] public string TargetName { get; set; } = string.Empty;
+    [Parameter] public bool Toggling { get; set; }
+    [Parameter] public EventCallback OnExecuteToggleActive { get; set; }
+}

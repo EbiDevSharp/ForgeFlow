@@ -1,0 +1,120 @@
+@using ForgeFlow.Application.Organizations
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="440px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@Reset2FAOpen" IsOpenChanged="Reset2FAOpenChanged"
+           Title="@Text["User2FAResetDialogTitle"]" AriaLabel="@Text["User2FAResetDialogTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+    @if (!string.IsNullOrEmpty(SelectedUserName))
+    {
+        <div class="um-modal-panel">
+            <div class="sec-warning-box" role="alert">@Text["User2FAResetWarning"]</div>
+            <p class="um-meta-text">@Text["User2FAResetBody", SelectedUserName]</p>
+            <div class="sec-field">
+                <label for="reset-2fa-reason">@Text["User2FAResetReasonLabel"]</label>
+                <textarea id="reset-2fa-reason"
+                          rows="3"
+                          maxlength="300"
+                          class="sec-text-input"
+                          placeholder="@Text["User2FAResetReasonPlaceholder"]"
+                          disabled="@Saving"
+                          value="@Reset2FAReason"
+                          @oninput="e => Reset2FAReasonChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"></textarea>
+            </div>
+            <label class="sec-confirm-check">
+                <input type="checkbox" checked="@Reset2FAIdentityVerified" disabled="@Saving"
+                       @onchange="e => Reset2FAIdentityVerifiedChanged.InvokeAsync(e.Value is bool b && b)" />
+                <span>@Text["User2FAResetIdentityCheck"]</span>
+            </label>
+            <div class="um-modal-footer um-modal-footer--split">
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!Saving)" OnClick="() => Reset2FAOpenChanged.InvokeAsync(false)">@Text["TotpCancelBtn"]</BitButton>
+                <BitButton Variant="BitVariant.Fill" Size="BitSize.Small" Class="um-btn-danger-fill"
+                           IsEnabled="@(!Saving && Reset2FAIdentityVerified && !string.IsNullOrWhiteSpace(Reset2FAReason))"
+                           OnClick="OnSubmitResetTwoFactor">
+                    @Text["User2FAResetConfirmBtn"]
+                </BitButton>
+            </div>
+        </div>
+    }
+</Body>
+</BitDialog>
+
+<BitDialog Width="420px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@AttachOpen" IsOpenChanged="OnAttachOpenInternalChanged"
+           Title="@Text["AttachUserTitle"]" AriaLabel="@Text["AttachUserTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+<form class="write-panel" @onsubmit:preventDefault>
+    <div class="read-field">
+        <label for="attach-user-name">@Text["UserUsername"]</label>
+        <input id="attach-user-name" dir="ltr" value="@AttachUserName"
+               @oninput="e => AttachUserNameChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"
+               maxlength="128" disabled="@Attaching" aria-describedby="attach-username-hint" />
+        <span id="attach-username-hint" class="write-hint">@Text["UserNameHint"]</span>
+    </div>
+    <label class="write-check">
+        <input type="checkbox" checked="@AttachAssignAdmin" disabled="@Attaching"
+               @onchange="e => AttachAssignAdminChanged.InvokeAsync(e.Value is bool b && b)" />
+        <span>@Text["UserAssignOrgAdmin"]</span>
+    </label>
+    @if (OrgSites.Count > 0)
+    {
+        <div class="write-section">
+            <p class="write-section-title">@Text["UserAssignSitesLabel"]</p>
+            <div class="user-site-checks">
+                @foreach (var site in OrgSites)
+                {
+                    var checkedSite = AttachSelectedSiteIds.Contains(site.Id);
+                    <label class="write-check">
+                        <input type="checkbox" checked="@checkedSite" disabled="@Attaching" @onchange="e => OnToggleAttachSite.InvokeAsync((site.Id, e.Value is bool b && b))" />
+                        <span>@($"{site.Code} — {site.Name}")</span>
+                    </label>
+                }
+            </div>
+        </div>
+    }
+    <div class="write-actions">
+        <BitButton Size="BitSize.Small" IsEnabled="@(!Attaching && !string.IsNullOrWhiteSpace(AttachUserName))" OnClick="OnSubmitAttach">
+            @Text["AttachUserButton"]
+        </BitButton>
+    </div>
+    @if (Attaching) { <p role="status">@Text["WriteSaving"]</p> }
+    @if (AttachError is not null) { <p role="alert" class="write-error">@Text[AttachError]</p> }
+</form>
+</Body>
+</BitDialog>
+
+@code {
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+
+    [Parameter] public bool Reset2FAOpen { get; set; }
+    [Parameter] public EventCallback<bool> Reset2FAOpenChanged { get; set; }
+    [Parameter] public string? SelectedUserName { get; set; }
+    [Parameter] public bool Saving { get; set; }
+    [Parameter] public string Reset2FAReason { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> Reset2FAReasonChanged { get; set; }
+    [Parameter] public bool Reset2FAIdentityVerified { get; set; }
+    [Parameter] public EventCallback<bool> Reset2FAIdentityVerifiedChanged { get; set; }
+    [Parameter] public EventCallback OnSubmitResetTwoFactor { get; set; }
+
+    [Parameter] public bool AttachOpen { get; set; }
+    [Parameter] public EventCallback<bool> AttachOpenChanged { get; set; }
+    [Parameter] public EventCallback OnAfterAttachOpenChanged { get; set; }
+    [Parameter] public string AttachUserName { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> AttachUserNameChanged { get; set; }
+    [Parameter] public bool AttachAssignAdmin { get; set; }
+    [Parameter] public EventCallback<bool> AttachAssignAdminChanged { get; set; }
+    [Parameter] public IReadOnlyList<SiteDetails> OrgSites { get; set; } = [];
+    [Parameter] public HashSet<long> AttachSelectedSiteIds { get; set; } = [];
+    [Parameter] public EventCallback<(long SiteId, bool Checked)> OnToggleAttachSite { get; set; }
+    [Parameter] public bool Attaching { get; set; }
+    [Parameter] public string? AttachError { get; set; }
+    [Parameter] public EventCallback OnSubmitAttach { get; set; }
+
+    private async Task OnAttachOpenInternalChanged(bool next)
+    {
+        await AttachOpenChanged.InvokeAsync(next);
+        await OnAfterAttachOpenChanged.InvokeAsync();
+    }
+}

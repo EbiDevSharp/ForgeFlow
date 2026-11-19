@@ -1,0 +1,385 @@
+@using System.Globalization
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Units
+@using ForgeFlow.Web.Roles
+@inject UnitUseCases UnitService
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="unitModalOpen"
+           OnDismissing="OnUnitModalDismissing"
+           Title="@Text[unitEditMode ? "UnitEditTitle" : "UnitDetailTitle"]"
+           AriaLabel="@Text[unitEditMode ? "UnitEditTitle" : "UnitDetailTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (selectedUnit is not null)
+        {
+            <div class="audit-modal-body">
+                @if (!unitEditMode)
+                {
+                    <div class="audit-modal-title-row">
+                        <strong class="audit-modal-code" dir="ltr">@selectedUnit.Code</strong>
+                        <span class="read-badge @(selectedUnit.IsActive ? "active" : "inactive")">
+                            @Text[selectedUnit.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </div>
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["ReadName"]</span>
+                            <span class="audit-meta-val">@selectedUnit.Name</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitSymbolLabel"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@selectedUnit.Symbol</bdi>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitDimensionLabel"]</span>
+                            <span class="audit-meta-val">@Text[DimensionResourceKey(selectedUnit.Dimension)]</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitPrecisionLabel"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@selectedUnit.PrecisionScale</bdi>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <form class="write-panel" @onsubmit:preventDefault>
+                        <div class="write-meta">
+                            <span class="write-code" dir="ltr">@selectedUnit.Code</span>
+                            <span class="read-badge @(selectedUnit.IsActive ? "active" : "inactive")">
+                                @Text[selectedUnit.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                            </span>
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-unit-name">@Text["ReadName"]</label>
+                            <input id="edit-unit-name" @bind="editUnitName" @bind:event="oninput" maxlength="200"
+                                   disabled="@(!selectedUnit.IsActive || unitSaving)" />
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-unit-symbol">@Text["UnitSymbolLabel"]</label>
+                            <input id="edit-unit-symbol" @bind="editUnitSymbol" @bind:event="oninput" maxlength="32"
+                                   disabled="@(!selectedUnit.IsActive || unitSaving)" />
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-unit-precision">@Text["UnitPrecisionLabel"]</label>
+                            <select id="edit-unit-precision" @bind="editUnitPrecision" disabled="@(!selectedUnit.IsActive || unitSaving)">
+                                @for (byte p = 0; p <= 6; p++)
+                                {
+                                    <option value="@p">@p</option>
+                                }
+                            </select>
+                        </div>
+
+                        @if (unitDiscardConfirm)
+                        {
+                            <div class="write-confirm" role="alertdialog" aria-labelledby="unit-discard-text">
+                                <p id="unit-discard-text">@Text["WriteDiscardConfirm"]</p>
+                                <div class="write-actions">
+                                    <BitButton Size="BitSize.Small" OnClick="ConfirmUnitDiscard">@Text["WriteDiscard"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => unitDiscardConfirm = false">@Text["WriteKeepEditing"]</BitButton>
+                                </div>
+                            </div>
+                        }
+
+                        @if (!unitDiscardConfirm && unitConfirmToggle is null)
+                        {
+                            <div class="write-actions">
+                                @if (selectedUnit.IsActive)
+                                {
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!unitSaving && UnitEditDirty)" OnClick="SubmitUnitUpdateAsync">@Text["WriteSave"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!unitSaving)" OnClick="() => unitConfirmToggle = false">@Text["WriteDeactivate"]</BitButton>
+                                }
+                                else
+                                {
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!unitSaving)" OnClick="() => unitConfirmToggle = true">@Text["WriteActivate"]</BitButton>
+                                }
+                            </div>
+                        }
+
+                        @if (unitConfirmToggle is bool targetActive)
+                        {
+                            <div class="write-confirm" role="alertdialog" aria-labelledby="unit-toggle-text">
+                                <p id="unit-toggle-text">@Text[targetActive ? "WriteConfirmActivate" : "WriteConfirmDeactivate", selectedUnit.Name]</p>
+                                <div class="write-actions">
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!unitSaving)" OnClick="ExecuteUnitToggleAsync">@Text["WriteConfirm"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!unitSaving)" OnClick="() => unitConfirmToggle = null">@Text["WriteCancel"]</BitButton>
+                                </div>
+                            </div>
+                        }
+
+                        @if (unitSaving) { <p role="status">@Text["WriteSaving"]</p> }
+                        @if (unitSaved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+                        @if (unitError is not null)
+                        {
+                            <p role="alert" class="write-error">@Text[unitError]</p>
+                            @if (unitError is "WriteConflict" or "WriteOutcomeUnknown")
+                            {
+                                <div class="write-actions">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadSelectedUnitAsync">@Text["WriteReload"]</BitButton>
+                                </div>
+                            }
+                        }
+                    </form>
+                }
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createUnitOpen"
+           OnDismissing="OnCreateUnitDismissing"
+           Title="@Text["UnitCreateTitle"]" AriaLabel="@Text["UnitCreateTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            <form class="write-panel" @onsubmit:preventDefault>
+                <div class="read-field">
+                    <label for="create-unit-code">@Text["ReadCode"]</label>
+                    <input id="create-unit-code" @bind="createUnitCode" @bind:event="oninput" maxlength="32"
+                           disabled="@unitSaving" aria-describedby="create-unit-code-hint" />
+                    <span id="create-unit-code-hint" class="write-hint">@Text["CreateCodeHint"]</span>
+                </div>
+                <div class="read-field">
+                    <label for="create-unit-name">@Text["ReadName"]</label>
+                    <input id="create-unit-name" @bind="createUnitName" @bind:event="oninput" maxlength="200" disabled="@unitSaving" />
+                </div>
+                <div class="read-field">
+                    <label for="create-unit-symbol">@Text["UnitSymbolLabel"]</label>
+                    <input id="create-unit-symbol" @bind="createUnitSymbol" @bind:event="oninput" maxlength="32" disabled="@unitSaving" />
+                </div>
+                <div class="read-field">
+                    <label for="create-unit-dimension">@Text["UnitDimensionLabel"]</label>
+                    <select id="create-unit-dimension" @bind="createUnitDimension" disabled="@unitSaving">
+                        @foreach (var dim in AllDimensions)
+                        {
+                            <option value="@dim">@Text[DimensionResourceKey(dim)]</option>
+                        }
+                    </select>
+                </div>
+                <div class="read-field">
+                    <label for="create-unit-precision">@Text["UnitPrecisionLabel"]</label>
+                    <select id="create-unit-precision" @bind="createUnitPrecision" disabled="@unitSaving">
+                        @for (byte p = 0; p <= 6; p++)
+                        {
+                            <option value="@p">@p</option>
+                        }
+                    </select>
+                </div>
+
+                @if (createUnitDiscardConfirm)
+                {
+                    <div class="write-confirm" role="alertdialog" aria-labelledby="create-unit-discard-text">
+                        <p id="create-unit-discard-text">@Text["WriteDiscardConfirm"]</p>
+                        <div class="write-actions">
+                            <BitButton Size="BitSize.Small" OnClick="ConfirmCreateUnitDiscard">@Text["WriteDiscard"]</BitButton>
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => createUnitDiscardConfirm = false">@Text["WriteKeepEditing"]</BitButton>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="write-actions">
+                        <BitButton Size="BitSize.Small" IsEnabled="@(!unitSaving && !string.IsNullOrWhiteSpace(createUnitCode) && !string.IsNullOrWhiteSpace(createUnitName) && !string.IsNullOrWhiteSpace(createUnitSymbol))"
+                                   OnClick="SubmitCreateUnitAsync">@Text["CreateSubmit"]</BitButton>
+                    </div>
+                }
+
+                @if (unitSaving) { <p role="status">@Text["WriteSaving"]</p> }
+                @if (unitError is not null) { <p role="alert" class="write-error">@Text[unitError]</p> }
+            </form>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public bool ScopeCanManage { get; set; }
+    [Parameter] public UnitDimension[] AllDimensions { get; set; } = [];
+    [Parameter] public Func<UnitDimension, string> DimensionResourceKey { get; set; } = _ => string.Empty;
+    [Parameter] public EventCallback<string?> OnPageNotice { get; set; }
+    [Parameter] public EventCallback<string?> OnPageError { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private bool unitModalOpen;
+    private bool unitEditMode;
+    private bool unitSaving;
+    private bool unitSaved;
+    private bool unitDiscardConfirm;
+    private bool? unitConfirmToggle;
+    private string? unitError;
+    private UnitSummary? selectedUnit;
+    private string editUnitName = string.Empty;
+    private string editUnitSymbol = string.Empty;
+    private byte editUnitPrecision;
+
+    private bool createUnitOpen;
+    private bool createUnitDiscardConfirm;
+    private string createUnitCode = string.Empty;
+    private string createUnitName = string.Empty;
+    private string createUnitSymbol = string.Empty;
+    private UnitDimension createUnitDimension = UnitDimension.Mass;
+    private byte createUnitPrecision = 3;
+
+    private bool UnitEditDirty =>
+        selectedUnit is not null && selectedUnit.IsActive &&
+        (editUnitName.Trim() != selectedUnit.Name ||
+         editUnitSymbol.Trim() != selectedUnit.Symbol ||
+         editUnitPrecision != selectedUnit.PrecisionScale);
+
+    public void OpenCreate()
+    {
+        createUnitCode = string.Empty;
+        createUnitName = string.Empty;
+        createUnitSymbol = string.Empty;
+        createUnitDimension = UnitDimension.Mass;
+        createUnitPrecision = 3;
+        unitError = null;
+        createUnitDiscardConfirm = false;
+        createUnitOpen = true;
+    }
+
+    public async Task OpenModalAsync(long id, bool edit)
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0) return;
+        unitSaving = false;
+        unitSaved = false;
+        unitDiscardConfirm = false;
+        unitConfirmToggle = null;
+        unitError = null;
+
+        var res = await UnitService.GetUnit(CurrentScope, CurrentOrgId, id);
+        if (!res.Succeeded || res.Value is null)
+        {
+            await OnPageNotice.InvokeAsync(null);
+            await OnPageError.InvokeAsync(res.Succeeded ? "ReadNotFound" : RolePermissionLocalization.FailureKey(res.Error!.Code));
+            return;
+        }
+
+        ApplySelectedUnit(res.Value);
+        unitEditMode = edit && ScopeCanManage;
+        unitModalOpen = true;
+    }
+
+    private void ApplySelectedUnit(UnitSummary unit)
+    {
+        selectedUnit = unit;
+        editUnitName = unit.Name;
+        editUnitSymbol = unit.Symbol;
+        editUnitPrecision = unit.PrecisionScale;
+    }
+
+    private async Task SubmitCreateUnitAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || unitSaving) return;
+        unitSaving = true;
+        unitError = null;
+        try
+        {
+            var res = await UnitService.CreateUnit(CurrentScope, new CreateUnitRequest(
+                CurrentOrgId, createUnitCode, createUnitName, createUnitSymbol, createUnitDimension, createUnitPrecision));
+            if (!res.Succeeded || res.Value is null)
+            {
+                unitError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            createUnitOpen = false;
+            await OnPageNotice.InvokeAsync(Text["UnitCreatedSucceeded", res.Value.Code]);
+            await OnChanged.InvokeAsync();
+        }
+        finally
+        {
+            unitSaving = false;
+        }
+    }
+
+    private async Task SubmitUnitUpdateAsync()
+    {
+        if (CurrentScope is null || selectedUnit is null || unitSaving) return;
+        unitSaving = true;
+        unitSaved = false;
+        unitError = null;
+        try
+        {
+            var res = await UnitService.UpdateUnit(CurrentScope, new UpdateUnitRequest(
+                selectedUnit.OrganizationId, selectedUnit.Id, editUnitName, editUnitSymbol, editUnitPrecision, selectedUnit.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                unitError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            ApplySelectedUnit(res.Value);
+            unitSaved = true;
+            await OnChanged.InvokeAsync();
+        }
+        finally
+        {
+            unitSaving = false;
+        }
+    }
+
+    private async Task ExecuteUnitToggleAsync()
+    {
+        if (CurrentScope is null || selectedUnit is null || unitConfirmToggle is not bool target || unitSaving) return;
+        unitSaving = true;
+        unitSaved = false;
+        unitError = null;
+        try
+        {
+            var res = await UnitService.SetUnitActive(CurrentScope, new SetUnitActiveRequest(
+                selectedUnit.OrganizationId, selectedUnit.Id, target, selectedUnit.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                unitConfirmToggle = null;
+                unitError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            ApplySelectedUnit(res.Value);
+            unitConfirmToggle = null;
+            unitSaved = true;
+            await OnChanged.InvokeAsync();
+        }
+        finally
+        {
+            unitSaving = false;
+        }
+    }
+
+    private async Task ReloadSelectedUnitAsync()
+    {
+        if (CurrentScope is null || selectedUnit is null) return;
+        await OpenModalAsync(selectedUnit.Id, unitEditMode);
+    }
+
+    private void OnUnitModalDismissing(BitDialogDismissArgs args)
+    {
+        if (!unitEditMode || !UnitEditDirty || unitSaving) return;
+        args.Cancel = true;
+        unitDiscardConfirm = true;
+    }
+
+    private void ConfirmUnitDiscard()
+    {
+        unitDiscardConfirm = false;
+        unitModalOpen = false;
+    }
+
+    private void OnCreateUnitDismissing(BitDialogDismissArgs args)
+    {
+        if (unitSaving) return;
+        if (string.IsNullOrWhiteSpace(createUnitCode) && string.IsNullOrWhiteSpace(createUnitName) && string.IsNullOrWhiteSpace(createUnitSymbol))
+            return;
+        args.Cancel = true;
+        createUnitDiscardConfirm = true;
+    }
+
+    private void ConfirmCreateUnitDiscard()
+    {
+        createUnitDiscardConfirm = false;
+        createUnitOpen = false;
+    }
+}

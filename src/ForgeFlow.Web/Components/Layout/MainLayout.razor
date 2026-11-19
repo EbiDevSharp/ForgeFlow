@@ -393,6 +393,12 @@
         }
         catch (Microsoft.JSInterop.JSDisconnectedException) { }
         catch (Microsoft.JSInterop.JSException) { }
+        catch (ObjectDisposedException) { }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Unexpected error while handling authentication state change.");
+        }
     }
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)

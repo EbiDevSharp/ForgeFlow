@@ -1,0 +1,216 @@
+@using ForgeFlow.Application.Procurement
+@using ForgeFlow.Domain.Items
+@using ForgeFlow.Domain.Procurement
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="880px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           Title="@Text["ProcPoDetailTitle"]" AriaLabel="@Text["ProcPoDetailTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (SelectedOrder is not null)
+        {
+            var summary = SelectedOrder.Summary;
+            <div class="audit-modal-body audit-modal-body--wide">
+                @if (ModalError is not null)
+                {
+                    <p role="alert" class="write-error">@ModalError</p>
+                }
+                <div class="ff-detail-hero">
+                    <div class="ff-detail-hero-main">
+                        <span class="ff-detail-hero-code" dir="ltr">@summary.OrderNumber</span>
+                        <span class="ff-detail-hero-sub">@summary.SupplierName (<bdi dir="ltr">@summary.SupplierCode</bdi>) · <bdi dir="ltr">@summary.SiteCode — @summary.SiteName</bdi></span>
+                    </div>
+                    <div class="ff-detail-hero-badges">
+                        @if (summary.TotalEstimatedAmount is decimal estHeroTotal)
+                        {
+                            <span class="cap-badge" dir="ltr">@Format.CurrencyAmount(estHeroTotal, summary.CurrencyCode)</span>
+                        }
+                        <span class="read-badge @StatusBadgeClass(summary.Status)">@StatusLabel(summary.Status)</span>
+                    </div>
+                </div>
+
+                <div class="ff-kv-table-wrap">
+                    <table class="ff-kv-table">
+                        <tbody>
+                            <tr>
+                                <th scope="row">@Text["ProcPoNumberLabel"]</th>
+                                <td dir="ltr">@summary.OrderNumber</td>
+                                <th scope="row">@Text["PoStatusColumn"]</th>
+                                <td><span class="read-badge @StatusBadgeClass(summary.Status)">@StatusLabel(summary.Status)</span></td>
+                            </tr>
+                            <tr>
+                                <th scope="row">@Text["ProcSupplierLabel"]</th>
+                                <td>@summary.SupplierName (<bdi dir="ltr">@summary.SupplierCode</bdi>)</td>
+                                <th scope="row">@Text["PoSiteColumn"]</th>
+                                <td dir="ltr">@summary.SiteCode — @summary.SiteName</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">@Text["ProcOrderDateLabel"]</th>
+                                <td dir="ltr">@Format.Date(summary.OrderDate)</td>
+                                <th scope="row">@Text["ProcExpectedDateLabel"]</th>
+                                <td dir="ltr">@(summary.ExpectedDeliveryDate is DateOnly expDate ? Format.Date(expDate) : "—")</td>
+                            </tr>
+                            <tr>
+                                <th scope="row">@Text["ProcTargetWarehouseLabel"]</th>
+                                <td dir="ltr">@(summary.TargetWarehouseCode is not null ? $"{summary.TargetWarehouseCode} — {summary.TargetWarehouseName}" : "—")</td>
+                                <th scope="row">@Text["ProcCurrencyLabel"]</th>
+                                <td dir="ltr">@summary.CurrencyCode</td>
+                            </tr>
+                            @if (summary.TotalEstimatedAmount.HasValue || !string.IsNullOrWhiteSpace(summary.Notes))
+                            {
+                                <tr>
+                                    <th scope="row">@Text["ProcEstimatedTotalLabel"]</th>
+                                    <td dir="ltr">@(summary.TotalEstimatedAmount is decimal estTotal ? Format.CurrencyAmount(estTotal, summary.CurrencyCode) : "—")</td>
+                                    <th scope="row">@Text["PoNotesLabel"]</th>
+                                    <td>@(string.IsNullOrWhiteSpace(summary.Notes) ? "—" : summary.Notes)</td>
+                                </tr>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(summary.CancellationReason))
+                            {
+                                <tr>
+                                    <th scope="row">@Text["PoCancelReasonLabel"]</th>
+                                    <td colspan="3">@summary.CancellationReason</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="audit-modal-section">
+                    <h3 class="audit-section-heading">@Text["ProcLinesSection"]</h3>
+                    <div class="audit-fields-box" style="overflow-x:auto;">
+                        <table class="audit-fields-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>@Text["PoItemColumn"]</th>
+                                    <th>@Text["ProcOrderedCol"]</th>
+                                    <th>@Text["ProcReceivedCol"]</th>
+                                    <th>@Text["ProcRemainingCol"]</th>
+                                    <th>@Text["ProcUnitPriceLabel"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <Virtualize Items="SelectedOrder.Lines.AsCollection()" Context="l" ItemSize="40" OverscanCount="5" SpacerElement="tr">
+                                    <tr>
+                                        <td dir="ltr">@l.LineNumber</td>
+                                        <td>
+                                            <div><bdi dir="ltr">@l.ItemCode</bdi> — @l.ItemName</div>
+                                            @if (l.RequiresLotTracking)
+                                            {
+                                                <span class="cap-badge">@Text["ItemLotTrackedBadge"]</span>
+                                            }
+                                            @if (l.QualityControlMode != QualityControlMode.None)
+                                            {
+                                                <span class="cap-badge">@Text["ItemQcRequiredBadge"]</span>
+                                            }
+                                        </td>
+                                        <td dir="ltr">@Format.Number(l.OrderedQuantity) @l.OrderedUnitSymbol (@Format.Number(l.OrderedBaseQuantity) @l.BaseUnitSymbolSnapshot)</td>
+                                        <td dir="ltr">@Format.Number(l.ReceivedBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
+                                        <td dir="ltr">@Format.Number(l.RemainingBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
+                                        <td dir="ltr">@(l.UnitPrice.HasValue ? Format.Number(l.UnitPrice.Value) : "—")</td>
+                                    </tr>
+                                </Virtualize>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                @if (SelectedOrder.Receipts.Count > 0)
+                {
+                    <div class="audit-modal-section">
+                        <h3 class="audit-section-heading">@Text["ProcReceiptsHistoryTitle"]</h3>
+                        <div class="audit-fields-box" style="overflow-x:auto;">
+                            <table class="audit-fields-table">
+                                <thead>
+                                    <tr>
+                                        <th>@Text["InvDocNumberLabel"]</th>
+                                        <th>@Text["InvWarehouseLabel"]</th>
+                                        <th>@Text["AuditTimeColumn"]</th>
+                                        <th>@Text["ReadStatus"]</th>
+                                        <th>@Text["PoNotesLabel"]</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <Virtualize Items="SelectedOrder.Receipts.AsCollection()" Context="r" ItemSize="40" OverscanCount="5" SpacerElement="tr">
+                                        <tr>
+                                            <td dir="ltr">@r.DocumentNumber</td>
+                                            <td dir="ltr">@r.WarehouseCode — @r.WarehouseName</td>
+                                            <td dir="ltr">@Format.Timestamp(r.PostedAtUtc)</td>
+                                            <td>
+                                                @if (r.IsReversed)
+                                                {
+                                                    <span class="cap-badge">@Text["InvReversedBadge"]</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="read-badge proc-status-received">@Text["ProcPostedBadge"]</span>
+                                                }
+                                            </td>
+                                            <td>@(r.ReferenceNote ?? "—")</td>
+                                        </tr>
+                                    </Virtualize>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+
+                <div class="write-actions">
+                    @if (ScopeCanManageOrders && summary.Status == PurchaseOrderStatus.Draft)
+                    {
+                        <BitButton Variant="BitVariant.Outline" IsEnabled="@(!ModalBusy)" OnClick="OnOpenEditFromDetail">@Text["ReadEdit"]</BitButton>
+                        <BitButton IsEnabled="@(!ModalBusy)" OnClick="OnApproveOrder">@Text["ProcApproveBtn"]</BitButton>
+                    }
+                    @if (ScopeCanReceive && summary.Status is PurchaseOrderStatus.Approved or PurchaseOrderStatus.PartiallyReceived)
+                    {
+                        <BitButton IsEnabled="@(!ModalBusy)" OnClick="OnOpenReceiveFromDetail">@Text["ProcReceiveBtn"]</BitButton>
+                    }
+                    @if (ScopeCanManageOrders && summary.Status == PurchaseOrderStatus.PartiallyReceived)
+                    {
+                        <BitButton Variant="BitVariant.Outline" IsEnabled="@(!ModalBusy)" OnClick="OnCloseOrder">@Text["ProcShortCloseBtn"]</BitButton>
+                    }
+                </div>
+
+                @if (ScopeCanManageOrders && summary.Status is PurchaseOrderStatus.Draft or PurchaseOrderStatus.Approved)
+                {
+                    <div class="item-sub-card">
+                        <strong>@Text["PoCancelSection"]</strong>
+                        <div class="write-grid">
+                            <div class="write-field po-field-full">
+                                <label for="proc-cancel-reason">@Text["PoCancelReasonLabel"]</label>
+                                <input id="proc-cancel-reason" type="text" maxlength="500" value="@CancelReason"
+                                       @oninput="e => CancelReasonChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" />
+                            </div>
+                        </div>
+                        <div class="write-actions">
+                            <BitButton Variant="BitVariant.Outline" IsEnabled="@(!ModalBusy)" OnClick="OnCancelOrder">@Text["ProcCancelBtn"]</BitButton>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public PurchaseOrderDetails? SelectedOrder { get; set; }
+    [Parameter] public string? ModalError { get; set; }
+    [Parameter] public bool ScopeCanManageOrders { get; set; }
+    [Parameter] public bool ScopeCanReceive { get; set; }
+    [Parameter] public bool ModalBusy { get; set; }
+    [Parameter] public string CancelReason { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> CancelReasonChanged { get; set; }
+    [Parameter] public Func<PurchaseOrderStatus, string> StatusBadgeClass { get; set; } = _ => string.Empty;
+    [Parameter] public Func<PurchaseOrderStatus, string> StatusLabel { get; set; } = _ => string.Empty;
+    [Parameter] public EventCallback OnOpenEditFromDetail { get; set; }
+    [Parameter] public EventCallback OnApproveOrder { get; set; }
+    [Parameter] public EventCallback OnOpenReceiveFromDetail { get; set; }
+    [Parameter] public EventCallback OnCloseOrder { get; set; }
+    [Parameter] public EventCallback OnCancelOrder { get; set; }
+}

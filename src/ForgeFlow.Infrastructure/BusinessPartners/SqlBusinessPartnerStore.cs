@@ -447,13 +447,8 @@ public sealed class SqlBusinessPartnerStore(
             roles,
             Convert.ToBase64String(rowVersion));
 
-    private static bool Matches(OrganizationDbContext db, object entity, byte[] expectedVersion)
-    {
-        var current = entity is ForgeFlow.Domain.Common.IHasRowVersion hasVersion && hasVersion.RowVersion.Length > 0
-            ? hasVersion.RowVersion
-            : (byte[])db.Entry(entity).Property("RowVersion").CurrentValue!;
-        return StructuralComparisons.StructuralEqualityComparer.Equals(current, expectedVersion);
-    }
+    private static bool Matches(OrganizationDbContext _, ForgeFlow.Domain.Common.IHasRowVersion entity, byte[] expectedVersion)
+        => StructuralComparisons.StructuralEqualityComparer.Equals(entity.RowVersion, expectedVersion);
 
     private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(
         OrganizationDbContext db,

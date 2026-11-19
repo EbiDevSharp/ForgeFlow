@@ -1,0 +1,218 @@
+@using System.Globalization
+@using ForgeFlow.Application.Boms
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Application.Routings
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Organizations
+@inject IStringLocalizer<SharedResources> Text
+@inject CulturePolicy Culture
+
+<BitDialog Width="680px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           Title="@Text["PoCreateTitle"]" AriaLabel="@Text["PoCreateTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            @if (CreateError is not null)
+            {
+                <p role="alert" class="write-error">@Text[CreateError]</p>
+            }
+            <div class="po-form-grid">
+                <div class="write-field">
+                    <label for="po-create-num">@Text["PoOrderNumberColumn"]</label>
+                    <input id="po-create-num" type="text" maxlength="32" class="@(MoAllowOverride ? string.Empty : "proc-input-readonly")"
+                           value="@NewOrderNumber"
+                           @oninput="e => NewOrderNumberChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"
+                           readonly="@(!MoAllowOverride)" dir="ltr" />
+                    <span class="write-hint">@Text["BomCreateHint"]</span>
+                </div>
+                <div class="write-field">
+                    <label for="po-create-site">@Text["PoSiteColumn"]</label>
+                    @if (CurrentScope is OrganizationScope.Site siteScope)
+                    {
+                        var activeSite = AuthorizedSites.FirstOrDefault(s => s.Id == siteScope.SiteId);
+                        <input id="po-create-site" type="text" readonly value="@(activeSite is null ? siteScope.SiteId.ToString(CultureInfo.InvariantCulture) : $"{activeSite.Code} — {activeSite.Name}")" />
+                    }
+                    else
+                    {
+                        <select id="po-create-site" value="@NewSiteId" @onchange="OnNewSiteChanged">
+                            @foreach (var s in AuthorizedSites)
+                            {
+                                <option value="@s.Id">@s.Code — @s.Name</option>
+                            }
+                        </select>
+                    }
+                </div>
+                <div class="write-field po-field-full">
+                    <label for="po-create-item">@Text["PoItemColumn"]</label>
+                    <select id="po-create-item" value="@NewItemId" @onchange="OnNewItemChanged">
+                        <option value="0">@Text["BomSelectItemOption"]</option>
+                        @foreach (var it in ManufacturableItems)
+                        {
+                            <option value="@it.Id">@it.Code — @it.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="write-field po-field-full">
+                    <label for="po-create-routing">@Text["PoRoutingColumn"]</label>
+                    <select id="po-create-routing" value="@NewRoutingId" @onchange="e => OnLongChanged(NewRoutingIdChanged, e)">
+                        <option value="0">@Text["PoAutoDefaultRouting"]</option>
+                        @foreach (var rt in NewItemRoutings)
+                        {
+                            <option value="@rt.Id">@rt.Code v@(rt.VersionNumber) — @rt.Name @(rt.IsDefault ? $"({Text["RtDefaultBadge"]})" : string.Empty)</option>
+                        }
+                    </select>
+                </div>
+                <div class="write-field">
+                    <label for="po-create-qty">@Text["PoRequestedQtyColumn"]</label>
+                    <input id="po-create-qty" type="number" step="0.000001" min="0.000001" value="@NewQuantity" @onchange="OnQuantityChanged" />
+                </div>
+                <div class="write-field">
+                    <label for="po-create-unit">@Text["BomLineUnitColumn"]</label>
+                    <select id="po-create-unit" value="@NewUnitId" @onchange="e => OnLongChanged(NewUnitIdChanged, e)">
+                        @foreach (var u in ActiveUnits)
+                        {
+                            <option value="@u.Id">@u.Code — @u.Name (@u.Symbol)</option>
+                        }
+                    </select>
+                </div>
+                <div class="write-field">
+                    <label>@Text["PoPlannedStartDate"]</label>
+                    <BitDatePicker Value="@NewStartDateOffset"
+                                   ValueChanged="NewStartDateOffsetChanged"
+                                   Class="bom-dtp"
+                                   Culture="@Culture.PickerCulture"
+                                   DateFormat="@PickerDateFormat"
+                                   ShowTimePicker="false"
+                                   AllowTextInput="false"
+                                   AutoClose="true"
+                                   ShowGoToToday="true"
+                                   GoToTodayTitle="@Text["BomDateToday"]"
+                                   GoToTodayIcon="@TodayIcon"
+                                   Icon="@CalendarIcon"
+                                   NextMonthNavIcon="@NextNavIcon"
+                                   PrevMonthNavIcon="@PrevNavIcon"
+                                   NextYearNavIcon="@NextYearIcon"
+                                   PrevYearNavIcon="@PrevYearIcon"
+                                   ClearButtonIcon="@CloseIcon" />
+                </div>
+                <div class="write-field">
+                    <label>@Text["PoPlannedDueDate"]</label>
+                    <BitDatePicker Value="@NewDueDateOffset"
+                                   ValueChanged="NewDueDateOffsetChanged"
+                                   Class="bom-dtp"
+                                   Culture="@Culture.PickerCulture"
+                                   DateFormat="@PickerDateFormat"
+                                   ShowTimePicker="false"
+                                   AllowTextInput="false"
+                                   AutoClose="true"
+                                   ShowGoToToday="true"
+                                   GoToTodayTitle="@Text["BomDateToday"]"
+                                   GoToTodayIcon="@TodayIcon"
+                                   Icon="@CalendarIcon"
+                                   NextMonthNavIcon="@NextNavIcon"
+                                   PrevMonthNavIcon="@PrevNavIcon"
+                                   NextYearNavIcon="@NextYearIcon"
+                                   PrevYearNavIcon="@PrevYearIcon"
+                                   ClearButtonIcon="@CloseIcon" />
+                </div>
+                <div class="write-field po-field-full">
+                    <label for="po-create-notes">@Text["PoNotesLabel"]</label>
+                    <textarea id="po-create-notes" rows="3" maxlength="500" value="@NewNotes" @oninput="e => NewNotesChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"></textarea>
+                </div>
+            </div>
+
+            <div class="po-context-card">
+                <div class="po-context-head">
+                    <strong>@Text["PoContextSection"]</strong>
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="po-add-cond-btn"
+                               Icon="@PlusIcon" IsEnabled="@(ActiveDimensions.Count > 0)" OnClick="OnAddContextRow">
+                        @Text["BomAddConditionBtn"]
+                    </BitButton>
+                </div>
+                <p class="po-info-hint">
+                    <span class="ff-icon ff-icon--info" aria-hidden="true"></span>
+                    <span>@Text["PoContextHint"]</span>
+                </p>
+                @foreach (var row in NewContextPairs)
+                {
+                    <div class="po-cond-row">
+                        <select aria-label="@Text["BomDimLabel"]" @bind="row.DimensionCode">
+                            @foreach (var d in ActiveDimensions)
+                            {
+                                <option value="@d.Code">@d.Code — @RolePermissionLocalization.ContextDimensionDisplayName(d.Code, d.Name, Text)</option>
+                            }
+                        </select>
+                        <input type="text" maxlength="400" @bind="row.Value" placeholder="@Text["BomConditionValuePlaceholder"]" />
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OnRemoveContextRow.InvokeAsync(row)">
+                            @Text["BomRemoveRowBtn"]
+                        </BitButton>
+                    </div>
+                }
+            </div>
+
+            <div class="po-dialog-footer">
+                <BitButton IsEnabled="@(!ModalBusy && NewItemId > 0 && NewSiteId > 0)" OnClick="OnCreateOrder">@Text["PoCreateSubmit"]</BitButton>
+                <BitButton Variant="BitVariant.Outline" OnClick="() => IsOpenChanged.InvokeAsync(false)">@Text["WriteCancel"]</BitButton>
+            </div>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public string? CreateError { get; set; }
+    [Parameter] public bool MoAllowOverride { get; set; }
+    [Parameter] public string NewOrderNumber { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> NewOrderNumberChanged { get; set; }
+    [Parameter] public IReadOnlyList<ProductionOrderSiteInfo> AuthorizedSites { get; set; } = [];
+    [Parameter] public long NewSiteId { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnNewSiteChanged { get; set; }
+    [Parameter] public long NewItemId { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnNewItemChanged { get; set; }
+    [Parameter] public IReadOnlyList<ItemSummary> ManufacturableItems { get; set; } = [];
+    [Parameter] public long NewRoutingId { get; set; }
+    [Parameter] public EventCallback<long> NewRoutingIdChanged { get; set; }
+    [Parameter] public IReadOnlyList<RoutingSummary> NewItemRoutings { get; set; } = [];
+    [Parameter] public decimal NewQuantity { get; set; }
+    [Parameter] public EventCallback<decimal> NewQuantityChanged { get; set; }
+    [Parameter] public long NewUnitId { get; set; }
+    [Parameter] public EventCallback<long> NewUnitIdChanged { get; set; }
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public DateTimeOffset? NewStartDateOffset { get; set; }
+    [Parameter] public EventCallback<DateTimeOffset?> NewStartDateOffsetChanged { get; set; }
+    [Parameter] public DateTimeOffset? NewDueDateOffset { get; set; }
+    [Parameter] public EventCallback<DateTimeOffset?> NewDueDateOffsetChanged { get; set; }
+    [Parameter] public string PickerDateFormat { get; set; } = "yyyy-MM-dd";
+    [Parameter] public BitIconInfo? TodayIcon { get; set; }
+    [Parameter] public BitIconInfo? CalendarIcon { get; set; }
+    [Parameter] public BitIconInfo? NextNavIcon { get; set; }
+    [Parameter] public BitIconInfo? PrevNavIcon { get; set; }
+    [Parameter] public BitIconInfo? NextYearIcon { get; set; }
+    [Parameter] public BitIconInfo? PrevYearIcon { get; set; }
+    [Parameter] public BitIconInfo? CloseIcon { get; set; }
+    [Parameter] public BitIconInfo? PlusIcon { get; set; }
+    [Parameter] public string NewNotes { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> NewNotesChanged { get; set; }
+    [Parameter] public IReadOnlyList<ContextDimensionSummary> ActiveDimensions { get; set; } = [];
+    [Parameter] public List<ProductionOrders.ContextPairRow> NewContextPairs { get; set; } = [];
+    [Parameter] public EventCallback OnAddContextRow { get; set; }
+    [Parameter] public EventCallback<ProductionOrders.ContextPairRow> OnRemoveContextRow { get; set; }
+    [Parameter] public bool ModalBusy { get; set; }
+    [Parameter] public EventCallback OnCreateOrder { get; set; }
+
+    private Task OnLongChanged(EventCallback<long> cb, ChangeEventArgs e)
+        => long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+            ? cb.InvokeAsync(id)
+            : Task.CompletedTask;
+
+    private Task OnQuantityChanged(ChangeEventArgs e)
+        => decimal.TryParse(e.Value?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var q)
+            ? NewQuantityChanged.InvokeAsync(q)
+            : Task.CompletedTask;
+}

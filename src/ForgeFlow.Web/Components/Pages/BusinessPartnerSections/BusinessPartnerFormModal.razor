@@ -1,0 +1,317 @@
+@using ForgeFlow.Application.BusinessPartners
+@using ForgeFlow.Domain.BusinessPartners
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@FormDialogClasses" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           Title="@(IsEditing ? Text["BpEditTitle"] : Text["BpCreateTitle"])"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="false"
+           AutoFocus="false" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="bp-modal-header">
+            <h2>@(IsEditing ? Text["BpEditTitle"] : Text["BpCreateTitle"])</h2>
+            <button type="button" class="bp-close-btn" aria-label="@Text["ReadClose"]" @onclick="() => IsOpenChanged.InvokeAsync(false)">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <div class="bp-modal-body">
+            @if (ModalError is not null)
+            {
+                <p role="alert" class="write-error">@ModalError</p>
+            }
+
+            <div class="bp-pills-row">
+                <div class="bp-pills-row-head">
+                    <span class="bp-pills-label">@Text["BpRolesLabel"] <span class="proc-req-star" aria-hidden="true">*</span></span>
+                    <span class="bp-pills-hint">@Text["BpRolesHint"]</span>
+                </div>
+                <div class="bp-pills-container">
+                    <button type="button" class="bp-pill-btn @(RoleSupplier ? "active" : "")" @onclick="() => RoleSupplierChanged.InvokeAsync(!RoleSupplier)">
+                        @if (RoleSupplier)
+                        {
+                            <svg class="bp-pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        }
+                        <span>@Text["BpRoleSupplier"]</span>
+                    </button>
+                    <button type="button" class="bp-pill-btn @(RoleCustomer ? "active" : "")" @onclick="() => RoleCustomerChanged.InvokeAsync(!RoleCustomer)">
+                        @if (RoleCustomer)
+                        {
+                            <svg class="bp-pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        }
+                        <span>@Text["BpRoleCustomer"]</span>
+                    </button>
+                    <button type="button" class="bp-pill-btn @(RoleContractor ? "active" : "")" @onclick="() => RoleContractorChanged.InvokeAsync(!RoleContractor)">
+                        @if (RoleContractor)
+                        {
+                            <svg class="bp-pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        }
+                        <span>@Text["BpRoleContractor"]</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bp-pills-row">
+                <div class="bp-pills-row-head">
+                    <span class="bp-pills-label">@Text["BpPersonType"]</span>
+                </div>
+                <div class="bp-pills-container">
+                    <button type="button" class="bp-pill-btn @(FormPersonType == PersonType.Legal ? "active" : "")" @onclick="() => OnPersonTypeChanged.InvokeAsync(PersonType.Legal)">
+                        @if (FormPersonType == PersonType.Legal)
+                        {
+                            <svg class="bp-pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        }
+                        <span>@Text["BpPersonLegal"]</span>
+                    </button>
+                    <button type="button" class="bp-pill-btn @(FormPersonType == PersonType.Natural ? "active" : "")" @onclick="() => OnPersonTypeChanged.InvokeAsync(PersonType.Natural)">
+                        @if (FormPersonType == PersonType.Natural)
+                        {
+                            <svg class="bp-pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        }
+                        <span>@Text["BpPersonNatural"]</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="bp-section">
+                <div class="bp-section-head">
+                    <div class="bp-section-title">
+                        <svg class="bp-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        <span>@Text["BpGeneralInfo"]</span>
+                    </div>
+                    <div class="bp-section-divider"></div>
+                </div>
+
+                @if (FormPersonType == PersonType.Legal)
+                {
+                    <div class="bp-grid-3">
+                        <div class="bp-field">
+                            <label for="bp-form-code">@Text["BpCode"]</label>
+                            <input id="bp-form-code" type="text" value="@FormCode" disabled dir="ltr" />
+                        </div>
+                        <div class="bp-field">
+                            <label for="bp-form-legid">@Text["BpNationalLegalId"]</label>
+                            <input id="bp-form-legid" type="text" maxlength="11" value="@FormNationalLegalId" @oninput="e => FormNationalLegalIdChanged.InvokeAsync(FilterDigitsOnly(e.Value?.ToString(), 11))" placeholder="@Text["BpNationalLegalIdPlaceholder"]" dir="ltr" />
+                        </div>
+                        <div class="bp-field">
+                            <label for="bp-form-economic">@Text["BpEconomicCode"]</label>
+                            <input id="bp-form-economic" type="text" maxlength="14" value="@FormEconomicCode" @oninput="e => FormEconomicCodeChanged.InvokeAsync(FilterDigitsOnly(e.Value?.ToString(), 14))" placeholder="@Text["BpEconomicCode"]" dir="ltr" />
+                        </div>
+                    </div>
+
+                    <div class="bp-field">
+                        <label for="bp-form-company">@Text["BpCompanyName"] <span class="proc-req-star" aria-hidden="true">*</span></label>
+                        <input id="bp-form-company" type="text" maxlength="200" value="@FormCompanyName" @oninput="e => FormCompanyNameChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" placeholder="@Text["BpCompanyName"]" />
+                    </div>
+
+                    <div class="bp-grid-2">
+                        <div class="bp-field">
+                            <label for="bp-form-contact-first">@Text["BpContactFirstName"]</label>
+                            <input id="bp-form-contact-first" type="text" maxlength="100" value="@FormFirstName" @oninput="e => FormFirstNameChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" placeholder="@Text["BpContactFirstName"]" />
+                        </div>
+                        <div class="bp-field">
+                            <label for="bp-form-contact-last">@Text["BpContactLastName"]</label>
+                            <input id="bp-form-contact-last" type="text" maxlength="100" value="@FormLastName" @oninput="e => FormLastNameChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" placeholder="@Text["BpContactLastName"]" />
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="bp-grid-3">
+                        <div class="bp-field">
+                            <label for="bp-form-code">@Text["BpCode"]</label>
+                            <input id="bp-form-code" type="text" value="@FormCode" disabled dir="ltr" />
+                        </div>
+                        <div class="bp-field">
+                            <label for="bp-form-natcode">@Text["BpNationalCode"]</label>
+                            <input id="bp-form-natcode" type="text" maxlength="10" value="@FormNationalCode" @oninput="e => FormNationalCodeChanged.InvokeAsync(FilterDigitsOnly(e.Value?.ToString(), 10))" placeholder="@Text["BpNationalCodePlaceholder"]" dir="ltr" />
+                        </div>
+                        <div class="bp-field">
+                            <label for="bp-form-economic-nat">@Text["BpEconomicCode"]</label>
+                            <input id="bp-form-economic-nat" type="text" maxlength="14" value="@FormEconomicCode" @oninput="e => FormEconomicCodeChanged.InvokeAsync(FilterDigitsOnly(e.Value?.ToString(), 14))" placeholder="@Text["BpEconomicCode"]" dir="ltr" />
+                        </div>
+                    </div>
+
+                    <div class="bp-grid-2">
+                        <div class="bp-field">
+                            <label for="bp-form-natfirst">@Text["BpFirstName"] <span class="proc-req-star" aria-hidden="true">*</span></label>
+                            <input id="bp-form-natfirst" type="text" maxlength="100" value="@FormFirstName" @oninput="e => FormFirstNameChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" placeholder="@Text["BpFirstName"]" />
+                        </div>
+                        <div class="bp-field">
+                            <label for="bp-form-natlast">@Text["BpLastName"] <span class="proc-req-star" aria-hidden="true">*</span></label>
+                            <input id="bp-form-natlast" type="text" maxlength="100" value="@FormLastName" @oninput="e => FormLastNameChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" placeholder="@Text["BpLastName"]" />
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="bp-section">
+                <div class="bp-section-head">
+                    <div class="bp-section-title">
+                        <svg class="bp-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                        <span>@Text["BpContactInfo"]</span>
+                    </div>
+                    <div class="bp-section-divider"></div>
+                </div>
+
+                <div class="bp-grid-2">
+                    <div class="bp-field">
+                        <label for="bp-form-mobile">@Text["BpMobile"]</label>
+                        <input id="bp-form-mobile" type="tel" maxlength="11" value="@FormMobile" @oninput="e => FormMobileChanged.InvokeAsync(FilterDigitsOnly(e.Value?.ToString(), 11))" placeholder="@Text["BpMobilePlaceholder"]" dir="ltr" />
+                    </div>
+                    <div class="bp-field">
+                        <label for="bp-form-phone">@Text["BpPhone"]</label>
+                        <input id="bp-form-phone" type="tel" maxlength="15" value="@FormPhone" @oninput="e => FormPhoneChanged.InvokeAsync(FilterDigitsOnly(e.Value?.ToString(), 15))" placeholder="@Text["BpPhonePlaceholder"]" dir="ltr" />
+                    </div>
+                </div>
+
+                <div class="bp-grid-2">
+                    <div class="bp-field">
+                        <label for="bp-form-email">@Text["BpEmail"]</label>
+                        <input id="bp-form-email" type="email" maxlength="256" value="@FormEmail" @oninput="e => FormEmailChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" placeholder="@Text["BpEmailPlaceholder"]" dir="ltr" />
+                    </div>
+                    <div class="bp-field">
+                        <label for="bp-form-web">@Text["BpWebsite"]</label>
+                        <input id="bp-form-web" type="url" maxlength="200" value="@FormWebsite" @oninput="e => FormWebsiteChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" placeholder="@Text["BpWebsitePlaceholder"]" dir="ltr" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="bp-section">
+                <div class="bp-section-head">
+                    <div class="bp-section-title">
+                        <svg class="bp-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                        <span>@Text["BpAddressInfo"]</span>
+                    </div>
+                    <div class="bp-section-divider"></div>
+                </div>
+
+                <div class="bp-grid-3">
+                    <div class="bp-field">
+                        <label for="bp-form-country">@Text["BpCountry"]</label>
+                        <select id="bp-form-country" value="@FormCountry" @onchange="e => FormCountryChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)">
+                            <option value="IR">@Text["Country_IR"]</option>
+                        </select>
+                    </div>
+                    <div class="bp-field">
+                        <label for="bp-form-prov">@Text["BpProvince"]</label>
+                        <select id="bp-form-prov" value="@FormProvince" @onchange="OnProvinceChanged">
+                            <option value="">@Text["BpSelectProvince"]</option>
+                            @foreach (var p in Provinces)
+                            {
+                                <option value="@p.Name">@p.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="bp-field">
+                        <label for="bp-form-city">@Text["BpCity"]</label>
+                        <select id="bp-form-city" value="@FormCity" @onchange="e => FormCityChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" disabled="@(Cities.Count == 0 && string.IsNullOrWhiteSpace(FormCity))">
+                            <option value="">@Text["BpSelectCity"]</option>
+                            @foreach (var c in Cities)
+                            {
+                                <option value="@c.Name">@c.Name</option>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(FormCity) && !Cities.Any(c => c.Name == FormCity))
+                            {
+                                <option value="@FormCity">@FormCity</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="bp-field">
+                    <label for="bp-form-addr">@Text["BpAddress"]</label>
+                    <textarea id="bp-form-addr" rows="2" maxlength="500" value="@FormAddress" @oninput="e => FormAddressChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" placeholder="@Text["BpAddressPlaceholder"]"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="bp-modal-footer">
+            <span class="bp-modal-footer-hint">@Text["BpRequiredFieldHint"]</span>
+            <div class="bp-modal-footer-actions">
+                <button type="button" class="bp-btn-cancel" @onclick="() => IsOpenChanged.InvokeAsync(false)">
+                    @Text["WriteCancel"]
+                </button>
+                <button type="button" class="bp-btn-save" disabled="@Saving" @onclick="OnSave">
+                    @(Saving ? Text["WriteSaving"] : Text["WriteSave"])
+                </button>
+            </div>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public BitDialogClassStyles? FormDialogClasses { get; set; }
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public bool IsEditing { get; set; }
+    [Parameter] public string? ModalError { get; set; }
+
+    [Parameter] public bool RoleSupplier { get; set; }
+    [Parameter] public EventCallback<bool> RoleSupplierChanged { get; set; }
+    [Parameter] public bool RoleCustomer { get; set; }
+    [Parameter] public EventCallback<bool> RoleCustomerChanged { get; set; }
+    [Parameter] public bool RoleContractor { get; set; }
+    [Parameter] public EventCallback<bool> RoleContractorChanged { get; set; }
+
+    [Parameter] public PersonType FormPersonType { get; set; }
+    [Parameter] public EventCallback<PersonType> OnPersonTypeChanged { get; set; }
+
+    [Parameter] public string FormCode { get; set; } = string.Empty;
+    [Parameter] public string FormNationalLegalId { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> FormNationalLegalIdChanged { get; set; }
+    [Parameter] public string FormNationalCode { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> FormNationalCodeChanged { get; set; }
+    [Parameter] public string FormEconomicCode { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> FormEconomicCodeChanged { get; set; }
+    [Parameter] public string FormCompanyName { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> FormCompanyNameChanged { get; set; }
+    [Parameter] public string FormFirstName { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> FormFirstNameChanged { get; set; }
+    [Parameter] public string FormLastName { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> FormLastNameChanged { get; set; }
+
+    [Parameter] public string FormMobile { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> FormMobileChanged { get; set; }
+    [Parameter] public string FormPhone { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> FormPhoneChanged { get; set; }
+    [Parameter] public string FormEmail { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> FormEmailChanged { get; set; }
+    [Parameter] public string FormWebsite { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> FormWebsiteChanged { get; set; }
+
+    [Parameter] public string FormCountry { get; set; } = "IR";
+    [Parameter] public EventCallback<string> FormCountryChanged { get; set; }
+    [Parameter] public string FormProvince { get; set; } = string.Empty;
+    [Parameter] public EventCallback<ChangeEventArgs> OnProvinceChanged { get; set; }
+    [Parameter] public string FormCity { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> FormCityChanged { get; set; }
+    [Parameter] public string FormAddress { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> FormAddressChanged { get; set; }
+    [Parameter] public IReadOnlyList<IranProvinceDto> Provinces { get; set; } = [];
+    [Parameter] public IReadOnlyList<IranCityDto> Cities { get; set; } = [];
+
+    [Parameter] public Func<string?, int, string> FilterDigitsOnly { get; set; } = (s, _) => s ?? string.Empty;
+    [Parameter] public bool Saving { get; set; }
+    [Parameter] public EventCallback OnSave { get; set; }
+}

@@ -1,0 +1,387 @@
+@using System.Globalization
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Units
+@using ForgeFlow.Web.Roles
+@inject UnitUseCases UnitService
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="conversionModalOpen"
+           OnDismissing="OnConversionModalDismissing"
+           Title="@Text[conversionEditMode ? "UnitConversionEditTitle" : "UnitConversionDetailTitle"]"
+           AriaLabel="@Text[conversionEditMode ? "UnitConversionEditTitle" : "UnitConversionDetailTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (selectedConversion is not null)
+        {
+            <div class="audit-modal-body">
+                @if (!conversionEditMode)
+                {
+                    <div class="audit-modal-title-row">
+                        <strong class="audit-modal-code" dir="ltr">@FormatConversionFormula(selectedConversion)</strong>
+                        <span class="read-badge @(selectedConversion.IsActive ? "active" : "inactive")">
+                            @Text[selectedConversion.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </div>
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitConversionFromLabel"]</span>
+                            <span class="audit-meta-val">@selectedConversion.FromUnitCode — @selectedConversion.FromUnitName</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitConversionToLabel"]</span>
+                            <span class="audit-meta-val">@selectedConversion.ToUnitCode — @selectedConversion.ToUnitName</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitConversionFactorLabel"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@selectedConversion.Factor.ToString("0.######", CultureInfo.InvariantCulture)</bdi>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <form class="write-panel" @onsubmit:preventDefault>
+                        <div class="write-meta">
+                            <span class="write-code" dir="ltr">@selectedConversion.FromUnitCode → @selectedConversion.ToUnitCode</span>
+                            <span class="read-badge @(selectedConversion.IsActive ? "active" : "inactive")">
+                                @Text[selectedConversion.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                            </span>
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-conv-factor">@Text["UnitConversionFactorLabel"]</label>
+                            <input id="edit-conv-factor" type="number" step="0.000001" min="0.000001"
+                                   @bind="editConversionFactorText" @bind:event="oninput"
+                                   disabled="@(!selectedConversion.IsActive || conversionSaving)" />
+                        </div>
+
+                        @if (conversionDiscardConfirm)
+                        {
+                            <div class="write-confirm" role="alertdialog" aria-labelledby="conv-discard-text">
+                                <p id="conv-discard-text">@Text["WriteDiscardConfirm"]</p>
+                                <div class="write-actions">
+                                    <BitButton Size="BitSize.Small" OnClick="ConfirmConversionDiscard">@Text["WriteDiscard"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => conversionDiscardConfirm = false">@Text["WriteKeepEditing"]</BitButton>
+                                </div>
+                            </div>
+                        }
+
+                        @if (!conversionDiscardConfirm && conversionConfirmToggle is null)
+                        {
+                            <div class="write-actions">
+                                @if (selectedConversion.IsActive)
+                                {
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!conversionSaving && ConversionEditDirty)" OnClick="SubmitConversionUpdateAsync">@Text["WriteSave"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!conversionSaving)" OnClick="() => conversionConfirmToggle = false">@Text["WriteDeactivate"]</BitButton>
+                                }
+                                else
+                                {
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!conversionSaving)" OnClick="() => conversionConfirmToggle = true">@Text["WriteActivate"]</BitButton>
+                                }
+                            </div>
+                        }
+
+                        @if (conversionConfirmToggle is bool targetActive)
+                        {
+                            <div class="write-confirm" role="alertdialog" aria-labelledby="conv-toggle-text">
+                                <p id="conv-toggle-text">@Text[targetActive ? "WriteConfirmActivate" : "WriteConfirmDeactivate", FormatConversionFormula(selectedConversion)]</p>
+                                <div class="write-actions">
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!conversionSaving)" OnClick="ExecuteConversionToggleAsync">@Text["WriteConfirm"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!conversionSaving)" OnClick="() => conversionConfirmToggle = null">@Text["WriteCancel"]</BitButton>
+                                </div>
+                            </div>
+                        }
+
+                        @if (conversionSaving) { <p role="status">@Text["WriteSaving"]</p> }
+                        @if (conversionSaved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+                        @if (conversionError is not null)
+                        {
+                            <p role="alert" class="write-error">@Text[conversionError]</p>
+                            @if (conversionError is "WriteConflict" or "WriteOutcomeUnknown")
+                            {
+                                <div class="write-actions">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadSelectedConversionAsync">@Text["WriteReload"]</BitButton>
+                                </div>
+                            }
+                        }
+                    </form>
+                }
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="createConversionOpen"
+           OnDismissing="OnCreateConversionDismissing"
+           Title="@Text["UnitConversionCreateTitle"]" AriaLabel="@Text["UnitConversionCreateTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            <form class="write-panel" @onsubmit:preventDefault>
+                <div class="read-field">
+                    <label for="create-conv-from">@Text["UnitConversionFromLabel"]</label>
+                    <select id="create-conv-from" @bind="createFromUnitId" disabled="@conversionSaving">
+                        @foreach (var u in ActiveUnits)
+                        {
+                            <option value="@u.Id">@FormatUnitOption(u)</option>
+                        }
+                    </select>
+                </div>
+                <div class="read-field">
+                    <label for="create-conv-to">@Text["UnitConversionToLabel"]</label>
+                    <select id="create-conv-to" @bind="createToUnitId" disabled="@conversionSaving">
+                        @foreach (var u in ActiveUnits)
+                        {
+                            <option value="@u.Id">@FormatUnitOption(u)</option>
+                        }
+                    </select>
+                </div>
+                <div class="read-field">
+                    <label for="create-conv-factor">@Text["UnitConversionFactorLabel"]</label>
+                    <input id="create-conv-factor" type="number" step="0.000001" min="0.000001"
+                           @bind="createConversionFactorText" @bind:event="oninput" disabled="@conversionSaving" />
+                </div>
+
+                @if (TryFormatDraftFormula() is string formula)
+                {
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitConversionRelationLabel"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@formula</bdi>
+                        </div>
+                    </div>
+                }
+
+                @if (createConversionDiscardConfirm)
+                {
+                    <div class="write-confirm" role="alertdialog" aria-labelledby="create-conv-discard-text">
+                        <p id="create-conv-discard-text">@Text["WriteDiscardConfirm"]</p>
+                        <div class="write-actions">
+                            <BitButton Size="BitSize.Small" OnClick="ConfirmCreateConversionDiscard">@Text["WriteDiscard"]</BitButton>
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => createConversionDiscardConfirm = false">@Text["WriteKeepEditing"]</BitButton>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="write-actions">
+                        <BitButton Size="BitSize.Small" IsEnabled="@(!conversionSaving && createFromUnitId > 0 && createToUnitId > 0 && !string.IsNullOrWhiteSpace(createConversionFactorText))"
+                                   OnClick="SubmitCreateConversionAsync">@Text["CreateSubmit"]</BitButton>
+                    </div>
+                }
+
+                @if (conversionSaving) { <p role="status">@Text["WriteSaving"]</p> }
+                @if (conversionError is not null) { <p role="alert" class="write-error">@Text[conversionError]</p> }
+            </form>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long CurrentOrgId { get; set; }
+    [Parameter] public bool ScopeCanManage { get; set; }
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public Func<UnitSummary, string> FormatUnitOption { get; set; } = u => u.Code;
+    [Parameter] public Func<UnitConversionSummary, string> FormatConversionFormula { get; set; } = _ => string.Empty;
+    [Parameter] public EventCallback<string?> OnPageNotice { get; set; }
+    [Parameter] public EventCallback<string?> OnPageError { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private bool conversionModalOpen;
+    private bool conversionEditMode;
+    private bool conversionSaving;
+    private bool conversionSaved;
+    private bool conversionDiscardConfirm;
+    private bool? conversionConfirmToggle;
+    private string? conversionError;
+    private UnitConversionSummary? selectedConversion;
+    private string editConversionFactorText = string.Empty;
+
+    private bool createConversionOpen;
+    private bool createConversionDiscardConfirm;
+    private long createFromUnitId;
+    private long createToUnitId;
+    private string createConversionFactorText = "1";
+
+    private bool ConversionEditDirty =>
+        selectedConversion is not null && selectedConversion.IsActive &&
+        TryParseFactor(editConversionFactorText, out var parsed) &&
+        parsed != selectedConversion.Factor;
+
+    public void OpenCreate()
+    {
+        if (ActiveUnits.Count >= 2)
+        {
+            if (createFromUnitId == 0 || ActiveUnits.All(u => u.Id != createFromUnitId)) createFromUnitId = ActiveUnits[0].Id;
+            if (createToUnitId == 0 || ActiveUnits.All(u => u.Id != createToUnitId)) createToUnitId = ActiveUnits[1].Id;
+        }
+        else if (ActiveUnits.Count == 1)
+        {
+            createFromUnitId = createToUnitId = ActiveUnits[0].Id;
+        }
+        createConversionFactorText = "1";
+        conversionError = null;
+        createConversionDiscardConfirm = false;
+        createConversionOpen = true;
+    }
+
+    public async Task OpenModalAsync(long id, bool edit)
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0) return;
+        conversionSaving = false;
+        conversionSaved = false;
+        conversionDiscardConfirm = false;
+        conversionConfirmToggle = null;
+        conversionError = null;
+
+        var res = await UnitService.GetConversion(CurrentScope, CurrentOrgId, id);
+        if (!res.Succeeded || res.Value is null)
+        {
+            await OnPageNotice.InvokeAsync(null);
+            await OnPageError.InvokeAsync(res.Succeeded ? "ReadNotFound" : RolePermissionLocalization.FailureKey(res.Error!.Code));
+            return;
+        }
+
+        ApplySelectedConversion(res.Value);
+        conversionEditMode = edit && ScopeCanManage;
+        conversionModalOpen = true;
+    }
+
+    private void ApplySelectedConversion(UnitConversionSummary conversion)
+    {
+        selectedConversion = conversion;
+        editConversionFactorText = conversion.Factor.ToString("0.######", CultureInfo.InvariantCulture);
+    }
+
+    private async Task SubmitCreateConversionAsync()
+    {
+        if (CurrentScope is null || CurrentOrgId <= 0 || conversionSaving) return;
+        if (!TryParseFactor(createConversionFactorText, out var factor))
+        {
+            conversionError = RolePermissionLocalization.FailureKey(UnitErrors.ConversionFactorInvalid);
+            return;
+        }
+        conversionSaving = true;
+        conversionError = null;
+        try
+        {
+            var res = await UnitService.CreateConversion(CurrentScope, new CreateUnitConversionRequest(
+                CurrentOrgId, createFromUnitId, createToUnitId, factor));
+            if (!res.Succeeded || res.Value is null)
+            {
+                conversionError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            createConversionOpen = false;
+            await OnPageNotice.InvokeAsync(Text["UnitConversionCreatedSucceeded"]);
+            await OnChanged.InvokeAsync();
+        }
+        finally
+        {
+            conversionSaving = false;
+        }
+    }
+
+    private async Task SubmitConversionUpdateAsync()
+    {
+        if (CurrentScope is null || selectedConversion is null || conversionSaving) return;
+        if (!TryParseFactor(editConversionFactorText, out var factor))
+        {
+            conversionError = RolePermissionLocalization.FailureKey(UnitErrors.ConversionFactorInvalid);
+            return;
+        }
+        conversionSaving = true;
+        conversionSaved = false;
+        conversionError = null;
+        try
+        {
+            var res = await UnitService.UpdateConversionFactor(CurrentScope, new UpdateUnitConversionFactorRequest(
+                selectedConversion.OrganizationId, selectedConversion.Id, factor, selectedConversion.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                conversionError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            ApplySelectedConversion(res.Value);
+            conversionSaved = true;
+            await OnChanged.InvokeAsync();
+        }
+        finally
+        {
+            conversionSaving = false;
+        }
+    }
+
+    private async Task ExecuteConversionToggleAsync()
+    {
+        if (CurrentScope is null || selectedConversion is null || conversionConfirmToggle is not bool target || conversionSaving) return;
+        conversionSaving = true;
+        conversionSaved = false;
+        conversionError = null;
+        try
+        {
+            var res = await UnitService.SetConversionActive(CurrentScope, new SetUnitConversionActiveRequest(
+                selectedConversion.OrganizationId, selectedConversion.Id, target, selectedConversion.RowVersion));
+            if (!res.Succeeded || res.Value is null)
+            {
+                conversionConfirmToggle = null;
+                conversionError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            ApplySelectedConversion(res.Value);
+            conversionConfirmToggle = null;
+            conversionSaved = true;
+            await OnChanged.InvokeAsync();
+        }
+        finally
+        {
+            conversionSaving = false;
+        }
+    }
+
+    private async Task ReloadSelectedConversionAsync()
+    {
+        if (CurrentScope is null || selectedConversion is null) return;
+        await OpenModalAsync(selectedConversion.Id, conversionEditMode);
+    }
+
+    private void OnConversionModalDismissing(BitDialogDismissArgs args)
+    {
+        if (!conversionEditMode || !ConversionEditDirty || conversionSaving) return;
+        args.Cancel = true;
+        conversionDiscardConfirm = true;
+    }
+
+    private void ConfirmConversionDiscard()
+    {
+        conversionDiscardConfirm = false;
+        conversionModalOpen = false;
+    }
+
+    private void OnCreateConversionDismissing(BitDialogDismissArgs args)
+    {
+        if (conversionSaving || createConversionFactorText == "1") return;
+        args.Cancel = true;
+        createConversionDiscardConfirm = true;
+    }
+
+    private void ConfirmCreateConversionDiscard()
+    {
+        createConversionDiscardConfirm = false;
+        createConversionOpen = false;
+    }
+
+    private string? TryFormatDraftFormula()
+    {
+        var from = ActiveUnits.FirstOrDefault(u => u.Id == createFromUnitId);
+        var to = ActiveUnits.FirstOrDefault(u => u.Id == createToUnitId);
+        if (from is null || to is null || !TryParseFactor(createConversionFactorText, out var factor)) return null;
+        return $"1 {from.Symbol} = {factor.ToString("0.######", CultureInfo.InvariantCulture)} {to.Symbol}";
+    }
+
+    private static bool TryParseFactor(string? raw, out decimal value)
+        => decimal.TryParse(raw?.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out value) && value > 0m;
+}

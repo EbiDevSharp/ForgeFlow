@@ -1,0 +1,341 @@
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Users
+@using ForgeFlow.Domain.Organizations
+@using ForgeFlow.Domain.Users
+@using ForgeFlow.Web.Roles
+@inject UserUseCases UsersService
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="460px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           OnDismissing="OnCreateDismissing"
+           Title="@Text["CreateUserTitle"]" AriaLabel="@Text["CreateUserTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+<form id="user-create-form" class="um-modal-panel" @onsubmit:preventDefault>
+    <p class="um-create-subtitle">@Text["UserCreateInOrgSubtitle", ScopeOrgLabel]</p>
+
+    <div class="um-field-group">
+        <label class="um-field-label" for="create-user-name">@Text["UserUsername"]</label>
+        <input id="create-user-name"
+               dir="ltr"
+               class="um-text-input @(createUserNameTouched && !IsCreateUsernameValid ? "is-invalid" : string.Empty)"
+               placeholder="@Text["UserUsernamePlaceholder"]"
+               @bind="createUserName"
+               @bind:event="oninput"
+               @onblur="() => createUserNameTouched = true"
+               maxlength="128"
+               disabled="@creating"
+               aria-describedby="create-username-hint" />
+        @if (createUserNameTouched && !IsCreateUsernameValid)
+        {
+            <span class="um-field-error" role="alert">@Text["UserUsernameInvalidError"]</span>
+        }
+        else
+        {
+            <span id="create-username-hint" class="write-hint">@Text["UserUsernameAllowedHint"]</span>
+        }
+    </div>
+
+    <div class="um-field-group">
+        <div class="um-label-row">
+            <label class="um-field-label" for="create-user-password">@Text["UserPasswordLabel"]</label>
+            <button type="button" class="um-gen-pwd-btn" disabled="@creating" @onclick="GenerateRandomCreatePassword">
+                @Text["UserGenerateRandomPassword"]
+            </button>
+        </div>
+        <div class="um-login-pwd-wrap @(createPasswordTouched && !IsCreatePasswordValid ? "is-invalid" : string.Empty)">
+            <BitTextField @bind-Value="createPassword"
+                          Immediate="true"
+                          Type="@(createPasswordRevealed ? BitInputType.Text : BitInputType.Password)"
+                          Classes="@LoginPasswordFieldClasses"
+                          CanRevealPassword="true"
+                          RevealPasswordAriaLabel="@Text["PasswordVisibilityToggle"]"
+                          IsEnabled="@(!creating)"
+                          OnFocusOut="() => createPasswordTouched = true"
+                          InputHtmlAttributes="@CreatePasswordAttributes" />
+        </div>
+        @if (!string.IsNullOrEmpty(createPassword))
+        {
+            var strength = CreatePasswordStrength;
+            <div class="um-strength-bar" aria-hidden="true">
+                @for (var i = 1; i <= 4; i++)
+                {
+                    <span class="um-strength-seg @(i <= strength ? (strength <= 1 ? "is-weak" : strength <= 2 ? "is-med" : "is-strong") : string.Empty)"></span>
+                }
+            </div>
+        }
+        @if (createPasswordTouched && !IsCreatePasswordValid)
+        {
+            <span class="um-field-error" role="alert">@Text["UserPasswordStrengthMin"]</span>
+        }
+        else if (!string.IsNullOrEmpty(createPassword) && IsCreatePasswordValid)
+        {
+            <span class="um-meta-text">@(CreatePasswordStrength >= 3 ? Text["UserPasswordStrengthStrong"] : Text["UserPasswordStrengthMedium"])</span>
+        }
+        else
+        {
+            <span id="create-password-hint" class="write-hint">@Text["UserPasswordHint"]</span>
+        }
+        <label class="um-inline-check">
+            <input type="checkbox" @bind="createRequirePasswordChange" disabled="@creating" />
+            <span>@Text["UserMustChangePasswordLabel"]</span>
+        </label>
+    </div>
+
+    @if (ScopeCanAssignRoles)
+    {
+        <div class="um-admin-switch-row">
+            <div>
+                <div class="um-field-label">@Text["UserOrgAdminRole"]</div>
+                <div class="write-hint">@Text["UserOrgAdminSwitchDesc"]</div>
+            </div>
+            <label class="um-switch">
+                <input type="checkbox" @bind="createAssignAdmin" disabled="@creating" />
+                <span class="um-switch-track"></span>
+            </label>
+        </div>
+    }
+
+    @if (OrgSites.Count > 0)
+    {
+        <div class="um-section">
+            <div class="um-label-row">
+                <span class="um-section-title">@Text["UserAssignSitesLabel"]</span>
+                <span class="write-hint">@Text["UserSitesSelectedCount", createSelectedSiteIds.Count, OrgSites.Count]</span>
+            </div>
+            <div class="um-site-cards">
+                @foreach (var site in OrgSites)
+                {
+                    var checkedSite = createSelectedSiteIds.Contains(site.Id);
+                    <label class="um-site-check-card @(checkedSite ? "is-selected" : string.Empty)">
+                        <span class="um-site-check-main">
+                            <input type="checkbox" checked="@checkedSite" disabled="@creating" @onchange="e => ToggleCreateSite(site.Id, e.Value is bool b && b)" />
+                            <span>@site.Name</span>
+                        </span>
+                        <span class="um-chip" dir="ltr">@site.Code</span>
+                    </label>
+                }
+            </div>
+        </div>
+    }
+
+    @if (creating) { <p role="status">@Text["WriteSaving"]</p> }
+    @if (createError is not null) { <p role="alert" class="write-error">@Text[createError]</p> }
+    @if (createDiscardConfirm)
+    {
+        <div class="write-confirm" role="alertdialog" aria-labelledby="user-create-discard-text">
+            <p id="user-create-discard-text">@Text["WriteDiscardConfirm"]</p>
+            <div class="write-actions">
+                <BitButton Size="BitSize.Small" OnClick="DiscardCreate">@Text["WriteDiscard"]</BitButton>
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="CancelDiscardCreate">@Text["WriteKeepEditing"]</BitButton>
+            </div>
+        </div>
+    }
+
+    <div class="um-modal-footer um-modal-footer--split">
+        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!creating)" OnClick="DiscardCreate">@Text["TotpCancelBtn"]</BitButton>
+        <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" Size="BitSize.Small"
+                   IsEnabled="@(!creating && IsCreateUsernameValid && IsCreatePasswordValid)"
+                   OnClick="SubmitCreate">
+            @Text["CreateSubmit"]
+        </BitButton>
+    </div>
+</form>
+</Body>
+</BitDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public OrganizationScope? Scope { get; set; }
+    [Parameter] public string ScopeOrgLabel { get; set; } = string.Empty;
+    [Parameter] public bool ScopeCanCreate { get; set; }
+    [Parameter] public bool ScopeCanAssignRoles { get; set; }
+    [Parameter] public IReadOnlyList<SiteDetails> OrgSites { get; set; } = [];
+    [Parameter] public Func<string, string> FailureKey { get; set; } = code => code;
+    [Parameter] public EventCallback OnPrepareDraft { get; set; }
+    [Parameter] public EventCallback OnClearDraft { get; set; }
+    [Parameter] public EventCallback<string?> OnPageNotice { get; set; }
+    [Parameter] public EventCallback OnCreated { get; set; }
+
+    private static readonly BitTextFieldClassStyles LoginPasswordFieldClasses = new()
+    {
+        Root = "login-field",
+        Label = "write-field-label",
+        InputWrapper = "login-field-wrapper",
+        FieldGroup = "login-field-group",
+        Input = "login-field-input",
+        RevealPassword = "login-field-reveal"
+    };
+
+    private static readonly Dictionary<string, object> CreatePasswordAttributes = new()
+    {
+        ["id"] = "create-user-password",
+        ["autocomplete"] = "new-password",
+        ["dir"] = "ltr",
+        ["maxlength"] = "128",
+        ["aria-describedby"] = "create-password-hint"
+    };
+
+    private string createUserName = string.Empty;
+    private string createPassword = string.Empty;
+    private bool createAssignAdmin;
+    private bool createRequirePasswordChange = true;
+    private bool createUserNameTouched;
+    private bool createPasswordTouched;
+    private bool createPasswordRevealed;
+    private readonly HashSet<long> createSelectedSiteIds = [];
+    private bool creating;
+    private string? createError;
+    private bool createDiscardConfirm;
+
+    private bool CreateDirty => !string.IsNullOrWhiteSpace(createUserName) || !string.IsNullOrEmpty(createPassword);
+
+    private bool IsCreateUsernameValid =>
+        !string.IsNullOrEmpty(createUserName)
+        && createUserName.Length is >= 1 and <= 128
+        && createUserName.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '.' or '_' or '-' or '@' or '+');
+
+    private bool IsCreatePasswordValid =>
+        !string.IsNullOrEmpty(createPassword)
+        && createPassword.Length is >= 12 and <= 128
+        && !createPassword.Any(char.IsControl);
+
+    private int CreatePasswordStrength
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(createPassword) || createPassword.Length < 12 || createPassword.Any(char.IsControl))
+                return 1;
+            var score = 2;
+            if (createPassword.Length >= 16) score++;
+            if (createPassword.Any(char.IsUpper) && createPassword.Any(char.IsDigit) && createPassword.Any(c => !char.IsLetterOrDigit(c))) score++;
+            return Math.Min(4, score);
+        }
+    }
+
+    public async Task OpenAsync()
+    {
+        if (!ScopeCanCreate) return;
+        createUserName = string.Empty;
+        createPassword = string.Empty;
+        createError = null;
+        createAssignAdmin = false;
+        createRequirePasswordChange = true;
+        createUserNameTouched = false;
+        createPasswordTouched = false;
+        createPasswordRevealed = false;
+        createSelectedSiteIds.Clear();
+        createDiscardConfirm = false;
+        await IsOpenChanged.InvokeAsync(true);
+        await OnPrepareDraft.InvokeAsync();
+    }
+
+    public void ApplyDraftUserName(string? value) => createUserName = value ?? string.Empty;
+
+    public void ResetOnClosed()
+    {
+        createPassword = string.Empty;
+        createError = null;
+        createDiscardConfirm = false;
+    }
+
+    private void OnCreateDismissing(BitDialogDismissArgs args)
+    {
+        if (CreateDirty && !creating)
+        {
+            args.Cancel = true;
+            createDiscardConfirm = true;
+        }
+        else
+        {
+            createPassword = string.Empty;
+        }
+    }
+
+    private async Task DiscardCreate()
+    {
+        createDiscardConfirm = false;
+        createUserName = string.Empty;
+        createPassword = string.Empty;
+        await IsOpenChanged.InvokeAsync(false);
+        await OnClearDraft.InvokeAsync();
+    }
+
+    private void CancelDiscardCreate() => createDiscardConfirm = false;
+
+    private void ToggleCreateSite(long siteId, bool isChecked)
+    {
+        if (isChecked) createSelectedSiteIds.Add(siteId);
+        else createSelectedSiteIds.Remove(siteId);
+    }
+
+    private void GenerateRandomCreatePassword()
+    {
+        const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const string lower = "abcdefghijkmnopqrstuvwxyz";
+        const string digits = "23456789";
+        const string symbols = "!@#$%&*-_";
+        const string all = upper + lower + digits + symbols;
+        var chars = new char[16];
+        chars[0] = upper[System.Security.Cryptography.RandomNumberGenerator.GetInt32(upper.Length)];
+        chars[1] = lower[System.Security.Cryptography.RandomNumberGenerator.GetInt32(lower.Length)];
+        chars[2] = digits[System.Security.Cryptography.RandomNumberGenerator.GetInt32(digits.Length)];
+        chars[3] = symbols[System.Security.Cryptography.RandomNumberGenerator.GetInt32(symbols.Length)];
+        for (var i = 4; i < chars.Length; i++)
+            chars[i] = all[System.Security.Cryptography.RandomNumberGenerator.GetInt32(all.Length)];
+        for (var i = chars.Length - 1; i > 0; i--)
+        {
+            var j = System.Security.Cryptography.RandomNumberGenerator.GetInt32(i + 1);
+            (chars[i], chars[j]) = (chars[j], chars[i]);
+        }
+        createPassword = new string(chars);
+        createPasswordTouched = true;
+        createPasswordRevealed = true;
+    }
+
+    private async Task SubmitCreate()
+    {
+        if (creating || !ScopeCanCreate || Scope is not OrganizationScope.Organization orgScope) return;
+        creating = true;
+        createError = null;
+        await OnPageNotice.InvokeAsync(null);
+        var password = createPassword;
+        try
+        {
+            var result = await UsersService.CreateOrganizationUser(
+                orgScope,
+                new CreateOrganizationUser(
+                    orgScope.OrganizationId,
+                    createUserName,
+                    password,
+                    ScopeCanAssignRoles && createAssignAdmin,
+                    createSelectedSiteIds.ToArray(),
+                    false,
+                    createRequirePasswordChange));
+            if (!result.Succeeded)
+            {
+                createError = FailureKey(result.Error!.Code);
+                return;
+            }
+            createPassword = string.Empty;
+            createUserName = string.Empty;
+            createDiscardConfirm = false;
+            await IsOpenChanged.InvokeAsync(false);
+            await OnClearDraft.InvokeAsync();
+            await OnPageNotice.InvokeAsync(Text["UserCreatedSucceeded", result.Value!.UserName]);
+            creating = false;
+            await OnCreated.InvokeAsync();
+        }
+        catch
+        {
+            createError = "WriteUnavailable";
+        }
+        finally
+        {
+            creating = false;
+        }
+    }
+}

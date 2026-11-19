@@ -1,0 +1,510 @@
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Roles
+@using ForgeFlow.Application.Users
+@using ForgeFlow.Domain.Roles
+@using ForgeFlow.Web.Roles
+@inject UserUseCases UsersService
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="700px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           Title="@(permSnapshot is null ? Text["UserPermissionsButton"] : Text["UserPermissionsTitle", permSnapshot.UserName])"
+           AriaLabel="@(permSnapshot is null ? Text["UserPermissionsButton"] : Text["UserPermissionsTitle", permSnapshot.UserName])"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+@if (permSnapshot is not null)
+{
+    var pendingCount = PendingDirectChangesCount;
+    var allGroups = ActiveScopeGroups;
+    var totalOps = allGroups.Sum(g => g.Operations.Count);
+    var viaRoleCount = allGroups.Sum(g => g.Operations.Count(op => roleGrantedPerms.Contains(op.PermissionCode)));
+    var isFullViaRole = totalOps > 0 && viaRoleCount == totalOps;
+
+    <PermissionAccordionPanel
+        Descriptors="@TargetDescriptors"
+        SelectedPerms="@directSelectedPerms"
+        RoleGrantedPerms="@roleGrantedPerms"
+        InitialPerms="@initialDirectPerms"
+        RoleGrantingNames="@roleGrantingNamesByCode"
+        CanEdit="@ScopeCanAssignPermissions"
+        IsSaving="@permSaving"
+        OnChanged="@(() => { permSaved = false; StateHasChanged(); })">
+        <HeaderContent>
+            <div class="pa-roles-bar">
+                @if (permUserSites.Count > 0)
+                {
+                    <div class="pa-scope-wrap">
+                        <label class="visually-hidden" for="user-perm-scope">@Text["UserPermScopeLabel"]</label>
+                        <select id="user-perm-scope" class="um-select" value="@permSiteId" @onchange="ChangePermTargetScope" disabled="@permSaving">
+                            <option value="0">@Text["UserPermScopeOrg"]</option>
+                            @foreach (var s in permUserSites)
+                            {
+                                <option value="@s.SiteId">@Text["UserPermScopeSite", s.SiteCode, s.SiteName]</option>
+                            }
+                        </select>
+                    </div>
+                }
+                <div class="pa-role-chips">
+                    <span class="pm-role-prefix">@Text["PermRolesLabel"]</span>
+                    @foreach (var ra in ScopedRoleAssignmentsForTarget.Where(x => x.IsActive))
+                    {
+                        var roleLabel = RolePermissionLocalization.RoleDisplayName(ra.RoleName, ra.IsSystem, Text);
+                        var canRemove = ScopeCanAssignRoles && !(ra.RoleId == PermissionCatalog.OrganizationAdministratorRoleId && permSnapshot.UserId == CurrentActorId);
+                        <span class="pa-role-chip">
+                            <span>@roleLabel</span>
+                            @if (canRemove)
+                            {
+                                <button type="button" class="pa-role-chip-x"
+                                        aria-label="@Text["PermRemoveRoleAria", roleLabel]"
+                                        disabled="@permSaving"
+                                        @onclick="() => ToggleRoleAssignment(ra)">×</button>
+                            }
+                        </span>
+                    }
+                    @if (ScopeCanAssignRoles && AssignableRolesForTarget.Count > 0)
+                    {
+                        @if (!permAddRoleOpen)
+                        {
+                            <button type="button" class="pa-add-role-btn" disabled="@permSaving" @onclick="() => permAddRoleOpen = true">
+                                @Text["PermAddRoleChipBtn"]
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="pa-add-role-inline">
+                                <label class="visually-hidden" for="user-assign-role">@Text["UserAssignRoleLabel"]</label>
+                                <select id="user-assign-role" class="um-select pa-role-select" @bind="selectedRoleIdToAssign" disabled="@permSaving">
+                                    @foreach (var r in AssignableRolesForTarget)
+                                    {
+                                        <option value="@r.Id">@RolePermissionLocalization.RoleDisplayName(r.Name, r.IsSystem, Text)</option>
+                                    }
+                                </select>
+                                <BitButton Size="BitSize.Small" IsEnabled="@(!permSaving && selectedRoleIdToAssign > 0)" OnClick="SubmitAssignRole">
+                                    @Text["UserAssignRoleButton"]
+                                </BitButton>
+                                <button type="button" class="pa-role-chip-x" aria-label="@Text["WriteCancel"]" @onclick="() => permAddRoleOpen = false">×</button>
+                            </span>
+                        }
+                    }
+                </div>
+            </div>
+        </HeaderContent>
+        <StatusContent>
+            @if (permSaving) { <p role="status">@Text["WriteSaving"]</p> }
+            @if (permSaved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+            @if (permError is not null)
+            {
+                <p role="alert" class="write-error">@Text[permError]</p>
+                @if (permError is "WriteConflict" or "WriteOutcomeUnknown")
+                {
+                    <div class="write-actions">
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadPermissionsDialog">@Text["WriteReload"]</BitButton>
+                    </div>
+                }
+            }
+        </StatusContent>
+        <FooterContent>
+            <div class="um-modal-footer pm-footer">
+                @if (isFullViaRole || !ScopeCanAssignPermissions)
+                {
+                    <span></span>
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => IsOpenChanged.InvokeAsync(false)">@Text["ReadClose"]</BitButton>
+                }
+                else
+                {
+                    <div class="pm-unsaved">
+                        @if (pendingCount > 0)
+                        {
+                            <span>@Text["PermUnsavedChangesCount", pendingCount]</span>
+                        }
+                    </div>
+                    <div class="um-footer-actions">
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!permSaving)" OnClick="() => IsOpenChanged.InvokeAsync(false)">
+                            @Text["WriteCancel"]
+                        </BitButton>
+                        <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" Size="BitSize.Small"
+                                   IsEnabled="@(!permSaving && pendingCount > 0)" OnClick="SubmitDirectPermissions">
+                            @Text["UserPermSaveButton"]
+                        </BitButton>
+                    </div>
+                }
+            </div>
+        </FooterContent>
+    </PermissionAccordionPanel>
+}
+</Body>
+</BitDialog>
+
+@code {
+    [Inject] private RoleUseCases? RolesService { get; set; }
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public OrganizationScope? Scope { get; set; }
+    [Parameter] public long CurrentActorId { get; set; }
+    [Parameter] public bool ScopeCanAssignRoles { get; set; }
+    [Parameter] public bool ScopeCanAssignPermissions { get; set; }
+    [Parameter] public EventCallback<string?> OnPageError { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private UserPermissionMatrix? permSnapshot;
+    private IReadOnlyList<UserSiteMembershipDetails> permUserSites = [];
+    private IReadOnlyList<RoleDetails> orgRoleDetails = [];
+    private long permSiteId;
+    private long selectedRoleIdToAssign;
+    private bool permAddRoleOpen;
+    private bool permSaving;
+    private bool permSaved;
+    private string? permError;
+    private readonly HashSet<string> directSelectedPerms = new(StringComparer.Ordinal);
+    private readonly HashSet<string> initialDirectPerms = new(StringComparer.Ordinal);
+    private readonly HashSet<string> roleGrantedPerms = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyList<string>> roleGrantingNamesByCode = new(StringComparer.Ordinal);
+
+    private IReadOnlyList<PermissionDescriptor> TargetDescriptors => permSiteId == 0
+        ? RolePermissionLocalization.OrganizationScopePermissions
+        : RolePermissionLocalization.SiteScopePermissions;
+
+    private IReadOnlyList<UserPermissionGroup> ActiveScopeGroups
+    {
+        get
+        {
+            var scopeKind = (byte)(permSiteId == 0 ? 1 : 2);
+            long? siteId = permSiteId == 0 ? null : permSiteId;
+            if (permSnapshot?.Groups is not null)
+            {
+                var serverGroups = permSnapshot.Groups
+                    .Where(g => g.ScopeKind == scopeKind && g.SiteId == siteId)
+                    .ToList();
+                if (serverGroups.Count > 0)
+                    return serverGroups;
+            }
+
+            return TargetDescriptors
+                .GroupBy(d => d.Module)
+                .Select(g => new UserPermissionGroup(
+                    scopeKind,
+                    siteId,
+                    g.Key,
+                    g.Select(d => new UserEffectivePermissionCell(
+                        scopeKind,
+                        siteId,
+                        d.Code,
+                        roleGrantedPerms.Contains(d.Code),
+                        directSelectedPerms.Contains(d.Code),
+                        roleGrantingNamesByCode.TryGetValue(d.Code, out var names) ? names : [])).ToList()))
+                .ToList();
+        }
+    }
+
+    private int PendingDirectChangesCount => TargetDescriptors.Count(d =>
+        !roleGrantedPerms.Contains(d.Code) &&
+        (directSelectedPerms.Contains(d.Code) != initialDirectPerms.Contains(d.Code)));
+
+    private bool IsTargetOrgAdmin => permSnapshot is not null && permSnapshot.AssignedRoles.Any(
+        x => x.RoleId == PermissionCatalog.OrganizationAdministratorRoleId && x.IsActive && x.ScopeTarget == RoleScopeTarget.Organization);
+
+    private IReadOnlyList<UserAssignedRoleDetails> ScopedRoleAssignmentsForTarget => permSnapshot is null
+        ? []
+        : permSnapshot.AssignedRoles
+            .Where(x => permSiteId == 0
+                ? x.ScopeTarget == RoleScopeTarget.Organization
+                : (x.ScopeTarget == RoleScopeTarget.Site && x.SiteId == permSiteId))
+            .ToList();
+
+    private IReadOnlyList<RoleDetails> AssignableRolesForTarget
+    {
+        get
+        {
+            if (permSnapshot is null) return [];
+            var targetScope = permSiteId == 0 ? RoleScopeTarget.Organization : RoleScopeTarget.Site;
+            var existingRoleIds = ScopedRoleAssignmentsForTarget.Where(x => x.IsActive).Select(x => x.RoleId).ToHashSet();
+            return orgRoleDetails
+                .Where(r => r.IsActive && r.ScopeTarget == targetScope && !existingRoleIds.Contains(r.Id))
+                .ToList();
+        }
+    }
+
+    public async Task OpenAsync(long userId)
+    {
+        if (RolesService is null || Scope is not OrganizationScope.Organization orgScope) return;
+        permSaving = false;
+        permSaved = false;
+        permError = null;
+        permSiteId = 0;
+        permAddRoleOpen = false;
+        try
+        {
+            var userRes = await UsersService.GetOrganizationUser(orgScope, orgScope.OrganizationId, userId);
+            var snapRes = await RolesService.GetUserPermissions(orgScope, orgScope.OrganizationId, userId);
+            if (!userRes.Succeeded || !snapRes.Succeeded)
+            {
+                await OnPageError.InvokeAsync(RolePermissionLocalization.FailureKey((snapRes.Error ?? userRes.Error)!.Code));
+                return;
+            }
+            permUserSites = userRes.Value!.Sites.Where(s => s.MembershipIsActive && s.SiteIsActive).ToList();
+            permSnapshot = snapRes.Value;
+            if (permUserSites.Count == 1 && !IsTargetOrgAdmin
+                && !permSnapshot!.AssignedRoles.Any(r => r.IsActive && r.ScopeTarget == RoleScopeTarget.Organization)
+                && !permSnapshot.DirectGrants.Any(g => g.IsActive && g.ScopeTarget == RoleScopeTarget.Organization))
+            {
+                permSiteId = permUserSites[0].SiteId;
+            }
+            await LoadOrganizationRoleDetailsAsync(orgScope);
+            SyncTargetScopePermissions();
+            await IsOpenChanged.InvokeAsync(true);
+        }
+        catch
+        {
+            await OnPageError.InvokeAsync("ReadError");
+        }
+    }
+
+    public void ResetState()
+    {
+        permSnapshot = null;
+        permError = null;
+        permSaved = false;
+    }
+
+    private Task ReloadPermissionsDialog() => permSnapshot is null ? Task.CompletedTask : OpenAsync(permSnapshot.UserId);
+
+    private async Task LoadOrganizationRoleDetailsAsync(OrganizationScope.Organization orgScope)
+    {
+        var details = new List<RoleDetails>();
+        if (RolesService is not null)
+        {
+            var listRes = await RolesService.ListOrganizationRoles(orgScope, orgScope.OrganizationId, new RoleListQuery(IncludeInactive: false, IncludeSystem: true, Page: 1, PageSize: 100));
+            if (listRes.Succeeded && listRes.Value is not null)
+            {
+                foreach (var item in listRes.Value.Items)
+                {
+                    var d = await RolesService.GetOrganizationRole(orgScope, orgScope.OrganizationId, item.Id);
+                    if (d.Succeeded && d.Value is not null)
+                        details.Add(d.Value);
+                }
+            }
+        }
+        orgRoleDetails = details;
+    }
+
+    private void ChangePermTargetScope(ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), out var siteId))
+        {
+            permSiteId = siteId;
+            permError = null;
+            permSaved = false;
+            SyncTargetScopePermissions();
+        }
+    }
+
+    private void SyncTargetScopePermissions()
+    {
+        directSelectedPerms.Clear();
+        initialDirectPerms.Clear();
+        roleGrantedPerms.Clear();
+        roleGrantingNamesByCode.Clear();
+        if (permSnapshot is null) return;
+
+        var targetScopeKind = (byte)(permSiteId == 0 ? 1 : 2);
+        long? targetSiteId = permSiteId == 0 ? null : permSiteId;
+
+        if (permSnapshot.EffectiveCells is not null)
+        {
+            foreach (var cell in permSnapshot.EffectiveCells)
+            {
+                if (cell.ScopeKind != targetScopeKind || cell.SiteId != targetSiteId) continue;
+                if (cell.GrantedDirectly)
+                {
+                    initialDirectPerms.Add(cell.PermissionCode);
+                    directSelectedPerms.Add(cell.PermissionCode);
+                }
+                if (cell.GrantedByRole)
+                {
+                    roleGrantedPerms.Add(cell.PermissionCode);
+                    roleGrantingNamesByCode[cell.PermissionCode] = cell.GrantingRoleNames;
+                }
+            }
+        }
+        else
+        {
+            foreach (var grant in permSnapshot.DirectGrants)
+            {
+                if (!grant.IsActive) continue;
+                if (permSiteId == 0 && grant.ScopeTarget == RoleScopeTarget.Organization)
+                {
+                    initialDirectPerms.Add(grant.PermissionCode);
+                    directSelectedPerms.Add(grant.PermissionCode);
+                }
+                else if (permSiteId > 0 && grant.ScopeTarget == RoleScopeTarget.Site && grant.SiteId == permSiteId)
+                {
+                    initialDirectPerms.Add(grant.PermissionCode);
+                    directSelectedPerms.Add(grant.PermissionCode);
+                }
+            }
+
+            var roleMap = orgRoleDetails.ToDictionary(x => x.Id, x => x.Permissions);
+            foreach (var ra in permSnapshot.AssignedRoles.Where(x => x.IsActive))
+            {
+                var applies = ra.ScopeTarget == RoleScopeTarget.Organization
+                    || (permSiteId > 0 && ra.ScopeTarget == RoleScopeTarget.Site && ra.SiteId == permSiteId);
+                if (!applies) continue;
+
+                IEnumerable<string> granted = ra.RoleId == PermissionCatalog.OrganizationAdministratorRoleId
+                    ? TargetDescriptors.Select(p => p.Code)
+                    : ra.RoleId == PermissionCatalog.SiteOperatorRoleId && permSiteId > 0
+                        ? ["Sites.Read", "Sites.Update", "Sites.SetActive"]
+                        : roleMap.TryGetValue(ra.RoleId, out var codes)
+                            ? codes.Where(c => TargetDescriptors.Any(d => d.Code == c))
+                            : [];
+
+                foreach (var code in granted)
+                {
+                    roleGrantedPerms.Add(code);
+                    if (!roleGrantingNamesByCode.TryGetValue(code, out var list))
+                        roleGrantingNamesByCode[code] = [ra.RoleName];
+                    else if (!list.Contains(ra.RoleName, StringComparer.Ordinal))
+                        roleGrantingNamesByCode[code] = [.. list, ra.RoleName];
+                }
+            }
+        }
+
+        selectedRoleIdToAssign = AssignableRolesForTarget.FirstOrDefault()?.Id ?? 0;
+    }
+
+    private async Task SubmitAssignRole()
+    {
+        if (permSaving || permSnapshot is null || RolesService is null || selectedRoleIdToAssign <= 0 || Scope is not OrganizationScope.Organization orgScope) return;
+        permSaving = true;
+        permSaved = false;
+        permError = null;
+        try
+        {
+            var targetScope = permSiteId == 0 ? RoleScopeTarget.Organization : RoleScopeTarget.Site;
+            long? siteId = permSiteId == 0 ? null : permSiteId;
+            var existingInactive = ScopedRoleAssignmentsForTarget.FirstOrDefault(x => x.RoleId == selectedRoleIdToAssign && !x.IsActive);
+            var res = existingInactive is not null
+                ? await RolesService.SetUserRoleAssignmentActive(
+                    orgScope,
+                    new SetUserRoleAssignmentActive(orgScope.OrganizationId, permSnapshot.UserId, existingInactive.AssignmentId, true, existingInactive.RowVersion))
+                : await RolesService.AssignUserRole(
+                    orgScope,
+                    new AssignUserRole(orgScope.OrganizationId, permSnapshot.UserId, selectedRoleIdToAssign, targetScope, siteId));
+            if (!res.Succeeded)
+            {
+                permError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            permSnapshot = res.Value;
+            permSaved = true;
+            permAddRoleOpen = false;
+            SyncTargetScopePermissions();
+            await OnChanged.InvokeAsync();
+        }
+        catch
+        {
+            permError = "WriteUnavailable";
+        }
+        finally
+        {
+            permSaving = false;
+        }
+    }
+
+    private async Task ToggleRoleAssignment(UserAssignedRoleDetails ra)
+    {
+        if (permSaving || permSnapshot is null || RolesService is null || Scope is not OrganizationScope.Organization orgScope) return;
+        permSaving = true;
+        permSaved = false;
+        permError = null;
+        try
+        {
+            var res = await RolesService.SetUserRoleAssignmentActive(
+                orgScope,
+                new SetUserRoleAssignmentActive(orgScope.OrganizationId, permSnapshot.UserId, ra.AssignmentId, !ra.IsActive, ra.RowVersion));
+            if (!res.Succeeded)
+            {
+                permError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            permSnapshot = res.Value;
+            permSaved = true;
+            SyncTargetScopePermissions();
+            await OnChanged.InvokeAsync();
+        }
+        catch
+        {
+            permError = "WriteUnavailable";
+        }
+        finally
+        {
+            permSaving = false;
+        }
+    }
+
+    private async Task SubmitDirectPermissions()
+    {
+        if (permSaving || permSnapshot is null || RolesService is null || Scope is not OrganizationScope.Organization orgScope) return;
+        permSaving = true;
+        permSaved = false;
+        permError = null;
+        try
+        {
+            var targetScope = permSiteId == 0 ? RoleScopeTarget.Organization : RoleScopeTarget.Site;
+            long? siteId = permSiteId == 0 ? null : permSiteId;
+            var existingByCode = permSnapshot.DirectGrants
+                .Where(g => permSiteId == 0
+                    ? g.ScopeTarget == RoleScopeTarget.Organization
+                    : (g.ScopeTarget == RoleScopeTarget.Site && g.SiteId == permSiteId))
+                .ToDictionary(g => g.PermissionCode, StringComparer.Ordinal);
+
+            var changes = new List<OperationGrantChange>();
+            foreach (var d in TargetDescriptors)
+            {
+                var desiredActive = directSelectedPerms.Contains(d.Code);
+                if (existingByCode.TryGetValue(d.Code, out var existing))
+                {
+                    if (existing.IsActive != desiredActive)
+                        changes.Add(new OperationGrantChange(d.Code, desiredActive, existing.RowVersion));
+                }
+                else if (desiredActive)
+                {
+                    changes.Add(new OperationGrantChange(d.Code, true, null));
+                }
+            }
+
+            if (changes.Count == 0)
+            {
+                permSaved = true;
+                return;
+            }
+
+            var res = await RolesService.SaveUserOperationGrants(
+                orgScope,
+                new SaveUserOperationGrants(
+                    orgScope.OrganizationId,
+                    permSnapshot.UserId,
+                    targetScope,
+                    siteId,
+                    changes));
+            if (!res.Succeeded)
+            {
+                permError = RolePermissionLocalization.FailureKey(res.Error!.Code);
+                return;
+            }
+            permSnapshot = res.Value;
+            permSaved = true;
+            SyncTargetScopePermissions();
+        }
+        catch
+        {
+            permError = "WriteUnavailable";
+        }
+        finally
+        {
+            permSaving = false;
+        }
+    }
+}

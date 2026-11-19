@@ -21,7 +21,7 @@
 @inject ILogger<CreateEditSalesOrderModal> Logger
 @implements IDisposable
 
-<ForgeFormDialog Width="1020px" IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged"
+<ForgeFormDialog Width="1020px" IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged" IsBusy="@saving"
                  Title="@(orderToEdit is not null ? Text["SalesOrderEditTitle"] : Text["SalesOrderCreateButton"])"
                  Subtitle="@Text["SalesOrderModalSubtitle"]"
                  CloseTitle="@Text["ReadClose"]">
@@ -251,8 +251,8 @@
         customerName = details.Summary.CustomerName;
         customerCode = details.Summary.CustomerCode;
         warehouseId = details.Summary.SourceWarehouseId ?? 0;
-        orderDateOffset = new DateTimeOffset(details.Summary.OrderDate.ToDateTime(TimeOnly.MinValue));
-        requestedDateOffset = details.Summary.RequestedDeliveryDate is DateOnly rd ? new DateTimeOffset(rd.ToDateTime(TimeOnly.MinValue)) : null;
+        orderDateOffset = DatePickerHelper.ToDateTimeOffset(details.Summary.OrderDate);
+        requestedDateOffset = DatePickerHelper.ToDateTimeOffset(details.Summary.RequestedDeliveryDate);
         currencyCode = details.Summary.CurrencyCode;
         shippingAddress = details.Summary.ShippingAddressSnapshot;
         notes = details.Summary.Notes;

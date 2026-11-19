@@ -1,4 +1,4 @@
-@page "/purchase-orders"
+﻿@page "/purchase-orders"
 @page "/organizations/{OrganizationId:long}/purchase-orders"
 @using ForgeFlow.Application.BusinessPartners
 @using ForgeFlow.Application.Inventory
@@ -65,584 +65,123 @@
     }
     else
     {
-        <div class="read-toolbar-card">
-            @if (available.Count > 1)
-            {
-                <div class="read-field">
-                    <label for="proc-scope">@Text["ReadScope"]</label>
-                    <select id="proc-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
-                        @for (var i = 0; i < available.Count; i++)
-                        {
-                            <option value="@i">@ScopeLabel(available[i])</option>
-                        }
-                    </select>
-                </div>
-            }
+        <PurchaseOrderFilterToolbar
+            AvailableScopes="@available"
+            ScopeIndex="@scopeIndex"
+            OnScopeChanged="ChangeScopeAsync"
+            ScopeLabel="@ScopeLabel"
+            CurrentScope="@CurrentScope"
+            AuthorizedSites="@authorizedSites"
+            SiteFilter="@siteFilter"
+            OnSiteFilterChanged="ChangeSiteFilterAsync"
+            ActiveSuppliers="@activeSuppliers"
+            SupplierFilter="@supplierFilter"
+            OnSupplierFilterChanged="ChangeSupplierFilterAsync"
+            StatusFilter="@statusFilter"
+            OnStatusFilterChanged="ChangeStatusFilterAsync"
+            StatusLabel="@StatusLabel"
+            Search="@search"
+            OnSearchInput="OnSearchInput" />
 
-            @if (CurrentScope is OrganizationScope.Organization && authorizedSites.Count > 1)
-            {
-                <div class="read-field">
-                    <label for="proc-site-filter">@Text["PoSiteColumn"]</label>
-                    <select id="proc-site-filter" value="@siteFilter" @onchange="ChangeSiteFilterAsync">
-                        <option value="0">@Text["PoAllSitesOption"]</option>
-                        @foreach (var s in authorizedSites)
-                        {
-                            <option value="@s.Id">@s.Code — @s.Name</option>
-                        }
-                    </select>
-                </div>
-            }
-
-            <div class="read-field">
-                <label for="proc-sup-filter">@Text["ProcSupplierLabel"]</label>
-                <select id="proc-sup-filter" value="@supplierFilter" @onchange="ChangeSupplierFilterAsync">
-                    <option value="0">@Text["ProcAllSuppliersOption"]</option>
-                    @foreach (var sup in activeSuppliers)
-                    {
-                        <option value="@sup.Id">@sup.Code — @sup.Name</option>
-                    }
-                </select>
-            </div>
-
-            <div class="read-field">
-                <label for="proc-status-filter">@Text["PoStatusColumn"]</label>
-                <select id="proc-status-filter" value="@statusFilter" @onchange="ChangeStatusFilterAsync">
-                    <option value="">@Text["PoAllStatusesOption"]</option>
-                    @foreach (var st in Enum.GetValues<PurchaseOrderStatus>())
-                    {
-                        <option value="@((byte)st)">@StatusLabel(st)</option>
-                    }
-                </select>
-            </div>
-
-            <div class="read-field">
-                <label for="proc-search">@Text["ReadSearch"]</label>
-                <input id="proc-search" type="search" value="@search" @oninput="OnSearchInput" maxlength="64" placeholder="@Text["ReadSearch"]" />
-            </div>
-        </div>
-
-        <div class="read-grid-card">
-            <div class="read-grid">
-                <BitDataGrid @ref="grid" TItem="PurchaseOrderSummary" OnRead="ReadOrdersAsync" Pageable="true" PageSize="25"
-                             Resizable="true" WrapCellText="true"
-                             PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["PurchaseOrders"]">
-                    <Columns>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcPoNumberLabel"]" Width="150px" MinWidth="140">
-                            <Template Context="o"><bdi dir="ltr">@o.OrderNumber</bdi></Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["PoSiteColumn"]" Width="106px" MinWidth="92">
-                            <Template Context="o"><bdi dir="ltr">@o.SiteCode</bdi> — @o.SiteName</Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcSupplierLabel"]" Width="144px" MinWidth="120">
-                            <Template Context="o">
-                                <div>
-                                    <div class="read-primary-cell">@o.SupplierName</div>
-                                    <div class="read-sub-cell" dir="ltr">@o.SupplierCode</div>
-                                </div>
-                            </Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["PoStatusColumn"]" Width="94px" MinWidth="84">
-                            <Template Context="o">
-                                <span class="read-badge @StatusBadgeClass(o.Status)">@StatusLabel(o.Status)</span>
-                            </Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcOrderDateLabel"]" Width="104px" MinWidth="96">
-                            <Template Context="o"><bdi dir="ltr">@Format.Date(o.OrderDate)</bdi></Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcExpectedDateLabel"]" Width="96px" MinWidth="84">
-                            <Template Context="o">
-                                @if (o.ExpectedDeliveryDate is DateOnly d)
-                                {
-                                    <bdi dir="ltr">@Format.Date(d)</bdi>
-                                }
-                                else
-                                {
-                                    <span>—</span>
-                                }
-                            </Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcProgressColumn"]" Width="138px" MinWidth="126">
-                            <Template Context="o">
-                                <bdi dir="ltr">@Format.Number(o.TotalReceivedBaseQuantity) / @Format.Number(o.TotalOrderedBaseQuantity)</bdi>
-                            </Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcEstimatedTotalLabel"]" Width="146px" MinWidth="136">
-                            <Template Context="o">
-                                @if (o.TotalEstimatedAmount is decimal amt)
-                                {
-                                    <bdi dir="ltr">@Format.CurrencyAmount(amt, o.CurrencyCode)</bdi>
-                                }
-                                else
-                                {
-                                    <bdi dir="ltr">@o.CurrencyCode</bdi>
-                                }
-                            </Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ReadActions"]" Width="100px" MinWidth="90">
-                            <Template Context="o">
-                                <div class="read-row-actions">
-                                    <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
-                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                   IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
-                                                   OnClick="() => OpenDetailModalAsync(o.Id)" />
-                                    </BitTooltip>
-                                    @if (scopeCanReceive && o.Status is PurchaseOrderStatus.Approved or PurchaseOrderStatus.PartiallyReceived)
-                                    {
-                                        <BitTooltip Text="@Text["ProcReceiveBtn"]" ShowOnFocus="true">
-                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                       Icon="@ReceiveIcon" IconOnly="true" aria-label="@Text["ProcReceiveBtn"]"
-                                                       OnClick="() => OpenReceiveModalForOrderAsync(o.Id)" />
-                                        </BitTooltip>
-                                    }
-                                </div>
-                            </Template>
-                        </BitDataGridColumn>
-                    </Columns>
-                </BitDataGrid>
-            </div>
-        </div>
+        <PurchaseOrderGridSection @ref="gridSection"
+            CurrentScope="@CurrentScope"
+            SiteFilter="@siteFilter"
+            SupplierFilter="@supplierFilter"
+            StatusFilter="@statusFilter"
+            AppliedSearch="@appliedSearch"
+            PageSizeOptions="@PageSizeOptions"
+            GridStrings="@GridStrings"
+            StatusBadgeClass="@StatusBadgeClass"
+            StatusLabel="@StatusLabel"
+            ScopeCanReceive="@scopeCanReceive"
+            ReceiveIcon="@ReceiveIcon"
+            OnOpenDetail="OpenDetailModalAsync"
+            OnOpenReceive="OpenReceiveModalForOrderAsync"
+            OnPageError="err => { pageError = err; StateHasChanged(); }" />
     }
 
-    <ForgeFormDialog Width="1020px" @bind-IsOpen="editorModalOpen" @bind-IsOpen:after="OnEditorModalOpenChanged"
-                     Title="@(isEditingDraft ? Text["ProcPoEditTitle"] : Text["ProcPoCreateTitle"])"
-                     Subtitle="@Text["ProcPoModalSubtitle"]"
-                     CloseTitle="@Text["ReadClose"]">
-        <ChildContent>
-            @if (modalError is not null)
-                {
-                    <p role="alert" class="write-error">@modalError</p>
-                }
+@using ForgeFlow.Web.Components.Pages.PurchaseOrderSections
+    <PurchaseOrderEditorModal
+        @bind-IsOpen="editorModalOpen"
+        @bind-IsOpen:after="OnEditorModalOpenChanged"
+        IsEditingDraft="@isEditingDraft"
+        PoAllowOverride="@poAllowOverride"
+        ModalError="@modalError"
+        @bind-EditOrderNumber="editOrderNumber"
+        @bind-EditSupplierId="editSupplierId"
+        EditSupplierName="@editSupplierName"
+        EditSupplierCode="@editSupplierCode"
+        CurrentScope="@CurrentScope"
+        CurrentOrgId="@CurrentOrgId"
+        EditSiteId="@editSiteId"
+        OnEditorSiteChanged="OnEditorSiteChanged"
+        AuthorizedSites="@authorizedSites"
+        @bind-EditOrderDateOffset="editOrderDateOffset"
+        @bind-EditExpectedDateOffset="editExpectedDateOffset"
+        @bind-EditCurrencyCode="editCurrencyCode"
+        ActiveCurrencies="@activeCurrencies"
+        @bind-EditTargetWarehouseId="editTargetWarehouseId"
+        SiteWarehouses="@WarehousesForSite(editSiteId)"
+        @bind-EditNotes="editNotes"
+        DraftLines="@draftLines"
+        PurchasableItems="@purchasableItems"
+        ActiveUnits="@activeUnits"
+        OnAddDraftLine="AddDraftLine"
+        OnLineItemChanged="args => OnDraftLineItemChanged(args.Line, args.Args)"
+        DraftEstimatedTotal="@DraftEstimatedTotal"
+        ModalBusy="@modalBusy"
+        OnSubmitDraft="SubmitDraftAsync"
+        PickerDateFormat="@PickerDateFormat"
+        TodayIcon="@TodayIcon"
+        CalendarIcon="@CalendarIcon"
+        NextNavIcon="@NextNavIcon"
+        PrevNavIcon="@PrevNavIcon"
+        NextYearIcon="@NextYearIcon"
+        PrevYearIcon="@PrevYearIcon"
+        CloseIcon="@CloseIcon"
+        PlusIcon="@PlusIcon" />
+    <PurchaseOrderDetailModal
+        @bind-IsOpen="detailModalOpen"
+        @bind-IsOpen:after="OnDetailModalOpenChanged"
+        DialogClasses="@DialogClasses"
+        SelectedOrder="@selectedOrder"
+        ModalError="@modalError"
+        ScopeCanManageOrders="@scopeCanManageOrders"
+        ScopeCanReceive="@scopeCanReceive"
+        ModalBusy="@modalBusy"
+        @bind-CancelReason="cancelReason"
+        StatusBadgeClass="@StatusBadgeClass"
+        StatusLabel="@StatusLabel"
+        OnOpenEditFromDetail="OpenEditFromDetail"
+        OnApproveOrder="ApproveSelectedOrderAsync"
+        OnOpenReceiveFromDetail="OpenReceiveFromDetail"
+        OnCloseOrder="CloseSelectedOrderAsync"
+        OnCancelOrder="CancelSelectedOrderAsync" />
 
-                <div class="proc-po-section-head">
-                    <span class="proc-po-section-bar" aria-hidden="true"></span>
-                    <h3>@Text["ProcGeneralInfoSection"]</h3>
-                </div>
-
-                <div class="proc-po-general-grid">
-                    <div class="proc-po-field">
-                        <label for="proc-po-num">@Text["ProcPoNumberLabel"]</label>
-                        <input id="proc-po-num" type="text" maxlength="32" class="@((isEditingDraft || !poAllowOverride) ? "proc-input-readonly" : string.Empty)" @bind="editOrderNumber" dir="ltr" readonly="@(isEditingDraft || !poAllowOverride)" />
-                    </div>
-                    <div class="proc-po-field">
-                        <PartnerPicker @bind-Value="editSupplierId"
-                                       Role="PartnerLookupRole.Supplier"
-                                       Scope="CurrentScope"
-                                       OrganizationId="CurrentOrgId"
-                                       Label="@Text["ProcSupplierLabel"]"
-                                       Placeholder="@Text["ProcSelectSupplierPlaceholder"]"
-                                       InitialName="@editSupplierName"
-                                       InitialCode="@editSupplierCode"
-                                       Required="true" />
-                    </div>
-                    <div class="proc-po-field">
-                        <label for="proc-po-site">@Text["PoSiteColumn"]</label>
-                        <select id="proc-po-site" value="@editSiteId" @onchange="OnEditorSiteChanged" disabled="@(isEditingDraft || CurrentScope is OrganizationScope.Site)">
-                            @foreach (var s in authorizedSites)
-                            {
-                                <option value="@s.Id">@s.Code — @s.Name</option>
-                            }
-                        </select>
-                    </div>
-
-                    <div class="proc-po-field">
-                        <label>@Text["ProcOrderDateLabel"]</label>
-                        <BitDatePicker @bind-Value="editOrderDateOffset" Class="bom-dtp proc-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
-                                       Placeholder="@Text["ProcSelectDatePlaceholder"]"
-                                       ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowGoToToday="true"
-                                       GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
-                                       NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon"
-                                       NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
-                    </div>
-                    <div class="proc-po-field">
-                        <label>@Text["ProcExpectedDateLabel"]</label>
-                        <BitDatePicker @bind-Value="editExpectedDateOffset" Class="bom-dtp proc-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
-                                       Placeholder="@Text["ProcSelectDatePlaceholder"]"
-                                       ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowGoToToday="true"
-                                       GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
-                                       NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon"
-                                       NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
-                    </div>
-                    <div class="proc-po-field">
-                        <label for="proc-po-currency">@Text["ProcCurrencyLabel"]</label>
-                        <select id="proc-po-currency" @bind="editCurrencyCode">
-                            @foreach (var cur in activeCurrencies)
-                            {
-                                <option value="@cur.Code">@cur.Code — @cur.Name (@cur.Symbol)</option>
-                            }
-                            @if (!string.IsNullOrEmpty(editCurrencyCode) && activeCurrencies.All(c => c.Code != editCurrencyCode))
-                            {
-                                <option value="@editCurrencyCode">@editCurrencyCode</option>
-                            }
-                        </select>
-                    </div>
-
-                    <div class="proc-po-field">
-                        <label for="proc-po-wh">@Text["ProcTargetWarehouseLabel"]</label>
-                        <select id="proc-po-wh" @bind="editTargetWarehouseId">
-                            <option value="0">@Text["ProcSelectWarehousePlaceholder"]</option>
-                            @foreach (var w in WarehousesForSite(editSiteId))
-                            {
-                                <option value="@w.Id">@w.Code — @w.Name</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="proc-po-field proc-po-notes-span">
-                        <label for="proc-po-notes">@Text["PoNotesLabel"]</label>
-                        <input id="proc-po-notes" type="text" maxlength="500" @bind="editNotes" placeholder="@Text["ProcNotesOptionalPlaceholder"]" />
-                    </div>
-                </div>
-
-                <div class="proc-po-section-head proc-po-section-head--split">
-                    <div class="proc-po-section-title">
-                        <span class="proc-po-section-bar" aria-hidden="true"></span>
-                        <h3>@Text["ProcLinesSection"]</h3>
-                    </div>
-                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Icon="@PlusIcon" Class="proc-po-add-line-btn" OnClick="AddDraftLine">
-                        @Text["ProcAddLineBtn"]
-                    </BitButton>
-                </div>
-
-                <div class="proc-lines-card">
-                    <div class="proc-lines-table">
-                        <div class="proc-lines-grid proc-lines-head">
-                            <span>@Text["PoItemColumn"]</span>
-                            <span>@Text["BomQuantityColumn"]</span>
-                            <span>@Text["BomLineUnitColumn"]</span>
-                            <span>@Text["ProcUnitPriceLabel"]</span>
-                            <span>@Text["ProcLineAmountLabel"]</span>
-                            <span>@Text["PoNotesLabel"]</span>
-                            <span aria-hidden="true"></span>
-                        </div>
-                        @foreach (var line in draftLines)
-                        {
-                            <div class="proc-lines-grid proc-lines-row">
-                                <select aria-label="@Text["PoItemColumn"]" value="@line.ItemId" @onchange="e => OnDraftLineItemChanged(line, e)">
-                                    <option value="0">@Text["ProcSelectItemPlaceholder"]</option>
-                                    @foreach (var it in purchasableItems)
-                                    {
-                                        <option value="@it.Id">@it.Code — @it.Name</option>
-                                    }
-                                </select>
-                                <input type="number" step="0.000001" min="0.000001" aria-label="@Text["BomQuantityColumn"]" @bind="line.Quantity" @bind:event="oninput" dir="ltr" />
-                                <select aria-label="@Text["BomLineUnitColumn"]" @bind="line.UnitId">
-                                    @foreach (var u in activeUnits)
-                                    {
-                                        <option value="@u.Id">@u.Code (@u.Symbol)</option>
-                                    }
-                                </select>
-                                <input type="number" step="0.0001" min="0" aria-label="@Text["ProcUnitPriceLabel"]" placeholder="0" @bind="line.UnitPrice" @bind:event="oninput" dir="ltr" />
-                                <div class="proc-line-amount" dir="ltr">
-                                    @(line.UnitPrice.HasValue && line.Quantity > 0m ? Format.Number(line.Quantity * line.UnitPrice.Value) : "—")
-                                </div>
-                                <input type="text" maxlength="300" aria-label="@Text["PoNotesLabel"]" placeholder="@Text["PoNotesLabel"]" @bind="line.Notes" />
-                                <button type="button" class="proc-line-del-btn" aria-label="@Text["BomRemoveRowBtn"]" title="@Text["BomRemoveRowBtn"]"
-                                        disabled="@(draftLines.Count <= 1)" @onclick="() => draftLines.Remove(line)">
-                                    <span class="ff-icon ff-icon--trash" aria-hidden="true"></span>
-                                </button>
-                            </div>
-                        }
-                    </div>
-                </div>
-        </ChildContent>
-        <FooterActions>
-            <BitButton Class="proc-po-primary-btn" IsEnabled="@(!modalBusy)" OnClick="SubmitDraftAsync">@Text["PoSaveDraftButton"]</BitButton>
-            <BitButton Variant="BitVariant.Outline" Class="proc-po-cancel-btn" OnClick="() => editorModalOpen = false">@Text["WriteCancel"]</BitButton>
-        </FooterActions>
-        <FooterEnd>
-            <div class="proc-po-footer-total">
-                <span class="proc-po-total-label">@Text["ProcGrandTotalLabel"]</span>
-                <strong class="proc-po-total-val" dir="ltr">@Format.CurrencyAmount(DraftEstimatedTotal, editCurrencyCode)</strong>
-            </div>
-        </FooterEnd>
-    </ForgeFormDialog>
-
-    <BitDialog Width="880px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailModalOpen" @bind-IsOpen:after="OnDetailModalOpenChanged"
-               Title="@Text["ProcPoDetailTitle"]" AriaLabel="@Text["ProcPoDetailTitle"]"
-               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-        <Body>
-            @if (selectedOrder is not null)
-            {
-                var summary = selectedOrder.Summary;
-                <div class="audit-modal-body audit-modal-body--wide">
-                    @if (modalError is not null)
-                    {
-                        <p role="alert" class="write-error">@modalError</p>
-                    }
-                    <div class="ff-detail-hero">
-                        <div class="ff-detail-hero-main">
-                            <span class="ff-detail-hero-code" dir="ltr">@summary.OrderNumber</span>
-                            <span class="ff-detail-hero-sub">@summary.SupplierName (<bdi dir="ltr">@summary.SupplierCode</bdi>) · <bdi dir="ltr">@summary.SiteCode — @summary.SiteName</bdi></span>
-                        </div>
-                        <div class="ff-detail-hero-badges">
-                            @if (summary.TotalEstimatedAmount is decimal estHeroTotal)
-                            {
-                                <span class="cap-badge" dir="ltr">@Format.CurrencyAmount(estHeroTotal, summary.CurrencyCode)</span>
-                            }
-                            <span class="read-badge @StatusBadgeClass(summary.Status)">@StatusLabel(summary.Status)</span>
-                        </div>
-                    </div>
-
-                    <div class="ff-kv-table-wrap">
-                        <table class="ff-kv-table">
-                            <tbody>
-                                <tr>
-                                    <th scope="row">@Text["ProcPoNumberLabel"]</th>
-                                    <td dir="ltr">@summary.OrderNumber</td>
-                                    <th scope="row">@Text["PoStatusColumn"]</th>
-                                    <td><span class="read-badge @StatusBadgeClass(summary.Status)">@StatusLabel(summary.Status)</span></td>
-                                </tr>
-                                <tr>
-                                    <th scope="row">@Text["ProcSupplierLabel"]</th>
-                                    <td>@summary.SupplierName (<bdi dir="ltr">@summary.SupplierCode</bdi>)</td>
-                                    <th scope="row">@Text["PoSiteColumn"]</th>
-                                    <td dir="ltr">@summary.SiteCode — @summary.SiteName</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row">@Text["ProcOrderDateLabel"]</th>
-                                    <td dir="ltr">@Format.Date(summary.OrderDate)</td>
-                                    <th scope="row">@Text["ProcExpectedDateLabel"]</th>
-                                    <td dir="ltr">@(summary.ExpectedDeliveryDate is DateOnly expDate ? Format.Date(expDate) : "—")</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row">@Text["ProcTargetWarehouseLabel"]</th>
-                                    <td dir="ltr">@(summary.TargetWarehouseCode is not null ? $"{summary.TargetWarehouseCode} — {summary.TargetWarehouseName}" : "—")</td>
-                                    <th scope="row">@Text["ProcCurrencyLabel"]</th>
-                                    <td dir="ltr">@summary.CurrencyCode</td>
-                                </tr>
-                                @if (summary.TotalEstimatedAmount.HasValue || !string.IsNullOrWhiteSpace(summary.Notes))
-                                {
-                                    <tr>
-                                        <th scope="row">@Text["ProcEstimatedTotalLabel"]</th>
-                                        <td dir="ltr">@(summary.TotalEstimatedAmount is decimal estTotal ? Format.CurrencyAmount(estTotal, summary.CurrencyCode) : "—")</td>
-                                        <th scope="row">@Text["PoNotesLabel"]</th>
-                                        <td>@(string.IsNullOrWhiteSpace(summary.Notes) ? "—" : summary.Notes)</td>
-                                    </tr>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(summary.CancellationReason))
-                                {
-                                    <tr>
-                                        <th scope="row">@Text["PoCancelReasonLabel"]</th>
-                                        <td colspan="3">@summary.CancellationReason</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="audit-modal-section">
-                        <h3 class="audit-section-heading">@Text["ProcLinesSection"]</h3>
-                        <div class="audit-fields-box" style="overflow-x:auto;">
-                            <table class="audit-fields-table">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>@Text["PoItemColumn"]</th>
-                                        <th>@Text["ProcOrderedCol"]</th>
-                                        <th>@Text["ProcReceivedCol"]</th>
-                                        <th>@Text["ProcRemainingCol"]</th>
-                                        <th>@Text["ProcUnitPriceLabel"]</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <Virtualize Items="selectedOrder.Lines.AsCollection()" Context="l" ItemSize="40" OverscanCount="5" SpacerElement="tr">
-                                        <tr>
-                                            <td dir="ltr">@l.LineNumber</td>
-                                            <td>
-                                                <div><bdi dir="ltr">@l.ItemCode</bdi> — @l.ItemName</div>
-                                                @if (l.RequiresLotTracking)
-                                                {
-                                                    <span class="cap-badge">@Text["ItemLotTrackedBadge"]</span>
-                                                }
-                                                @if (l.QualityControlMode != QualityControlMode.None)
-                                                {
-                                                    <span class="cap-badge">@Text["ItemQcRequiredBadge"]</span>
-                                                }
-                                            </td>
-                                            <td dir="ltr">@Format.Number(l.OrderedQuantity) @l.OrderedUnitSymbol (@Format.Number(l.OrderedBaseQuantity) @l.BaseUnitSymbolSnapshot)</td>
-                                            <td dir="ltr">@Format.Number(l.ReceivedBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
-                                            <td dir="ltr">@Format.Number(l.RemainingBaseQuantity) @l.BaseUnitSymbolSnapshot</td>
-                                            <td dir="ltr">@(l.UnitPrice.HasValue ? Format.Number(l.UnitPrice.Value) : "—")</td>
-                                        </tr>
-                                    </Virtualize>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    @if (selectedOrder.Receipts.Count > 0)
-                    {
-                        <div class="audit-modal-section">
-                            <h3 class="audit-section-heading">@Text["ProcReceiptsHistoryTitle"]</h3>
-                            <div class="audit-fields-box" style="overflow-x:auto;">
-                                <table class="audit-fields-table">
-                                    <thead>
-                                        <tr>
-                                            <th>@Text["InvDocNumberLabel"]</th>
-                                            <th>@Text["InvWarehouseLabel"]</th>
-                                            <th>@Text["AuditTimeColumn"]</th>
-                                            <th>@Text["ReadStatus"]</th>
-                                            <th>@Text["PoNotesLabel"]</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <Virtualize Items="selectedOrder.Receipts.AsCollection()" Context="r" ItemSize="40" OverscanCount="5" SpacerElement="tr">
-                                            <tr>
-                                                <td dir="ltr">@r.DocumentNumber</td>
-                                                <td dir="ltr">@r.WarehouseCode — @r.WarehouseName</td>
-                                                <td dir="ltr">@Format.Timestamp(r.PostedAtUtc)</td>
-                                                <td>
-                                                    @if (r.IsReversed)
-                                                    {
-                                                        <span class="cap-badge">@Text["InvReversedBadge"]</span>
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="read-badge proc-status-received">@Text["ProcPostedBadge"]</span>
-                                                    }
-                                                </td>
-                                                <td>@(r.ReferenceNote ?? "—")</td>
-                                            </tr>
-                                        </Virtualize>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    }
-
-                    <div class="write-actions">
-                        @if (scopeCanManageOrders && summary.Status == PurchaseOrderStatus.Draft)
-                        {
-                            <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="OpenEditFromDetail">@Text["ReadEdit"]</BitButton>
-                            <BitButton IsEnabled="@(!modalBusy)" OnClick="ApproveSelectedOrderAsync">@Text["ProcApproveBtn"]</BitButton>
-                        }
-                        @if (scopeCanReceive && summary.Status is PurchaseOrderStatus.Approved or PurchaseOrderStatus.PartiallyReceived)
-                        {
-                            <BitButton IsEnabled="@(!modalBusy)" OnClick="OpenReceiveFromDetail">@Text["ProcReceiveBtn"]</BitButton>
-                        }
-                        @if (scopeCanManageOrders && summary.Status == PurchaseOrderStatus.PartiallyReceived)
-                        {
-                            <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="CloseSelectedOrderAsync">@Text["ProcShortCloseBtn"]</BitButton>
-                        }
-                    </div>
-
-                    @if (scopeCanManageOrders && summary.Status is PurchaseOrderStatus.Draft or PurchaseOrderStatus.Approved)
-                    {
-                        <div class="item-sub-card">
-                            <strong>@Text["PoCancelSection"]</strong>
-                            <div class="write-grid">
-                                <div class="write-field po-field-full">
-                                    <label for="proc-cancel-reason">@Text["PoCancelReasonLabel"]</label>
-                                    <input id="proc-cancel-reason" type="text" maxlength="500" @bind="cancelReason" />
-                                </div>
-                            </div>
-                            <div class="write-actions">
-                                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="CancelSelectedOrderAsync">@Text["ProcCancelBtn"]</BitButton>
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-        </Body>
-    </BitDialog>
-
-    <BitDialog Width="880px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="receiveModalOpen" @bind-IsOpen:after="OnReceiveModalOpenChanged"
-               Title="@Text["ProcReceiveTitle"]" AriaLabel="@Text["ProcReceiveTitle"]"
-               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-        <Body>
-            @if (selectedOrder is not null)
-            {
-                <div class="write-form">
-                    @if (modalError is not null)
-                    {
-                        <p role="alert" class="write-error">@modalError</p>
-                    }
-                    <div class="write-grid">
-                        <div class="write-field">
-                            <label for="proc-rcv-wh">@Text["InvWarehouseLabel"]</label>
-                            <select id="proc-rcv-wh" @bind="receiveWarehouseId">
-                                @foreach (var w in WarehousesForSite(selectedOrder.Summary.SiteId))
-                                {
-                                    <option value="@w.Id">@w.Code — @w.Name</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="write-field">
-                            <label for="proc-rcv-doc">@Text["InvDocNumberLabel"]</label>
-                            <input id="proc-rcv-doc" type="text" maxlength="32" @bind="receiveDocNumber" dir="ltr" />
-                        </div>
-                        <div class="write-field po-field-full">
-                            <label for="proc-rcv-note">@Text["PoNotesLabel"]</label>
-                            <input id="proc-rcv-note" type="text" maxlength="500" @bind="receiveReferenceNote" />
-                        </div>
-                    </div>
-
-                    @foreach (var row in receiveLines)
-                    {
-                        <div class="item-sub-card">
-                            <div>
-                                <strong><bdi dir="ltr">@row.ItemCode</bdi> — @row.ItemName</strong>
-                                <span class="write-hint"> (@Text["ProcRemainingCol"]: <bdi dir="ltr">@Format.Number(row.RemainingBaseQuantity) @row.BaseUnitSymbol</bdi>)</span>
-                                @if (row.RequiresLotTracking)
-                                {
-                                    <span class="cap-badge">@Text["ItemLotTrackedBadge"]</span>
-                                }
-                                @if (row.QualityControlMode != QualityControlMode.None)
-                                {
-                                    <span class="cap-badge">@Text["ItemQcRequiredBadge"]</span>
-                                }
-                            </div>
-                            <div class="proc-receive-row">
-                                <div class="write-field">
-                                    <label>@Text["BomQuantityColumn"]</label>
-                                    <input type="number" step="0.000001" min="0" @bind="row.Quantity" dir="ltr" />
-                                </div>
-                                <div class="write-field">
-                                    <label>@Text["BomLineUnitColumn"]</label>
-                                    <select @bind="row.UnitId">
-                                        @foreach (var u in activeUnits)
-                                        {
-                                            <option value="@u.Id">@u.Code (@u.Symbol)</option>
-                                        }
-                                    </select>
-                                </div>
-                                <div class="write-field">
-                                    <label>@Text["InvLotCodeLabel"]</label>
-                                    <input type="text" maxlength="32" @bind="row.LotCode" dir="ltr" />
-                                </div>
-                                <div class="write-field">
-                                    <label>@Text["QcLotMfgDateLabel"]</label>
-                                    <BitDatePicker @bind-Value="row.ManufactureDate" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
-                                                   ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowGoToToday="true"
-                                                   GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
-                                                   NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon"
-                                                   NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
-                                </div>
-                                <div class="write-field">
-                                    <label>@Text["QcLotExpDateLabel"]</label>
-                                    <BitDatePicker @bind-Value="row.ExpirationDate" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
-                                                   ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowGoToToday="true"
-                                                   GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
-                                                   NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon"
-                                                   NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
-                                </div>
-                                <div class="write-field">
-                                    <label>@Text["PoNotesLabel"]</label>
-                                    <input type="text" maxlength="300" @bind="row.Notes" />
-                                </div>
-                            </div>
-                        </div>
-                    }
-
-                    <div class="write-actions">
-                        <BitButton IsEnabled="@(!modalBusy && receiveLines.Count > 0)" OnClick="SubmitReceiveAsync">@Text["ProcPostReceiptBtn"]</BitButton>
-                        <BitButton Variant="BitVariant.Outline" OnClick="() => receiveModalOpen = false">@Text["WriteCancel"]</BitButton>
-                    </div>
-                </div>
-            }
-        </Body>
-    </BitDialog>
+    <PurchaseOrderReceiveModal
+        @bind-IsOpen="receiveModalOpen"
+        @bind-IsOpen:after="OnReceiveModalOpenChanged"
+        DialogClasses="@DialogClasses"
+        SelectedOrder="@selectedOrder"
+        ModalError="@modalError"
+        @bind-ReceiveWarehouseId="receiveWarehouseId"
+        SiteWarehouses="@(selectedOrder is not null ? WarehousesForSite(selectedOrder.Summary.SiteId) : Array.Empty<WarehouseSummary>())"
+        @bind-ReceiveDocNumber="receiveDocNumber"
+        @bind-ReceiveReferenceNote="receiveReferenceNote"
+        ReceiveLines="@receiveLines"
+        ActiveUnits="@activeUnits"
+        PickerDateFormat="@PickerDateFormat"
+        TodayIcon="@TodayIcon"
+        CalendarIcon="@CalendarIcon"
+        NextNavIcon="@NextNavIcon"
+        PrevNavIcon="@PrevNavIcon"
+        NextYearIcon="@NextYearIcon"
+        PrevYearIcon="@PrevYearIcon"
+        CloseIcon="@CloseIcon"
+        CurrentScope="@CurrentScope"
+        @bind-ModalBusy="modalBusy"
+        ModalErrorChanged="err => modalError = err"
+        OnReceiptPosted="HandleReceiptPostedAsync" />
 </section>
 
 @code {
@@ -675,7 +214,7 @@
 
     private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
 
-    private BitDataGrid<PurchaseOrderSummary>? grid;
+    private PurchaseOrderGridSection? gridSection;
     private List<OrganizationScope> available = [];
     private IReadOnlyDictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo> scopeLabels =
         new Dictionary<OrganizationScope, ForgeFlow.Web.Organizations.ScopeDisplayInfo>();
@@ -754,8 +293,8 @@
         _ => 0
     };
 
-    private IEnumerable<WarehouseSummary> WarehousesForSite(long sId) =>
-        activeWarehouses.Where(w => w.SiteId == sId);
+    private IReadOnlyList<WarehouseSummary> WarehousesForSite(long sId) =>
+        activeWarehouses.Where(w => w.SiteId == sId).ToList();
 
     private BitDataGridStrings GridStrings => new()
     {
@@ -954,58 +493,24 @@
         });
     }
 
-    private async Task ChangeSupplierFilterAsync(ChangeEventArgs e)
+    private Task RunFilterAsync(Action apply) => _searchController.RunImmediateAsync(async _ =>
     {
-        supplierFilter = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
-        await _searchController.RunImmediateAsync(async _ =>
-        {
-            await ReloadGridAsync(true);
-            await InvokeAsync(StateHasChanged);
-        });
-    }
+        apply();
+        await ReloadGridAsync(true);
+        await InvokeAsync(StateHasChanged);
+    });
 
-    private async Task ChangeStatusFilterAsync(ChangeEventArgs e)
-    {
-        statusFilter = e.Value?.ToString() ?? string.Empty;
-        await _searchController.RunImmediateAsync(async _ =>
-        {
-            await ReloadGridAsync(true);
-            await InvokeAsync(StateHasChanged);
-        });
-    }
+    private Task ChangeSupplierFilterAsync(ChangeEventArgs e)
+        => RunFilterAsync(() => supplierFilter = long.TryParse(e.Value?.ToString(), out var id) ? id : 0);
 
-    private async Task ApplySearchAsync()
-    {
-        await _searchController.RunImmediateAsync(async _ =>
-        {
-            appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
-            await ReloadGridAsync(true);
-            await InvokeAsync(StateHasChanged);
-        });
-    }
+    private Task ChangeStatusFilterAsync(ChangeEventArgs e)
+        => RunFilterAsync(() => statusFilter = e.Value?.ToString() ?? string.Empty);
 
-    private async Task ReloadGridAsync(bool fromFirstPage)
-    {
-        if (grid is null) return;
-        if (fromFirstPage && grid.CurrentPage > 1) await grid.GoToPageAsync(1);
-        else await grid.RefreshAsync();
-    }
+    private Task ApplySearchAsync()
+        => RunFilterAsync(() => appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim());
 
-    private async Task<BitDataGridReadResult<PurchaseOrderSummary>> ReadOrdersAsync(BitDataGridReadRequest req)
-    {
-        var scope = CurrentScope;
-        if (scope is null) return new([], 0);
-        var size = Math.Clamp(req.Take ?? 25, 1, 100);
-        var page = (req.Skip / size) + 1;
-        PurchaseOrderStatus? st = byte.TryParse(statusFilter, out var s) && Enum.IsDefined((PurchaseOrderStatus)s)
-            ? (PurchaseOrderStatus)s
-            : null;
-        var res = await ProcService.ListPurchaseOrders(scope, ScopeOrganizationId(scope),
-            new PurchaseOrderListQuery(siteFilter > 0 ? siteFilter : null, supplierFilter > 0 ? supplierFilter : null, st, appliedSearch, page, size),
-            req.CancellationToken);
-        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
-        return new(res.Value!.Items.ToList(), res.Value.Total);
-    }
+    private Task ReloadGridAsync(bool fromFirstPage)
+        => gridSection is not null ? gridSection.RefreshAsync(fromFirstPage) : Task.CompletedTask;
 
     private async Task OpenCreateModalAsync()
     {
@@ -1150,24 +655,11 @@
         editorModalOpen = true;
     }
 
-    private async Task ApproveSelectedOrderAsync()
-    {
-        var scope = CurrentScope;
-        if (scope is null || selectedOrder is null) return;
-        modalBusy = true;
-        modalError = null;
-        try
-        {
-            var res = await ProcService.ApproveOrder(scope, ScopeOrganizationId(scope), selectedOrder.Summary.Id, selectedOrder.Summary.RowVersion);
-            if (!res.Succeeded) { modalError = Text[RolePermissionLocalization.FailureKey(res.Error!.Code)]; return; }
-            selectedOrder = res.Value;
-            pageNotice = Text["WriteSaved"];
-            await ReloadGridAsync(false);
-        }
-        finally { modalBusy = false; }
-    }
+    private Task ApproveSelectedOrderAsync() => RunOrderActionAsync((scope, s) => ProcService.ApproveOrder(scope, ScopeOrganizationId(scope), s.Id, s.RowVersion));
+    private Task CloseSelectedOrderAsync() => RunOrderActionAsync((scope, s) => ProcService.CloseOrder(scope, ScopeOrganizationId(scope), s.Id, s.RowVersion));
+    private Task CancelSelectedOrderAsync() => RunOrderActionAsync((scope, s) => ProcService.CancelOrder(scope, ScopeOrganizationId(scope), s.Id, s.RowVersion, cancelReason));
 
-    private async Task CloseSelectedOrderAsync()
+    private async Task RunOrderActionAsync(Func<OrganizationScope, PurchaseOrderSummary, Task<OrganizationResult<PurchaseOrderDetails>>> call)
     {
         var scope = CurrentScope;
         if (scope is null || selectedOrder is null) return;
@@ -1175,24 +667,7 @@
         modalError = null;
         try
         {
-            var res = await ProcService.CloseOrder(scope, ScopeOrganizationId(scope), selectedOrder.Summary.Id, selectedOrder.Summary.RowVersion);
-            if (!res.Succeeded) { modalError = Text[RolePermissionLocalization.FailureKey(res.Error!.Code)]; return; }
-            selectedOrder = res.Value;
-            pageNotice = Text["WriteSaved"];
-            await ReloadGridAsync(false);
-        }
-        finally { modalBusy = false; }
-    }
-
-    private async Task CancelSelectedOrderAsync()
-    {
-        var scope = CurrentScope;
-        if (scope is null || selectedOrder is null) return;
-        modalBusy = true;
-        modalError = null;
-        try
-        {
-            var res = await ProcService.CancelOrder(scope, ScopeOrganizationId(scope), selectedOrder.Summary.Id, selectedOrder.Summary.RowVersion, cancelReason);
+            var res = await call(scope, selectedOrder.Summary);
             if (!res.Succeeded) { modalError = Text[RolePermissionLocalization.FailureKey(res.Error!.Code)]; return; }
             selectedOrder = res.Value;
             pageNotice = Text["WriteSaved"];
@@ -1242,43 +717,12 @@
         receiveModalOpen = true;
     }
 
-    private async Task SubmitReceiveAsync()
+    private async Task HandleReceiptPostedAsync((PurchaseOrderDetails Order, string DocumentNumber) posted)
     {
-        var scope = CurrentScope;
-        if (scope is null || selectedOrder is null) return;
-        modalBusy = true;
-        modalError = null;
-        try
-        {
-            var linesToReceive = receiveLines
-                .Where(l => l.Quantity > 0m)
-                .Select(l => new ReceivePurchaseOrderLineInput(
-                    l.LineId,
-                    l.Quantity,
-                    l.UnitId,
-                    l.LotCode,
-                    l.ManufactureDate.HasValue ? DateOnly.FromDateTime(l.ManufactureDate.Value.Date) : null,
-                    l.ExpirationDate.HasValue ? DateOnly.FromDateTime(l.ExpirationDate.Value.Date) : null,
-                    l.Notes))
-                .ToArray();
-
-            var res = await ProcService.ReceiveOrder(scope, new ReceivePurchaseOrderRequest(
-                ScopeOrganizationId(scope),
-                selectedOrder.Summary.Id,
-                receiveWarehouseId,
-                receiveDocNumber,
-                receiveReferenceNote,
-                null,
-                selectedOrder.Summary.RowVersion,
-                linesToReceive));
-
-            if (!res.Succeeded) { modalError = Text[RolePermissionLocalization.FailureKey(res.Error!.Code)]; return; }
-            selectedOrder = res.Value!.Order;
-            receiveModalOpen = false;
-            pageNotice = Text["ProcReceiptPostedNotice", res.Value.DocumentNumber];
-            await ReloadGridAsync(false);
-        }
-        finally { modalBusy = false; }
+        selectedOrder = posted.Order;
+        receiveModalOpen = false;
+        pageNotice = Text["ProcReceiptPostedNotice", posted.DocumentNumber];
+        await ReloadGridAsync(false);
     }
 
     private string StatusLabel(PurchaseOrderStatus status) => status switch
@@ -1314,7 +758,7 @@
         _ => string.Empty
     };
 
-    private sealed class DraftLineRow
+    public sealed class DraftLineRow
     {
         public long ItemId { get; set; }
         public decimal Quantity { get; set; } = 1m;
@@ -1323,7 +767,7 @@
         public string? Notes { get; set; }
     }
 
-    private sealed class ReceiveLineRow
+    public sealed class ReceiveLineRow
     {
         public long LineId { get; init; }
         public string ItemCode { get; init; } = string.Empty;

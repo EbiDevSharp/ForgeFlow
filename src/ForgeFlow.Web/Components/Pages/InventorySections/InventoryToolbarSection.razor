@@ -1,0 +1,132 @@
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Domain.Inventory
+@using ForgeFlow.Domain.Organizations
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-tab-bar" role="tablist" aria-label="@Text["Inventory"]">
+    <button type="button" role="tab" aria-selected="@(ActiveTab == 0)"
+            class="read-tab-btn @(ActiveTab == 0 ? "active" : string.Empty)"
+            @onclick="() => OnSwitchTab.InvokeAsync(0)">@Text["InvTabWarehouses"]</button>
+    <button type="button" role="tab" aria-selected="@(ActiveTab == 1)"
+            class="read-tab-btn @(ActiveTab == 1 ? "active" : string.Empty)"
+            @onclick="() => OnSwitchTab.InvokeAsync(1)">@Text["InvTabBalances"]</button>
+    <button type="button" role="tab" aria-selected="@(ActiveTab == 2)"
+            class="read-tab-btn @(ActiveTab == 2 ? "active" : string.Empty)"
+            @onclick="() => OnSwitchTab.InvokeAsync(2)">@Text["InvTabMovements"]</button>
+    <button type="button" role="tab" aria-selected="@(ActiveTab == 3)"
+            class="read-tab-btn @(ActiveTab == 3 ? "active" : string.Empty)"
+            @onclick="() => OnSwitchTab.InvokeAsync(3)">@Text["InvTabReservations"]</button>
+</div>
+
+<div class="read-toolbar-card">
+    @if (AvailableScopes.Count > 1)
+    {
+        <div class="read-field">
+            <label for="inv-scope">@Text["ReadScope"]</label>
+            <select id="inv-scope" aria-label="@Text["ReadScope"]" value="@ScopeIndex" @onchange="OnScopeChanged">
+                @for (var i = 0; i < AvailableScopes.Count; i++)
+                {
+                    <option value="@i">@ScopeLabel(AvailableScopes[i])</option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (CurrentScope is OrganizationScope.Organization && AuthorizedSites.Count > 1)
+    {
+        <div class="read-field">
+            <label for="inv-site-filter">@Text["PoSiteColumn"]</label>
+            <select id="inv-site-filter" value="@SiteFilter" @onchange="OnSiteFilterChanged">
+                <option value="0">@Text["PoAllSitesOption"]</option>
+                @foreach (var s in AuthorizedSites)
+                {
+                    <option value="@s.Id">@s.Code — @s.Name</option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (ActiveTab != 0 && ActiveWarehouses.Count > 0)
+    {
+        <div class="read-field">
+            <label for="inv-wh-filter">@Text["InvWarehouseLabel"]</label>
+            <select id="inv-wh-filter" value="@WarehouseFilter" @onchange="OnWarehouseFilterChanged">
+                <option value="0">@Text["InvAllWarehousesOption"]</option>
+                @foreach (var w in ActiveWarehouses)
+                {
+                    <option value="@w.Id">@w.Code — @w.Name</option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (ActiveTab == 2)
+    {
+        <div class="read-field">
+            <label for="inv-type-filter">@Text["InvTxnTypeLabel"]</label>
+            <select id="inv-type-filter" value="@TypeFilter" @onchange="OnTypeFilterChanged">
+                <option value="">@Text["InvAllTypesOption"]</option>
+                @foreach (var tt in Enum.GetValues<InventoryTransactionType>())
+                {
+                    <option value="@((byte)tt)">@TxnTypeLabel(tt)</option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (ActiveTab == 1)
+    {
+        <label class="read-inactive">
+            <input type="checkbox" checked="@IncludeZeroBalances" @onchange="OnToggleZeroBalances" />
+            <span>@Text["InvIncludeZeroLabel"]</span>
+        </label>
+    }
+    else if (ActiveTab == 0)
+    {
+        <label class="read-inactive">
+            <input type="checkbox" checked="@IncludeInactiveWarehouses" @onchange="OnToggleInactiveWarehouses" />
+            <span>@Text["ReadInactive"]</span>
+        </label>
+    }
+    else if (ActiveTab == 3)
+    {
+        <label class="read-inactive">
+            <input type="checkbox" checked="@OpenReservationsOnly" @onchange="OnToggleOpenReservations" />
+            <span>@Text["InvResOpenOnlyLabel"]</span>
+        </label>
+    }
+
+    <div class="read-field">
+        <label for="inv-search">@Text["ReadSearch"]</label>
+        <input id="inv-search" type="search" value="@Search" @oninput="OnSearchInput" maxlength="64" placeholder="@Text["ReadSearch"]" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public int ActiveTab { get; set; }
+    [Parameter] public EventCallback<int> OnSwitchTab { get; set; }
+    [Parameter] public IReadOnlyList<OrganizationScope> AvailableScopes { get; set; } = [];
+    [Parameter] public int ScopeIndex { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnScopeChanged { get; set; }
+    [Parameter] public Func<OrganizationScope, string> ScopeLabel { get; set; } = _ => string.Empty;
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public IReadOnlyList<ProductionOrderSiteInfo> AuthorizedSites { get; set; } = [];
+    [Parameter] public long SiteFilter { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnSiteFilterChanged { get; set; }
+    [Parameter] public IReadOnlyList<WarehouseSummary> ActiveWarehouses { get; set; } = [];
+    [Parameter] public long WarehouseFilter { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnWarehouseFilterChanged { get; set; }
+    [Parameter] public string TypeFilter { get; set; } = string.Empty;
+    [Parameter] public EventCallback<ChangeEventArgs> OnTypeFilterChanged { get; set; }
+    [Parameter] public Func<InventoryTransactionType, string> TxnTypeLabel { get; set; } = _ => string.Empty;
+    [Parameter] public bool IncludeZeroBalances { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnToggleZeroBalances { get; set; }
+    [Parameter] public bool IncludeInactiveWarehouses { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnToggleInactiveWarehouses { get; set; }
+    [Parameter] public bool OpenReservationsOnly { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnToggleOpenReservations { get; set; }
+    [Parameter] public string Search { get; set; } = string.Empty;
+    [Parameter] public EventCallback<ChangeEventArgs> OnSearchInput { get; set; }
+}

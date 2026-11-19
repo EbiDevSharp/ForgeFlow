@@ -1,0 +1,106 @@
+@using ForgeFlow.Application.Reporting
+@using ForgeFlow.Domain.ProductionOrders
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="rpt-kpi-grid" aria-label="@Text["RptTabVariance"]">
+    <article class="rpt-kpi-card">
+        <span class="rpt-kpi-label">@Text["RptKpiEvaluatedOrders"]</span>
+        <strong class="rpt-kpi-value" dir="ltr">@FormatInt(VarianceReport.TotalOrderCount)</strong>
+    </article>
+    <article class="rpt-kpi-card">
+        <span class="rpt-kpi-label">@Text["RptKpiAvgYield"]</span>
+        <strong class="rpt-kpi-value" dir="ltr">@FormatPct(VarianceReport.AverageYieldPercent)</strong>
+    </article>
+    <article class="rpt-kpi-card @(VarianceReport.OverConsumedOrderCount > 0 ? "rpt-kpi-card--warn" : string.Empty)">
+        <span class="rpt-kpi-label">@Text["RptKpiOverConsumed"]</span>
+        <strong class="rpt-kpi-value" dir="ltr">@FormatInt(VarianceReport.OverConsumedOrderCount)</strong>
+    </article>
+    <article class="rpt-kpi-card @(VarianceReport.UnderYieldOrderCount > 0 ? "rpt-kpi-card--warn" : string.Empty)">
+        <span class="rpt-kpi-label">@Text["RptKpiUnderYield"]</span>
+        <strong class="rpt-kpi-value" dir="ltr">@FormatInt(VarianceReport.UnderYieldOrderCount)</strong>
+    </article>
+</div>
+
+<div class="read-grid-card">
+    <div class="read-grid @(GridLoading ? "read-grid-loading" : string.Empty)">
+        <BitDataGrid @ref="varianceGrid" TItem="ProductionVarianceSummary" OnRead="ReadVariancesAsync" Pageable="true" PageSize="25"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                     AriaLabelledBy="rpt-title" WrapCellText="true" Resizable="true">
+            <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+            <Columns>
+                <BitDataGridColumn TItem="ProductionVarianceSummary" Title="@Text["PoOrderNumberColumn"]">
+                    <Template Context="v">
+                        <div>
+                            <div class="read-primary-cell"><bdi dir="ltr">@v.OrderNumber</bdi></div>
+                            <div class="read-sub-cell"><bdi dir="ltr">@v.SiteCode</bdi> · <span class="read-badge @StatusBadgeClass(v.Status)">@StatusLabel(v.Status)</span></div>
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ProductionVarianceSummary" Title="@Text["PoItemColumn"]">
+                    <Template Context="v">
+                        <div>
+                            <div class="read-primary-cell">@v.ItemName</div>
+                            <div class="read-sub-cell"><bdi dir="ltr">@v.ItemCode · @v.BaseUnitSymbol</bdi></div>
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ProductionVarianceSummary" Title="@Text["RptColPlannedVsActual"]">
+                    <Template Context="v">
+                        <div>
+                            <div dir="ltr">@FormatQty(v.PlannedBaseQuantity) / @FormatQty(v.ActualProducedBaseQuantity) @v.BaseUnitSymbol</div>
+                            <div class="read-sub-cell"><span>@Text["RptColScrapQty"]:</span> <bdi dir="ltr">@FormatQty(v.ActualScrapBaseQuantity)</bdi></div>
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ProductionVarianceSummary" Title="@Text["RptColYieldPct"]">
+                    <Template Context="v">
+                        <span class="read-badge @(v.YieldPercent >= 100m ? "rpt-ok-badge" : "po-status-inprogress")" dir="ltr">@FormatPct(v.YieldPercent)</span>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ProductionVarianceSummary" Title="@Text["RptColInputsPlannedVsIssued"]">
+                    <Template Context="v">
+                        <div>
+                            <div dir="ltr">@FormatQty(v.TotalPlannedInputBaseQuantity) / @FormatQty(v.TotalIssuedInputBaseQuantity)</div>
+                            <div class="read-sub-cell @(v.TotalInputVarianceBaseQuantity > 0m ? "inv-delta-out" : string.Empty)" dir="ltr">
+                                @(v.TotalInputVarianceBaseQuantity > 0m ? "+" : string.Empty)@FormatQty(v.TotalInputVarianceBaseQuantity)
+                            </div>
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ProductionVarianceSummary" Title="@Text["ReadActions"]">
+                    <Template Context="v">
+                        <div class="read-row-actions">
+                            <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                           IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                           OnClick="() => OnOpenVarianceDetail.InvokeAsync(v)" />
+                            </BitTooltip>
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private BitDataGrid<ProductionVarianceSummary>? varianceGrid;
+
+    [Parameter, EditorRequired] public ProductionVarianceReport VarianceReport { get; set; } = default!;
+    [Parameter] public bool GridLoading { get; set; }
+    [Parameter] public int[] PageSizeOptions { get; set; } = [10, 25, 50, 100];
+    [Parameter] public BitDataGridStrings? GridStrings { get; set; }
+    [Parameter] public Func<BitDataGridReadRequest, Task<BitDataGridReadResult<ProductionVarianceSummary>>>? OnReadVariances { get; set; }
+    [Parameter] public Func<int, string> FormatInt { get; set; } = v => v.ToString();
+    [Parameter] public Func<decimal, string> FormatQty { get; set; } = v => v.ToString("0.##");
+    [Parameter] public Func<decimal, string> FormatPct { get; set; } = v => v.ToString("0.#");
+    [Parameter] public Func<ProductionOrderStatus, string> StatusBadgeClass { get; set; } = _ => string.Empty;
+    [Parameter] public Func<ProductionOrderStatus, string> StatusLabel { get; set; } = _ => string.Empty;
+    [Parameter] public EventCallback<ProductionVarianceSummary> OnOpenVarianceDetail { get; set; }
+
+    public Task RefreshAsync()
+        => varianceGrid is not null ? varianceGrid.RefreshAsync() : Task.CompletedTask;
+
+    private Task<BitDataGridReadResult<ProductionVarianceSummary>> ReadVariancesAsync(BitDataGridReadRequest req)
+        => OnReadVariances is not null ? OnReadVariances(req) : Task.FromResult(new BitDataGridReadResult<ProductionVarianceSummary>([], 0));
+}

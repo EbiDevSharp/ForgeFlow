@@ -43,8 +43,8 @@ public sealed class SqlUserOperationsStore(
                            MembershipIsActive = m.IsActive,
                            u.LockoutEnabled,
                            u.LockoutEnd,
-                           AccountRowVersion = EF.Property<byte[]>(u, "RowVersion"),
-                           MembershipRowVersion = EF.Property<byte[]>(m, "RowVersion")
+                           AccountRowVersion = u.RowVersion,
+                           MembershipRowVersion = m.RowVersion
                        };
 
             if (!string.IsNullOrEmpty(query.Search))
@@ -1240,7 +1240,7 @@ public sealed class SqlUserOperationsStore(
                 u.SecurityStamp,
                 u.TwoFactorEnabled,
                 u.TwoFactorEnabledAtUtc,
-                RowVersion = EF.Property<byte[]>(u, "RowVersion")
+                u.RowVersion
             })
             .SingleOrDefaultAsync(ct);
         if (user is null)
@@ -1290,7 +1290,7 @@ public sealed class SqlUserOperationsStore(
 
         var orgMembership = await db.OrganizationMemberships.AsNoTracking()
             .Where(m => m.UserId == userId && m.OrganizationId == orgId)
-            .Select(m => new { m.IsActive, RowVersion = EF.Property<byte[]>(m, "RowVersion") })
+            .Select(m => new { m.IsActive, m.RowVersion })
             .SingleOrDefaultAsync(ct);
         if (orgMembership is null)
             return null;
@@ -1300,7 +1300,7 @@ public sealed class SqlUserOperationsStore(
                         && r.RoleId == FixedAccessRoles.OrganizationAdministrator
                         && r.ScopeKind == 1
                         && r.OrganizationId == orgId)
-            .Select(r => new { r.IsActive, RowVersion = EF.Property<byte[]>(r, "RowVersion") })
+            .Select(r => new { r.IsActive, r.RowVersion })
             .SingleOrDefaultAsync(ct);
 
         var siteRows = await db.Database.SqlQueryRaw<UserSiteRow>(
@@ -1324,7 +1324,7 @@ public sealed class SqlUserOperationsStore(
                         && r.ScopeKind == 2
                         && r.OrganizationId == orgId
                         && r.SiteId != null)
-            .Select(r => new { SiteId = r.SiteId!.Value, r.IsActive, RowVersion = EF.Property<byte[]>(r, "RowVersion") })
+            .Select(r => new { SiteId = r.SiteId!.Value, r.IsActive, r.RowVersion })
             .ToDictionaryAsync(r => r.SiteId, ct);
 
         var sites = siteRows.Select(x =>
@@ -1361,11 +1361,8 @@ public sealed class SqlUserOperationsStore(
             activeSessions);
     }
 
-    private static bool MatchesRowVersion(AuthDbContext db, object entity, byte[] expected)
-    {
-        var current = (byte[]?)db.Entry(entity).Property("RowVersion").CurrentValue;
-        return current is not null && current.SequenceEqual(expected);
-    }
+    private static bool MatchesRowVersion(AuthDbContext _, ForgeFlow.Domain.Common.IHasRowVersion entity, byte[] expected)
+        => entity.RowVersion.Length > 0 && entity.RowVersion.SequenceEqual(expected);
 
     private static DateTime SafeUpdatedAt(DateTime createdAtUtc, DateTime now)
         => now >= createdAtUtc ? now : createdAtUtc;
@@ -1383,7 +1380,7 @@ public sealed class SqlUserOperationsStore(
         var created = (DateTime)entry.Property("CreatedAtUtc").CurrentValue!;
         entry.Property("UpdatedAtUtc").CurrentValue = SafeUpdatedAt(created, now);
         entry.Property("UpdatedByActorId").CurrentValue = actorId;
-        entry.Property("RowVersion").OriginalValue = expectedRowVersion;
+        entry.Property(nameof(ForgeFlow.Domain.Common.IHasRowVersion.RowVersion)).OriginalValue = expectedRowVersion;
     }
 
     private static void AddEvent(

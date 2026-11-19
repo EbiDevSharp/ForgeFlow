@@ -1,0 +1,379 @@
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Application.Routings
+@using ForgeFlow.Domain.Inventory
+@using ForgeFlow.Domain.ProductionOrders
+@using ForgeFlow.Domain.Routings
+@using ForgeFlow.Web.Roles
+@inject ProductionOrderUseCases OrderService
+@inject RoutingUseCases RoutingService
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+@{
+    var summary = SelectedOrder.Summary;
+}
+
+@if (SelectedOrder.Operations is { Count: > 0 } opsList)
+{
+    <div class="audit-modal-section">
+        <h3 class="audit-section-heading">@Text["PoOperationsHeading"]</h3>
+        <div class="audit-fields-box">
+            <table class="audit-fields-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>@Text["RtOpNameCol"]</th>
+                        <th>@Text["RtWorkCenterCol"]</th>
+                        <th>@Text["PoOpPlannedCol"]</th>
+                        <th>@Text["PoOpActualCol"]</th>
+                        <th>@Text["PoOpQtyCol"]</th>
+                        <th>@Text["ReadStatus"]</th>
+                        <th>@Text["ReadActions"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var op in opsList)
+                    {
+                        var actualTotal = op.ActualSetupMinutes + op.ActualRunMinutes;
+                        <tr>
+                            <td>@op.Sequence</td>
+                            <td>
+                                <span dir="ltr">@op.OperationCode</span> — @op.OperationName
+                                @if (op.RequiresQualityCheck)
+                                {
+                                    <span class="cap-badge">@Text["RtQcCol"]</span>
+                                }
+                            </td>
+                            <td dir="ltr">@op.WorkCenterCode</td>
+                            <td dir="ltr">@Format.Number(op.PlannedTotalMinutes)</td>
+                            <td dir="ltr">@Format.Number(actualTotal)</td>
+                            <td dir="ltr">@Format.Number(op.CompletedQuantity) / @Format.Number(op.ScrapQuantity)</td>
+                            <td><span class="read-badge @OpStatusBadgeClass(op.Status)">@OpStatusLabel(op.Status)</span></td>
+                            <td>
+                                @if (CanExecuteOperations && summary.Status is ProductionOrderStatus.Released or ProductionOrderStatus.InProgress)
+                                {
+                                    <div class="read-row-actions">
+                                        @if (op.Status is ProductionOrderOperationStatus.Pending or ProductionOrderOperationStatus.Ready or ProductionOrderOperationStatus.Paused)
+                                        {
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!ModalBusy)" OnClick="() => StartOperationAsync(op)">
+                                                @Text["PoOpStartBtn"]
+                                            </BitButton>
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!ModalBusy)" OnClick="() => SkipOperationAsync(op)">
+                                                @Text["PoOpSkipBtn"]
+                                            </BitButton>
+                                        }
+                                        @if (op.Status is ProductionOrderOperationStatus.InProgress or ProductionOrderOperationStatus.Paused or ProductionOrderOperationStatus.Ready)
+                                        {
+                                            <BitButton Size="BitSize.Small" IsEnabled="@(!ModalBusy)" OnClick="() => SelectOperationForLog(op)">
+                                                @Text["PoOpCompleteBtn"]
+                                            </BitButton>
+                                        }
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (activeEditOp is not null && CanExecuteOperations && summary.Status is ProductionOrderStatus.Released or ProductionOrderStatus.InProgress)
+        {
+            <div class="rt-op-exec-bar">
+                <div class="write-field">
+                    <label for="op-act-setup">@Text["PoOpActualSetupLabel"]</label>
+                    <input id="op-act-setup" type="number" min="0" step="0.5" @bind="opActualSetup" />
+                </div>
+                <div class="write-field">
+                    <label for="op-act-run">@Text["PoOpActualRunLabel"]</label>
+                    <input id="op-act-run" type="number" min="0" step="0.5" @bind="opActualRun" />
+                </div>
+                <div class="write-field">
+                    <label for="op-comp-qty">@Text["PoOpCompletedQtyLabel"]</label>
+                    <input id="op-comp-qty" type="number" min="0" step="0.001" @bind="opCompletedQty" />
+                </div>
+                <div class="write-field">
+                    <label for="op-scrap-qty">@Text["PoOpScrapQtyLabel"]</label>
+                    <input id="op-scrap-qty" type="number" min="0" step="0.001" @bind="opScrapQty" />
+                </div>
+                <div class="write-field" style="grid-column:1/-1;">
+                    <label for="op-notes">@Text["PoNotesLabel"]</label>
+                    <input id="op-notes" type="text" maxlength="500" @bind="opLogNotes" />
+                </div>
+                <div class="write-actions" style="grid-column:1/-1;">
+                    @if (activeEditOp.Status == ProductionOrderOperationStatus.InProgress)
+                    {
+                        <BitButton Variant="BitVariant.Outline" IsEnabled="@(!ModalBusy)" OnClick="PauseOperationAsync">@Text["PoOpPauseBtn"]</BitButton>
+                    }
+                    <BitButton IsEnabled="@(!ModalBusy)" OnClick="CompleteOperationAsync">@Text["PoOpCompleteBtn"]</BitButton>
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => activeEditOp = null">@Text["WriteCancel"]</BitButton>
+                </div>
+            </div>
+        }
+    </div>
+}
+<div class="audit-modal-section">
+    <h3 class="audit-section-heading">@Text["PoInputsSnapshotHeading"]</h3>
+    <div class="audit-fields-box">
+        <table class="audit-fields-table">
+            <thead>
+                <tr>
+                    <th>@Text["BomLevelColumn"]</th>
+                    <th>@Text["BomParentItemColumn"]</th>
+                    <th>@Text["BomLineItemColumn"]</th>
+                    <th>@Text["BomNetQtyColumn"]</th>
+                    <th>@Text["BomScrapColumn"]</th>
+                    <th>@Text["BomGrossQtyColumn"]</th>
+                    <th>@Text["BomLineUnitColumn"]</th>
+                    <th>@Text["PoResReservedCol"]</th>
+                    @if ((ScopeCanManage || CanManageInventory) && summary.Status is ProductionOrderStatus.Released or ProductionOrderStatus.InProgress)
+                    {
+                        <th>@Text["ReadActions"]</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                <Virtualize Items="SelectedOrder.Inputs.AsCollection()" Context="inp" ItemSize="42" OverscanCount="5" SpacerElement="tr">
+                    @{
+                        var itemRes = OrderReservations.Where(r => r.ItemId == inp.ItemId && r.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed).ToList();
+                        var reservedQty = itemRes.Sum(r => r.RemainingReservedBaseQuantity);
+                        var resUnit = itemRes.FirstOrDefault()?.BaseUnitSymbol ?? inp.UnitSymbol;
+                    }
+                    <tr>
+                        <td><span class="bom-tree-level">L@(inp.Level)</span></td>
+                        <td dir="ltr">@inp.ParentItemCode</td>
+                        <td>
+                            <span dir="ltr">@inp.ItemCode</span> — @inp.ItemName
+                            @if (inp.IsSubAssembly)
+                            {
+                                <span class="cap-badge">@Text["BomSubAssemblyBadge"]</span>
+                            }
+                            @if (inp.IsOptional)
+                            {
+                                <span class="cap-badge">@Text["BomOptionalBadge"]</span>
+                            }
+                        </td>
+                        <td dir="ltr">@Format.Number(inp.NetQuantity)</td>
+                        <td dir="ltr">@Format.Number(inp.ScrapPercentage)%</td>
+                        <td dir="ltr"><strong>@Format.Number(inp.GrossQuantity)</strong></td>
+                        <td dir="ltr">@inp.UnitSymbol</td>
+                        <td dir="ltr">
+                            @if (reservedQty > 0m)
+                            {
+                                <span class="read-badge inv-reserved-badge">@Format.Number(reservedQty) @resUnit</span>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </td>
+                        @if ((ScopeCanManage || CanManageInventory) && summary.Status is ProductionOrderStatus.Released or ProductionOrderStatus.InProgress)
+                        {
+                            <td>
+                                @if (!inp.IsSubAssembly)
+                                {
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!ModalBusy)"
+                                               OnClick="() => OnOpenReserveModal.InvokeAsync(inp)">
+                                        @Text["PoResReserveBtn"]
+                                    </BitButton>
+                                }
+                            </td>
+                        }
+                    </tr>
+                </Virtualize>
+            </tbody>
+        </table>
+    </div>
+</div>
+@if (OrderReservations.Count > 0 || summary.Status is ProductionOrderStatus.Released or ProductionOrderStatus.InProgress)
+{
+    <div class="audit-modal-section">
+        <h3 class="audit-section-heading">@Text["PoReservationsHeading"]</h3>
+        @if (OrderReservations.Count == 0)
+        {
+            <p class="write-hint">@Text["PoResNoneYet"]</p>
+        }
+        else
+        {
+            <div class="audit-fields-box">
+                <table class="audit-fields-table">
+                    <thead>
+                        <tr>
+                            <th>@Text["BomLineItemColumn"]</th>
+                            <th>@Text["InvWarehouseLabel"]</th>
+                            <th>@Text["InvLotCodeLabel"]</th>
+                            <th>@Text["InvResRemainingColumn"]</th>
+                            <th>@Text["PoStatusColumn"]</th>
+                            @if (ScopeCanManage || CanManageInventory)
+                            {
+                                <th>@Text["ReadActions"]</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <Virtualize Items="OrderReservations.AsCollection()" Context="resv" ItemSize="40" OverscanCount="5" SpacerElement="tr">
+                            <tr>
+                                <td><span dir="ltr">@resv.ItemCode</span> — @resv.ItemName</td>
+                                <td><span dir="ltr">@resv.WarehouseCode</span> — @resv.WarehouseName</td>
+                                <td dir="ltr">
+                                    @if (string.IsNullOrEmpty(resv.LotCode))
+                                    {
+                                        <span>—</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="qc-lot-inline-cell">
+                                            <a class="qc-lot-link" href="@($"/traceability?itemId={resv.ItemId}&lotCode={Uri.EscapeDataString(resv.LotCode)}")">@resv.LotCode</a>
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="qc-inline-coa-btn" OnClick="() => OnOpenCoaModal.InvokeAsync((resv.ItemId, resv.LotCode))">
+                                                @Text["QcCoaBtn"]
+                                            </BitButton>
+                                        </div>
+                                    }
+                                </td>
+                                <td dir="ltr"><strong>@Format.Number(resv.RemainingReservedBaseQuantity) @resv.BaseUnitSymbol</strong></td>
+                                <td><span class="read-badge @ResBadgeClass(resv.Status)">@ResStatusLabel(resv.Status)</span></td>
+                                @if (ScopeCanManage || CanManageInventory)
+                                {
+                                    <td>
+                                        @if (resv.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed)
+                                        {
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!ModalBusy)"
+                                                       OnClick="() => OnReleaseReservation.InvokeAsync(resv)">
+                                                @Text["InvResReleaseBtn"]
+                                            </BitButton>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        </Virtualize>
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public ProductionOrderDetails SelectedOrder { get; set; } = default!;
+    [Parameter] public IReadOnlyList<StockReservationSummary> OrderReservations { get; set; } = [];
+    [Parameter] public bool ScopeCanManage { get; set; }
+    [Parameter] public bool CanManageInventory { get; set; }
+    [Parameter] public bool CanExecuteOperations { get; set; }
+    [Parameter] public bool ModalBusy { get; set; }
+    [Parameter] public EventCallback<bool> ModalBusyChanged { get; set; }
+    [Parameter] public EventCallback<ProductionOrderDetails> OnOrderReloaded { get; set; }
+    [Parameter] public EventCallback<string?> OnWorkbenchError { get; set; }
+    [Parameter] public EventCallback<string?> OnWorkbenchSaved { get; set; }
+    [Parameter] public EventCallback<ProductionOrderInputSummary> OnOpenReserveModal { get; set; }
+    [Parameter] public EventCallback<StockReservationSummary> OnReleaseReservation { get; set; }
+    [Parameter] public EventCallback<(long ItemId, string LotCode)> OnOpenCoaModal { get; set; }
+
+    private ProductionOrderOperationSummary? activeEditOp;
+    private decimal opActualSetup;
+    private decimal opActualRun;
+    private decimal opCompletedQty;
+    private decimal opScrapQty;
+    private string? opLogNotes;
+
+    public void ResetOpEdit() => activeEditOp = null;
+
+    private void SelectOperationForLog(ProductionOrderOperationSummary op)
+    {
+        activeEditOp = op;
+        opActualSetup = op.ActualSetupMinutes > 0m ? op.ActualSetupMinutes : op.PlannedSetupMinutes;
+        opActualRun = op.ActualRunMinutes > 0m ? op.ActualRunMinutes : op.PlannedRunMinutes;
+        opCompletedQty = op.CompletedQuantity > 0m ? op.CompletedQuantity : SelectedOrder.Summary.RequestedQuantity;
+        opScrapQty = op.ScrapQuantity;
+        opLogNotes = op.OperatorNotes;
+    }
+
+    private Task StartOperationAsync(ProductionOrderOperationSummary op) =>
+        RunOperationMutationAsync(scope => RoutingService.StartOperation(
+            scope, new StartProductionOrderOperationRequest(op.OrganizationId, op.Id, op.OperatorNotes, op.RowVersion)));
+
+    private Task SkipOperationAsync(ProductionOrderOperationSummary op) =>
+        RunOperationMutationAsync(scope => RoutingService.SkipOperation(
+            scope, new SkipProductionOrderOperationRequest(op.OrganizationId, op.Id, op.OperatorNotes, op.RowVersion)));
+
+    private Task PauseOperationAsync() => activeEditOp is null
+        ? Task.CompletedTask
+        : RunOperationMutationAsync(scope => RoutingService.PauseOperation(
+            scope, new PauseProductionOrderOperationRequest(
+                activeEditOp.OrganizationId, activeEditOp.Id, opActualSetup, opActualRun,
+                opCompletedQty, opScrapQty, opLogNotes, activeEditOp.RowVersion)));
+
+    private Task CompleteOperationAsync() => activeEditOp is null
+        ? Task.CompletedTask
+        : RunOperationMutationAsync(scope => RoutingService.CompleteOperation(
+            scope, new CompleteProductionOrderOperationRequest(
+                activeEditOp.OrganizationId, activeEditOp.Id, opActualSetup, opActualRun,
+                opCompletedQty, opScrapQty, opLogNotes, activeEditOp.RowVersion)));
+
+    private async Task RunOperationMutationAsync(Func<OrganizationScope, Task<OrganizationResult<ProductionOrderOperationSummary>>> call)
+    {
+        if (CurrentScope is null) return;
+        await ModalBusyChanged.InvokeAsync(true);
+        await OnWorkbenchError.InvokeAsync(null);
+        await OnWorkbenchSaved.InvokeAsync(null);
+        try
+        {
+            var res = await call(CurrentScope);
+            if (!res.Succeeded)
+            {
+                await OnWorkbenchError.InvokeAsync(RolePermissionLocalization.FailureKey(res.Error!.Code));
+                return;
+            }
+            var reloaded = await OrderService.GetOrder(CurrentScope, SelectedOrder.Summary.OrganizationId, SelectedOrder.Summary.Id);
+            if (reloaded.Succeeded)
+            {
+                activeEditOp = null;
+                await OnOrderReloaded.InvokeAsync(reloaded.Value!);
+                await OnWorkbenchSaved.InvokeAsync("PoOpSavedNotice");
+            }
+        }
+        finally
+        {
+            await ModalBusyChanged.InvokeAsync(false);
+        }
+    }
+
+    private string OpStatusLabel(ProductionOrderOperationStatus st) => st switch
+    {
+        ProductionOrderOperationStatus.Pending => Text["PoOpStatusPending"],
+        ProductionOrderOperationStatus.Ready => Text["PoOpStatusReady"],
+        ProductionOrderOperationStatus.InProgress => Text["PoOpStatusInProgress"],
+        ProductionOrderOperationStatus.Paused => Text["PoOpStatusPaused"],
+        ProductionOrderOperationStatus.Completed => Text["PoOpStatusCompleted"],
+        ProductionOrderOperationStatus.Skipped => Text["PoOpStatusSkipped"],
+        _ => st.ToString()
+    };
+
+    private static string OpStatusBadgeClass(ProductionOrderOperationStatus st) => st switch
+    {
+        ProductionOrderOperationStatus.Completed => "po-status-completed",
+        ProductionOrderOperationStatus.InProgress => "po-status-inprogress",
+        ProductionOrderOperationStatus.Ready => "po-status-released",
+        ProductionOrderOperationStatus.Skipped => "po-status-cancelled",
+        _ => "po-status-draft"
+    };
+
+    private string ResStatusLabel(ReservationStatus status) => status switch
+    {
+        ReservationStatus.Active => Text["InvResStatusActive"],
+        ReservationStatus.PartiallyConsumed => Text["InvResStatusPartial"],
+        ReservationStatus.Fulfilled => Text["InvResStatusConsumed"],
+        ReservationStatus.Released => Text["InvResStatusReleased"],
+        _ => status.ToString()
+    };
+
+    private static string ResBadgeClass(ReservationStatus status) => status switch
+    {
+        ReservationStatus.Active => "po-status-released",
+        ReservationStatus.PartiallyConsumed => "qc-status-pending",
+        ReservationStatus.Fulfilled => "po-status-completed",
+        ReservationStatus.Released => "po-status-draft",
+        _ => "po-status-draft"
+    };
+}

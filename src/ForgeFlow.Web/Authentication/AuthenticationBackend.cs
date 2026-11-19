@@ -576,13 +576,21 @@ public static class AuthenticationBackend
                 new AuthenticationProperties { IsPersistent = false, AllowRefresh = false, IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = result.Expires });
             return Results.LocalRedirect("/");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            context.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("ForgeFlow.AuthBoundary")
+                .LogWarning(ex, "Failed to refresh authentication cookie after password change; rolling back session.");
             await sessions.LogoutAsync(result.Session, CancellationToken.None);
             if (!context.Response.HasStarted)
             {
                 try { await context.SignOutAsync(IdentityConstants.ApplicationScheme); }
-                catch (Exception) { }
+                catch (Exception signOutEx)
+                {
+                    context.RequestServices.GetRequiredService<ILoggerFactory>()
+                        .CreateLogger("ForgeFlow.AuthBoundary")
+                        .LogDebug(signOutEx, "Failed to clear auth cookie during password change rollback.");
+                }
             }
             return Error(context, "Auth.ServiceUnavailable", 503);
         }
@@ -877,13 +885,21 @@ public static class AuthenticationBackend
                 new AuthenticationProperties { IsPersistent = false, AllowRefresh = false, IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = result.Expires });
             return Results.Json(new { redirectUrl = "/" });
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            context.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("ForgeFlow.AuthBoundary")
+                .LogWarning(ex, "Failed to refresh authentication cookie after password change; rolling back session.");
             await sessions.LogoutAsync(result.Session, CancellationToken.None);
             if (!context.Response.HasStarted)
             {
                 try { await context.SignOutAsync(IdentityConstants.ApplicationScheme); }
-                catch (Exception) { }
+                catch (Exception signOutEx)
+                {
+                    context.RequestServices.GetRequiredService<ILoggerFactory>()
+                        .CreateLogger("ForgeFlow.AuthBoundary")
+                        .LogDebug(signOutEx, "Failed to clear auth cookie during password change rollback.");
+                }
             }
             return Error(context, "Auth.ServiceUnavailable", 503);
         }
@@ -938,13 +954,21 @@ public static class AuthenticationBackend
             var localizer = context.RequestServices.GetRequiredService<IStringLocalizer<AuthenticationResources>>();
             return Results.Json(new { code = result.Code, message = localizer[result.Code].Value });
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            context.RequestServices.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("ForgeFlow.AuthBoundary")
+                .LogWarning(ex, "Failed to refresh authentication cookie after password change; rolling back session.");
             await sessions.LogoutAsync(result.Session, CancellationToken.None);
             if (!context.Response.HasStarted)
             {
                 try { await context.SignOutAsync(IdentityConstants.ApplicationScheme); }
-                catch (Exception) { }
+                catch (Exception signOutEx)
+                {
+                    context.RequestServices.GetRequiredService<ILoggerFactory>()
+                        .CreateLogger("ForgeFlow.AuthBoundary")
+                        .LogDebug(signOutEx, "Failed to clear auth cookie during password change rollback.");
+                }
             }
             return Error(context, "Auth.ServiceUnavailable", 503);
         }

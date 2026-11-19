@@ -1,0 +1,371 @@
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Domain.Inventory
+@using ForgeFlow.Web.Roles
+@inject InventoryUseCases InvService
+@inject StockReservationUseCases ResService
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+@if (ActiveTab == 1)
+{
+    <div class="read-grid-card">
+        <div class="read-grid">
+            <BitDataGrid @ref="balGrid" TItem="InventoryBalanceSummary" OnRead="ReadBalancesAsync" Pageable="true" PageSize="25"
+                         PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                         AriaLabelledBy="inv-title" WrapCellText="true" Resizable="true">
+                <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                <Columns>
+                    <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvWarehouseLabel"]">
+                        <Template Context="b"><span dir="ltr">@b.WarehouseCode</span> — @b.WarehouseName</Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["BomLineItemColumn"]">
+                        <Template Context="b"><span dir="ltr">@b.ItemCode</span> — @b.ItemName</Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvLotCodeLabel"]">
+                        <Template Context="b">
+                            @if (string.IsNullOrEmpty(b.LotCode))
+                            {
+                                <span>—</span>
+                            }
+                            else
+                            {
+                                <div>
+                                    <div class="read-primary-cell qc-lot-inline-cell">
+                                        <a class="qc-lot-link" href="@($"/traceability?itemId={b.ItemId}&lotCode={Uri.EscapeDataString(b.LotCode)}")" dir="ltr">@b.LotCode</a>
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="qc-inline-coa-btn" OnClick="() => OnOpenCoa.InvokeAsync((b.ItemId, b.LotCode))">
+                                            @Text["QcCoaBtn"]
+                                        </BitButton>
+                                    </div>
+                                    @if (b.ExpirationDate.HasValue)
+                                    {
+                                        <div class="read-sub-cell">
+                                            <span class="read-badge @(b.IsExpired ? "rpt-shortage-badge" : b.IsExpiringSoon ? "qc-status-pending" : "qc-status-completed")">
+                                                @if (b.IsExpired) { @Text["QcLotExpiredBadge"] }
+                                                else if (b.IsExpiringSoon) { @Text["QcLotExpiringBadge"] }
+                                                else { <bdi dir="ltr">@b.ExpirationDate.Value.ToString("yyyy-MM-dd")</bdi> }
+                                            </span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvOnHandLabel"]">
+                        <Template Context="b">
+                            <div>
+                                <div class="read-primary-cell"><strong dir="ltr">@Format.Number(b.OnHandBaseQuantity) @b.BaseUnitSymbol</strong></div>
+                                @if (b.BlockedBaseQuantity > 0m || b.ReservedBaseQuantity > 0m)
+                                {
+                                    <div class="read-sub-cell">
+                                        @if (b.BlockedBaseQuantity > 0m)
+                                        {
+                                            <span class="read-badge qc-status-pending" dir="ltr">@Text["InvBlockedShort", Format.Number(b.BlockedBaseQuantity)]</span>
+                                        }
+                                        @if (b.ReservedBaseQuantity > 0m)
+                                        {
+                                            <span class="read-badge inv-reserved-badge" dir="ltr">@Text["InvReservedShort", Format.Number(b.ReservedBaseQuantity)]</span>
+                                        }
+                                        <span dir="ltr"> · @Text["InvAvailableLabel"]: @Format.Number(b.AvailableBaseQuantity)</span>
+                                    </div>
+                                }
+                            </div>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvLastMovedLabel"]">
+                        <Template Context="b"><bdi dir="ltr">@Format.Timestamp(b.LastMovedAtUtc)</bdi></Template>
+                    </BitDataGridColumn>
+                </Columns>
+            </BitDataGrid>
+        </div>
+    </div>
+}
+else if (ActiveTab == 2)
+{
+    <div class="read-grid-card">
+        <div class="read-grid">
+            <BitDataGrid @ref="txnGrid" TItem="InventoryTransactionSummary" OnRead="ReadTransactionsAsync" Pageable="true" PageSize="25"
+                         PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                         AriaLabelledBy="inv-title" WrapCellText="true" Resizable="true">
+                <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                <Columns>
+                    <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["InvDocNumberLabel"]">
+                        <Template Context="t"><strong dir="ltr">@t.DocumentNumber</strong></Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["InvTxnTypeLabel"]">
+                        <Template Context="t">
+                            <span class="read-badge @TxnBadgeClass(t.TransactionType)">@TxnTypeLabel(t.TransactionType)</span>
+                            @if (t.IsReversed)
+                            {
+                                <span class="cap-badge">@Text["InvReversedBadge"]</span>
+                            }
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["InvWarehouseLabel"]">
+                        <Template Context="t">
+                            <bdi dir="ltr">@t.WarehouseCode@(t.DestinationWarehouseCode is not null ? $" -> {t.DestinationWarehouseCode}" : string.Empty)</bdi>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["PoOrderNumberColumn"]">
+                        <Template Context="t"><bdi dir="ltr">@(t.PurchaseOrderNumber ?? t.ProductionOrderNumber ?? "—")</bdi></Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["AuditTimeColumn"]">
+                        <Template Context="t"><bdi dir="ltr">@Format.Timestamp(t.PostedAtUtc)</bdi></Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["ReadActions"]">
+                        <Template Context="t">
+                            <div class="read-row-actions">
+                                <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                               IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                               OnClick="() => OnOpenTxnDetails.InvokeAsync(t.Id)" />
+                                </BitTooltip>
+                            </div>
+                        </Template>
+                    </BitDataGridColumn>
+                </Columns>
+            </BitDataGrid>
+        </div>
+    </div>
+}
+else if (ActiveTab == 0)
+{
+    <div class="read-grid-card">
+        <div class="read-grid">
+            <BitDataGrid @ref="whGrid" TItem="WarehouseSummary" OnRead="ReadWarehousesAsync" Pageable="true" PageSize="25"
+                         PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                         AriaLabelledBy="inv-title" WrapCellText="true" Resizable="true">
+                <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                <Columns>
+                    <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["ReadCode"]">
+                        <Template Context="w"><strong dir="ltr">@w.Code</strong></Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["ReadName"]">
+                        <Template Context="w">@w.Name</Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["PoSiteColumn"]">
+                        <Template Context="w"><span dir="ltr">@w.SiteCode</span> — @w.SiteName</Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["InvDefaultWarehouseBadge"]">
+                        <Template Context="w">
+                            @if (w.IsDefaultForSite)
+                            {
+                                <span class="cap-badge">@Text["InvDefaultWarehouseBadge"]</span>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["PoStatusColumn"]">
+                        <Template Context="w">
+                            <span class="read-badge @(w.IsActive ? "active" : "inactive")">@(w.IsActive ? Text["ReadActive"] : Text["ReadInactive"])</span>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["ReadActions"]">
+                        <Template Context="w">
+                            <div class="read-row-actions">
+                                @if (ScopeCanManage)
+                                {
+                                    <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                                   Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
+                                                   OnClick="() => OnEditWarehouse.InvokeAsync(w)" />
+                                    </BitTooltip>
+                                }
+                            </div>
+                        </Template>
+                    </BitDataGridColumn>
+                </Columns>
+            </BitDataGrid>
+        </div>
+    </div>
+}
+else if (ActiveTab == 3)
+{
+    <div class="read-grid-card">
+        <div class="read-grid">
+            <BitDataGrid @ref="resGrid" TItem="StockReservationSummary" OnRead="ReadReservationsAsync" Pageable="true" PageSize="25"
+                         PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                         AriaLabelledBy="inv-title" WrapCellText="true" Resizable="true">
+                <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+                <Columns>
+                    <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvResOrderColumn"]">
+                        <Template Context="r"><strong dir="ltr">@r.OrderNumber</strong></Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["BomLineItemColumn"]">
+                        <Template Context="r"><span dir="ltr">@r.ItemCode</span> — @r.ItemName</Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvWarehouseLabel"]">
+                        <Template Context="r"><span dir="ltr">@r.WarehouseCode</span> — @r.WarehouseName</Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvLotCodeLabel"]">
+                        <Template Context="r">
+                            @if (string.IsNullOrEmpty(r.LotCode))
+                            {
+                                <span>—</span>
+                            }
+                            else
+                            {
+                                <a class="qc-lot-link" href="@($"/traceability?itemId={r.ItemId}&lotCode={Uri.EscapeDataString(r.LotCode)}")" dir="ltr">@r.LotCode</a>
+                            }
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvResRemainingColumn"]">
+                        <Template Context="r">
+                            <div>
+                                <div class="read-primary-cell"><strong dir="ltr">@Format.Number(r.RemainingReservedBaseQuantity) @r.BaseUnitSymbol</strong></div>
+                                <div class="read-sub-cell" dir="ltr">@Text["InvResTotalsSub", Format.Number(r.ReservedBaseQuantity), Format.Number(r.ConsumedBaseQuantity)]</div>
+                            </div>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["PoStatusColumn"]">
+                        <Template Context="r">
+                            <span class="read-badge @ResBadgeClass(r.Status)">@ResStatusLabel(r.Status)</span>
+                        </Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["AuditTimeColumn"]">
+                        <Template Context="r"><bdi dir="ltr">@Format.Timestamp(r.CreatedAtUtc)</bdi></Template>
+                    </BitDataGridColumn>
+                    <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["ReadActions"]">
+                        <Template Context="r">
+                            <div class="read-row-actions">
+                                @if (!string.IsNullOrEmpty(r.LotCode))
+                                {
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OnOpenCoa.InvokeAsync((r.ItemId, r.LotCode))">
+                                        @Text["QcCoaBtn"]
+                                    </BitButton>
+                                }
+                                @if (ScopeCanManage && r.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed)
+                                {
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!ModalBusy)"
+                                               OnClick="() => OnReleaseReservation.InvokeAsync(r)">
+                                        @Text["InvResReleaseBtn"]
+                                    </BitButton>
+                                }
+                            </div>
+                        </Template>
+                    </BitDataGridColumn>
+                </Columns>
+            </BitDataGrid>
+        </div>
+    </div>
+}
+
+@code {
+    private BitDataGrid<InventoryBalanceSummary>? balGrid;
+    private BitDataGrid<InventoryTransactionSummary>? txnGrid;
+    private BitDataGrid<WarehouseSummary>? whGrid;
+    private BitDataGrid<StockReservationSummary>? resGrid;
+
+    [Parameter] public int ActiveTab { get; set; }
+    [Parameter] public int[] PageSizeOptions { get; set; } = [10, 25, 50, 100];
+    [Parameter] public BitDataGridStrings? GridStrings { get; set; }
+    [Parameter] public bool ScopeCanManage { get; set; }
+    [Parameter] public bool ModalBusy { get; set; }
+    [Parameter] public BitIconInfo? EditIcon { get; set; }
+
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long SiteFilter { get; set; }
+    [Parameter] public long WarehouseFilter { get; set; }
+    [Parameter] public string TypeFilter { get; set; } = string.Empty;
+    [Parameter] public string? AppliedSearch { get; set; }
+    [Parameter] public bool IncludeZeroBalances { get; set; }
+    [Parameter] public bool IncludeInactiveWarehouses { get; set; }
+    [Parameter] public bool OpenReservationsOnly { get; set; }
+    [Parameter] public EventCallback<string?> OnPageError { get; set; }
+
+    [Parameter] public Func<InventoryTransactionType, string> TxnBadgeClass { get; set; } = _ => string.Empty;
+    [Parameter] public Func<InventoryTransactionType, string> TxnTypeLabel { get; set; } = _ => string.Empty;
+    [Parameter] public Func<ReservationStatus, string> ResBadgeClass { get; set; } = _ => string.Empty;
+    [Parameter] public Func<ReservationStatus, string> ResStatusLabel { get; set; } = _ => string.Empty;
+
+    [Parameter] public EventCallback<(long ItemId, string LotCode)> OnOpenCoa { get; set; }
+    [Parameter] public EventCallback<long> OnOpenTxnDetails { get; set; }
+    [Parameter] public EventCallback<WarehouseSummary> OnEditWarehouse { get; set; }
+    [Parameter] public EventCallback<StockReservationSummary> OnReleaseReservation { get; set; }
+
+    public async Task ReloadActiveGridAsync(bool fromFirstPage)
+    {
+        if (ActiveTab == 1 && balGrid is not null)
+        {
+            if (fromFirstPage && balGrid.CurrentPage > 1) await balGrid.GoToPageAsync(1);
+            else await balGrid.RefreshAsync();
+        }
+        else if (ActiveTab == 2 && txnGrid is not null)
+        {
+            if (fromFirstPage && txnGrid.CurrentPage > 1) await txnGrid.GoToPageAsync(1);
+            else await txnGrid.RefreshAsync();
+        }
+        else if (ActiveTab == 0 && whGrid is not null)
+        {
+            if (fromFirstPage && whGrid.CurrentPage > 1) await whGrid.GoToPageAsync(1);
+            else await whGrid.RefreshAsync();
+        }
+        else if (ActiveTab == 3 && resGrid is not null)
+        {
+            if (fromFirstPage && resGrid.CurrentPage > 1) await resGrid.GoToPageAsync(1);
+            else await resGrid.RefreshAsync();
+        }
+    }
+
+    private static long ScopeOrgId(OrganizationScope scope) => scope switch
+    {
+        OrganizationScope.Organization o => o.OrganizationId,
+        OrganizationScope.Site s => s.OrganizationId,
+        _ => 0
+    };
+
+    private async Task<BitDataGridReadResult<StockReservationSummary>> ReadReservationsAsync(BitDataGridReadRequest request)
+    {
+        if (CurrentScope is null) return new([], 0);
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        long? reqSite = CurrentScope is OrganizationScope.Site s ? s.SiteId : (SiteFilter > 0 ? SiteFilter : null);
+        var res = await ResService.ListReservations(CurrentScope, ScopeOrgId(CurrentScope), new ReservationListQuery(
+            reqSite, null, WarehouseFilter > 0 ? WarehouseFilter : null, null, null,
+            OpenReservationsOnly, AppliedSearch, page, size), request.CancellationToken);
+        if (!res.Succeeded) { await OnPageError.InvokeAsync(RolePermissionLocalization.FailureKey(res.Error!.Code)); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private async Task<BitDataGridReadResult<InventoryBalanceSummary>> ReadBalancesAsync(BitDataGridReadRequest request)
+    {
+        if (CurrentScope is null) return new([], 0);
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        long? reqSite = CurrentScope is OrganizationScope.Site s ? s.SiteId : (SiteFilter > 0 ? SiteFilter : null);
+        var res = await InvService.ListBalances(CurrentScope, ScopeOrgId(CurrentScope), new InventoryBalanceListQuery(
+            reqSite, WarehouseFilter > 0 ? WarehouseFilter : null, null, AppliedSearch, IncludeZeroBalances, page, size), request.CancellationToken);
+        if (!res.Succeeded) { await OnPageError.InvokeAsync(RolePermissionLocalization.FailureKey(res.Error!.Code)); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private async Task<BitDataGridReadResult<InventoryTransactionSummary>> ReadTransactionsAsync(BitDataGridReadRequest request)
+    {
+        if (CurrentScope is null) return new([], 0);
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        long? reqSite = CurrentScope is OrganizationScope.Site s ? s.SiteId : (SiteFilter > 0 ? SiteFilter : null);
+        InventoryTransactionType? tt = byte.TryParse(TypeFilter, out var raw) && Enum.IsDefined((InventoryTransactionType)raw)
+            ? (InventoryTransactionType)raw
+            : null;
+        var res = await InvService.ListTransactions(CurrentScope, ScopeOrgId(CurrentScope), new InventoryTransactionListQuery(
+            reqSite, WarehouseFilter > 0 ? WarehouseFilter : null, tt, null, AppliedSearch, page, size), request.CancellationToken);
+        if (!res.Succeeded) { await OnPageError.InvokeAsync(RolePermissionLocalization.FailureKey(res.Error!.Code)); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+
+    private async Task<BitDataGridReadResult<WarehouseSummary>> ReadWarehousesAsync(BitDataGridReadRequest request)
+    {
+        if (CurrentScope is null) return new([], 0);
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        long? reqSite = CurrentScope is OrganizationScope.Site s ? s.SiteId : (SiteFilter > 0 ? SiteFilter : null);
+        var res = await InvService.ListWarehouses(CurrentScope, ScopeOrgId(CurrentScope), new WarehouseListQuery(
+            reqSite, AppliedSearch, IncludeInactiveWarehouses, page, size), request.CancellationToken);
+        if (!res.Succeeded) { await OnPageError.InvokeAsync(RolePermissionLocalization.FailureKey(res.Error!.Code)); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+}

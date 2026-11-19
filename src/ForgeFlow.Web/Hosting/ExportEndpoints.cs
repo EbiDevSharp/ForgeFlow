@@ -5,17 +5,20 @@ using ForgeFlow.Application.Organizations;
 using ForgeFlow.Application.Reporting;
 using ForgeFlow.Domain.Audit;
 using ForgeFlow.Domain.Diagnostics;
+using ForgeFlow.Web.Localization;
+using Microsoft.Extensions.Localization;
 
 namespace ForgeFlow.Web.Hosting;
 
 /// <summary>
-/// HTTP endpoints for streaming CSV exports protected by export rate limiting policy.
+/// HTTP endpoints for streaming CSV exports protected by authentication and export rate limiting policy.
 /// </summary>
 public static class ExportEndpoints
 {
     public static void MapExportEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/export");
+        group.RequireAuthorization();
         group.RequireRateLimiting(RateLimitingPolicyNames.Export);
 
         group.MapGet("/audit", async (
@@ -53,21 +56,79 @@ public static class ExportEndpoints
                 FromDate: fromDate,
                 ToDate: toDate);
 
-            var fileName = $"audit-export-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv";
+            var clock = context.RequestServices.GetService<TimeProvider>() ?? TimeProvider.System;
+            var localizer = context.RequestServices.GetRequiredService<IStringLocalizer<SharedResources>>();
+            var fileName = $"audit-export-{clock.GetUtcNow():yyyyMMdd-HHmm}.csv";
             var headers = new CsvExportColumnHeaders(
-                ["OccurredAt", "Source", "EventCode", "Actor", "Subject", "Outcome", "SiteId", "CorrelationId"],
+                [
+                    localizer["AuditTimeColumn"].Value,
+                    localizer["AuditCategoryLabel"].Value,
+                    localizer["AuditEventColumn"].Value,
+                    localizer["AuditActorColumn"].Value,
+                    localizer["AuditSubjectColumn"].Value,
+                    localizer["AuditOutcomeColumn"].Value,
+                    localizer["AuditColSite"].Value,
+                    localizer["AuditColCorrelation"].Value
+                ],
                 fileName);
 
-            context.Response.ContentType = "text/csv; charset=utf-8";
-            context.Response.Headers.ContentDisposition = $"attachment; filename=\"{fileName}\"";
-
-            var res = await exportSlices.StreamAuditCsvAsync(context.Response.Body, scope, query, headers, ct);
+            await using var deferredStream = new DeferredCsvResponseStream(context.Response, fileName);
+            var res = await exportSlices.StreamAuditCsvAsync(deferredStream, scope, query, headers, ct);
             if (!res.Succeeded)
             {
-                return Results.Problem(statusCode: StatusCodes.Status403Forbidden, detail: res.Error?.Code);
+                if (!context.Response.HasStarted)
+                {
+                    var statusCode = string.Equals(res.Error?.Code, AuditErrors.InvalidQuery, StringComparison.Ordinal)
+                        ? StatusCodes.Status400BadRequest
+                        : StatusCodes.Status403Forbidden;
+                    return Results.Problem(statusCode: statusCode, detail: res.Error?.Code);
+                }
+                return Results.Empty;
             }
 
             return Results.Empty;
         });
+    }
+
+    private sealed class DeferredCsvResponseStream(HttpResponse response, string fileName) : Stream
+    {
+        private bool _headersWritten;
+
+        private void EnsureHeaders()
+        {
+            if (_headersWritten) return;
+            _headersWritten = true;
+            response.ContentType = "text/csv; charset=utf-8";
+            response.Headers.ContentDisposition = $"attachment; filename=\"{fileName}\"";
+        }
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => response.Body.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => response.Body.FlushAsync(cancellationToken);
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            EnsureHeaders();
+            response.Body.Write(buffer, offset, count);
+        }
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            EnsureHeaders();
+            return response.Body.WriteAsync(buffer, offset, count, cancellationToken);
+        }
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            EnsureHeaders();
+            return response.Body.WriteAsync(buffer, cancellationToken);
+        }
     }
 }

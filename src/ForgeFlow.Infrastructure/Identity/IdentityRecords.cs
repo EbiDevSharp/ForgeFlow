@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace ForgeFlow.Infrastructure.Identity;
 
-public sealed class ApplicationAccount : IdentityUser<long>
+public sealed class ApplicationAccount : IdentityUser<long>, ForgeFlow.Domain.Common.IHasRowVersion
 {
     public bool IsActive { get; internal set; } = true;
     public string? PreferredCulture { get; internal set; }
@@ -15,6 +15,7 @@ public sealed class ApplicationAccount : IdentityUser<long>
     public DateTime? TwoFactorEnabledAtUtc { get; internal set; }
     public bool RequireTwoFactorSetup { get; internal set; }
     public bool RequirePasswordChange { get; internal set; }
+    public byte[] RowVersion { get; internal set; } = [];
 }
 
 public sealed class UserPreference
@@ -77,7 +78,7 @@ public static class FixedAccessRoles
     public const long DeploymentProvisioner = 3;
 }
 
-public sealed class RoleDefinition
+public sealed class RoleDefinition : ForgeFlow.Domain.Common.IHasRowVersion
 {
     public long Id { get; internal set; }
     public string Name { get; internal set; } = null!;
@@ -86,19 +87,21 @@ public sealed class RoleDefinition
     public byte ScopeKind { get; internal set; }
     public long? OrganizationId { get; internal set; }
     public bool IsActive { get; internal set; }
+    public byte[] RowVersion { get; internal set; } = [];
 }
 
-public sealed class RolePermission
+public sealed class RolePermission : ForgeFlow.Domain.Common.IHasRowVersion
 {
     public long RoleId { get; internal set; }
     public string PermissionCode { get; internal set; } = null!;
     public bool IsActive { get; internal set; }
+    public byte[] RowVersion { get; internal set; } = [];
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
     public void SetActive(bool isActive) => IsActive = isActive;
 }
 
-public sealed class UserPermissionGrant
+public sealed class UserPermissionGrant : ForgeFlow.Domain.Common.IHasRowVersion
 {
     public long Id { get; internal set; }
     public long UserId { get; internal set; }
@@ -107,31 +110,34 @@ public sealed class UserPermissionGrant
     public long? SiteId { get; internal set; }
     public string PermissionCode { get; internal set; } = null!;
     public bool IsActive { get; internal set; }
+    public byte[] RowVersion { get; internal set; } = [];
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
     public void SetActive(bool isActive) => IsActive = isActive;
 }
 
-public sealed class OrganizationMembership
+public sealed class OrganizationMembership : ForgeFlow.Domain.Common.IHasRowVersion
 {
     public long UserId { get; internal set; }
     public long OrganizationId { get; internal set; }
     public bool IsActive { get; internal set; }
+    public byte[] RowVersion { get; internal set; } = [];
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
     public void SetActive(bool isActive) => IsActive = isActive;
 }
-public sealed class SiteMembership
+public sealed class SiteMembership : ForgeFlow.Domain.Common.IHasRowVersion
 {
     public long UserId { get; internal set; }
     public long OrganizationId { get; internal set; }
     public long SiteId { get; internal set; }
     public bool IsActive { get; internal set; }
+    public byte[] RowVersion { get; internal set; } = [];
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
     public void SetActive(bool isActive) => IsActive = isActive;
 }
-public sealed class ScopedRoleAssignment
+public sealed class ScopedRoleAssignment : ForgeFlow.Domain.Common.IHasRowVersion
 {
     public long Id { get; internal set; }
     public long UserId { get; internal set; }
@@ -140,6 +146,7 @@ public sealed class ScopedRoleAssignment
     public long? OrganizationId { get; internal set; }
     public long? SiteId { get; internal set; }
     public bool IsActive { get; internal set; }
+    public byte[] RowVersion { get; internal set; } = [];
     public void Activate() => IsActive = true;
     public void Deactivate() => IsActive = false;
     public void SetActive(bool isActive) => IsActive = isActive;

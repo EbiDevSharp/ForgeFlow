@@ -1,0 +1,191 @@
+@using System.Globalization
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Procurement
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Items
+@using ForgeFlow.Web.Roles
+@inject ProcurementUseCases ProcService
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+@inject CulturePolicy Culture
+
+<BitDialog Width="880px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           Title="@Text["ProcReceiveTitle"]" AriaLabel="@Text["ProcReceiveTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (SelectedOrder is not null)
+        {
+            <div class="write-form">
+                @if (ModalError is not null)
+                {
+                    <p role="alert" class="write-error">@ModalError</p>
+                }
+                <div class="write-grid">
+                    <div class="write-field">
+                        <label for="proc-rcv-wh">@Text["InvWarehouseLabel"]</label>
+                        <select id="proc-rcv-wh" value="@ReceiveWarehouseId" @onchange="OnWarehouseChanged">
+                            @foreach (var w in SiteWarehouses)
+                            {
+                                <option value="@w.Id">@w.Code — @w.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="write-field">
+                        <label for="proc-rcv-doc">@Text["InvDocNumberLabel"]</label>
+                        <input id="proc-rcv-doc" type="text" maxlength="32" value="@ReceiveDocNumber"
+                               @oninput="e => ReceiveDocNumberChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" dir="ltr" />
+                    </div>
+                    <div class="write-field po-field-full">
+                        <label for="proc-rcv-note">@Text["PoNotesLabel"]</label>
+                        <input id="proc-rcv-note" type="text" maxlength="500" value="@ReceiveReferenceNote"
+                               @oninput="e => ReceiveReferenceNoteChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" />
+                    </div>
+                </div>
+
+                @foreach (var row in ReceiveLines)
+                {
+                    <div class="item-sub-card">
+                        <div>
+                            <strong><bdi dir="ltr">@row.ItemCode</bdi> — @row.ItemName</strong>
+                            <span class="write-hint"> (@Text["ProcRemainingCol"]: <bdi dir="ltr">@Format.Number(row.RemainingBaseQuantity) @row.BaseUnitSymbol</bdi>)</span>
+                            @if (row.RequiresLotTracking)
+                            {
+                                <span class="cap-badge">@Text["ItemLotTrackedBadge"]</span>
+                            }
+                            @if (row.QualityControlMode != QualityControlMode.None)
+                            {
+                                <span class="cap-badge">@Text["ItemQcRequiredBadge"]</span>
+                            }
+                        </div>
+                        <div class="proc-receive-row">
+                            <div class="write-field">
+                                <label>@Text["BomQuantityColumn"]</label>
+                                <input type="number" step="0.000001" min="0" @bind="row.Quantity" dir="ltr" />
+                            </div>
+                            <div class="write-field">
+                                <label>@Text["BomLineUnitColumn"]</label>
+                                <select @bind="row.UnitId">
+                                    @foreach (var u in ActiveUnits)
+                                    {
+                                        <option value="@u.Id">@u.Code (@u.Symbol)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="write-field">
+                                <label>@Text["InvLotCodeLabel"]</label>
+                                <input type="text" maxlength="32" @bind="row.LotCode" dir="ltr" />
+                            </div>
+                            <div class="write-field">
+                                <label>@Text["QcLotMfgDateLabel"]</label>
+                                <BitDatePicker @bind-Value="row.ManufactureDate" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                                               ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowGoToToday="true"
+                                               GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                                               NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon"
+                                               NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+                            </div>
+                            <div class="write-field">
+                                <label>@Text["QcLotExpDateLabel"]</label>
+                                <BitDatePicker @bind-Value="row.ExpirationDate" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                                               ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowGoToToday="true"
+                                               GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                                               NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon"
+                                               NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+                            </div>
+                            <div class="write-field">
+                                <label>@Text["PoNotesLabel"]</label>
+                                <input type="text" maxlength="300" @bind="row.Notes" />
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div class="write-actions">
+                    <BitButton IsEnabled="@(!ModalBusy && ReceiveLines.Count > 0)" OnClick="SubmitAsync">@Text["ProcPostReceiptBtn"]</BitButton>
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => IsOpenChanged.InvokeAsync(false)">@Text["WriteCancel"]</BitButton>
+                </div>
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public PurchaseOrderDetails? SelectedOrder { get; set; }
+    [Parameter] public string? ModalError { get; set; }
+    [Parameter] public long ReceiveWarehouseId { get; set; }
+    [Parameter] public EventCallback<long> ReceiveWarehouseIdChanged { get; set; }
+    [Parameter] public IReadOnlyList<WarehouseSummary> SiteWarehouses { get; set; } = [];
+    [Parameter] public string ReceiveDocNumber { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ReceiveDocNumberChanged { get; set; }
+    [Parameter] public string? ReceiveReferenceNote { get; set; }
+    [Parameter] public EventCallback<string?> ReceiveReferenceNoteChanged { get; set; }
+    [Parameter] public List<PurchaseOrders.ReceiveLineRow> ReceiveLines { get; set; } = [];
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public string PickerDateFormat { get; set; } = "yyyy-MM-dd";
+    [Parameter] public BitIconInfo? TodayIcon { get; set; }
+    [Parameter] public BitIconInfo? CalendarIcon { get; set; }
+    [Parameter] public BitIconInfo? NextNavIcon { get; set; }
+    [Parameter] public BitIconInfo? PrevNavIcon { get; set; }
+    [Parameter] public BitIconInfo? NextYearIcon { get; set; }
+    [Parameter] public BitIconInfo? PrevYearIcon { get; set; }
+    [Parameter] public BitIconInfo? CloseIcon { get; set; }
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public EventCallback<(PurchaseOrderDetails Order, string DocumentNumber)> OnReceiptPosted { get; set; }
+    [Parameter] public EventCallback<string?> ModalErrorChanged { get; set; }
+    [Parameter] public bool ModalBusy { get; set; }
+    [Parameter] public EventCallback<bool> ModalBusyChanged { get; set; }
+
+    private async Task SubmitAsync()
+    {
+        if (CurrentScope is null || SelectedOrder is null) return;
+        await ModalBusyChanged.InvokeAsync(true);
+        await ModalErrorChanged.InvokeAsync(null);
+        try
+        {
+            var orgId = CurrentScope switch
+            {
+                OrganizationScope.Organization o => o.OrganizationId,
+                OrganizationScope.Site s => s.OrganizationId,
+                _ => 0L
+            };
+            var linesToReceive = ReceiveLines
+                .Where(l => l.Quantity > 0m)
+                .Select(l => new ReceivePurchaseOrderLineInput(
+                    l.LineId,
+                    l.Quantity,
+                    l.UnitId,
+                    l.LotCode,
+                    l.ManufactureDate.HasValue ? DateOnly.FromDateTime(l.ManufactureDate.Value.Date) : null,
+                    l.ExpirationDate.HasValue ? DateOnly.FromDateTime(l.ExpirationDate.Value.Date) : null,
+                    l.Notes))
+                .ToArray();
+
+            var res = await ProcService.ReceiveOrder(CurrentScope, new ReceivePurchaseOrderRequest(
+                orgId,
+                SelectedOrder.Summary.Id,
+                ReceiveWarehouseId,
+                ReceiveDocNumber,
+                ReceiveReferenceNote,
+                null,
+                SelectedOrder.Summary.RowVersion,
+                linesToReceive));
+
+            if (!res.Succeeded)
+            {
+                await ModalErrorChanged.InvokeAsync(Text[RolePermissionLocalization.FailureKey(res.Error!.Code)]);
+                return;
+            }
+            await OnReceiptPosted.InvokeAsync((res.Value!.Order, res.Value.DocumentNumber));
+        }
+        finally { await ModalBusyChanged.InvokeAsync(false); }
+    }
+
+    private Task OnWarehouseChanged(ChangeEventArgs e)
+        => long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+            ? ReceiveWarehouseIdChanged.InvokeAsync(id)
+            : Task.CompletedTask;
+}

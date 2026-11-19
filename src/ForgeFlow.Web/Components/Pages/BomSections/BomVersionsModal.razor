@@ -12,7 +12,7 @@
 @inject IStringLocalizer<SharedResources> Text
 @implements IDisposable
 
-<BitDialog IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged" Title="@Text["BomVersionsHeading"]" Width="740px" MaxWidth="calc(100vw - 24px)"
+<BitDialog IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged" OnDismissing="OnDialogDismissing" Title="@Text["BomVersionsHeading"]" Width="740px" MaxWidth="calc(100vw - 24px)"
            Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
            AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]">
     <Body>
@@ -198,16 +198,14 @@
 
     private DateTimeOffset? NewVerFromOffset
     {
-        get => ToDateTimeOffset(newVerFromDate);
-        set { if (value.HasValue) newVerFromDate = DateOnly.FromDateTime(value.Value.Date); }
+        get => DatePickerHelper.ToDateTimeOffset(newVerFromDate);
+        set { if (DatePickerHelper.FromDateTimeOffset(value) is { } d) newVerFromDate = d; }
     }
     private DateTimeOffset? NewVerToOffset
     {
-        get => newVerToDate.HasValue ? ToDateTimeOffset(newVerToDate.Value) : null;
-        set => newVerToDate = value.HasValue ? DateOnly.FromDateTime(value.Value.Date) : null;
+        get => DatePickerHelper.ToDateTimeOffset(newVerToDate);
+        set => newVerToDate = DatePickerHelper.FromDateTimeOffset(value);
     }
-    private static DateTimeOffset ToDateTimeOffset(DateOnly date) =>
-        new(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
 
     public void Open(BomDetails bom)
     {
@@ -221,6 +219,13 @@
         newVerUnitId = primaryItem?.BaseUnitId ?? (ActiveUnits.Count > 0 ? ActiveUnits[0].Id : 0);
         bomVersionListError = null;
         IsOpen = true;
+        _ = IsOpenChanged.InvokeAsync(true);
+        try { StateHasChanged(); } catch (InvalidOperationException) { }
+    }
+
+    private void OnDialogDismissing(BitDialogDismissArgs args)
+    {
+        if (bomSaving) args.Cancel = true;
     }
 
     private async Task OnIsOpenChanged(bool open)

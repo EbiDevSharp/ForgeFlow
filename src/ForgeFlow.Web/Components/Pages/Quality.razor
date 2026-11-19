@@ -79,106 +79,32 @@
     }
     else
     {
-        <div class="read-tab-bar" role="tablist" aria-label="@Text["QualityControl"]">
-            <button type="button" role="tab" aria-selected="@(activeTab == TabInspections)"
-                    class="read-tab-btn @(activeTab == TabInspections ? "active" : string.Empty)"
-                    @onclick="() => SwitchTabAsync(TabInspections)">@Text["QcTabInspections"]</button>
-            <button type="button" role="tab" aria-selected="@(activeTab == TabSpecs)"
-                    class="read-tab-btn @(activeTab == TabSpecs ? "active" : string.Empty)"
-                    @onclick="() => SwitchTabAsync(TabSpecs)">@Text["QcTabSpecs"]</button>
-            <button type="button" role="tab" aria-selected="@(activeTab == TabParameters)"
-                    class="read-tab-btn @(activeTab == TabParameters ? "active" : string.Empty)"
-                    @onclick="() => SwitchTabAsync(TabParameters)">@Text["QcTabParameters"]</button>
-            <button type="button" role="tab" aria-selected="@(activeTab == TabLots)"
-                    class="read-tab-btn @(activeTab == TabLots ? "active" : string.Empty)"
-                    @onclick="() => SwitchTabAsync(TabLots)">@Text["QcTabLots"]</button>
-        </div>
-
-        <div class="read-toolbar-card">
-            @if (available.Count > 1)
-            {
-                <div class="read-field">
-                    <label for="qc-scope">@Text["ReadScope"]</label>
-                    <select id="qc-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
-                        @for (var i = 0; i < available.Count; i++)
-                        {
-                            <option value="@i">@ScopeLabel(available[i])</option>
-                        }
-                    </select>
-                </div>
-            }
-
-            @if (activeTab == TabInspections && CurrentScope is OrganizationScope.Organization && authorizedSites.Count > 1)
-            {
-                <div class="read-field">
-                    <label for="qc-site-filter">@Text["PoSiteColumn"]</label>
-                    <select id="qc-site-filter" value="@siteFilter" @onchange="ChangeSiteFilterAsync">
-                        <option value="0">@Text["PoAllSitesOption"]</option>
-                        @foreach (var s in authorizedSites)
-                        {
-                            <option value="@s.Id">@s.Code — @s.Name</option>
-                        }
-                    </select>
-                </div>
-            }
-
-            @if (activeTab == TabInspections)
-            {
-                <div class="read-field">
-                    <label for="qc-status-filter">@Text["ReadStatus"]</label>
-                    <select id="qc-status-filter" value="@statusFilter" @onchange="ChangeStatusFilterAsync">
-                        <option value="">@Text["PoAllStatusesOption"]</option>
-                        <option value="@((byte)QualityInspectionStatus.Pending)">@StatusLabel(QualityInspectionStatus.Pending)</option>
-                        <option value="@((byte)QualityInspectionStatus.InReview)">@StatusLabel(QualityInspectionStatus.InReview)</option>
-                        <option value="@((byte)QualityInspectionStatus.Completed)">@StatusLabel(QualityInspectionStatus.Completed)</option>
-                        <option value="@((byte)QualityInspectionStatus.Cancelled)">@StatusLabel(QualityInspectionStatus.Cancelled)</option>
-                    </select>
-                </div>
-            }
-            else if (activeTab == TabLots)
-            {
-                <label class="read-inactive">
-                    <input type="checkbox" checked="@onlyExpiringLots" @onchange="ToggleExpiringLotsAsync" />
-                    <span>@Text["QcOnlyExpiringLabel"]</span>
-                </label>
-            }
-            else if (activeTab == TabParameters)
-            {
-                <label class="read-inactive">
-                    <input type="checkbox" checked="@includeInactiveParams" @onchange="ToggleInactiveParamsAsync" />
-                    <span>@Text["ReadInactive"]</span>
-                </label>
-            }
-            else if (activeTab == TabSpecs)
-            {
-                <div class="read-field">
-                    <label for="qc-spec-target-filter">@Text["QcSpecTargetKindLabel"]</label>
-                    <select id="qc-spec-target-filter" value="@specTargetFilter" @onchange="ChangeSpecTargetFilterAsync">
-                        <option value="">@Text["PoAllStatusesOption"]</option>
-                        <option value="@((byte)QualitySpecTargetKind.Item)">@Text["QcTargetItem"]</option>
-                        <option value="@((byte)QualitySpecTargetKind.Classification)">@Text["QcTargetClassification"]</option>
-                    </select>
-                </div>
-                <div class="read-field">
-                    <label for="qc-spec-ckpt-filter">@Text["QcSpecCheckpointLabel"]</label>
-                    <select id="qc-spec-ckpt-filter" value="@specCheckpointFilter" @onchange="ChangeSpecCheckpointFilterAsync">
-                        <option value="">@Text["PoAllStatusesOption"]</option>
-                        <option value="@((byte)QualitySpecCheckpoint.Incoming)">@Text["QcCheckpointIncoming"]</option>
-                        <option value="@((byte)QualitySpecCheckpoint.Production)">@Text["QcCheckpointProduction"]</option>
-                        <option value="@((byte)QualitySpecCheckpoint.All)">@Text["QcCheckpointAll"]</option>
-                    </select>
-                </div>
-                <label class="read-inactive">
-                    <input type="checkbox" checked="@includeInactiveSpecs" @onchange="ToggleInactiveSpecsAsync" />
-                    <span>@Text["ReadInactive"]</span>
-                </label>
-            }
-
-            <div class="read-field">
-                <label for="qc-search">@Text["ReadSearch"]</label>
-                <input id="qc-search" type="search" value="@search" @oninput="OnSearchInput" maxlength="64" placeholder="@Text["ReadSearchPlaceholder"]" />
-            </div>
-        </div>
+        <QualityToolbarSection
+            ActiveTab="@activeTab"
+            OnSwitchTab="SwitchTabAsync"
+            AvailableScopes="@available"
+            ScopeIndex="@scopeIndex"
+            OnScopeChanged="ChangeScopeAsync"
+            ScopeLabel="@ScopeLabel"
+            CurrentScope="@CurrentScope"
+            AuthorizedSites="@authorizedSites"
+            SiteFilter="@siteFilter"
+            OnSiteFilterChanged="ChangeSiteFilterAsync"
+            StatusFilter="@statusFilter"
+            OnStatusFilterChanged="ChangeStatusFilterAsync"
+            StatusLabel="@StatusLabel"
+            OnlyExpiringLots="@onlyExpiringLots"
+            OnToggleExpiringLots="ToggleExpiringLotsAsync"
+            IncludeInactiveParams="@includeInactiveParams"
+            OnToggleInactiveParams="ToggleInactiveParamsAsync"
+            SpecTargetFilter="@specTargetFilter"
+            OnSpecTargetFilterChanged="ChangeSpecTargetFilterAsync"
+            SpecCheckpointFilter="@specCheckpointFilter"
+            OnSpecCheckpointFilterChanged="ChangeSpecCheckpointFilterAsync"
+            IncludeInactiveSpecs="@includeInactiveSpecs"
+            OnToggleInactiveSpecs="ToggleInactiveSpecsAsync"
+            Search="@search"
+            OnSearchInput="OnSearchInput" />
 
         @if (activeTab == TabInspections)
         {

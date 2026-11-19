@@ -47,20 +47,20 @@ public sealed class ComponentStateLifecycleTests
     [InlineData("Pages/Traceability.razor", "report.BackwardEdges")]
     [InlineData("Pages/Traceability.razor", "report.ForwardEdges")]
     [InlineData("Pages/Traceability.razor", "root.Movements")]
-    [InlineData("Pages/Reports.razor", "selectedShortageItem.Orders")]
-    [InlineData("Pages/Reports.razor", "selectedVarianceDetail.Inputs")]
-    [InlineData("Pages/Reports.razor", "selectedVarianceDetail.Outputs")]
+    [InlineData("Pages/ReportSections/ReportDetailModals.razor", "SelectedShortageItem.Orders")]
+    [InlineData("Pages/ReportSections/ReportDetailModals.razor", "SelectedVarianceDetail.Inputs")]
+    [InlineData("Pages/ReportSections/ReportDetailModals.razor", "SelectedVarianceDetail.Outputs")]
     [InlineData("Pages/BomSections/BomSimulatorPanel.razor", "simExplosion.ConsumedInputs")]
     [InlineData("Pages/BomSections/BomSimulatorPanel.razor", "simExplosion.ProducedOutputs")]
     [InlineData("Pages/BomSections/BomVersionWorkbenchModal.razor", "selectedVersion.Inputs")]
     [InlineData("Pages/BomSections/BomVersionWorkbenchModal.razor", "selectedVersion.Outputs")]
-    [InlineData("Pages/Inventory.razor", "selectedTxn.Entries")]
+    [InlineData("Pages/InventorySections/InventoryDetailsModal.razor", "SelectedTxn.Entries")]
     [InlineData("Pages/SalesSections/SalesOrderDetailModal.razor", "Order.Lines")]
     [InlineData("Pages/SalesSections/SalesOrderDetailModal.razor", "Reservations")]
-    [InlineData("Pages/ProductionOrders.razor", "selectedOrder.Inputs")]
-    [InlineData("Pages/ProductionOrders.razor", "orderReservations")]
-    [InlineData("Pages/PurchaseOrders.razor", "selectedOrder.Lines")]
-    [InlineData("Pages/PurchaseOrders.razor", "selectedOrder.Receipts")]
+    [InlineData("Pages/ProductionOrderSections/ProductionOrderOperationsAndInputsSection.razor", "SelectedOrder.Inputs")]
+    [InlineData("Pages/ProductionOrderSections/ProductionOrderOperationsAndInputsSection.razor", "OrderReservations")]
+    [InlineData("Pages/PurchaseOrderSections/PurchaseOrderDetailModal.razor", "SelectedOrder.Lines")]
+    [InlineData("Pages/PurchaseOrderSections/PurchaseOrderDetailModal.razor", "SelectedOrder.Receipts")]
     [InlineData("Pages/QualitySections/QualityInspectionDetailsModal.razor", "selectedInspection.Lines")]
     public void Razor_Table_Collections_Use_Virtualize_With_Tr_SpacerElement(string relativePath, string expectedCollection)
     {
@@ -77,8 +77,8 @@ public sealed class ComponentStateLifecycleTests
     [Theory]
     [InlineData("Pages/Audit.razor", "@bind-IsOpen:after=\"OnDetailsOpenChanged\"")]
     [InlineData("Pages/Errors.razor", "@bind-IsOpen:after=\"OnDetailsOpenChanged\"")]
-    [InlineData("Pages/Reports.razor", "@bind-IsOpen:after=\"OnShortageModalOpenChanged\"")]
-    [InlineData("Pages/Reports.razor", "@bind-IsOpen:after=\"OnVarianceModalOpenChanged\"")]
+    [InlineData("Pages/Reports.razor", "@bind-ShortageOpen:after=\"OnShortageModalOpenChanged\"")]
+    [InlineData("Pages/Reports.razor", "@bind-VarianceOpen:after=\"OnVarianceModalOpenChanged\"")]
     [InlineData("Pages/Boms.razor", "@bind-IsOpen:after=\"OnBomVersionsOpenChanged\"")]
     [InlineData("Pages/Items.razor", "@bind-IsOpen:after=\"OnItemModalOpenChanged\"")]
     [InlineData("Pages/Items.razor", "@bind-IsOpen:after=\"OnClsModalOpenChanged\"")]
@@ -153,15 +153,21 @@ public sealed class ComponentStateLifecycleTests
     public void ProductionOrders_Dispose_Cleans_Order_And_Context_State()
     {
         var po = new ProductionOrders();
-        var selectedOrderField = typeof(ProductionOrders).GetField("selectedOrder", BindingFlags.NonPublic | BindingFlags.Instance);
-        var editContextPairsField = typeof(ProductionOrders).GetField("editContextPairs", BindingFlags.NonPublic | BindingFlags.Instance);
+        var newContextPairsField = typeof(ProductionOrders).GetField("newContextPairs", BindingFlags.NonPublic | BindingFlags.Instance);
+        var wb = new ForgeFlow.Web.Components.Pages.ProductionOrderSections.ProductionOrderWorkbenchModal();
+        var selectedOrderField = typeof(ForgeFlow.Web.Components.Pages.ProductionOrderSections.ProductionOrderWorkbenchModal).GetField("selectedOrder", BindingFlags.NonPublic | BindingFlags.Instance);
+        var editContextPairsField = typeof(ForgeFlow.Web.Components.Pages.ProductionOrderSections.ProductionOrderWorkbenchModal).GetField("editContextPairs", BindingFlags.NonPublic | BindingFlags.Instance);
 
+        Assert.NotNull(newContextPairsField);
         Assert.NotNull(selectedOrderField);
         Assert.NotNull(editContextPairsField);
 
         po.Dispose();
+        wb.ResetState();
 
-        Assert.Null(selectedOrderField.GetValue(po));
+        Assert.Empty((System.Collections.IList)newContextPairsField.GetValue(po)!);
+        Assert.Null(selectedOrderField.GetValue(wb));
+        Assert.Empty((System.Collections.IList)editContextPairsField.GetValue(wb)!);
     }
 
     [Fact]
@@ -183,16 +189,20 @@ public sealed class ComponentStateLifecycleTests
     public void Users_Dispose_Cleans_Perm_And_SelectedUser_State()
     {
         var users = new Users();
-        var selectedField = typeof(Users).GetField("selected", BindingFlags.NonPublic | BindingFlags.Instance);
-        var permSnapshotField = typeof(Users).GetField("permSnapshot", BindingFlags.NonPublic | BindingFlags.Instance);
+        var detail = new ForgeFlow.Web.Components.Pages.UserSections.UserDetailModal();
+        var perm = new ForgeFlow.Web.Components.Pages.UserSections.UserPermissionsModal();
+        var selectedField = typeof(ForgeFlow.Web.Components.Pages.UserSections.UserDetailModal).GetField("selected", BindingFlags.NonPublic | BindingFlags.Instance);
+        var permSnapshotField = typeof(ForgeFlow.Web.Components.Pages.UserSections.UserPermissionsModal).GetField("permSnapshot", BindingFlags.NonPublic | BindingFlags.Instance);
 
         Assert.NotNull(selectedField);
         Assert.NotNull(permSnapshotField);
 
         users.Dispose();
+        detail.ResetOnClosed();
+        perm.ResetState();
 
-        Assert.Null(selectedField.GetValue(users));
-        Assert.Null(permSnapshotField.GetValue(users));
+        Assert.Null(selectedField.GetValue(detail));
+        Assert.Null(permSnapshotField.GetValue(perm));
     }
 
     [Fact]

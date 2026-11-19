@@ -1,0 +1,81 @@
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Procurement
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Domain.Organizations
+@using ForgeFlow.Domain.Procurement
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-toolbar-card">
+    @if (AvailableScopes.Count > 1)
+    {
+        <div class="read-field">
+            <label for="proc-scope">@Text["ReadScope"]</label>
+            <select id="proc-scope" aria-label="@Text["ReadScope"]" value="@ScopeIndex" @onchange="OnScopeChanged">
+                @for (var i = 0; i < AvailableScopes.Count; i++)
+                {
+                    <option value="@i">@ScopeLabel(AvailableScopes[i])</option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (CurrentScope is OrganizationScope.Organization && AuthorizedSites.Count > 1)
+    {
+        <div class="read-field">
+            <label for="proc-site-filter">@Text["PoSiteColumn"]</label>
+            <select id="proc-site-filter" value="@SiteFilter" @onchange="OnSiteFilterChanged">
+                <option value="0">@Text["PoAllSitesOption"]</option>
+                @foreach (var s in AuthorizedSites)
+                {
+                    <option value="@s.Id">@s.Code — @s.Name</option>
+                }
+            </select>
+        </div>
+    }
+
+    <div class="read-field">
+        <label for="proc-sup-filter">@Text["ProcSupplierLabel"]</label>
+        <select id="proc-sup-filter" value="@SupplierFilter" @onchange="OnSupplierFilterChanged">
+            <option value="0">@Text["ProcAllSuppliersOption"]</option>
+            @foreach (var sup in ActiveSuppliers)
+            {
+                <option value="@sup.Id">@sup.Code — @sup.Name</option>
+            }
+        </select>
+    </div>
+
+    <div class="read-field">
+        <label for="proc-status-filter">@Text["PoStatusColumn"]</label>
+        <select id="proc-status-filter" value="@StatusFilter" @onchange="OnStatusFilterChanged">
+            <option value="">@Text["PoAllStatusesOption"]</option>
+            @foreach (var st in Enum.GetValues<PurchaseOrderStatus>())
+            {
+                <option value="@((byte)st)">@StatusLabel(st)</option>
+            }
+        </select>
+    </div>
+
+    <div class="read-field">
+        <label for="proc-search">@Text["ReadSearch"]</label>
+        <input id="proc-search" type="search" value="@Search" @oninput="OnSearchInput" maxlength="64" placeholder="@Text["ReadSearch"]" />
+    </div>
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<OrganizationScope> AvailableScopes { get; set; } = [];
+    [Parameter] public int ScopeIndex { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnScopeChanged { get; set; }
+    [Parameter] public Func<OrganizationScope, string> ScopeLabel { get; set; } = _ => string.Empty;
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public IReadOnlyList<ProductionOrderSiteInfo> AuthorizedSites { get; set; } = [];
+    [Parameter] public long SiteFilter { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnSiteFilterChanged { get; set; }
+    [Parameter] public IReadOnlyList<SupplierSummary> ActiveSuppliers { get; set; } = [];
+    [Parameter] public long SupplierFilter { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnSupplierFilterChanged { get; set; }
+    [Parameter] public string StatusFilter { get; set; } = string.Empty;
+    [Parameter] public EventCallback<ChangeEventArgs> OnStatusFilterChanged { get; set; }
+    [Parameter] public Func<PurchaseOrderStatus, string> StatusLabel { get; set; } = _ => string.Empty;
+    [Parameter] public string Search { get; set; } = string.Empty;
+    [Parameter] public EventCallback<ChangeEventArgs> OnSearchInput { get; set; }
+}

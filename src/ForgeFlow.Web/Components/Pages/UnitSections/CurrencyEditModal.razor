@@ -1,0 +1,150 @@
+@using System.Globalization
+@using ForgeFlow.Application.Units
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="580px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@CurrencyModalOpen" IsOpenChanged="CurrencyModalOpenChanged"
+           OnDismissing="OnCurrencyModalDismissing"
+           Title="@Text[CurrencyEditMode ? "CurrencyEditTitle" : "CurrencyDetailTitle"]"
+           AriaLabel="@Text[CurrencyEditMode ? "CurrencyEditTitle" : "CurrencyDetailTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (SelectedCurrency is not null)
+        {
+            <div class="audit-modal-body">
+                @if (!CurrencyEditMode)
+                {
+                    <div class="audit-modal-title-row">
+                        <strong class="audit-modal-code" dir="ltr">@SelectedCurrency.Code</strong>
+                        <span class="read-badge @(SelectedCurrency.IsActive ? "active" : "inactive")">
+                            @Text[SelectedCurrency.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                        </span>
+                    </div>
+                    <div class="audit-meta-card">
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["ReadName"]</span>
+                            <span class="audit-meta-val">@SelectedCurrency.Name</span>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitSymbolLabel"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@SelectedCurrency.Symbol</bdi>
+                        </div>
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["UnitPrecisionLabel"]</span>
+                            <bdi class="audit-meta-val" dir="ltr">@SelectedCurrency.PrecisionScale</bdi>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <form class="write-panel" @onsubmit:preventDefault>
+                        <div class="write-meta">
+                            <span class="write-code" dir="ltr">@SelectedCurrency.Code</span>
+                            <span class="read-badge @(SelectedCurrency.IsActive ? "active" : "inactive")">
+                                @Text[SelectedCurrency.IsActive ? "ReadActive" : "ReadInactiveStatus"]
+                            </span>
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-cur-name">@Text["ReadName"]</label>
+                            <input id="edit-cur-name" value="@EditCurrencyName" @oninput="e => EditCurrencyNameChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" maxlength="200"
+                                   disabled="@(!SelectedCurrency.IsActive || CurrencySaving)" />
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-cur-symbol">@Text["UnitSymbolLabel"]</label>
+                            <input id="edit-cur-symbol" value="@EditCurrencySymbol" @oninput="e => EditCurrencySymbolChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" maxlength="32"
+                                   disabled="@(!SelectedCurrency.IsActive || CurrencySaving)" />
+                        </div>
+                        <div class="read-field">
+                            <label for="edit-cur-precision">@Text["UnitPrecisionLabel"]</label>
+                            <select id="edit-cur-precision" value="@EditCurrencyPrecision" @onchange="OnPrecisionChanged" disabled="@(!SelectedCurrency.IsActive || CurrencySaving)">
+                                @for (byte p = 0; p <= 6; p++)
+                                {
+                                    <option value="@p">@p</option>
+                                }
+                            </select>
+                        </div>
+
+                        @if (CurrencyDiscardConfirm)
+                        {
+                            <div class="write-confirm" role="alertdialog" aria-labelledby="cur-discard-text">
+                                <p id="cur-discard-text">@Text["WriteDiscardConfirm"]</p>
+                                <div class="write-actions">
+                                    <BitButton Size="BitSize.Small" OnClick="OnConfirmCurrencyDiscard">@Text["WriteDiscard"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => CurrencyDiscardConfirmChanged.InvokeAsync(false)">@Text["WriteKeepEditing"]</BitButton>
+                                </div>
+                            </div>
+                        }
+
+                        @if (!CurrencyDiscardConfirm && CurrencyConfirmToggle is null)
+                        {
+                            <div class="write-actions">
+                                @if (SelectedCurrency.IsActive)
+                                {
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!CurrencySaving && CurrencyEditDirty)" OnClick="OnSubmitCurrencyUpdate">@Text["WriteSave"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!CurrencySaving)" OnClick="() => CurrencyConfirmToggleChanged.InvokeAsync(false)">@Text["WriteDeactivate"]</BitButton>
+                                }
+                                else
+                                {
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!CurrencySaving)" OnClick="() => CurrencyConfirmToggleChanged.InvokeAsync(true)">@Text["WriteActivate"]</BitButton>
+                                }
+                            </div>
+                        }
+                        else if (!CurrencyDiscardConfirm && CurrencyConfirmToggle is bool targetActive)
+                        {
+                            <div class="write-confirm" role="alertdialog" aria-labelledby="cur-confirm-text">
+                                <p id="cur-confirm-text">@Text[targetActive ? "WriteConfirmActivate" : "WriteConfirmDeactivate", SelectedCurrency.Name]</p>
+                                <div class="write-actions">
+                                    <BitButton Size="BitSize.Small" IsEnabled="@(!CurrencySaving)" OnClick="OnExecuteCurrencyToggle">@Text["WriteConfirm"]</BitButton>
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!CurrencySaving)" OnClick="() => CurrencyConfirmToggleChanged.InvokeAsync(null)">@Text["WriteCancel"]</BitButton>
+                                </div>
+                            </div>
+                        }
+
+                        @if (CurrencySaving) { <p role="status">@Text["WriteSaving"]</p> }
+                        @if (CurrencySaved && !CurrencySaving) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+                        @if (CurrencyError is not null)
+                        {
+                            <p role="alert" class="write-error">@Text[CurrencyError]</p>
+                            @if (CurrencyError == "WriteConflict")
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="OnReloadSelectedCurrency">@Text["WriteReload"]</BitButton>
+                            }
+                        }
+                    </form>
+                }
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public bool CurrencyModalOpen { get; set; }
+    [Parameter] public EventCallback<bool> CurrencyModalOpenChanged { get; set; }
+    [Parameter] public EventCallback<BitDialogDismissArgs> OnCurrencyModalDismissing { get; set; }
+    [Parameter] public bool CurrencyEditMode { get; set; }
+    [Parameter] public CurrencySummary? SelectedCurrency { get; set; }
+    [Parameter] public string EditCurrencyName { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> EditCurrencyNameChanged { get; set; }
+    [Parameter] public string EditCurrencySymbol { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> EditCurrencySymbolChanged { get; set; }
+    [Parameter] public byte EditCurrencyPrecision { get; set; }
+    [Parameter] public EventCallback<byte> EditCurrencyPrecisionChanged { get; set; }
+    [Parameter] public bool CurrencySaving { get; set; }
+    [Parameter] public bool CurrencySaved { get; set; }
+    [Parameter] public bool CurrencyEditDirty { get; set; }
+    [Parameter] public string? CurrencyError { get; set; }
+    [Parameter] public bool CurrencyDiscardConfirm { get; set; }
+    [Parameter] public EventCallback<bool> CurrencyDiscardConfirmChanged { get; set; }
+    [Parameter] public EventCallback OnConfirmCurrencyDiscard { get; set; }
+    [Parameter] public bool? CurrencyConfirmToggle { get; set; }
+    [Parameter] public EventCallback<bool?> CurrencyConfirmToggleChanged { get; set; }
+    [Parameter] public EventCallback OnSubmitCurrencyUpdate { get; set; }
+    [Parameter] public EventCallback OnExecuteCurrencyToggle { get; set; }
+    [Parameter] public EventCallback OnReloadSelectedCurrency { get; set; }
+
+    private Task OnPrecisionChanged(ChangeEventArgs e)
+        => byte.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var p)
+            ? EditCurrencyPrecisionChanged.InvokeAsync(p)
+            : Task.CompletedTask;
+}

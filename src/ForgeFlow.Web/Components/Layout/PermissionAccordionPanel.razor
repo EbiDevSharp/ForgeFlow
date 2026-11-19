@@ -296,7 +296,7 @@
         if (RoleGrantingNames is null || !RoleGrantingNames.TryGetValue(permissionCode, out var rawNames) || rawNames.Count == 0)
             return Text[RolePermissionLocalization.OperationLabelKey(permissionCode)].Value;
         var localizedNames = rawNames.Select(n => RolePermissionLocalization.RoleDisplayName(n, n is "OrganizationAdministrator" or "SiteOperator" or "DeploymentProvisioner", Text));
-        return Text["PermTooltipViaRole", string.Join("، ", localizedNames)].Value;
+        return Text["PermTooltipViaRole", string.Join(Text["ListSeparator"].Value, localizedNames)].Value;
     }
 
     private static string PctCss(double value) => $"{value.ToString("0.#", CultureInfo.InvariantCulture)}%";

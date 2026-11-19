@@ -6,7 +6,7 @@
 @inject IStringLocalizer<SharedResources> Text
 @implements IDisposable
 
-<ForgeFormDialog Width="540px" IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged"
+<ForgeFormDialog Width="540px" IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged" IsBusy="@saving"
                  Title="@Text["SalesReserveStockButton"]"
                  CloseTitle="@Text["ReadClose"]">
     <ChildContent>

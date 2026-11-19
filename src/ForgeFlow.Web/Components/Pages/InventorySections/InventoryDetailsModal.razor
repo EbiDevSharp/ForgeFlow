@@ -1,0 +1,165 @@
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Domain.Inventory
+@using ForgeFlow.Web.Roles
+@inject InventoryUseCases InvService
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           Title="@Text["InvTxnDetailsTitle"]" AriaLabel="@Text["InvTxnDetailsTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        @if (SelectedTxn is not null)
+        {
+            var t = SelectedTxn.Summary;
+            <div class="audit-modal-body">
+                <div class="audit-modal-title-row">
+                    <span class="audit-modal-code" dir="ltr">@t.DocumentNumber</span>
+                    <span class="read-badge @TxnBadgeClass(t.TransactionType)">@TxnTypeLabel(t.TransactionType)</span>
+                </div>
+                @if (DetailsError is not null)
+                {
+                    <p role="alert" class="write-error">@Text[DetailsError]</p>
+                }
+                <div class="audit-meta-card">
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["InvWarehouseLabel"]</span>
+                        <span class="audit-meta-val" dir="ltr">@t.WarehouseCode — @t.WarehouseName@(t.DestinationWarehouseCode is not null ? $" -> {t.DestinationWarehouseCode}" : string.Empty)</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(t.ProductionOrderNumber))
+                    {
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["PoOrderNumberColumn"]</span>
+                            <span class="audit-meta-val" dir="ltr">@t.ProductionOrderNumber</span>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(t.PurchaseOrderNumber))
+                    {
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["ProcPoNumberLabel"]</span>
+                            <span class="audit-meta-val" dir="ltr">@t.PurchaseOrderNumber</span>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(t.QualityInspectionNumber))
+                    {
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["QualityControl"]</span>
+                            <span class="audit-meta-val" dir="ltr"><a class="qc-lot-link" href="/quality">@t.QualityInspectionNumber</a></span>
+                        </div>
+                    }
+                    <div class="audit-meta-row">
+                        <span class="audit-meta-label">@Text["AuditTimeColumn"]</span>
+                        <bdi class="audit-meta-val" dir="ltr">@Format.Timestamp(t.PostedAtUtc)</bdi>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(t.ReferenceNote))
+                    {
+                        <div class="audit-meta-row">
+                            <span class="audit-meta-label">@Text["PoNotesLabel"]</span>
+                            <span class="audit-meta-val">@t.ReferenceNote</span>
+                        </div>
+                    }
+                </div>
+
+                <div class="audit-modal-section">
+                    <h3 class="audit-section-heading">@Text["InvLinesSection"]</h3>
+                    <div class="audit-fields-box">
+                        <table class="audit-fields-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>@Text["InvWarehouseLabel"]</th>
+                                    <th>@Text["BomLineItemColumn"]</th>
+                                    <th>@Text["InvLotCodeLabel"]</th>
+                                    <th>@Text["InvEnteredQtyLabel"]</th>
+                                    <th>@Text["InvBaseQtyDeltaLabel"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <Virtualize Items="SelectedTxn.Entries.AsCollection()" Context="line" ItemSize="40" OverscanCount="5" SpacerElement="tr">
+                                    <tr>
+                                        <td>@line.LineNumber</td>
+                                        <td dir="ltr">@line.WarehouseCode</td>
+                                        <td><span dir="ltr">@line.ItemCode</span> — @line.ItemName</td>
+                                        <td dir="ltr">@(string.IsNullOrEmpty(line.LotCode) ? "—" : line.LotCode)</td>
+                                        <td dir="ltr">@Format.Number(line.EnteredQuantity) @line.EnteredUnitSymbol</td>
+                                        <td dir="ltr">
+                                            <span class="@(line.BaseQuantityDelta >= 0m ? "inv-delta-in" : "inv-delta-out")">
+                                                @(line.BaseQuantityDelta > 0m ? "+" : string.Empty)@Format.Number(line.BaseQuantityDelta) @line.BaseUnitSymbol
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </Virtualize>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                @if (ScopeCanManage && t.TransactionType is not (InventoryTransactionType.Reversal or InventoryTransactionType.QualityScrap) && !t.IsReversed)
+                {
+                    <div class="po-context-card">
+                        <strong>@Text["InvReverseSection"]</strong>
+                        <div class="po-form-grid">
+                            <div class="write-field">
+                                <label for="inv-rev-doc">@Text["InvReverseDocNumLabel"]</label>
+                                <input id="inv-rev-doc" type="text" maxlength="32" class="@(InvRevAllowOverride ? string.Empty : "proc-input-readonly")"
+                                       value="@ReverseDocNumber" @oninput="e => ReverseDocNumberChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"
+                                       readonly="@(!InvRevAllowOverride)" dir="ltr" />
+                            </div>
+                            <div class="write-field">
+                                <label for="inv-rev-note">@Text["PoNotesLabel"]</label>
+                                <input id="inv-rev-note" type="text" maxlength="500" value="@ReverseNote"
+                                       @oninput="e => ReverseNoteChanged.InvokeAsync(e.Value?.ToString())" />
+                            </div>
+                        </div>
+                        <div class="write-actions">
+                            <BitButton Variant="BitVariant.Outline" IsEnabled="@(!ModalBusy && (!InvRevAllowOverride || !string.IsNullOrWhiteSpace(ReverseDocNumber)))" OnClick="ReverseAsync">
+                                @Text["InvReverseBtn"]
+                            </BitButton>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public InventoryTransactionDetails? SelectedTxn { get; set; }
+    [Parameter] public string? DetailsError { get; set; }
+    [Parameter] public bool ScopeCanManage { get; set; }
+    [Parameter] public bool InvRevAllowOverride { get; set; }
+    [Parameter] public string ReverseDocNumber { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ReverseDocNumberChanged { get; set; }
+    [Parameter] public string? ReverseNote { get; set; }
+    [Parameter] public EventCallback<string?> ReverseNoteChanged { get; set; }
+    [Parameter] public bool ModalBusy { get; set; }
+    [Parameter] public EventCallback<bool> ModalBusyChanged { get; set; }
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public EventCallback<string?> DetailsErrorChanged { get; set; }
+    [Parameter] public EventCallback OnReversed { get; set; }
+    [Parameter] public Func<InventoryTransactionType, string> TxnBadgeClass { get; set; } = _ => string.Empty;
+    [Parameter] public Func<InventoryTransactionType, string> TxnTypeLabel { get; set; } = _ => string.Empty;
+
+    private async Task ReverseAsync()
+    {
+        if (CurrentScope is null || SelectedTxn is null) return;
+        await ModalBusyChanged.InvokeAsync(true);
+        await DetailsErrorChanged.InvokeAsync(null);
+        try
+        {
+            var res = await InvService.ReverseTransaction(CurrentScope, new ReverseInventoryTransactionRequest(
+                SelectedTxn.Summary.OrganizationId,
+                SelectedTxn.Summary.Id,
+                InvRevAllowOverride ? ReverseDocNumber : null,
+                ReverseNote));
+            if (!res.Succeeded) { await DetailsErrorChanged.InvokeAsync(RolePermissionLocalization.FailureKey(res.Error!.Code)); return; }
+            await OnReversed.InvokeAsync();
+        }
+        finally { await ModalBusyChanged.InvokeAsync(false); }
+    }
+}

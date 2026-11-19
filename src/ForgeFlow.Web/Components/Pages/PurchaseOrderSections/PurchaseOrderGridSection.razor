@@ -1,0 +1,135 @@
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Procurement
+@using ForgeFlow.Domain.Procurement
+@using ForgeFlow.Web.Roles
+@inject ProcurementUseCases ProcService
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-grid-card">
+    <div class="read-grid">
+        <BitDataGrid @ref="grid" TItem="PurchaseOrderSummary" OnRead="ReadOrdersAsync" Pageable="true" PageSize="25"
+                     Resizable="true" WrapCellText="true"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["PurchaseOrders"]">
+            <Columns>
+                <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcPoNumberLabel"]" Width="150px" MinWidth="140">
+                    <Template Context="o"><bdi dir="ltr">@o.OrderNumber</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["PoSiteColumn"]" Width="106px" MinWidth="92">
+                    <Template Context="o"><bdi dir="ltr">@o.SiteCode</bdi> — @o.SiteName</Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcSupplierLabel"]" Width="144px" MinWidth="120">
+                    <Template Context="o">
+                        <div>
+                            <div class="read-primary-cell">@o.SupplierName</div>
+                            <div class="read-sub-cell" dir="ltr">@o.SupplierCode</div>
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["PoStatusColumn"]" Width="94px" MinWidth="84">
+                    <Template Context="o">
+                        <span class="read-badge @StatusBadgeClass(o.Status)">@StatusLabel(o.Status)</span>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcOrderDateLabel"]" Width="104px" MinWidth="96">
+                    <Template Context="o"><bdi dir="ltr">@Format.Date(o.OrderDate)</bdi></Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcExpectedDateLabel"]" Width="96px" MinWidth="84">
+                    <Template Context="o">
+                        @if (o.ExpectedDeliveryDate is DateOnly d)
+                        {
+                            <bdi dir="ltr">@Format.Date(d)</bdi>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcProgressColumn"]" Width="138px" MinWidth="126">
+                    <Template Context="o">
+                        <bdi dir="ltr">@Format.Number(o.TotalReceivedBaseQuantity) / @Format.Number(o.TotalOrderedBaseQuantity)</bdi>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ProcEstimatedTotalLabel"]" Width="146px" MinWidth="136">
+                    <Template Context="o">
+                        @if (o.TotalEstimatedAmount is decimal amt)
+                        {
+                            <bdi dir="ltr">@Format.CurrencyAmount(amt, o.CurrencyCode)</bdi>
+                        }
+                        else
+                        {
+                            <bdi dir="ltr">@o.CurrencyCode</bdi>
+                        }
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="PurchaseOrderSummary" Title="@Text["ReadActions"]" Width="100px" MinWidth="90">
+                    <Template Context="o">
+                        <div class="read-row-actions">
+                            <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                           IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                           OnClick="() => OnOpenDetail.InvokeAsync(o.Id)" />
+                            </BitTooltip>
+                            @if (ScopeCanReceive && o.Status is PurchaseOrderStatus.Approved or PurchaseOrderStatus.PartiallyReceived)
+                            {
+                                <BitTooltip Text="@Text["ProcReceiveBtn"]" ShowOnFocus="true">
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                               Icon="@ReceiveIcon" IconOnly="true" aria-label="@Text["ProcReceiveBtn"]"
+                                               OnClick="() => OnOpenReceive.InvokeAsync(o.Id)" />
+                                </BitTooltip>
+                            }
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private BitDataGrid<PurchaseOrderSummary>? grid;
+
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long SiteFilter { get; set; }
+    [Parameter] public long SupplierFilter { get; set; }
+    [Parameter] public string StatusFilter { get; set; } = string.Empty;
+    [Parameter] public string? AppliedSearch { get; set; }
+    [Parameter] public int[] PageSizeOptions { get; set; } = [10, 25, 50, 100];
+    [Parameter] public BitDataGridStrings? GridStrings { get; set; }
+    [Parameter] public Func<PurchaseOrderStatus, string> StatusBadgeClass { get; set; } = _ => string.Empty;
+    [Parameter] public Func<PurchaseOrderStatus, string> StatusLabel { get; set; } = _ => string.Empty;
+    [Parameter] public bool ScopeCanReceive { get; set; }
+    [Parameter] public BitIconInfo? ReceiveIcon { get; set; }
+    [Parameter] public EventCallback<long> OnOpenDetail { get; set; }
+    [Parameter] public EventCallback<long> OnOpenReceive { get; set; }
+    [Parameter] public EventCallback<string?> OnPageError { get; set; }
+
+    public async Task RefreshAsync(bool fromFirstPage)
+    {
+        if (grid is null) return;
+        if (fromFirstPage && grid.CurrentPage > 1) await grid.GoToPageAsync(1);
+        else await grid.RefreshAsync();
+    }
+
+    private async Task<BitDataGridReadResult<PurchaseOrderSummary>> ReadOrdersAsync(BitDataGridReadRequest req)
+    {
+        if (CurrentScope is null) return new([], 0);
+        var orgId = CurrentScope switch
+        {
+            OrganizationScope.Organization o => o.OrganizationId,
+            OrganizationScope.Site siteScope => siteScope.OrganizationId,
+            _ => 0
+        };
+        var size = Math.Clamp(req.Take ?? 25, 1, 100);
+        var page = (req.Skip / size) + 1;
+        PurchaseOrderStatus? st = byte.TryParse(StatusFilter, out var s) && Enum.IsDefined((PurchaseOrderStatus)s)
+            ? (PurchaseOrderStatus)s
+            : null;
+        var res = await ProcService.ListPurchaseOrders(CurrentScope, orgId,
+            new PurchaseOrderListQuery(SiteFilter > 0 ? SiteFilter : null, SupplierFilter > 0 ? SupplierFilter : null, st, AppliedSearch, page, size),
+            req.CancellationToken);
+        if (!res.Succeeded) { await OnPageError.InvokeAsync(RolePermissionLocalization.FailureKey(res.Error!.Code)); return new([], 0); }
+        return new(res.Value!.Items.ToList(), res.Value.Total);
+    }
+}

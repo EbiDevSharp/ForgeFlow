@@ -1,4 +1,4 @@
-@page "/inventory"
+﻿@page "/inventory"
 @page "/organizations/{OrganizationId:long}/inventory"
 @using ForgeFlow.Application.Inventory
 @using ForgeFlow.Application.Items
@@ -71,660 +71,128 @@
     }
     else
     {
-        <div class="read-tab-bar" role="tablist" aria-label="@Text["Inventory"]">
-            <button type="button" role="tab" aria-selected="@(activeTab == TabWarehouses)"
-                    class="read-tab-btn @(activeTab == TabWarehouses ? "active" : string.Empty)"
-                    @onclick="() => SwitchTabAsync(TabWarehouses)">@Text["InvTabWarehouses"]</button>
-            <button type="button" role="tab" aria-selected="@(activeTab == TabBalances)"
-                    class="read-tab-btn @(activeTab == TabBalances ? "active" : string.Empty)"
-                    @onclick="() => SwitchTabAsync(TabBalances)">@Text["InvTabBalances"]</button>
-            <button type="button" role="tab" aria-selected="@(activeTab == TabMovements)"
-                    class="read-tab-btn @(activeTab == TabMovements ? "active" : string.Empty)"
-                    @onclick="() => SwitchTabAsync(TabMovements)">@Text["InvTabMovements"]</button>
-            <button type="button" role="tab" aria-selected="@(activeTab == TabReservations)"
-                    class="read-tab-btn @(activeTab == TabReservations ? "active" : string.Empty)"
-                    @onclick="() => SwitchTabAsync(TabReservations)">@Text["InvTabReservations"]</button>
-        </div>
+        <InventoryToolbarSection
+            ActiveTab="@activeTab"
+            OnSwitchTab="SwitchTabAsync"
+            AvailableScopes="@available"
+            ScopeIndex="@scopeIndex"
+            OnScopeChanged="ChangeScopeAsync"
+            ScopeLabel="@ScopeLabel"
+            CurrentScope="@CurrentScope"
+            AuthorizedSites="@authorizedSites"
+            SiteFilter="@siteFilter"
+            OnSiteFilterChanged="ChangeSiteFilterAsync"
+            ActiveWarehouses="@activeWarehouses"
+            WarehouseFilter="@warehouseFilter"
+            OnWarehouseFilterChanged="ChangeWarehouseFilterAsync"
+            TypeFilter="@typeFilter"
+            OnTypeFilterChanged="ChangeTypeFilterAsync"
+            TxnTypeLabel="@TxnTypeLabel"
+            IncludeZeroBalances="@includeZeroBalances"
+            OnToggleZeroBalances="ToggleZeroBalancesAsync"
+            IncludeInactiveWarehouses="@includeInactiveWarehouses"
+            OnToggleInactiveWarehouses="ToggleInactiveWarehousesAsync"
+            OpenReservationsOnly="@openReservationsOnly"
+            OnToggleOpenReservations="ToggleOpenReservationsAsync"
+            Search="@search"
+            OnSearchInput="OnSearchInput" />
 
-        <div class="read-toolbar-card">
-            @if (available.Count > 1)
-            {
-                <div class="read-field">
-                    <label for="inv-scope">@Text["ReadScope"]</label>
-                    <select id="inv-scope" aria-label="@Text["ReadScope"]" value="@scopeIndex" @onchange="ChangeScopeAsync">
-                        @for (var i = 0; i < available.Count; i++)
-                        {
-                            <option value="@i">@ScopeLabel(available[i])</option>
-                        }
-                    </select>
-                </div>
-            }
-
-            @if (CurrentScope is OrganizationScope.Organization && authorizedSites.Count > 1)
-            {
-                <div class="read-field">
-                    <label for="inv-site-filter">@Text["PoSiteColumn"]</label>
-                    <select id="inv-site-filter" value="@siteFilter" @onchange="ChangeSiteFilterAsync">
-                        <option value="0">@Text["PoAllSitesOption"]</option>
-                        @foreach (var s in authorizedSites)
-                        {
-                            <option value="@s.Id">@s.Code — @s.Name</option>
-                        }
-                    </select>
-                </div>
-            }
-
-            @if (activeTab != TabWarehouses && activeWarehouses.Count > 0)
-            {
-                <div class="read-field">
-                    <label for="inv-wh-filter">@Text["InvWarehouseLabel"]</label>
-                    <select id="inv-wh-filter" value="@warehouseFilter" @onchange="ChangeWarehouseFilterAsync">
-                        <option value="0">@Text["InvAllWarehousesOption"]</option>
-                        @foreach (var w in activeWarehouses)
-                        {
-                            <option value="@w.Id">@w.Code — @w.Name</option>
-                        }
-                    </select>
-                </div>
-            }
-
-            @if (activeTab == TabMovements)
-            {
-                <div class="read-field">
-                    <label for="inv-type-filter">@Text["InvTxnTypeLabel"]</label>
-                    <select id="inv-type-filter" value="@typeFilter" @onchange="ChangeTypeFilterAsync">
-                        <option value="">@Text["InvAllTypesOption"]</option>
-                        @foreach (var tt in Enum.GetValues<InventoryTransactionType>())
-                        {
-                            <option value="@((byte)tt)">@TxnTypeLabel(tt)</option>
-                        }
-                    </select>
-                </div>
-            }
-
-            @if (activeTab == TabBalances)
-            {
-                <label class="read-inactive">
-                    <input type="checkbox" checked="@includeZeroBalances" @onchange="ToggleZeroBalancesAsync" />
-                    <span>@Text["InvIncludeZeroLabel"]</span>
-                </label>
-            }
-            else if (activeTab == TabWarehouses)
-            {
-                <label class="read-inactive">
-                    <input type="checkbox" checked="@includeInactiveWarehouses" @onchange="ToggleInactiveWarehousesAsync" />
-                    <span>@Text["ReadInactive"]</span>
-                </label>
-            }
-            else if (activeTab == TabReservations)
-            {
-                <label class="read-inactive">
-                    <input type="checkbox" checked="@openReservationsOnly" @onchange="ToggleOpenReservationsAsync" />
-                    <span>@Text["InvResOpenOnlyLabel"]</span>
-                </label>
-            }
-
-            <div class="read-field">
-                <label for="inv-search">@Text["ReadSearch"]</label>
-                <input id="inv-search" type="search" value="@search" @oninput="OnSearchInput" maxlength="64" placeholder="@Text["ReadSearch"]" />
-            </div>
-        </div>
-
-        @if (activeTab == TabBalances)
-        {
-            <div class="read-grid-card">
-                <div class="read-grid">
-                    <BitDataGrid @ref="balGrid" TItem="InventoryBalanceSummary" OnRead="ReadBalancesAsync" Pageable="true" PageSize="25"
-                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="inv-title" WrapCellText="true" Resizable="true">
-                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
-                        <Columns>
-                            <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvWarehouseLabel"]">
-                                <Template Context="b"><span dir="ltr">@b.WarehouseCode</span> — @b.WarehouseName</Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["BomLineItemColumn"]">
-                                <Template Context="b"><span dir="ltr">@b.ItemCode</span> — @b.ItemName</Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvLotCodeLabel"]">
-                                <Template Context="b">
-                                    @if (string.IsNullOrEmpty(b.LotCode))
-                                    {
-                                        <span>—</span>
-                                    }
-                                    else
-                                    {
-                                        <div>
-                                            <div class="read-primary-cell qc-lot-inline-cell">
-                                                <a class="qc-lot-link" href="@($"/traceability?itemId={b.ItemId}&lotCode={Uri.EscapeDataString(b.LotCode)}")" dir="ltr">@b.LotCode</a>
-                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="qc-inline-coa-btn" OnClick="() => OpenCoaModal(b.ItemId, b.LotCode)">
-                                                    @Text["QcCoaBtn"]
-                                                </BitButton>
-                                            </div>
-                                            @if (b.ExpirationDate.HasValue)
-                                            {
-                                                <div class="read-sub-cell">
-                                                    <span class="read-badge @(b.IsExpired ? "rpt-shortage-badge" : b.IsExpiringSoon ? "qc-status-pending" : "qc-status-completed")">
-                                                        @if (b.IsExpired) { @Text["QcLotExpiredBadge"] }
-                                                        else if (b.IsExpiringSoon) { @Text["QcLotExpiringBadge"] }
-                                                        else { <bdi dir="ltr">@b.ExpirationDate.Value.ToString("yyyy-MM-dd")</bdi> }
-                                                    </span>
-                                                </div>
-                                            }
-                                        </div>
-                                    }
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvOnHandLabel"]">
-                                <Template Context="b">
-                                    <div>
-                                        <div class="read-primary-cell"><strong dir="ltr">@Format.Number(b.OnHandBaseQuantity) @b.BaseUnitSymbol</strong></div>
-                                        @if (b.BlockedBaseQuantity > 0m || b.ReservedBaseQuantity > 0m)
-                                        {
-                                            <div class="read-sub-cell">
-                                                @if (b.BlockedBaseQuantity > 0m)
-                                                {
-                                                    <span class="read-badge qc-status-pending" dir="ltr">@Text["InvBlockedShort", Format.Number(b.BlockedBaseQuantity)]</span>
-                                                }
-                                                @if (b.ReservedBaseQuantity > 0m)
-                                                {
-                                                    <span class="read-badge inv-reserved-badge" dir="ltr">@Text["InvReservedShort", Format.Number(b.ReservedBaseQuantity)]</span>
-                                                }
-                                                <span dir="ltr"> · @Text["InvAvailableLabel"]: @Format.Number(b.AvailableBaseQuantity)</span>
-                                            </div>
-                                        }
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="InventoryBalanceSummary" Title="@Text["InvLastMovedLabel"]">
-                                <Template Context="b"><bdi dir="ltr">@Format.Timestamp(b.LastMovedAtUtc)</bdi></Template>
-                            </BitDataGridColumn>
-                        </Columns>
-                    </BitDataGrid>
-                </div>
-            </div>
-        }
-        else if (activeTab == TabMovements)
-        {
-            <div class="read-grid-card">
-                <div class="read-grid">
-                    <BitDataGrid @ref="txnGrid" TItem="InventoryTransactionSummary" OnRead="ReadTransactionsAsync" Pageable="true" PageSize="25"
-                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="inv-title" WrapCellText="true" Resizable="true">
-                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
-                        <Columns>
-                            <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["InvDocNumberLabel"]">
-                                <Template Context="t"><strong dir="ltr">@t.DocumentNumber</strong></Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["InvTxnTypeLabel"]">
-                                <Template Context="t">
-                                    <span class="read-badge @TxnBadgeClass(t.TransactionType)">@TxnTypeLabel(t.TransactionType)</span>
-                                    @if (t.IsReversed)
-                                    {
-                                        <span class="cap-badge">@Text["InvReversedBadge"]</span>
-                                    }
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["InvWarehouseLabel"]">
-                                <Template Context="t">
-                                    <bdi dir="ltr">@t.WarehouseCode@(t.DestinationWarehouseCode is not null ? $" -> {t.DestinationWarehouseCode}" : string.Empty)</bdi>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["PoOrderNumberColumn"]">
-                                <Template Context="t"><bdi dir="ltr">@(t.PurchaseOrderNumber ?? t.ProductionOrderNumber ?? "—")</bdi></Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["AuditTimeColumn"]">
-                                <Template Context="t"><bdi dir="ltr">@Format.Timestamp(t.PostedAtUtc)</bdi></Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="InventoryTransactionSummary" Title="@Text["ReadActions"]">
-                                <Template Context="t">
-                                    <div class="read-row-actions">
-                                        <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
-                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                       IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
-                                                       OnClick="() => OpenTransactionDetailsAsync(t.Id)" />
-                                        </BitTooltip>
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                        </Columns>
-                    </BitDataGrid>
-                </div>
-            </div>
-        }
-        else if (activeTab == TabWarehouses)
-        {
-            <div class="read-grid-card">
-                <div class="read-grid">
-                    <BitDataGrid @ref="whGrid" TItem="WarehouseSummary" OnRead="ReadWarehousesAsync" Pageable="true" PageSize="25"
-                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="inv-title" WrapCellText="true" Resizable="true">
-                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
-                        <Columns>
-                            <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["ReadCode"]">
-                                <Template Context="w"><strong dir="ltr">@w.Code</strong></Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["ReadName"]">
-                                <Template Context="w">@w.Name</Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["PoSiteColumn"]">
-                                <Template Context="w"><span dir="ltr">@w.SiteCode</span> — @w.SiteName</Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["InvDefaultWarehouseBadge"]">
-                                <Template Context="w">
-                                    @if (w.IsDefaultForSite)
-                                    {
-                                        <span class="cap-badge">@Text["InvDefaultWarehouseBadge"]</span>
-                                    }
-                                    else
-                                    {
-                                        <span>—</span>
-                                    }
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["PoStatusColumn"]">
-                                <Template Context="w">
-                                    <span class="read-badge @(w.IsActive ? "active" : "inactive")">@(w.IsActive ? Text["ReadActive"] : Text["ReadInactive"])</span>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="WarehouseSummary" Title="@Text["ReadActions"]">
-                                <Template Context="w">
-                                    <div class="read-row-actions">
-                                        @if (scopeCanManage)
-                                        {
-                                            <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
-                                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
-                                                           Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]"
-                                                           OnClick="() => OpenEditWarehouse(w)" />
-                                            </BitTooltip>
-                                        }
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                        </Columns>
-                    </BitDataGrid>
-                </div>
-            </div>
-        }
-        else if (activeTab == TabReservations)
-        {
-            <div class="read-grid-card">
-                <div class="read-grid">
-                    <BitDataGrid @ref="resGrid" TItem="StockReservationSummary" OnRead="ReadReservationsAsync" Pageable="true" PageSize="25"
-                                 PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
-                                 AriaLabelledBy="inv-title" WrapCellText="true" Resizable="true">
-                        <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
-                        <Columns>
-                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvResOrderColumn"]">
-                                <Template Context="r"><strong dir="ltr">@r.OrderNumber</strong></Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["BomLineItemColumn"]">
-                                <Template Context="r"><span dir="ltr">@r.ItemCode</span> — @r.ItemName</Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvWarehouseLabel"]">
-                                <Template Context="r"><span dir="ltr">@r.WarehouseCode</span> — @r.WarehouseName</Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvLotCodeLabel"]">
-                                <Template Context="r">
-                                    @if (string.IsNullOrEmpty(r.LotCode))
-                                    {
-                                        <span>—</span>
-                                    }
-                                    else
-                                    {
-                                        <a class="qc-lot-link" href="@($"/traceability?itemId={r.ItemId}&lotCode={Uri.EscapeDataString(r.LotCode)}")" dir="ltr">@r.LotCode</a>
-                                    }
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["InvResRemainingColumn"]">
-                                <Template Context="r">
-                                    <div>
-                                        <div class="read-primary-cell"><strong dir="ltr">@Format.Number(r.RemainingReservedBaseQuantity) @r.BaseUnitSymbol</strong></div>
-                                        <div class="read-sub-cell" dir="ltr">@Text["InvResTotalsSub", Format.Number(r.ReservedBaseQuantity), Format.Number(r.ConsumedBaseQuantity)]</div>
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["PoStatusColumn"]">
-                                <Template Context="r">
-                                    <span class="read-badge @ResBadgeClass(r.Status)">@ResStatusLabel(r.Status)</span>
-                                </Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["AuditTimeColumn"]">
-                                <Template Context="r"><bdi dir="ltr">@Format.Timestamp(r.CreatedAtUtc)</bdi></Template>
-                            </BitDataGridColumn>
-                            <BitDataGridColumn TItem="StockReservationSummary" Title="@Text["ReadActions"]">
-                                <Template Context="r">
-                                    <div class="read-row-actions">
-                                        @if (!string.IsNullOrEmpty(r.LotCode))
-                                        {
-                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => OpenCoaModal(r.ItemId, r.LotCode)">
-                                                @Text["QcCoaBtn"]
-                                            </BitButton>
-                                        }
-                                        @if (scopeCanManage && r.Status is ReservationStatus.Active or ReservationStatus.PartiallyConsumed)
-                                        {
-                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!modalBusy)"
-                                                       OnClick="() => ReleaseReservationAsync(r)">
-                                                @Text["InvResReleaseBtn"]
-                                            </BitButton>
-                                        }
-                                    </div>
-                                </Template>
-                            </BitDataGridColumn>
-                        </Columns>
-                    </BitDataGrid>
-                </div>
-            </div>
-        }
+        <InventoryGridsSection @ref="gridsSection"
+            ActiveTab="@activeTab"
+            PageSizeOptions="@PageSizeOptions"
+            GridStrings="@GridStrings"
+            ScopeCanManage="@scopeCanManage"
+            ModalBusy="@modalBusy"
+            EditIcon="@EditIcon"
+            CurrentScope="@CurrentScope"
+            SiteFilter="@siteFilter"
+            WarehouseFilter="@warehouseFilter"
+            TypeFilter="@typeFilter"
+            AppliedSearch="@appliedSearch"
+            IncludeZeroBalances="@includeZeroBalances"
+            IncludeInactiveWarehouses="@includeInactiveWarehouses"
+            OpenReservationsOnly="@openReservationsOnly"
+            OnPageError="err => { pageError = err; StateHasChanged(); }"
+            TxnBadgeClass="@TxnBadgeClass"
+            TxnTypeLabel="@TxnTypeLabel"
+            ResBadgeClass="@ResBadgeClass"
+            ResStatusLabel="@ResStatusLabel"
+            OnOpenCoa="args => OpenCoaModal(args.ItemId, args.LotCode)"
+            OnOpenTxnDetails="OpenTransactionDetailsAsync"
+            OnEditWarehouse="OpenEditWarehouse"
+            OnReleaseReservation="ReleaseReservationAsync" />
     }
 
-    <BitDialog Width="560px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="whModalOpen" @bind-IsOpen:after="OnWhModalOpenChanged"
-               Title="@(editingWarehouse is null ? Text["InvWarehouseCreateTitle"] : Text["InvWarehouseEditTitle"])"
-               AriaLabel="@(editingWarehouse is null ? Text["InvWarehouseCreateTitle"] : Text["InvWarehouseEditTitle"])"
-               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-        <Body>
-            <div class="audit-modal-body">
-                @if (whError is not null)
-                {
-                    <p role="alert" class="write-error">@Text[whError]</p>
-                }
-                <div class="po-form-grid">
-                    @if (editingWarehouse is null)
-                    {
-                        <div class="write-field">
-                            <label for="wh-code">@Text["ReadCode"]</label>
-                            <input id="wh-code" type="text" maxlength="32" @bind="whCode" placeholder="WH-MAIN" />
-                            <span class="write-hint">@Text["BomCreateHint"]</span>
-                        </div>
-                        <div class="write-field">
-                            <label for="wh-site">@Text["PoSiteColumn"]</label>
-                            @if (CurrentScope is OrganizationScope.Site sScope)
-                            {
-                                var site = authorizedSites.FirstOrDefault(s => s.Id == sScope.SiteId);
-                                <input id="wh-site" type="text" readonly value="@(site is null ? sScope.SiteId.ToString(CultureInfo.InvariantCulture) : $"{site.Code} — {site.Name}")" />
-                            }
-                            else
-                            {
-                                <select id="wh-site" @bind="whSiteId">
-                                    @foreach (var s in authorizedSites)
-                                    {
-                                        <option value="@s.Id">@s.Code — @s.Name</option>
-                                    }
-                                </select>
-                            }
-                        </div>
-                    }
-                    <div class="write-field po-field-full">
-                        <label for="wh-name">@Text["ReadName"]</label>
-                        <input id="wh-name" type="text" maxlength="200" @bind="whName" />
-                    </div>
-                </div>
-                <label class="write-check">
-                    <input type="checkbox" @bind="whIsDefault" />
-                    <span>@Text["InvDefaultForSiteLabel"]</span>
-                </label>
+@using ForgeFlow.Web.Components.Pages.InventorySections
+    <InventoryWarehouseModal
+        @bind-IsOpen="whModalOpen"
+        @bind-IsOpen:after="OnWhModalOpenChanged"
+        DialogClasses="@DialogClasses"
+        EditingWarehouse="@editingWarehouse"
+        WhError="@whError"
+        @bind-WhCode="whCode"
+        CurrentScope="@CurrentScope"
+        AuthorizedSites="@authorizedSites"
+        @bind-WhSiteId="whSiteId"
+        @bind-WhName="whName"
+        @bind-WhIsDefault="whIsDefault"
+        @bind-ModalBusy="modalBusy"
+        WhErrorChanged="err => whError = err"
+        OnSaved="HandleWarehouseSavedAsync" />
 
-                <div class="po-dialog-footer">
-                    <BitButton IsEnabled="@(!modalBusy && (editingWarehouse is not null || whSiteId > 0))" OnClick="SaveWarehouseAsync">
-                        @(editingWarehouse is null ? Text["CreateSubmit"] : Text["WriteSave"])
-                    </BitButton>
-                    @if (editingWarehouse is not null)
-                    {
-                        <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy)" OnClick="ToggleWarehouseActiveAsync">
-                            @(editingWarehouse.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
-                        </BitButton>
-                    }
-                    <BitButton Variant="BitVariant.Outline" OnClick="() => whModalOpen = false">@Text["WriteCancel"]</BitButton>
-                </div>
-            </div>
-        </Body>
-    </BitDialog>
+    <InventoryPostModal
+        @bind-IsOpen="postModalOpen"
+        @bind-IsOpen:after="OnPostOpenChanged"
+        DialogClasses="@DialogClasses"
+        PostError="@postError"
+        InvDocAllowOverride="@invDocAllowOverride"
+        @bind-PostDocNumber="postDocNumber"
+        PostType="@postType"
+        OnPostTypeChanged="OnPostTypeChangedAsync"
+        TxnTypeLabel="@TxnTypeLabel"
+        @bind-PostWarehouseId="postWarehouseId"
+        OnPostWarehouseManual="() => postWarehouseManual = true"
+        ActiveWarehouses="@activeWarehouses"
+        @bind-PostDestWarehouseId="postDestWarehouseId"
+        PostProductionOrderId="@postProductionOrderId"
+        OnPostOrderChanged="OnPostOrderChangedAsync"
+        ActiveProductionOrders="@activeProductionOrders"
+        @bind-PostReferenceNote="postReferenceNote"
+        PostLines="@postLines"
+        ActiveItems="@activeItems"
+        ActiveUnits="@activeUnits"
+        OnAddPostLine="AddPostLine"
+        OnPostLineItemChanged="args => OnPostLineItemChanged(args.Row, args.Args)"
+        @bind-ModalBusy="modalBusy"
+        CurrentScope="@CurrentScope"
+        PostErrorChanged="err => postError = err"
+        OnPosted="HandlePostedAsync"
+        PickerDateFormat="@PickerDateFormat"
+        PlusIcon="@PlusIcon"
+        TodayIcon="@TodayIcon"
+        CalendarIcon="@CalendarIcon"
+        NextNavIcon="@NextNavIcon"
+        PrevNavIcon="@PrevNavIcon"
+        NextYearIcon="@NextYearIcon"
+        PrevYearIcon="@PrevYearIcon"
+        CloseIcon="@CloseIcon" />
 
-    <BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="postModalOpen" @bind-IsOpen:after="OnPostOpenChanged"
-               Title="@Text["InvPostMovementBtn"]" AriaLabel="@Text["InvPostMovementBtn"]"
-               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-        <Body>
-            <div class="audit-modal-body">
-                @if (postError is not null)
-                {
-                    <p role="alert" class="write-error">@Text[postError]</p>
-                }
-                <div class="po-form-grid">
-                    <div class="write-field">
-                        <label for="inv-post-doc">@Text["InvDocNumberLabel"]</label>
-                        <input id="inv-post-doc" type="text" maxlength="32" class="@(invDocAllowOverride ? string.Empty : "proc-input-readonly")" @bind="postDocNumber" readonly="@(!invDocAllowOverride)" dir="ltr" />
-                        <span class="write-hint">@Text["BomCreateHint"]</span>
-                    </div>
-                    <div class="write-field">
-                        <label for="inv-post-type">@Text["InvTxnTypeLabel"]</label>
-                        <select id="inv-post-type" value="@((byte)postType)" @onchange="OnPostTypeChangedAsync">
-                            <option value="@((byte)InventoryTransactionType.Receipt)">@TxnTypeLabel(InventoryTransactionType.Receipt)</option>
-                            <option value="@((byte)InventoryTransactionType.Issue)">@TxnTypeLabel(InventoryTransactionType.Issue)</option>
-                            <option value="@((byte)InventoryTransactionType.Adjustment)">@TxnTypeLabel(InventoryTransactionType.Adjustment)</option>
-                            <option value="@((byte)InventoryTransactionType.TransferOut)">@TxnTypeLabel(InventoryTransactionType.TransferOut)</option>
-                            <option value="@((byte)InventoryTransactionType.ProductionIssue)">@TxnTypeLabel(InventoryTransactionType.ProductionIssue)</option>
-                            <option value="@((byte)InventoryTransactionType.ProductionReceipt)">@TxnTypeLabel(InventoryTransactionType.ProductionReceipt)</option>
-                        </select>
-                    </div>
-                    <div class="write-field">
-                        <label for="inv-post-wh">@Text["InvWarehouseLabel"]</label>
-                        <select id="inv-post-wh" @bind="postWarehouseId" @bind:after="() => postWarehouseManual = true">
-                            @foreach (var w in activeWarehouses)
-                            {
-                                <option value="@w.Id">@w.Code — @w.Name (@w.SiteCode)</option>
-                            }
-                        </select>
-                    </div>
-                    @if (postType == InventoryTransactionType.TransferOut)
-                    {
-                        <div class="write-field">
-                            <label for="inv-post-dest">@Text["InvDestWarehouseLabel"]</label>
-                            <select id="inv-post-dest" @bind="postDestWarehouseId">
-                                <option value="0">@Text["InvSelectWarehouseOption"]</option>
-                                @foreach (var w in activeWarehouses.Where(x => x.Id != postWarehouseId))
-                                {
-                                    <option value="@w.Id">@w.Code — @w.Name (@w.SiteCode)</option>
-                                }
-                            </select>
-                        </div>
-                    }
-                    else if (postType is InventoryTransactionType.ProductionIssue or InventoryTransactionType.ProductionReceipt)
-                    {
-                        <div class="write-field">
-                            <label for="inv-post-po">@Text["PoOrderNumberColumn"]</label>
-                            <select id="inv-post-po" value="@postProductionOrderId" @onchange="OnPostOrderChangedAsync">
-                                <option value="0">@Text["InvSelectOrderOption"]</option>
-                                @foreach (var o in activeProductionOrders)
-                                {
-                                    <option value="@o.Id">@o.OrderNumber — @o.ItemCode (@o.SiteCode)</option>
-                                }
-                            </select>
-                        </div>
-                    }
-                    <div class="write-field po-field-full">
-                        <label for="inv-post-note">@Text["PoNotesLabel"]</label>
-                        <textarea id="inv-post-note" rows="2" maxlength="500" @bind="postReferenceNote"></textarea>
-                    </div>
-                </div>
-
-                <div class="po-context-card">
-                    <div class="po-context-head">
-                        <strong>@Text["InvLinesSection"]</strong>
-                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="po-add-cond-btn"
-                                   Icon="@PlusIcon" IsEnabled="@(activeItems.Count > 0)" OnClick="AddPostLine">
-                            @Text["InvAddLineBtn"]
-                        </BitButton>
-                    </div>
-                    @foreach (var row in postLines)
-                    {
-                        <div class="po-cond-row" style="grid-template-columns:minmax(140px,1.4fr) minmax(90px,.8fr) minmax(90px,.7fr) minmax(100px,.9fr) auto;">
-                            <select aria-label="@Text["BomLineItemColumn"]" value="@row.ItemId" @onchange="e => OnPostLineItemChanged(row, e)">
-                                <option value="0">@Text["InvSelectItemOption"]</option>
-                                @foreach (var it in activeItems)
-                                {
-                                    <option value="@it.Id">@it.Code — @it.Name</option>
-                                }
-                            </select>
-                            <input type="text" maxlength="32" @bind="row.LotCode" placeholder="@Text["InvLotCodeLabel"]" />
-                            <input type="number" step="0.000001" @bind="row.Quantity" placeholder="@Text["BomQuantityColumn"]" />
-                            <select aria-label="@Text["BomLineUnitColumn"]" @bind="row.UnitId">
-                                @foreach (var u in activeUnits)
-                                {
-                                    <option value="@u.Id">@u.Code (@u.Symbol)</option>
-                                }
-                            </select>
-                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => postLines.Remove(row)">
-                                @Text["BomRemoveRowBtn"]
-                            </BitButton>
-                        </div>
-                        @if (postType is InventoryTransactionType.Receipt or InventoryTransactionType.ProductionReceipt && !string.IsNullOrWhiteSpace(row.LotCode))
-                        {
-                            <div class="po-form-grid" style="margin-top:4px; margin-bottom:8px;">
-                                <div class="write-field">
-                                    <label>@Text["QcLotMfgDateLabel"]</label>
-                                    <BitDatePicker @bind-Value="row.ManufactureDateOffset" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
-                                                   ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowClearButton="true" ShowGoToToday="true"
-                                                   GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
-                                                   NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon" NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
-                                </div>
-                                <div class="write-field">
-                                    <label>@Text["QcLotExpDateLabel"]</label>
-                                    <BitDatePicker @bind-Value="row.ExpirationDateOffset" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
-                                                   ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowClearButton="true" ShowGoToToday="true"
-                                                   GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
-                                                   NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon" NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
-                                </div>
-                            </div>
-                        }
-                    }
-                </div>
-
-                <div class="po-dialog-footer">
-                    <BitButton IsEnabled="@(!modalBusy && postWarehouseId > 0 && postLines.Count > 0)" OnClick="SubmitPostTransactionAsync">
-                        @Text["InvPostSubmitBtn"]
-                    </BitButton>
-                    <BitButton Variant="BitVariant.Outline" OnClick="() => postModalOpen = false">@Text["WriteCancel"]</BitButton>
-                </div>
-            </div>
-        </Body>
-    </BitDialog>
-
-    <BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" @bind-IsOpen="detailsOpen" @bind-IsOpen:after="OnDetailsOpenChanged"
-               Title="@Text["InvTxnDetailsTitle"]" AriaLabel="@Text["InvTxnDetailsTitle"]"
-               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-        <Body>
-            @if (selectedTxn is not null)
-            {
-                var t = selectedTxn.Summary;
-                <div class="audit-modal-body">
-                    <div class="audit-modal-title-row">
-                        <span class="audit-modal-code" dir="ltr">@t.DocumentNumber</span>
-                        <span class="read-badge @TxnBadgeClass(t.TransactionType)">@TxnTypeLabel(t.TransactionType)</span>
-                    </div>
-                    @if (detailsError is not null)
-                    {
-                        <p role="alert" class="write-error">@Text[detailsError]</p>
-                    }
-                    <div class="audit-meta-card">
-                        <div class="audit-meta-row">
-                            <span class="audit-meta-label">@Text["InvWarehouseLabel"]</span>
-                            <span class="audit-meta-val" dir="ltr">@t.WarehouseCode — @t.WarehouseName@(t.DestinationWarehouseCode is not null ? $" -> {t.DestinationWarehouseCode}" : string.Empty)</span>
-                        </div>
-                        @if (!string.IsNullOrEmpty(t.ProductionOrderNumber))
-                        {
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["PoOrderNumberColumn"]</span>
-                                <span class="audit-meta-val" dir="ltr">@t.ProductionOrderNumber</span>
-                            </div>
-                        }
-                        @if (!string.IsNullOrEmpty(t.PurchaseOrderNumber))
-                        {
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["ProcPoNumberLabel"]</span>
-                                <span class="audit-meta-val" dir="ltr">@t.PurchaseOrderNumber</span>
-                            </div>
-                        }
-                        @if (!string.IsNullOrEmpty(t.QualityInspectionNumber))
-                        {
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["QualityControl"]</span>
-                                <span class="audit-meta-val" dir="ltr"><a class="qc-lot-link" href="/quality">@t.QualityInspectionNumber</a></span>
-                            </div>
-                        }
-                        <div class="audit-meta-row">
-                            <span class="audit-meta-label">@Text["AuditTimeColumn"]</span>
-                            <bdi class="audit-meta-val" dir="ltr">@Format.Timestamp(t.PostedAtUtc)</bdi>
-                        </div>
-                        @if (!string.IsNullOrWhiteSpace(t.ReferenceNote))
-                        {
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["PoNotesLabel"]</span>
-                                <span class="audit-meta-val">@t.ReferenceNote</span>
-                            </div>
-                        }
-                    </div>
-
-                    <div class="audit-modal-section">
-                        <h3 class="audit-section-heading">@Text["InvLinesSection"]</h3>
-                        <div class="audit-fields-box">
-                            <table class="audit-fields-table">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>@Text["InvWarehouseLabel"]</th>
-                                        <th>@Text["BomLineItemColumn"]</th>
-                                        <th>@Text["InvLotCodeLabel"]</th>
-                                        <th>@Text["InvEnteredQtyLabel"]</th>
-                                        <th>@Text["InvBaseQtyDeltaLabel"]</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <Virtualize Items="selectedTxn.Entries.AsCollection()" Context="line" ItemSize="40" OverscanCount="5" SpacerElement="tr">
-                                        <tr>
-                                            <td>@line.LineNumber</td>
-                                            <td dir="ltr">@line.WarehouseCode</td>
-                                            <td><span dir="ltr">@line.ItemCode</span> — @line.ItemName</td>
-                                            <td dir="ltr">@(string.IsNullOrEmpty(line.LotCode) ? "—" : line.LotCode)</td>
-                                            <td dir="ltr">@Format.Number(line.EnteredQuantity) @line.EnteredUnitSymbol</td>
-                                            <td dir="ltr">
-                                                <span class="@(line.BaseQuantityDelta >= 0m ? "inv-delta-in" : "inv-delta-out")">
-                                                    @(line.BaseQuantityDelta > 0m ? "+" : string.Empty)@Format.Number(line.BaseQuantityDelta) @line.BaseUnitSymbol
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    </Virtualize>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    @if (scopeCanManage && t.TransactionType is not (InventoryTransactionType.Reversal or InventoryTransactionType.QualityScrap) && !t.IsReversed)
-                    {
-                        <div class="po-context-card">
-                            <strong>@Text["InvReverseSection"]</strong>
-                            <div class="po-form-grid">
-                                <div class="write-field">
-                                    <label for="inv-rev-doc">@Text["InvReverseDocNumLabel"]</label>
-                                    <input id="inv-rev-doc" type="text" maxlength="32" class="@(invRevAllowOverride ? string.Empty : "proc-input-readonly")" @bind="reverseDocNumber" readonly="@(!invRevAllowOverride)" dir="ltr" />
-                                </div>
-                                <div class="write-field">
-                                    <label for="inv-rev-note">@Text["PoNotesLabel"]</label>
-                                    <input id="inv-rev-note" type="text" maxlength="500" @bind="reverseNote" />
-                                </div>
-                            </div>
-                            <div class="write-actions">
-                                <BitButton Variant="BitVariant.Outline" IsEnabled="@(!modalBusy && (!invRevAllowOverride || !string.IsNullOrWhiteSpace(reverseDocNumber)))" OnClick="ReverseSelectedTxnAsync">
-                                    @Text["InvReverseBtn"]
-                                </BitButton>
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-        </Body>
-    </BitDialog>
+    <InventoryDetailsModal
+        @bind-IsOpen="detailsOpen"
+        @bind-IsOpen:after="OnDetailsOpenChanged"
+        DialogClasses="@DialogClasses"
+        SelectedTxn="@selectedTxn"
+        DetailsError="@detailsError"
+        ScopeCanManage="@scopeCanManage"
+        InvRevAllowOverride="@invRevAllowOverride"
+        @bind-ReverseDocNumber="reverseDocNumber"
+        @bind-ReverseNote="reverseNote"
+        @bind-ModalBusy="modalBusy"
+        CurrentScope="@CurrentScope"
+        DetailsErrorChanged="err => detailsError = err"
+        OnReversed="HandleTxnReversedAsync"
+        TxnBadgeClass="@TxnBadgeClass"
+        TxnTypeLabel="@TxnTypeLabel" />
 
     @if (CurrentScope is not null)
     {
@@ -762,10 +230,7 @@
     private static readonly BitIconInfo CloseIcon = BitIconInfo.Css("ff-icon ff-icon--close");
     private string PickerDateFormat => Culture.Language == CulturePolicy.Persian ? "yyyy/MM/dd" : "yyyy-MM-dd";
 
-    private BitDataGrid<InventoryBalanceSummary>? balGrid;
-    private BitDataGrid<InventoryTransactionSummary>? txnGrid;
-    private BitDataGrid<WarehouseSummary>? whGrid;
-    private BitDataGrid<StockReservationSummary>? resGrid;
+    private InventoryGridsSection? gridsSection;
 
     private int activeTab = TabWarehouses;
     private bool initialLoading = true;
@@ -878,7 +343,7 @@
     private string? reverseNote;
     private long? handledQueryPoId;
 
-    private sealed class PostLineRow
+    public sealed class PostLineRow
     {
         public long ItemId { get; set; }
         public string LotCode { get; set; } = string.Empty;
@@ -1069,121 +534,36 @@
             });
     }
 
-    private async Task ChangeSiteFilterAsync(ChangeEventArgs e)
+    private Task RunFilterAsync(Action apply) => _searchController.RunImmediateAsync(async _ =>
     {
-        siteFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
-        await _searchController.RunImmediateAsync(async _ =>
-        {
-            await ReloadActiveGridAsync(fromFirstPage: true);
-            await InvokeAsync(StateHasChanged);
-        });
-    }
+        apply();
+        await ReloadActiveGridAsync(fromFirstPage: true);
+        await InvokeAsync(StateHasChanged);
+    });
 
-    private async Task ChangeWarehouseFilterAsync(ChangeEventArgs e)
-    {
-        warehouseFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0;
-        await _searchController.RunImmediateAsync(async _ =>
-        {
-            await ReloadActiveGridAsync(fromFirstPage: true);
-            await InvokeAsync(StateHasChanged);
-        });
-    }
+    private Task ChangeSiteFilterAsync(ChangeEventArgs e)
+        => RunFilterAsync(() => siteFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0);
 
-    private async Task ChangeTypeFilterAsync(ChangeEventArgs e)
-    {
-        typeFilter = e.Value?.ToString() ?? string.Empty;
-        await _searchController.RunImmediateAsync(async _ =>
-        {
-            await ReloadActiveGridAsync(fromFirstPage: true);
-            await InvokeAsync(StateHasChanged);
-        });
-    }
+    private Task ChangeWarehouseFilterAsync(ChangeEventArgs e)
+        => RunFilterAsync(() => warehouseFilter = long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ? id : 0);
 
-    private async Task ToggleZeroBalancesAsync(ChangeEventArgs e)
-    {
-        includeZeroBalances = e.Value is bool b && b;
-        await _searchController.RunImmediateAsync(async _ =>
-        {
-            await ReloadActiveGridAsync(fromFirstPage: true);
-            await InvokeAsync(StateHasChanged);
-        });
-    }
+    private Task ChangeTypeFilterAsync(ChangeEventArgs e)
+        => RunFilterAsync(() => typeFilter = e.Value?.ToString() ?? string.Empty);
 
-    private async Task ToggleInactiveWarehousesAsync(ChangeEventArgs e)
-    {
-        includeInactiveWarehouses = e.Value is bool b && b;
-        await _searchController.RunImmediateAsync(async _ =>
-        {
-            await ReloadActiveGridAsync(fromFirstPage: true);
-            await InvokeAsync(StateHasChanged);
-        });
-    }
+    private Task ToggleZeroBalancesAsync(ChangeEventArgs e)
+        => RunFilterAsync(() => includeZeroBalances = e.Value is bool b && b);
 
-    private async Task ToggleOpenReservationsAsync(ChangeEventArgs e)
-    {
-        openReservationsOnly = e.Value is bool b && b;
-        await _searchController.RunImmediateAsync(async _ =>
-        {
-            await ReloadActiveGridAsync(fromFirstPage: true);
-            await InvokeAsync(StateHasChanged);
-        });
-    }
+    private Task ToggleInactiveWarehousesAsync(ChangeEventArgs e)
+        => RunFilterAsync(() => includeInactiveWarehouses = e.Value is bool b && b);
 
-    private async Task ApplySearchAsync()
-    {
-        await _searchController.RunImmediateAsync(async _ =>
-        {
-            appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
-            await ReloadActiveGridAsync(fromFirstPage: true);
-            await InvokeAsync(StateHasChanged);
-        });
-    }
+    private Task ToggleOpenReservationsAsync(ChangeEventArgs e)
+        => RunFilterAsync(() => openReservationsOnly = e.Value is bool b && b);
 
-    private async Task ReloadActiveGridAsync(bool fromFirstPage)
-    {
-        if (activeTab == TabBalances && balGrid is not null)
-        {
-            if (fromFirstPage && balGrid.CurrentPage > 1) await balGrid.GoToPageAsync(1);
-            else await balGrid.RefreshAsync();
-        }
-        else if (activeTab == TabMovements && txnGrid is not null)
-        {
-            if (fromFirstPage && txnGrid.CurrentPage > 1) await txnGrid.GoToPageAsync(1);
-            else await txnGrid.RefreshAsync();
-        }
-        else if (activeTab == TabWarehouses && whGrid is not null)
-        {
-            if (fromFirstPage && whGrid.CurrentPage > 1) await whGrid.GoToPageAsync(1);
-            else await whGrid.RefreshAsync();
-        }
-        else if (activeTab == TabReservations && resGrid is not null)
-        {
-            if (fromFirstPage && resGrid.CurrentPage > 1) await resGrid.GoToPageAsync(1);
-            else await resGrid.RefreshAsync();
-        }
-    }
+    private Task ApplySearchAsync()
+        => RunFilterAsync(() => appliedSearch = string.IsNullOrWhiteSpace(search) ? null : search.Trim());
 
-    private async Task<BitDataGridReadResult<StockReservationSummary>> ReadReservationsAsync(BitDataGridReadRequest request)
-    {
-        var scope = CurrentScope;
-        if (scope is null) return new([], 0);
-        var orgId = ScopeOrganizationId(scope);
-        var size = Math.Clamp(request.Take ?? 25, 1, 100);
-        var page = (request.Skip / size) + 1;
-        long? reqSite = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
-        var res = await ResService.ListReservations(scope, orgId, new ReservationListQuery(
-            reqSite,
-            null,
-            warehouseFilter > 0 ? warehouseFilter : null,
-            null,
-            null,
-            openReservationsOnly,
-            appliedSearch,
-            page,
-            size), request.CancellationToken);
-        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
-        return new(res.Value!.Items.ToList(), res.Value.Total);
-    }
+    private Task ReloadActiveGridAsync(bool fromFirstPage)
+        => gridsSection is not null ? gridsSection.ReloadActiveGridAsync(fromFirstPage) : Task.CompletedTask;
 
     private async Task ReleaseReservationAsync(StockReservationSummary r)
     {
@@ -1204,48 +584,6 @@
             await ReloadActiveGridAsync(fromFirstPage: false);
         }
         finally { modalBusy = false; }
-    }
-
-    private async Task<BitDataGridReadResult<InventoryBalanceSummary>> ReadBalancesAsync(BitDataGridReadRequest request)
-    {
-        var scope = CurrentScope;
-        if (scope is null) return new([], 0);
-        var orgId = ScopeOrganizationId(scope);
-        var size = Math.Clamp(request.Take ?? 25, 1, 100);
-        var page = (request.Skip / size) + 1;
-        long? reqSite = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
-        var res = await InvService.ListBalances(scope, orgId, new InventoryBalanceListQuery(reqSite, warehouseFilter > 0 ? warehouseFilter : null, null, appliedSearch, includeZeroBalances, page, size), request.CancellationToken);
-        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
-        return new(res.Value!.Items.ToList(), res.Value.Total);
-    }
-
-    private async Task<BitDataGridReadResult<InventoryTransactionSummary>> ReadTransactionsAsync(BitDataGridReadRequest request)
-    {
-        var scope = CurrentScope;
-        if (scope is null) return new([], 0);
-        var orgId = ScopeOrganizationId(scope);
-        var size = Math.Clamp(request.Take ?? 25, 1, 100);
-        var page = (request.Skip / size) + 1;
-        long? reqSite = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
-        InventoryTransactionType? tt = byte.TryParse(typeFilter, out var raw) && Enum.IsDefined((InventoryTransactionType)raw)
-            ? (InventoryTransactionType)raw
-            : null;
-        var res = await InvService.ListTransactions(scope, orgId, new InventoryTransactionListQuery(reqSite, warehouseFilter > 0 ? warehouseFilter : null, tt, null, appliedSearch, page, size), request.CancellationToken);
-        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
-        return new(res.Value!.Items.ToList(), res.Value.Total);
-    }
-
-    private async Task<BitDataGridReadResult<WarehouseSummary>> ReadWarehousesAsync(BitDataGridReadRequest request)
-    {
-        var scope = CurrentScope;
-        if (scope is null) return new([], 0);
-        var orgId = ScopeOrganizationId(scope);
-        var size = Math.Clamp(request.Take ?? 25, 1, 100);
-        var page = (request.Skip / size) + 1;
-        long? reqSite = scope is OrganizationScope.Site s ? s.SiteId : (siteFilter > 0 ? siteFilter : null);
-        var res = await InvService.ListWarehouses(scope, orgId, new WarehouseListQuery(reqSite, appliedSearch, includeInactiveWarehouses, page, size), request.CancellationToken);
-        if (!res.Succeeded) { pageError = RolePermissionLocalization.FailureKey(res.Error!.Code); StateHasChanged(); return new([], 0); }
-        return new(res.Value!.Items.ToList(), res.Value.Total);
     }
 
     private void OpenCreateWarehouse()
@@ -1270,43 +608,12 @@
         whModalOpen = true;
     }
 
-    private async Task SaveWarehouseAsync()
+    private async Task HandleWarehouseSavedAsync()
     {
-        var scope = CurrentScope;
-        if (scope is null) return;
-        modalBusy = true;
-        whError = null;
-        try
-        {
-            var orgId = ScopeOrganizationId(scope);
-            var res = editingWarehouse is null
-                ? await InvService.CreateWarehouse(scope, new CreateWarehouseRequest(orgId, whSiteId, whCode, whName, whIsDefault))
-                : await InvService.UpdateWarehouse(scope, new UpdateWarehouseRequest(orgId, editingWarehouse.Id, whName, whIsDefault, editingWarehouse.RowVersion));
-            if (!res.Succeeded) { whError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            whModalOpen = false;
-            pageNotice = Text["InvSavedNotice"];
-            await RefreshScopeStateAsync();
-            await ReloadActiveGridAsync(fromFirstPage: false);
-        }
-        finally { modalBusy = false; }
-    }
-
-    private async Task ToggleWarehouseActiveAsync()
-    {
-        var scope = CurrentScope;
-        if (scope is null || editingWarehouse is null) return;
-        modalBusy = true;
-        whError = null;
-        try
-        {
-            var res = await InvService.SetWarehouseActive(scope, new SetWarehouseActiveRequest(editingWarehouse.OrganizationId, editingWarehouse.Id, !editingWarehouse.IsActive, editingWarehouse.RowVersion));
-            if (!res.Succeeded) { whError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            whModalOpen = false;
-            pageNotice = Text["InvSavedNotice"];
-            await RefreshScopeStateAsync();
-            await ReloadActiveGridAsync(fromFirstPage: false);
-        }
-        finally { modalBusy = false; }
+        whModalOpen = false;
+        pageNotice = Text["InvSavedNotice"];
+        await RefreshScopeStateAsync();
+        await ReloadActiveGridAsync(fromFirstPage: false);
     }
 
     private async Task OpenPostModal(long? prefillPoId)
@@ -1415,39 +722,11 @@
         }
     }
 
-    private async Task SubmitPostTransactionAsync()
+    private async Task HandlePostedAsync()
     {
-        var scope = CurrentScope;
-        if (scope is null) return;
-        modalBusy = true;
-        postError = null;
-        try
-        {
-            var orgId = ScopeOrganizationId(scope);
-            var lines = postLines.Select(l => new InventoryLineInput(
-                l.ItemId,
-                l.LotCode,
-                l.Quantity,
-                l.UnitId > 0 ? l.UnitId : null,
-                null,
-                l.ManufactureDateOffset.HasValue ? DateOnly.FromDateTime(l.ManufactureDateOffset.Value.Date) : null,
-                l.ExpirationDateOffset.HasValue ? DateOnly.FromDateTime(l.ExpirationDateOffset.Value.Date) : null)).ToArray();
-            var res = await InvService.PostTransaction(scope, new PostInventoryTransactionRequest(
-                orgId,
-                postWarehouseId,
-                postType == InventoryTransactionType.TransferOut ? postDestWarehouseId : null,
-                invDocAllowOverride ? postDocNumber : null,
-                postType,
-                postType is InventoryTransactionType.ProductionIssue or InventoryTransactionType.ProductionReceipt ? postProductionOrderId : null,
-                postReferenceNote,
-                null,
-                lines));
-            if (!res.Succeeded) { postError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            postModalOpen = false;
-            pageNotice = Text["InvPostedNotice"];
-            await ReloadActiveGridAsync(fromFirstPage: true);
-        }
-        finally { modalBusy = false; }
+        postModalOpen = false;
+        pageNotice = Text["InvPostedNotice"];
+        await ReloadActiveGridAsync(fromFirstPage: true);
     }
 
     private async Task OpenTransactionDetailsAsync(long id)
@@ -1465,25 +744,11 @@
         detailsOpen = true;
     }
 
-    private async Task ReverseSelectedTxnAsync()
+    private async Task HandleTxnReversedAsync()
     {
-        var scope = CurrentScope;
-        if (scope is null || selectedTxn is null) return;
-        modalBusy = true;
-        detailsError = null;
-        try
-        {
-            var res = await InvService.ReverseTransaction(scope, new ReverseInventoryTransactionRequest(
-                selectedTxn.Summary.OrganizationId,
-                selectedTxn.Summary.Id,
-                invRevAllowOverride ? reverseDocNumber : null,
-                reverseNote));
-            if (!res.Succeeded) { detailsError = RolePermissionLocalization.FailureKey(res.Error!.Code); return; }
-            detailsOpen = false;
-            pageNotice = Text["InvReversedNotice"];
-            await ReloadActiveGridAsync(fromFirstPage: true);
-        }
-        finally { modalBusy = false; }
+        detailsOpen = false;
+        pageNotice = Text["InvReversedNotice"];
+        await ReloadActiveGridAsync(fromFirstPage: true);
     }
 
     private string TxnTypeLabel(InventoryTransactionType type) => type switch

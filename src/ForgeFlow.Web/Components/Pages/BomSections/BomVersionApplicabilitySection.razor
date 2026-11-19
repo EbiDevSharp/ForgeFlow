@@ -1,0 +1,141 @@
+@using ForgeFlow.Application.Boms
+@using ForgeFlow.Domain.Boms
+@using ForgeFlow.Web.Roles
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="bom-wb-section">
+    <div class="bom-wb-section-head">
+        <h3 class="audit-section-heading">@Text["BomApplicabilityColumn"]</h3>
+        @if (IsDraftEditable && AppEnabled)
+        {
+            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                       IsEnabled="@(!VerSaving && ActiveDimensions.Count > 0)" OnClick="OnAddCondition">
+                @Text["BomAddConditionBtn"]
+            </BitButton>
+        }
+        else if (!IsDraftEditable && Applicability is null)
+        {
+            <span class="cap-badge">@Text["BomUnconditionalLabel"]</span>
+        }
+    </div>
+
+    @if (IsDraftEditable)
+    {
+        <label class="write-check">
+            <input type="checkbox" checked="@AppEnabled" disabled="@VerSaving"
+                   @onchange="e => AppEnabledChanged.InvokeAsync(e.Value is bool b && b)" />
+            <span>@Text["BomEnableApplicabilityLabel"]</span>
+        </label>
+
+        @if (AppEnabled)
+        {
+            <div class="write-grid">
+                <div class="write-field">
+                    <label for="app-name">@Text["ReadName"]</label>
+                    <input id="app-name" type="text" maxlength="200" value="@AppName"
+                           @oninput="e => AppNameChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" disabled="@VerSaving" />
+                </div>
+                <label class="write-check">
+                    <input type="checkbox" checked="@AppIsActive" disabled="@VerSaving"
+                           @onchange="e => AppIsActiveChanged.InvokeAsync(e.Value is bool b && b)" />
+                    <span>@Text["ReadActive"]</span>
+                </label>
+            </div>
+
+            @foreach (var cond in DraftConditions)
+            {
+                <div class="bom-cond-row">
+                    <select @bind="cond.DimensionId" disabled="@VerSaving">
+                        @foreach (var dim in ActiveDimensions)
+                        {
+                            <option value="@dim.Id">@RolePermissionLocalization.ContextDimensionDisplayName(dim.Code, dim.Name, Text) (@dim.Code)</option>
+                        }
+                    </select>
+                    <select @bind="cond.Operator" disabled="@VerSaving">
+                        @foreach (var op in AllOperators)
+                        {
+                            <option value="@op">@Text[OperatorKey(op)]</option>
+                        }
+                    </select>
+                    <input type="text" dir="ltr" maxlength="400" @bind="cond.Value"
+                           placeholder="@Text["BomConditionValuePlaceholder"]" disabled="@VerSaving" />
+                    <BitTooltip Text="@Text["BomRemoveRowBtn"]" ShowOnFocus="true">
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action read-action-deactivate"
+                                   Icon="@TrashIcon" IconOnly="true" aria-label="@Text["BomRemoveRowBtn"]"
+                                   OnClick="() => DraftConditions.Remove(cond)" />
+                    </BitTooltip>
+                </div>
+            }
+        }
+
+        <div class="write-actions">
+            <BitButton Size="BitSize.Small" IsEnabled="@(!VerSaving)" OnClick="OnSaveApplicability">
+                @(VerSaving ? Text["WriteSaving"] : Text["BomSaveApplicabilityBtn"])
+            </BitButton>
+        </div>
+    }
+    else if (Applicability is BomApplicabilityDetails appDetails)
+    {
+        <div class="ff-kv-table-wrap">
+            <table class="ff-kv-table">
+                <tbody>
+                    <tr>
+                        <th scope="row">@Text["ReadName"]</th>
+                        <td>@appDetails.Name</td>
+                        <th scope="row">@Text["ReadStatus"]</th>
+                        <td><span class="read-badge @(appDetails.IsActive ? "active" : "inactive")">@(appDetails.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        @if (appDetails.Conditions.Count > 0)
+        {
+            <div class="audit-fields-box" style="overflow-x:auto;">
+                <table class="audit-fields-table">
+                    <tbody>
+                        @foreach (var cond in appDetails.Conditions)
+                        {
+                            <tr>
+                                <td>@RolePermissionLocalization.ContextDimensionDisplayName(cond.DimensionCode, cond.DimensionName, Text) (<bdi dir="ltr">@cond.DimensionCode</bdi>)</td>
+                                <td><span class="cap-badge">@Text[OperatorKey(cond.Operator)]</span></td>
+                                <td><bdi dir="ltr">@cond.Value</bdi></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    else
+    {
+        <p class="write-hint" style="margin:0;">@Text["BomUnconditionalLabel"]</p>
+    }
+</div>
+
+@code {
+    private static readonly ApplicabilityOperator[] AllOperators = Enum.GetValues<ApplicabilityOperator>();
+
+    [Parameter] public bool IsDraftEditable { get; set; }
+    [Parameter] public bool VerSaving { get; set; }
+    [Parameter] public bool AppEnabled { get; set; }
+    [Parameter] public EventCallback<bool> AppEnabledChanged { get; set; }
+    [Parameter] public string AppName { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> AppNameChanged { get; set; }
+    [Parameter] public bool AppIsActive { get; set; }
+    [Parameter] public EventCallback<bool> AppIsActiveChanged { get; set; }
+    [Parameter] public IReadOnlyList<ContextDimensionSummary> ActiveDimensions { get; set; } = [];
+    [Parameter] public List<BomVersionWorkbenchModal.ConditionRowModel> DraftConditions { get; set; } = [];
+    [Parameter] public BomApplicabilityDetails? Applicability { get; set; }
+    [Parameter] public BitIconInfo? TrashIcon { get; set; }
+    [Parameter] public EventCallback OnAddCondition { get; set; }
+    [Parameter] public EventCallback OnSaveApplicability { get; set; }
+
+    private static string OperatorKey(ApplicabilityOperator op) => op switch
+    {
+        ApplicabilityOperator.Equals => "BomOpEquals",
+        ApplicabilityOperator.NotEquals => "BomOpNotEquals",
+        ApplicabilityOperator.In => "BomOpIn",
+        ApplicabilityOperator.NotIn => "BomOpNotIn",
+        _ => "BomOpEquals"
+    };
+}

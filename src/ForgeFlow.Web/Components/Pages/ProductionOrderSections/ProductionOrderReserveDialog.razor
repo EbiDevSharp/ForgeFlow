@@ -1,0 +1,92 @@
+@using System.Globalization
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Units
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="540px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           Title="@Text["PoResModalTitle"]" AriaLabel="@Text["PoResModalTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            @if (ReserveError is not null)
+            {
+                <p role="alert" class="write-error">@Text[ReserveError]</p>
+            }
+            <p class="write-hint"><strong dir="ltr">@ReserveItemLabel</strong></p>
+            <div class="po-form-grid">
+                <div class="write-field">
+                    <label for="res-qty">@Text["PoRequestedQtyColumn"]</label>
+                    <input id="res-qty" type="number" min="0.000001" step="0.01" value="@ReserveQuantity" @onchange="OnQuantityChanged" />
+                </div>
+                <div class="write-field">
+                    <label for="res-unit">@Text["BomLineUnitColumn"]</label>
+                    <select id="res-unit" value="@ReserveUnitId" @onchange="e => OnLongChanged(ReserveUnitIdChanged, e)">
+                        @foreach (var u in ActiveUnits)
+                        {
+                            <option value="@u.Id">@u.Symbol — @u.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="write-field">
+                    <label for="res-wh">@Text["InvWarehouseLabel"]</label>
+                    <select id="res-wh" value="@ReserveWarehouseId" @onchange="e => OnLongChanged(ReserveWarehouseIdChanged, e)">
+                        <option value="0">@Text["PoResAutoFifoOption"]</option>
+                        @foreach (var w in ActiveWarehouses.Where(x => SiteIdFilter is null || x.SiteId == SiteIdFilter.Value))
+                        {
+                            <option value="@w.Id">@w.Code — @w.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="write-field">
+                    <label for="res-lot">@Text["InvLotCodeLabel"]</label>
+                    <input id="res-lot" type="text" maxlength="64" value="@ReserveLotCode"
+                           @oninput="e => ReserveLotCodeChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"
+                           placeholder="@Text["PoResLotOptionalHint"]" />
+                </div>
+                <div class="write-field" style="grid-column:1/-1;">
+                    <label for="res-notes">@Text["PoNotesLabel"]</label>
+                    <input id="res-notes" type="text" maxlength="500" value="@ReserveNotes"
+                           @oninput="e => ReserveNotesChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" />
+                </div>
+            </div>
+            <div class="write-actions">
+                <BitButton IsEnabled="@(!ModalBusy && ReserveQuantity > 0m)" OnClick="OnSubmitReserve">@Text["PoResConfirmBtn"]</BitButton>
+                <BitButton Variant="BitVariant.Outline" OnClick="() => IsOpenChanged.InvokeAsync(false)">@Text["WriteCancel"]</BitButton>
+            </div>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public string? ReserveError { get; set; }
+    [Parameter] public string ReserveItemLabel { get; set; } = string.Empty;
+    [Parameter] public decimal ReserveQuantity { get; set; }
+    [Parameter] public EventCallback<decimal> ReserveQuantityChanged { get; set; }
+    [Parameter] public long ReserveUnitId { get; set; }
+    [Parameter] public EventCallback<long> ReserveUnitIdChanged { get; set; }
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public long ReserveWarehouseId { get; set; }
+    [Parameter] public EventCallback<long> ReserveWarehouseIdChanged { get; set; }
+    [Parameter] public IReadOnlyList<WarehouseSummary> ActiveWarehouses { get; set; } = [];
+    [Parameter] public long? SiteIdFilter { get; set; }
+    [Parameter] public string ReserveLotCode { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ReserveLotCodeChanged { get; set; }
+    [Parameter] public string ReserveNotes { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ReserveNotesChanged { get; set; }
+    [Parameter] public bool ModalBusy { get; set; }
+    [Parameter] public EventCallback OnSubmitReserve { get; set; }
+
+    private Task OnLongChanged(EventCallback<long> cb, ChangeEventArgs e)
+        => long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+            ? cb.InvokeAsync(id)
+            : Task.CompletedTask;
+
+    private Task OnQuantityChanged(ChangeEventArgs e)
+        => decimal.TryParse(e.Value?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var q)
+            ? ReserveQuantityChanged.InvokeAsync(q)
+            : Task.CompletedTask;
+}

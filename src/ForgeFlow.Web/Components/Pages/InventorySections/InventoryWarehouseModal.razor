@@ -1,0 +1,136 @@
+@using System.Globalization
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Domain.Organizations
+@using ForgeFlow.Web.Roles
+@inject InventoryUseCases InvService
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="560px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           Title="@(EditingWarehouse is null ? Text["InvWarehouseCreateTitle"] : Text["InvWarehouseEditTitle"])"
+           AriaLabel="@(EditingWarehouse is null ? Text["InvWarehouseCreateTitle"] : Text["InvWarehouseEditTitle"])"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            @if (WhError is not null)
+            {
+                <p role="alert" class="write-error">@Text[WhError]</p>
+            }
+            <div class="po-form-grid">
+                @if (EditingWarehouse is null)
+                {
+                    <div class="write-field">
+                        <label for="wh-code">@Text["ReadCode"]</label>
+                        <input id="wh-code" type="text" maxlength="32" value="@WhCode"
+                               @oninput="e => WhCodeChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" placeholder="WH-MAIN" />
+                        <span class="write-hint">@Text["BomCreateHint"]</span>
+                    </div>
+                    <div class="write-field">
+                        <label for="wh-site">@Text["PoSiteColumn"]</label>
+                        @if (CurrentScope is OrganizationScope.Site sScope)
+                        {
+                            var site = AuthorizedSites.FirstOrDefault(s => s.Id == sScope.SiteId);
+                            <input id="wh-site" type="text" readonly value="@(site is null ? sScope.SiteId.ToString(CultureInfo.InvariantCulture) : $"{site.Code} — {site.Name}")" />
+                        }
+                        else
+                        {
+                            <select id="wh-site" value="@WhSiteId" @onchange="OnSiteChanged">
+                                @foreach (var s in AuthorizedSites)
+                                {
+                                    <option value="@s.Id">@s.Code — @s.Name</option>
+                                }
+                            </select>
+                        }
+                    </div>
+                }
+                <div class="write-field po-field-full">
+                    <label for="wh-name">@Text["ReadName"]</label>
+                    <input id="wh-name" type="text" maxlength="200" value="@WhName"
+                           @oninput="e => WhNameChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" />
+                </div>
+            </div>
+            <label class="write-check">
+                <input type="checkbox" checked="@WhIsDefault" @onchange="e => WhIsDefaultChanged.InvokeAsync(e.Value is bool b && b)" />
+                <span>@Text["InvDefaultForSiteLabel"]</span>
+            </label>
+
+            <div class="po-dialog-footer">
+                <BitButton IsEnabled="@(!ModalBusy && (EditingWarehouse is not null || WhSiteId > 0))" OnClick="SaveAsync">
+                    @(EditingWarehouse is null ? Text["CreateSubmit"] : Text["WriteSave"])
+                </BitButton>
+                @if (EditingWarehouse is not null)
+                {
+                    <BitButton Variant="BitVariant.Outline" IsEnabled="@(!ModalBusy)" OnClick="ToggleActiveAsync">
+                        @(EditingWarehouse.IsActive ? Text["WriteDeactivate"] : Text["WriteActivate"])
+                    </BitButton>
+                }
+                <BitButton Variant="BitVariant.Outline" OnClick="() => IsOpenChanged.InvokeAsync(false)">@Text["WriteCancel"]</BitButton>
+            </div>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public WarehouseSummary? EditingWarehouse { get; set; }
+    [Parameter] public string? WhError { get; set; }
+    [Parameter] public string WhCode { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> WhCodeChanged { get; set; }
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public IReadOnlyList<ProductionOrderSiteInfo> AuthorizedSites { get; set; } = [];
+    [Parameter] public long WhSiteId { get; set; }
+    [Parameter] public EventCallback<long> WhSiteIdChanged { get; set; }
+    [Parameter] public string WhName { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> WhNameChanged { get; set; }
+    [Parameter] public bool WhIsDefault { get; set; }
+    [Parameter] public EventCallback<bool> WhIsDefaultChanged { get; set; }
+    [Parameter] public bool ModalBusy { get; set; }
+    [Parameter] public EventCallback<bool> ModalBusyChanged { get; set; }
+    [Parameter] public EventCallback<string?> WhErrorChanged { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private async Task SaveAsync()
+    {
+        if (CurrentScope is null) return;
+        await ModalBusyChanged.InvokeAsync(true);
+        await WhErrorChanged.InvokeAsync(null);
+        try
+        {
+            var orgId = CurrentScope switch
+            {
+                OrganizationScope.Organization o => o.OrganizationId,
+                OrganizationScope.Site s => s.OrganizationId,
+                _ => 0L
+            };
+            var res = EditingWarehouse is null
+                ? await InvService.CreateWarehouse(CurrentScope, new CreateWarehouseRequest(orgId, WhSiteId, WhCode, WhName, WhIsDefault))
+                : await InvService.UpdateWarehouse(CurrentScope, new UpdateWarehouseRequest(orgId, EditingWarehouse.Id, WhName, WhIsDefault, EditingWarehouse.RowVersion));
+            if (!res.Succeeded) { await WhErrorChanged.InvokeAsync(RolePermissionLocalization.FailureKey(res.Error!.Code)); return; }
+            await OnSaved.InvokeAsync();
+        }
+        finally { await ModalBusyChanged.InvokeAsync(false); }
+    }
+
+    private async Task ToggleActiveAsync()
+    {
+        if (CurrentScope is null || EditingWarehouse is null) return;
+        await ModalBusyChanged.InvokeAsync(true);
+        await WhErrorChanged.InvokeAsync(null);
+        try
+        {
+            var res = await InvService.SetWarehouseActive(CurrentScope, new SetWarehouseActiveRequest(EditingWarehouse.OrganizationId, EditingWarehouse.Id, !EditingWarehouse.IsActive, EditingWarehouse.RowVersion));
+            if (!res.Succeeded) { await WhErrorChanged.InvokeAsync(RolePermissionLocalization.FailureKey(res.Error!.Code)); return; }
+            await OnSaved.InvokeAsync();
+        }
+        finally { await ModalBusyChanged.InvokeAsync(false); }
+    }
+
+    private Task OnSiteChanged(ChangeEventArgs e)
+        => long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+            ? WhSiteIdChanged.InvokeAsync(id)
+            : Task.CompletedTask;
+}

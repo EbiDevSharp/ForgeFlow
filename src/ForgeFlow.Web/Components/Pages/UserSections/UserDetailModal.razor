@@ -1,0 +1,676 @@
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Users
+@using ForgeFlow.Domain.Organizations
+@using ForgeFlow.Domain.Users
+@using ForgeFlow.Web.Roles
+@inject UserUseCases UsersService
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="540px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           Title="@(editMode ? Text["UserEditModalTitle"] : Text["ReadDetails"])" AriaLabel="@(editMode ? Text["UserEditModalTitle"] : Text["ReadDetails"])"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+@if (selected is not null)
+{
+    @if (!editMode)
+    {
+        <dl class="read-detail">
+            <dt>@Text["UserUsername"]</dt>
+            <dd dir="ltr">@selected.UserName</dd>
+            <dt>@Text["UserAccountStatus"]</dt>
+            <dd>
+                <span class="read-badge @(selected.AccountIsActive ? "active" : "inactive")">@Text[selected.AccountIsActive ? "ReadActive" : "UserAccountDisabled"]</span>
+                @if (selected.IsLockedOut)
+                {
+                    <span class="read-badge locked">@Text["UserLockedBadge"]</span>
+                }
+            </dd>
+            <dt>@Text["UserMembershipStatus"]</dt>
+            <dd><span class="read-badge @(selected.MembershipIsActive ? "active" : "inactive")">@Text[selected.MembershipIsActive ? "UserMembershipActive" : "UserMembershipInactive"]</span></dd>
+            <dt>@Text["UserRoleColumn"]</dt>
+            <dd><span class="read-badge @(selected.IsOrganizationAdmin ? "role" : "inactive")">@Text[selected.IsOrganizationAdmin ? "UserOrgAdminRole" : "UserStandardRole"]</span></dd>
+            <dt>@Text["UserSitesColumn"]</dt>
+            <dd>
+                @if (selected.Sites.Count == 0)
+                {
+                    @Text["UserEmptySites"]
+                }
+                else
+                {
+                    <div class="user-site-list">
+                        @foreach (var s in selected.Sites)
+                        {
+                            <div class="user-site-info">
+                                <span dir="ltr">@s.SiteCode</span>
+                                <span>— @s.SiteName</span>
+                                <span class="read-badge @(s.MembershipIsActive ? "active" : "inactive")">@Text[s.MembershipIsActive ? "ReadActive" : "ReadInactiveStatus"]</span>
+                                @if (s.IsSiteOperator)
+                                {
+                                    <span class="read-badge role">@Text["UserSiteOperatorRole"]</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </dd>
+        </dl>
+    }
+    else
+    {
+        <div class="um-modal-panel">
+            <div class="um-modal-user-head">
+                <span class="um-username-ellipsis" dir="ltr" title="@selected.UserName">@selected.UserName</span>
+                <span class="read-badge @(selected.AccountIsActive ? "active" : "inactive")">@Text[selected.AccountIsActive ? "ReadActive" : "UserAccountDisabled"]</span>
+                @if (selected.IsLockedOut)
+                {
+                    <span class="read-badge locked">@Text["UserLockedBadge"]</span>
+                }
+            </div>
+
+            <div class="um-tabs" role="tablist">
+                <button type="button" role="tab" aria-selected="@(editTab == "access" ? "true" : "false")"
+                        class="um-tab @(editTab == "access" ? "is-active" : string.Empty)"
+                        @onclick='() => editTab = "access"'>
+                    @Text["UserTabAccess"]
+                </button>
+                <button type="button" role="tab" aria-selected="@(editTab == "security" ? "true" : "false")"
+                        class="um-tab @(editTab == "security" ? "is-active" : string.Empty)"
+                        @onclick='() => editTab = "security"'>
+                    @Text["UserTabSecurity"]
+                </button>
+            </div>
+
+            @if (editTab == "access")
+            {
+                @if (ScopeCanManageMemberships || ScopeCanAssignRoles)
+                {
+                    <div class="um-section">
+                        <p class="um-section-title">@Text["UserOrgMembershipCardTitle"]</p>
+                        <div class="um-card">
+                            <div class="um-card-top">
+                                <span class="um-org-name">@ScopeOrgLabel</span>
+                                @if (selected.IsOrganizationAdmin)
+                                {
+                                    <span class="read-badge role">@Text["UserOrgAdminRole"]</span>
+                                }
+                                else
+                                {
+                                    <span class="read-badge @(selected.MembershipIsActive ? "active" : "inactive")">@Text[selected.MembershipIsActive ? "UserMembershipActive" : "UserMembershipInactive"]</span>
+                                }
+                            </div>
+                            <div class="write-actions">
+                                @if (ScopeCanManagePermissions)
+                                {
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                                               OnClick="() => OnOpenPermissions.InvokeAsync(selected.UserId)">@Text["UserPermissionsButton"]</BitButton>
+                                }
+                                @if (ScopeCanAssignRoles)
+                                {
+                                    @if (selected.IsOrganizationAdmin)
+                                    {
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving && selected.UserId != CurrentActorId)"
+                                                   OnClick="@(() => AskConfirm(ConfirmActionKind.RevokeOrgAdmin))">@Text["UserRevokeOrgAdmin"]</BitButton>
+                                    }
+                                    else
+                                    {
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving && selected.MembershipIsActive)"
+                                                   OnClick="GrantOrRestoreOrgAdmin">@Text["UserGrantOrgAdmin"]</BitButton>
+                                    }
+                                }
+                                @if (ScopeCanManageMemberships)
+                                {
+                                    @if (selected.MembershipIsActive)
+                                    {
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="um-btn-danger" IsEnabled="@(!saving && selected.UserId != CurrentActorId)"
+                                                   OnClick="@(() => AskConfirm(ConfirmActionKind.DisableOrgMembership))">@Text["UserDeactivateMembership"]</BitButton>
+                                    }
+                                    else
+                                    {
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                                                   OnClick="@(() => AskConfirm(ConfirmActionKind.EnableOrgMembership))">@Text["UserActivateMembership"]</BitButton>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div class="um-section">
+                    <p class="um-section-title">@Text["UserSitesColumn"]</p>
+                    @if (selected.Sites.Count == 0)
+                    {
+                        <p class="write-hint">@Text["UserEmptySites"]</p>
+                    }
+                    else
+                    {
+                        <div class="um-site-list">
+                            @foreach (var s in selected.Sites)
+                            {
+                                <div class="um-site-row">
+                                    <div class="user-site-info">
+                                        <span class="um-chip" dir="ltr">@s.SiteCode</span>
+                                        <span>@s.SiteName</span>
+                                        <span class="read-badge @(s.MembershipIsActive ? "active" : "inactive")">@Text[s.MembershipIsActive ? "ReadActive" : "ReadInactiveStatus"]</span>
+                                    </div>
+                                    <div class="um-site-controls">
+                                        @if (ScopeCanManageMemberships)
+                                        {
+                                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                                                       Class="@(s.MembershipIsActive ? "um-btn-danger" : string.Empty)"
+                                                       IsEnabled="@(!saving)"
+                                                       OnClick="() => ToggleSiteMembership(s)">
+                                                @Text[s.MembershipIsActive ? "WriteDeactivate" : "WriteActivate"]
+                                            </BitButton>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @if (ScopeCanManageMemberships && UnassignedSites.Count > 0)
+                    {
+                        <div class="um-site-add-row">
+                            <label class="visually-hidden" for="user-add-site">@Text["UserAddSiteLabel"]</label>
+                            <select id="user-add-site" class="um-select" @bind="addSiteId" disabled="@saving">
+                                @foreach (var site in UnassignedSites)
+                                {
+                                    <option value="@site.Id">@($"{site.Code} — {site.Name}")</option>
+                                }
+                            </select>
+                            <BitButton Variant="BitVariant.Fill" Color="BitColor.Primary" Size="BitSize.Small"
+                                       IsEnabled="@(!saving && addSiteId > 0)" OnClick="SubmitAddSite">
+                                @Text["UserAddSiteButton"]
+                            </BitButton>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                @if ((ScopeCanUnlock && selected.IsLockedOut) || ScopeCanSetAccountActive || CanPlatformSetActive || CanPlatformUnlock)
+                {
+                    <div class="um-section">
+                        <p class="um-section-title">@Text["UserAccountStatus"]</p>
+                        <div class="um-card um-card--row">
+                            <div class="um-status-pair">
+                                <span class="read-badge @(selected.AccountIsActive ? "active" : "inactive")">@Text[selected.AccountIsActive ? "ReadActive" : "UserAccountDisabled"]</span>
+                                <span class="um-meta-text">@Text["UserLockStatusLabel"] <strong>@(selected.IsLockedOut ? Text["UserLockStatusLocked"] : Text["UserLockStatusOpen"])</strong></span>
+                            </div>
+                            <div class="write-actions">
+                                @if (ScopeCanUnlock || CanPlatformUnlock)
+                                {
+                                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving && selected.IsLockedOut)" OnClick="SubmitUnlock">@Text["UserUnlockButton"]</BitButton>
+                                }
+                                @if ((selected.BelongsToSingleOrganization && ScopeCanSetAccountActive) || CanPlatformSetActive)
+                                {
+                                    @if (selected.AccountIsActive)
+                                    {
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="um-btn-danger" IsEnabled="@(!saving && selected.UserId != CurrentActorId)"
+                                                   OnClick="@(() => AskConfirm(ConfirmActionKind.DisableAccount))">@Text["UserDeactivateAccount"]</BitButton>
+                                    }
+                                    else
+                                    {
+                                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)"
+                                                   OnClick="@(() => AskConfirm(ConfirmActionKind.EnableAccount))">@Text["UserActivateAccount"]</BitButton>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if ((selected.BelongsToSingleOrganization && ScopeCanResetPassword) || CanPlatformResetPassword)
+                {
+                    <div class="um-section">
+                        <p class="um-section-title">@Text["UserResetPasswordTitle"]</p>
+                        <BitTextField @bind-Value="resetPasswordValue" Immediate="true" Type="BitInputType.Password"
+                                      Label="@Text["UserNewPasswordLabel"]" Classes="@LoginPasswordFieldClasses"
+                                      CanRevealPassword="true" RevealPasswordAriaLabel="@Text["PasswordVisibilityToggle"]"
+                                      IsEnabled="@(!saving)" InputHtmlAttributes="@ResetPasswordAttributes" />
+                        <span id="reset-password-hint" class="write-hint">@Text["UserPasswordHint"]</span>
+                        <label class="um-inline-check">
+                            <input type="checkbox" @bind="resetRequirePasswordChange" disabled="@saving" />
+                            <span>@Text["UserMustChangePasswordLabel"]</span>
+                        </label>
+                        <div class="write-actions">
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                                       IsEnabled="@(!saving && !string.IsNullOrEmpty(resetPasswordValue))"
+                                       OnClick="@(() => AskConfirm(ConfirmActionKind.ResetPassword))">@Text["UserResetPasswordButton"]</BitButton>
+                        </div>
+                    </div>
+                }
+
+                <div class="um-section">
+                    <p class="um-section-title">@Text["User2FAStatusTitle"]</p>
+                    <div class="um-card">
+                        <div class="um-card-top">
+                            <span class="read-badge @(selected.TwoFactorEnabled ? "active" : "inactive")">@Text[selected.TwoFactorEnabled ? "SecurityRow2FAOn" : "SecurityRow2FAOff"]</span>
+                            @if ((selected.BelongsToSingleOrganization && (ScopeCanResetTwoFactor || ScopeCanResetPassword)) || CanPlatformResetTwoFactor)
+                            {
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="um-btn-danger"
+                                           IsEnabled="@(!saving && selected.TwoFactorEnabled && selected.UserId != CurrentActorId)"
+                                           OnClick="() => OnOpenReset2FA.InvokeAsync()">
+                                    @Text["User2FAResetBtn"]
+                                </BitButton>
+                            }
+                        </div>
+                        @if (selected.TwoFactorEnabled)
+                        {
+                            <p class="um-meta-text">@Text["User2FAEnabledMeta", selected.TwoFactorEnabledAtUtc.HasValue ? Format.Timestamp(selected.TwoFactorEnabledAtUtc.Value, " - ") : "—", selected.RecoveryCodesRemaining]</p>
+                            <p class="write-hint">@Text["User2FAResetHint"]</p>
+                        }
+                        else
+                        {
+                            <p class="write-hint">@Text["User2FADisabledHint"]</p>
+                        }
+                    </div>
+                </div>
+
+                <div class="um-section">
+                    <p class="um-section-title">@Text["UserSessionsCardTitle"]</p>
+                    <div class="um-card um-card--row">
+                        <span class="um-meta-text">@Text["UserActiveSessionsCount", selected.ActiveSessionCount]</span>
+                        @if ((selected.BelongsToSingleOrganization && ScopeCanResetPassword) || CanPlatformResetPassword)
+                        {
+                            <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
+                                       IsEnabled="@(!saving && selected.ActiveSessionCount > 0)"
+                                       OnClick="SubmitRevokeSessions">
+                                @Text["UserRevokeAllSessionsBtn"]
+                            </BitButton>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (saving) { <p role="status">@Text["WriteSaving"]</p> }
+            @if (saved) { <p role="status" class="write-saved">@Text["WriteSaved"]</p> }
+            @if (PageNotice is not null && IsOpen) { <p role="status" class="write-saved">@PageNotice</p> }
+            @if (writeError is not null)
+            {
+                <p role="alert" class="write-error">@Text[writeError]</p>
+                @if (writeError is "WriteConflict" or "WriteOutcomeUnknown")
+                {
+                    <div class="write-actions">
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="ReloadSelected">@Text["WriteReload"]</BitButton>
+                    </div>
+                }
+            }
+
+            <div class="um-modal-footer">
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => IsOpenChanged.InvokeAsync(false)">@Text["ReadClose"]</BitButton>
+            </div>
+        </div>
+    }
+}
+</Body>
+</BitDialog>
+
+<BitDialog Width="440px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@(confirmAction is not null)" OnDismiss="CancelConfirm"
+           Title="@Text["WriteConfirm"]" AriaLabel="@Text["WriteConfirm"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+<Body>
+@if (confirmAction is not null)
+{
+    var isDanger = confirmAction is ConfirmActionKind.DisableAccount or ConfirmActionKind.DisableOrgMembership or ConfirmActionKind.RevokeOrgAdmin;
+    <div class="write-panel" role="alertdialog" aria-labelledby="user-confirm-text">
+        <p id="user-confirm-text">@ConfirmMessage()</p>
+        @if (writeError is not null)
+        {
+            <p role="alert" class="write-error">@Text[writeError]</p>
+        }
+        <div class="um-modal-footer">
+            <span></span>
+            <div class="um-footer-actions">
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" IsEnabled="@(!saving)" OnClick="CancelConfirm">@Text["WriteCancel"]</BitButton>
+                <BitButton Variant="BitVariant.Fill" Color="@(isDanger ? BitColor.Error : BitColor.Primary)" Size="BitSize.Small"
+                           IsEnabled="@(!saving)" OnClick="ExecuteConfirm">@Text["WriteConfirm"]</BitButton>
+            </div>
+        </div>
+    </div>
+}
+</Body>
+</BitDialog>
+
+@code {
+    private enum ConfirmActionKind
+    {
+        DisableAccount,
+        EnableAccount,
+        DisableOrgMembership,
+        EnableOrgMembership,
+        RevokeOrgAdmin,
+        ResetPassword
+    }
+
+    private static readonly BitTextFieldClassStyles LoginPasswordFieldClasses = new()
+    {
+        Root = "login-field",
+        Label = "write-field-label",
+        InputWrapper = "login-field-wrapper",
+        FieldGroup = "login-field-group",
+        Input = "login-field-input",
+        RevealPassword = "login-field-reveal"
+    };
+
+    private static readonly Dictionary<string, object> ResetPasswordAttributes = new()
+    {
+        ["id"] = "reset-user-password",
+        ["autocomplete"] = "new-password",
+        ["dir"] = "ltr",
+        ["maxlength"] = "128",
+        ["aria-describedby"] = "reset-password-hint"
+    };
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public OrganizationScope? Scope { get; set; }
+    [Parameter] public string ScopeOrgLabel { get; set; } = string.Empty;
+    [Parameter] public long CurrentActorId { get; set; }
+    [Parameter] public IReadOnlyList<SiteDetails> OrgSites { get; set; } = [];
+    [Parameter] public bool ScopeCanSetAccountActive { get; set; }
+    [Parameter] public bool ScopeCanUnlock { get; set; }
+    [Parameter] public bool ScopeCanResetPassword { get; set; }
+    [Parameter] public bool ScopeCanResetTwoFactor { get; set; }
+    [Parameter] public bool ScopeCanManageMemberships { get; set; }
+    [Parameter] public bool ScopeCanAssignRoles { get; set; }
+    [Parameter] public bool ScopeCanManagePermissions { get; set; }
+    [Parameter] public bool CanPlatformSetActive { get; set; }
+    [Parameter] public bool CanPlatformUnlock { get; set; }
+    [Parameter] public bool CanPlatformResetPassword { get; set; }
+    [Parameter] public bool CanPlatformResetTwoFactor { get; set; }
+    [Parameter] public string? PageNotice { get; set; }
+    [Parameter] public EventCallback<string?> OnPageNotice { get; set; }
+    [Parameter] public EventCallback<string?> OnPageError { get; set; }
+    [Parameter] public Func<string, string> FailureKey { get; set; } = code => code;
+    [Parameter] public EventCallback<long> OnOpenPermissions { get; set; }
+    [Parameter] public EventCallback OnOpenReset2FA { get; set; }
+    [Parameter] public EventCallback OnRefreshGrid { get; set; }
+
+    private UserDetails? selected;
+    private bool editMode;
+    private string editTab = "access";
+    private bool saving;
+    private bool saved;
+    private string? writeError;
+    private ConfirmActionKind? confirmAction;
+    private long addSiteId;
+    private string resetPasswordValue = string.Empty;
+    private bool resetRequirePasswordChange = true;
+
+    public string? SelectedUserName => selected?.UserName;
+    public bool Saving => saving;
+
+    private IReadOnlyList<SiteDetails> UnassignedSites => selected is null
+        ? []
+        : OrgSites.Where(s => selected.Sites.All(existing => existing.SiteId != s.Id)).ToList();
+
+    public async Task OpenAsync(long userId, bool edit)
+    {
+        if (Scope is not OrganizationScope.Organization orgScope) return;
+        editMode = edit;
+        editTab = "access";
+        confirmAction = null;
+        resetPasswordValue = string.Empty;
+        resetRequirePasswordChange = true;
+        saving = false;
+        saved = false;
+        writeError = null;
+        try
+        {
+            var result = await UsersService.GetOrganizationUser(orgScope, orgScope.OrganizationId, userId);
+            if (!result.Succeeded)
+            {
+                await OnPageError.InvokeAsync(FailureKey(result.Error!.Code));
+                await IsOpenChanged.InvokeAsync(false);
+                return;
+            }
+            selected = result.Value!;
+            addSiteId = UnassignedSites.FirstOrDefault()?.Id ?? 0;
+            await IsOpenChanged.InvokeAsync(true);
+        }
+        catch
+        {
+            await OnPageError.InvokeAsync("ReadError");
+        }
+    }
+
+    public async Task PromptRowAccountActiveAsync(UserSummary row)
+    {
+        if (Scope is not OrganizationScope.Organization orgScope || saving) return;
+        await OnPageError.InvokeAsync(null);
+        writeError = null;
+        await OnPageNotice.InvokeAsync(null);
+        try
+        {
+            var result = await UsersService.GetOrganizationUser(orgScope, orgScope.OrganizationId, row.UserId);
+            if (!result.Succeeded)
+            {
+                await OnPageError.InvokeAsync(FailureKey(result.Error!.Code));
+                return;
+            }
+            selected = result.Value!;
+            confirmAction = row.AccountIsActive ? ConfirmActionKind.DisableAccount : ConfirmActionKind.EnableAccount;
+        }
+        catch
+        {
+            await OnPageError.InvokeAsync("ReadError");
+        }
+    }
+
+    public async Task PromptRowUnlockAsync(UserSummary row)
+    {
+        if (Scope is not OrganizationScope.Organization orgScope || saving) return;
+        await OnPageError.InvokeAsync(null);
+        writeError = null;
+        await OnPageNotice.InvokeAsync(null);
+        try
+        {
+            var result = await UsersService.GetOrganizationUser(orgScope, orgScope.OrganizationId, row.UserId);
+            if (!result.Succeeded)
+            {
+                await OnPageError.InvokeAsync(FailureKey(result.Error!.Code));
+                return;
+            }
+            selected = result.Value!;
+            await SubmitUnlock();
+            if (writeError is not null)
+                await OnPageError.InvokeAsync(writeError);
+        }
+        catch
+        {
+            await OnPageError.InvokeAsync("ReadError");
+        }
+    }
+
+    public async Task<bool> SubmitResetTwoFactorAsync(string? reason, bool identityVerified)
+    {
+        if (selected is null || saving || !identityVerified || string.IsNullOrWhiteSpace(reason) || Scope is not OrganizationScope.Organization orgScope)
+            return false;
+        var current = selected;
+        var tfaScope = !current.BelongsToSingleOrganization && CanPlatformResetTwoFactor
+            ? (OrganizationScope)new OrganizationScope.Platform()
+            : orgScope;
+        long? tfaOrgId = tfaScope is OrganizationScope.Organization org ? org.OrganizationId : null;
+        await RunMutationAsync(() => UsersService.ResetUserTwoFactor(
+            tfaScope,
+            new ResetUserTwoFactor(tfaOrgId, current.UserId, reason.Trim(), identityVerified, current.AccountRowVersion)));
+        if (writeError is null)
+        {
+            await OnPageNotice.InvokeAsync(Text["User2FAResetSuccess"]);
+            return true;
+        }
+        return false;
+    }
+
+    public void ClearWriteError() => writeError = null;
+
+    public void ResetOnClosed()
+    {
+        resetPasswordValue = string.Empty;
+        confirmAction = null;
+        writeError = null;
+        saved = false;
+    }
+
+    private Task ReloadSelected() => selected is null ? Task.CompletedTask : OpenAsync(selected.UserId, edit: true);
+
+    private void AskConfirm(ConfirmActionKind kind)
+    {
+        confirmAction = kind;
+        saved = false;
+        writeError = null;
+    }
+
+    private void CancelConfirm() => confirmAction = null;
+
+    private string ConfirmMessage() => selected is null ? string.Empty : confirmAction switch
+    {
+        ConfirmActionKind.DisableAccount => Text["UserConfirmDisableAccount", selected.UserName],
+        ConfirmActionKind.EnableAccount => Text["UserConfirmEnableAccount", selected.UserName],
+        ConfirmActionKind.DisableOrgMembership => Text["UserConfirmDisableMembership", selected.UserName],
+        ConfirmActionKind.EnableOrgMembership => Text["UserConfirmEnableMembership", selected.UserName],
+        ConfirmActionKind.RevokeOrgAdmin => Text["UserConfirmRevokeOrgAdmin", selected.UserName],
+        ConfirmActionKind.ResetPassword => Text["UserConfirmResetPassword", selected.UserName],
+        _ => string.Empty
+    };
+
+    private async Task ExecuteConfirm()
+    {
+        if (selected is null || confirmAction is null || Scope is not OrganizationScope.Organization orgScope) return;
+        var action = confirmAction.Value;
+        confirmAction = null;
+        var current = selected;
+        switch (action)
+        {
+            case ConfirmActionKind.DisableAccount:
+            case ConfirmActionKind.EnableAccount:
+                var accountScope = !current.BelongsToSingleOrganization && CanPlatformSetActive
+                    ? (OrganizationScope)new OrganizationScope.Platform()
+                    : orgScope;
+                long? accountOrgId = accountScope is OrganizationScope.Organization o ? o.OrganizationId : null;
+                await RunMutationAsync(() => UsersService.SetUserActive(
+                    accountScope,
+                    new SetUserActive(accountOrgId, current.UserId, action == ConfirmActionKind.EnableAccount, current.AccountRowVersion)));
+                break;
+            case ConfirmActionKind.DisableOrgMembership:
+            case ConfirmActionKind.EnableOrgMembership:
+                await RunMutationAsync(() => UsersService.SetOrganizationMembershipActive(
+                    orgScope,
+                    new SetOrganizationMembershipActive(orgScope.OrganizationId, current.UserId, action == ConfirmActionKind.EnableOrgMembership, current.MembershipRowVersion)));
+                break;
+            case ConfirmActionKind.RevokeOrgAdmin:
+                await RunMutationAsync(() => UsersService.SetTenantRoleActive(
+                    orgScope,
+                    new SetTenantRoleActive(orgScope.OrganizationId, current.UserId, TenantRoleKind.OrganizationAdministrator, null, false, current.OrganizationAdminRoleRowVersion)));
+                break;
+            case ConfirmActionKind.ResetPassword:
+                var pwdScope = !current.BelongsToSingleOrganization && CanPlatformResetPassword
+                    ? (OrganizationScope)new OrganizationScope.Platform()
+                    : orgScope;
+                long? pwdOrgId = pwdScope is OrganizationScope.Organization org ? org.OrganizationId : null;
+                var newPassword = resetPasswordValue;
+                resetPasswordValue = string.Empty;
+                await RunMutationAsync(() => UsersService.ResetUserPassword(
+                    pwdScope,
+                    new ResetUserPassword(pwdOrgId, current.UserId, newPassword, current.AccountRowVersion, resetRequirePasswordChange)));
+                break;
+        }
+    }
+
+    private async Task SubmitRevokeSessions()
+    {
+        if (selected is null || saving || Scope is not OrganizationScope.Organization orgScope) return;
+        var current = selected;
+        var sessScope = !current.BelongsToSingleOrganization && CanPlatformResetPassword
+            ? (OrganizationScope)new OrganizationScope.Platform()
+            : orgScope;
+        long? sessOrgId = sessScope is OrganizationScope.Organization org ? org.OrganizationId : null;
+        await RunMutationAsync(() => UsersService.RevokeUserSessions(
+            sessScope,
+            new RevokeUserSessions(sessOrgId, current.UserId, current.AccountRowVersion)));
+        if (writeError is null)
+            await OnPageNotice.InvokeAsync(Text["UserRevokeSessionsSuccess"]);
+    }
+
+    private Task SubmitUnlock()
+    {
+        if (selected is null || Scope is not OrganizationScope.Organization orgScope) return Task.CompletedTask;
+        var scope = !selected.BelongsToSingleOrganization && CanPlatformUnlock
+            ? (OrganizationScope)new OrganizationScope.Platform()
+            : orgScope;
+        long? orgId = scope is OrganizationScope.Organization o ? o.OrganizationId : null;
+        return RunMutationAsync(() => UsersService.UnlockUser(
+            scope, new UnlockUser(orgId, selected.UserId, selected.AccountRowVersion)));
+    }
+
+    private Task GrantOrRestoreOrgAdmin()
+    {
+        if (selected is null || Scope is not OrganizationScope.Organization orgScope) return Task.CompletedTask;
+        if (selected.OrganizationAdminRoleRowVersion is null)
+        {
+            return RunMutationAsync(() => UsersService.AssignTenantRole(
+                orgScope, new AssignTenantRole(orgScope.OrganizationId, selected.UserId, TenantRoleKind.OrganizationAdministrator)));
+        }
+        return RunMutationAsync(() => UsersService.SetTenantRoleActive(
+            orgScope, new SetTenantRoleActive(orgScope.OrganizationId, selected.UserId, TenantRoleKind.OrganizationAdministrator, null, true, selected.OrganizationAdminRoleRowVersion)));
+    }
+
+    private Task ToggleSiteMembership(UserSiteMembershipDetails site)
+        => selected is null || Scope is not OrganizationScope.Organization orgScope
+            ? Task.CompletedTask
+            : RunMutationAsync(() => UsersService.SetSiteMembershipActive(
+                orgScope, new SetSiteMembershipActive(orgScope.OrganizationId, selected.UserId, site.SiteId, !site.MembershipIsActive, site.MembershipRowVersion)));
+
+    private Task SubmitAddSite()
+        => selected is null || addSiteId <= 0 || Scope is not OrganizationScope.Organization orgScope
+            ? Task.CompletedTask
+            : RunMutationAsync(() => UsersService.AssignSiteMembership(
+                orgScope, new AssignSiteMembership(orgScope.OrganizationId, selected.UserId, addSiteId, false)));
+
+    private async Task RunMutationAsync(Func<Task<OrganizationResult<UserDetails>>> mutation)
+    {
+        if (selected is null || saving || Scope is not OrganizationScope.Organization orgScope) return;
+        var wasPlatformScope = selected.OrganizationId == 0;
+        var orgId = orgScope.OrganizationId;
+        var userId = selected.UserId;
+        saving = true;
+        saved = false;
+        writeError = null;
+        try
+        {
+            var result = await mutation();
+            if (!result.Succeeded)
+            {
+                writeError = FailureKey(result.Error!.Code);
+                return;
+            }
+            if (result.Value!.OrganizationId == 0 || wasPlatformScope)
+            {
+                var refreshed = await UsersService.GetOrganizationUser(orgScope, orgId, userId);
+                if (refreshed.Succeeded && refreshed.Value is not null)
+                    selected = refreshed.Value;
+            }
+            else
+            {
+                selected = result.Value;
+            }
+            addSiteId = UnassignedSites.FirstOrDefault()?.Id ?? 0;
+            saved = true;
+            saving = false;
+            await OnRefreshGrid.InvokeAsync();
+        }
+        catch
+        {
+            writeError = "WriteUnavailable";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+}

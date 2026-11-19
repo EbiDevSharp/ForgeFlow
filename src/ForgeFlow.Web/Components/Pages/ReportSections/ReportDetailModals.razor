@@ -1,0 +1,235 @@
+@using ForgeFlow.Application.Reporting
+@using ForgeFlow.Domain.ProductionOrders
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@ShortageOpen" IsOpenChanged="ShortageOpenChanged"
+           Title="@Text["RptShortageBreakdownTitle"]" AriaLabel="@Text["RptShortageBreakdownTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body audit-modal-body--wide">
+            @if (SelectedShortageItem is not null)
+            {
+                <div class="ff-detail-hero">
+                    <div class="ff-detail-hero-main">
+                        <span class="ff-detail-hero-code">@SelectedShortageItem.ItemName</span>
+                        <span class="ff-detail-hero-sub" dir="ltr">@SelectedShortageItem.ItemCode · @SelectedShortageItem.BaseUnitSymbol</span>
+                    </div>
+                    <div class="ff-detail-hero-badges">
+                        @if (SelectedShortageItem.ShortageBaseQuantity > 0m)
+                        {
+                            <span class="read-badge rpt-shortage-badge" dir="ltr">@FormatQty(SelectedShortageItem.ShortageBaseQuantity) @SelectedShortageItem.BaseUnitSymbol</span>
+                        }
+                        else
+                        {
+                            <span class="read-badge rpt-ok-badge" dir="ltr">@FormatQty(0m)</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="ff-kpi-strip">
+                    <div class="ff-kpi-tile">
+                        <span class="ff-kpi-tile-label">@Text["RptColRequiredQty"]</span>
+                        <strong class="ff-kpi-tile-val" dir="ltr">@FormatQty(SelectedShortageItem.RequiredBaseQuantity) @SelectedShortageItem.BaseUnitSymbol</strong>
+                    </div>
+                    <div class="ff-kpi-tile">
+                        <span class="ff-kpi-tile-label">@Text["RptColOnHandQty"]</span>
+                        <strong class="ff-kpi-tile-val" dir="ltr">@FormatQty(SelectedShortageItem.OnHandBaseQuantity) @SelectedShortageItem.BaseUnitSymbol</strong>
+                    </div>
+                    <div class="ff-kpi-tile">
+                        <span class="ff-kpi-tile-label">@Text["InvBlockedLabel"]</span>
+                        <strong class="ff-kpi-tile-val" dir="ltr">@FormatQty(SelectedShortageItem.BlockedBaseQuantity) @SelectedShortageItem.BaseUnitSymbol</strong>
+                    </div>
+                    <div class="ff-kpi-tile">
+                        <span class="ff-kpi-tile-label">@Text["InvAvailableLabel"]</span>
+                        <strong class="ff-kpi-tile-val" dir="ltr">@FormatQty(SelectedShortageItem.AvailableBaseQuantity) @SelectedShortageItem.BaseUnitSymbol</strong>
+                    </div>
+                    <div class="ff-kpi-tile">
+                        <span class="ff-kpi-tile-label">@Text["RptColOnOrderQty"]</span>
+                        <strong class="ff-kpi-tile-val" dir="ltr">@FormatQty(SelectedShortageItem.OnOrderBaseQuantity) @SelectedShortageItem.BaseUnitSymbol</strong>
+                    </div>
+                </div>
+
+                @if (SelectedShortageItem.Orders.Count == 0)
+                {
+                    <p class="read-empty">@Text["RptNoShortageOrders"]</p>
+                }
+                else
+                {
+                    <div class="audit-fields-box" style="overflow-x:auto;">
+                        <table class="audit-fields-table">
+                            <thead>
+                                <tr>
+                                    <th>@Text["PoOrderNumberColumn"]</th>
+                                    <th>@Text["PoSiteColumn"]</th>
+                                    <th>@Text["PoStatusColumn"]</th>
+                                    <th>@Text["PoDatesColumn"]</th>
+                                    <th>@Text["RptColRequiredQty"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <Virtualize Items="SelectedShortageItem.Orders.AsCollection()" Context="o" ItemSize="38" OverscanCount="5" SpacerElement="tr">
+                                    <tr>
+                                        <td><bdi dir="ltr">@o.OrderNumber</bdi></td>
+                                        <td><bdi dir="ltr">@o.SiteCode</bdi></td>
+                                        <td><span class="read-badge @StatusBadgeClass(o.Status)">@StatusLabel(o.Status)</span></td>
+                                        <td dir="ltr">@(o.PlannedDueDate is DateOnly d ? Format.Date(d) : "—")</td>
+                                        <td dir="ltr">@FormatQty(o.RequiredBaseQuantity) @SelectedShortageItem.BaseUnitSymbol</td>
+                                    </tr>
+                                </Virtualize>
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <div class="po-dialog-footer">
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => ShortageOpenChanged.InvokeAsync(false)">@Text["ReadClose"]</BitButton>
+                </div>
+            }
+        </div>
+    </Body>
+</BitDialog>
+
+<BitDialog Width="920px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@VarianceOpen" IsOpenChanged="VarianceOpenChanged"
+           Title="@Text["RptVarianceDetailTitle"]" AriaLabel="@Text["RptVarianceDetailTitle"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body audit-modal-body--wide">
+            @if (ModalError is not null)
+            {
+                <p class="write-error" role="alert">@Text[ModalError]</p>
+            }
+            else if (SelectedVarianceDetail is not null)
+            {
+                var s = SelectedVarianceDetail.Summary;
+                <div class="ff-detail-hero">
+                    <div class="ff-detail-hero-main">
+                        <span class="ff-detail-hero-code" dir="ltr">@s.OrderNumber (@s.SiteCode)</span>
+                        <span class="ff-detail-hero-sub">@s.ItemName (<bdi dir="ltr">@s.ItemCode</bdi>)</span>
+                    </div>
+                    <div class="ff-detail-hero-badges">
+                        <span class="read-badge @(s.YieldPercent >= 100m ? "rpt-ok-badge" : "po-status-inprogress")" dir="ltr">@FormatPct(s.YieldPercent)</span>
+                        <span class="read-badge @StatusBadgeClass(s.Status)">@StatusLabel(s.Status)</span>
+                    </div>
+                </div>
+
+                <div class="ff-kpi-strip">
+                    <div class="ff-kpi-tile">
+                        <span class="ff-kpi-tile-label">@Text["RptColPlannedVsActual"]</span>
+                        <strong class="ff-kpi-tile-val" dir="ltr">@FormatQty(s.PlannedBaseQuantity) / @FormatQty(s.ActualProducedBaseQuantity) @s.BaseUnitSymbol</strong>
+                    </div>
+                    <div class="ff-kpi-tile">
+                        <span class="ff-kpi-tile-label">@Text["RptColPostedReceipt"]</span>
+                        <strong class="ff-kpi-tile-val" dir="ltr">@FormatQty(s.PostedReceivedBaseQuantity) @s.BaseUnitSymbol</strong>
+                    </div>
+                    <div class="ff-kpi-tile">
+                        <span class="ff-kpi-tile-label">@Text["RptColScrapQty"]</span>
+                        <strong class="ff-kpi-tile-val" dir="ltr">@FormatQty(s.ActualScrapBaseQuantity) @s.BaseUnitSymbol</strong>
+                    </div>
+                    <div class="ff-kpi-tile">
+                        <span class="ff-kpi-tile-label">@Text["RptColYieldPct"]</span>
+                        <strong class="ff-kpi-tile-val" dir="ltr">@FormatPct(s.YieldPercent)</strong>
+                    </div>
+                </div>
+
+                <div class="audit-modal-section">
+                    <h3 class="audit-section-heading">@Text["RptOrderInputsTitle"]</h3>
+                    <div class="audit-fields-box" style="overflow-x:auto;">
+                        <table class="audit-fields-table">
+                            <thead>
+                                <tr>
+                                    <th>@Text["RptColMaterial"]</th>
+                                    <th>@Text["RptColPlannedQty"]</th>
+                                    <th>@Text["RptColIssuedQty"]</th>
+                                    <th>@Text["RptColVariance"]</th>
+                                    <th>@Text["RptColRemainingToIssue"]</th>
+                                    <th>@Text["RptColConsumptionPct"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <Virtualize Items="SelectedVarianceDetail.Inputs.AsCollection()" Context="line" ItemSize="45" OverscanCount="5" SpacerElement="tr">
+                                    <tr>
+                                        <td>
+                                            <div>@line.ItemName</div>
+                                            <div class="read-sub-cell" dir="ltr">@line.ItemCode</div>
+                                        </td>
+                                        <td dir="ltr">@FormatQty(line.PlannedBaseQuantity) @line.BaseUnitSymbol</td>
+                                        <td dir="ltr">@FormatQty(line.IssuedBaseQuantity) @line.BaseUnitSymbol</td>
+                                        <td dir="ltr">
+                                            <span class="read-badge @(line.VarianceBaseQuantity > 0m ? "rpt-shortage-badge" : "rpt-ok-badge")">
+                                                @(line.VarianceBaseQuantity > 0m ? "+" : string.Empty)@FormatQty(line.VarianceBaseQuantity) @line.BaseUnitSymbol
+                                            </span>
+                                        </td>
+                                        <td dir="ltr">@FormatQty(line.RemainingToIssueBaseQuantity) @line.BaseUnitSymbol</td>
+                                        <td dir="ltr">@FormatPct(line.ConsumptionPercent)</td>
+                                    </tr>
+                                </Virtualize>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="audit-modal-section">
+                    <h3 class="audit-section-heading">@Text["RptOrderOutputsTitle"]</h3>
+                    <div class="audit-fields-box" style="overflow-x:auto;">
+                        <table class="audit-fields-table">
+                            <thead>
+                                <tr>
+                                    <th>@Text["RptColMaterial"]</th>
+                                    <th>@Text["BomOutputTypeColumn"]</th>
+                                    <th>@Text["RptColPlannedQty"]</th>
+                                    <th>@Text["RptColReceivedQty"]</th>
+                                    <th>@Text["RptColVariance"]</th>
+                                    <th>@Text["RptColAchievementPct"]</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <Virtualize Items="SelectedVarianceDetail.Outputs.AsCollection()" Context="line" ItemSize="45" OverscanCount="5" SpacerElement="tr">
+                                    <tr>
+                                        <td>
+                                            <div>@line.ItemName</div>
+                                            <div class="read-sub-cell" dir="ltr">@line.ItemCode</div>
+                                        </td>
+                                        <td>@OutputTypeLabel(line.OutputType)</td>
+                                        <td dir="ltr">@FormatQty(line.PlannedBaseQuantity) @line.BaseUnitSymbol</td>
+                                        <td dir="ltr">@FormatQty(line.ReceivedBaseQuantity) @line.BaseUnitSymbol</td>
+                                        <td dir="ltr">
+                                            <span class="read-badge @(line.VarianceBaseQuantity < 0m ? "po-status-inprogress" : "rpt-ok-badge")">
+                                                @(line.VarianceBaseQuantity > 0m ? "+" : string.Empty)@FormatQty(line.VarianceBaseQuantity) @line.BaseUnitSymbol
+                                            </span>
+                                        </td>
+                                        <td dir="ltr">@FormatPct(line.AchievementPercent)</td>
+                                    </tr>
+                                </Virtualize>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="po-dialog-footer">
+                    <BitButton Variant="BitVariant.Outline" OnClick="() => VarianceOpenChanged.InvokeAsync(false)">@Text["ReadClose"]</BitButton>
+                </div>
+            }
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public bool ShortageOpen { get; set; }
+    [Parameter] public EventCallback<bool> ShortageOpenChanged { get; set; }
+    [Parameter] public MaterialShortageItemSummary? SelectedShortageItem { get; set; }
+
+    [Parameter] public bool VarianceOpen { get; set; }
+    [Parameter] public EventCallback<bool> VarianceOpenChanged { get; set; }
+    [Parameter] public string? ModalError { get; set; }
+    [Parameter] public ProductionVarianceDetail? SelectedVarianceDetail { get; set; }
+
+    [Parameter] public Func<decimal, string> FormatQty { get; set; } = v => v.ToString("0.##");
+    [Parameter] public Func<decimal, string> FormatPct { get; set; } = v => v.ToString("0.#");
+    [Parameter] public Func<ProductionOrderStatus, string> StatusBadgeClass { get; set; } = _ => string.Empty;
+    [Parameter] public Func<ProductionOrderStatus, string> StatusLabel { get; set; } = _ => string.Empty;
+    [Parameter] public Func<ForgeFlow.Domain.Boms.BomOutputType, string> OutputTypeLabel { get; set; } = _ => string.Empty;
+}

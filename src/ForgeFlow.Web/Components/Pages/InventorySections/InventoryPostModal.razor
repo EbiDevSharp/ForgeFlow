@@ -1,0 +1,238 @@
+@using System.Globalization
+@using ForgeFlow.Application.Inventory
+@using ForgeFlow.Application.Items
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Application.Units
+@using ForgeFlow.Domain.Inventory
+@using ForgeFlow.Web.Roles
+@inject InventoryUseCases InvService
+@inject IStringLocalizer<SharedResources> Text
+@inject CulturePolicy Culture
+
+<BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@IsOpen" IsOpenChanged="IsOpenChanged"
+           Title="@Text["InvPostMovementBtn"]" AriaLabel="@Text["InvPostMovementBtn"]"
+           CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
+    <Body>
+        <div class="audit-modal-body">
+            @if (PostError is not null)
+            {
+                <p role="alert" class="write-error">@Text[PostError]</p>
+            }
+            <div class="po-form-grid">
+                <div class="write-field">
+                    <label for="inv-post-doc">@Text["InvDocNumberLabel"]</label>
+                    <input id="inv-post-doc" type="text" maxlength="32" class="@(InvDocAllowOverride ? string.Empty : "proc-input-readonly")"
+                           value="@PostDocNumber" @oninput="e => PostDocNumberChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)"
+                           readonly="@(!InvDocAllowOverride)" dir="ltr" />
+                    <span class="write-hint">@Text["BomCreateHint"]</span>
+                </div>
+                <div class="write-field">
+                    <label for="inv-post-type">@Text["InvTxnTypeLabel"]</label>
+                    <select id="inv-post-type" value="@((byte)PostType)" @onchange="OnPostTypeChanged">
+                        <option value="@((byte)InventoryTransactionType.Receipt)">@TxnTypeLabel(InventoryTransactionType.Receipt)</option>
+                        <option value="@((byte)InventoryTransactionType.Issue)">@TxnTypeLabel(InventoryTransactionType.Issue)</option>
+                        <option value="@((byte)InventoryTransactionType.Adjustment)">@TxnTypeLabel(InventoryTransactionType.Adjustment)</option>
+                        <option value="@((byte)InventoryTransactionType.TransferOut)">@TxnTypeLabel(InventoryTransactionType.TransferOut)</option>
+                        <option value="@((byte)InventoryTransactionType.ProductionIssue)">@TxnTypeLabel(InventoryTransactionType.ProductionIssue)</option>
+                        <option value="@((byte)InventoryTransactionType.ProductionReceipt)">@TxnTypeLabel(InventoryTransactionType.ProductionReceipt)</option>
+                    </select>
+                </div>
+                <div class="write-field">
+                    <label for="inv-post-wh">@Text["InvWarehouseLabel"]</label>
+                    <select id="inv-post-wh" value="@PostWarehouseId" @onchange="OnPostWarehouseChanged">
+                        @foreach (var w in ActiveWarehouses)
+                        {
+                            <option value="@w.Id">@w.Code — @w.Name (@w.SiteCode)</option>
+                        }
+                    </select>
+                </div>
+                @if (PostType == InventoryTransactionType.TransferOut)
+                {
+                    <div class="write-field">
+                        <label for="inv-post-dest">@Text["InvDestWarehouseLabel"]</label>
+                        <select id="inv-post-dest" value="@PostDestWarehouseId" @onchange="e => OnLongChanged(PostDestWarehouseIdChanged, e)">
+                            <option value="0">@Text["InvSelectWarehouseOption"]</option>
+                            @foreach (var w in ActiveWarehouses.Where(x => x.Id != PostWarehouseId))
+                            {
+                                <option value="@w.Id">@w.Code — @w.Name (@w.SiteCode)</option>
+                            }
+                        </select>
+                    </div>
+                }
+                else if (PostType is InventoryTransactionType.ProductionIssue or InventoryTransactionType.ProductionReceipt)
+                {
+                    <div class="write-field">
+                        <label for="inv-post-po">@Text["PoOrderNumberColumn"]</label>
+                        <select id="inv-post-po" value="@PostProductionOrderId" @onchange="OnPostOrderChanged">
+                            <option value="0">@Text["InvSelectOrderOption"]</option>
+                            @foreach (var o in ActiveProductionOrders)
+                            {
+                                <option value="@o.Id">@o.OrderNumber — @o.ItemCode (@o.SiteCode)</option>
+                            }
+                        </select>
+                    </div>
+                }
+                <div class="write-field po-field-full">
+                    <label for="inv-post-note">@Text["PoNotesLabel"]</label>
+                    <textarea id="inv-post-note" rows="2" maxlength="500" value="@PostReferenceNote"
+                              @oninput="e => PostReferenceNoteChanged.InvokeAsync(e.Value?.ToString())"></textarea>
+                </div>
+            </div>
+
+            <div class="po-context-card">
+                <div class="po-context-head">
+                    <strong>@Text["InvLinesSection"]</strong>
+                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="po-add-cond-btn"
+                               Icon="@PlusIcon" IsEnabled="@(ActiveItems.Count > 0)" OnClick="OnAddPostLine">
+                        @Text["InvAddLineBtn"]
+                    </BitButton>
+                </div>
+                @foreach (var row in PostLines)
+                {
+                    <div class="po-cond-row" style="grid-template-columns:minmax(140px,1.4fr) minmax(90px,.8fr) minmax(90px,.7fr) minmax(100px,.9fr) auto;">
+                        <select aria-label="@Text["BomLineItemColumn"]" value="@row.ItemId" @onchange="e => OnPostLineItemChanged.InvokeAsync((row, e))">
+                            <option value="0">@Text["InvSelectItemOption"]</option>
+                            @foreach (var it in ActiveItems)
+                            {
+                                <option value="@it.Id">@it.Code — @it.Name</option>
+                            }
+                        </select>
+                        <input type="text" maxlength="32" @bind="row.LotCode" placeholder="@Text["InvLotCodeLabel"]" />
+                        <input type="number" step="0.000001" @bind="row.Quantity" placeholder="@Text["BomQuantityColumn"]" />
+                        <select aria-label="@Text["BomLineUnitColumn"]" @bind="row.UnitId">
+                            @foreach (var u in ActiveUnits)
+                            {
+                                <option value="@u.Id">@u.Code (@u.Symbol)</option>
+                            }
+                        </select>
+                        <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => PostLines.Remove(row)">
+                            @Text["BomRemoveRowBtn"]
+                        </BitButton>
+                    </div>
+                    @if (PostType is InventoryTransactionType.Receipt or InventoryTransactionType.ProductionReceipt && !string.IsNullOrWhiteSpace(row.LotCode))
+                    {
+                        <div class="po-form-grid" style="margin-top:4px; margin-bottom:8px;">
+                            <div class="write-field">
+                                <label>@Text["QcLotMfgDateLabel"]</label>
+                                <BitDatePicker @bind-Value="row.ManufactureDateOffset" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                                               ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowClearButton="true" ShowGoToToday="true"
+                                               GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                                               NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon" NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+                            </div>
+                            <div class="write-field">
+                                <label>@Text["QcLotExpDateLabel"]</label>
+                                <BitDatePicker @bind-Value="row.ExpirationDateOffset" Class="bom-dtp" Culture="@Culture.PickerCulture" DateFormat="@PickerDateFormat"
+                                               ShowTimePicker="false" AllowTextInput="false" AutoClose="true" ShowClearButton="true" ShowGoToToday="true"
+                                               GoToTodayTitle="@Text["BomDateToday"]" GoToTodayIcon="@TodayIcon" Icon="@CalendarIcon"
+                                               NextMonthNavIcon="@NextNavIcon" PrevMonthNavIcon="@PrevNavIcon" NextYearNavIcon="@NextYearIcon" PrevYearNavIcon="@PrevYearIcon" ClearButtonIcon="@CloseIcon" />
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="po-dialog-footer">
+                <BitButton IsEnabled="@(!ModalBusy && PostWarehouseId > 0 && PostLines.Count > 0)" OnClick="SubmitAsync">
+                    @Text["InvPostSubmitBtn"]
+                </BitButton>
+                <BitButton Variant="BitVariant.Outline" OnClick="() => IsOpenChanged.InvokeAsync(false)">@Text["WriteCancel"]</BitButton>
+            </div>
+        </div>
+    </Body>
+</BitDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public BitDialogClassStyles? DialogClasses { get; set; }
+    [Parameter] public string? PostError { get; set; }
+    [Parameter] public bool InvDocAllowOverride { get; set; }
+    [Parameter] public string PostDocNumber { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> PostDocNumberChanged { get; set; }
+    [Parameter] public InventoryTransactionType PostType { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnPostTypeChanged { get; set; }
+    [Parameter] public Func<InventoryTransactionType, string> TxnTypeLabel { get; set; } = _ => string.Empty;
+    [Parameter] public long PostWarehouseId { get; set; }
+    [Parameter] public EventCallback<long> PostWarehouseIdChanged { get; set; }
+    [Parameter] public EventCallback OnPostWarehouseManual { get; set; }
+    [Parameter] public IReadOnlyList<WarehouseSummary> ActiveWarehouses { get; set; } = [];
+    [Parameter] public long PostDestWarehouseId { get; set; }
+    [Parameter] public EventCallback<long> PostDestWarehouseIdChanged { get; set; }
+    [Parameter] public long PostProductionOrderId { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnPostOrderChanged { get; set; }
+    [Parameter] public IReadOnlyList<ProductionOrderSummary> ActiveProductionOrders { get; set; } = [];
+    [Parameter] public string? PostReferenceNote { get; set; }
+    [Parameter] public EventCallback<string?> PostReferenceNoteChanged { get; set; }
+    [Parameter] public List<Inventory.PostLineRow> PostLines { get; set; } = [];
+    [Parameter] public IReadOnlyList<ItemSummary> ActiveItems { get; set; } = [];
+    [Parameter] public IReadOnlyList<UnitSummary> ActiveUnits { get; set; } = [];
+    [Parameter] public EventCallback OnAddPostLine { get; set; }
+    [Parameter] public EventCallback<(Inventory.PostLineRow Row, ChangeEventArgs Args)> OnPostLineItemChanged { get; set; }
+    [Parameter] public bool ModalBusy { get; set; }
+    [Parameter] public EventCallback<bool> ModalBusyChanged { get; set; }
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public EventCallback<string?> PostErrorChanged { get; set; }
+    [Parameter] public EventCallback OnPosted { get; set; }
+    [Parameter] public string PickerDateFormat { get; set; } = "yyyy-MM-dd";
+
+    private async Task SubmitAsync()
+    {
+        if (CurrentScope is null) return;
+        await ModalBusyChanged.InvokeAsync(true);
+        await PostErrorChanged.InvokeAsync(null);
+        try
+        {
+            var orgId = CurrentScope switch
+            {
+                OrganizationScope.Organization o => o.OrganizationId,
+                OrganizationScope.Site s => s.OrganizationId,
+                _ => 0L
+            };
+            var lines = PostLines.Select(l => new InventoryLineInput(
+                l.ItemId,
+                l.LotCode,
+                l.Quantity,
+                l.UnitId > 0 ? l.UnitId : null,
+                null,
+                l.ManufactureDateOffset.HasValue ? DateOnly.FromDateTime(l.ManufactureDateOffset.Value.Date) : null,
+                l.ExpirationDateOffset.HasValue ? DateOnly.FromDateTime(l.ExpirationDateOffset.Value.Date) : null)).ToArray();
+            var res = await InvService.PostTransaction(CurrentScope, new PostInventoryTransactionRequest(
+                orgId,
+                PostWarehouseId,
+                PostType == InventoryTransactionType.TransferOut ? PostDestWarehouseId : null,
+                InvDocAllowOverride ? PostDocNumber : null,
+                PostType,
+                PostType is InventoryTransactionType.ProductionIssue or InventoryTransactionType.ProductionReceipt ? PostProductionOrderId : null,
+                PostReferenceNote,
+                null,
+                lines));
+            if (!res.Succeeded) { await PostErrorChanged.InvokeAsync(RolePermissionLocalization.FailureKey(res.Error!.Code)); return; }
+            await OnPosted.InvokeAsync();
+        }
+        finally { await ModalBusyChanged.InvokeAsync(false); }
+    }
+    [Parameter] public BitIconInfo? PlusIcon { get; set; }
+    [Parameter] public BitIconInfo? TodayIcon { get; set; }
+    [Parameter] public BitIconInfo? CalendarIcon { get; set; }
+    [Parameter] public BitIconInfo? NextNavIcon { get; set; }
+    [Parameter] public BitIconInfo? PrevNavIcon { get; set; }
+    [Parameter] public BitIconInfo? NextYearIcon { get; set; }
+    [Parameter] public BitIconInfo? PrevYearIcon { get; set; }
+    [Parameter] public BitIconInfo? CloseIcon { get; set; }
+
+    private async Task OnPostWarehouseChanged(ChangeEventArgs e)
+    {
+        if (long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+        {
+            await PostWarehouseIdChanged.InvokeAsync(id);
+            await OnPostWarehouseManual.InvokeAsync();
+        }
+    }
+
+    private Task OnLongChanged(EventCallback<long> cb, ChangeEventArgs e)
+        => long.TryParse(e.Value?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var id)
+            ? cb.InvokeAsync(id)
+            : Task.CompletedTask;
+}

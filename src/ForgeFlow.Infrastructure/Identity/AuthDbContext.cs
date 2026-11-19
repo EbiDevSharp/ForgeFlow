@@ -1,13 +1,19 @@
+using System.Runtime.CompilerServices;
 using ForgeFlow.Domain.Organizations;
 using ForgeFlow.Infrastructure.Identity.Configurations;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace ForgeFlow.Infrastructure.Identity;
 
-public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : IdentityUserContext<ApplicationAccount, long>(options)
+public sealed class AuthDbContext(
+    DbContextOptions<AuthDbContext> options,
+    IPersonalDataProtector? personalDataProtector = null) : IdentityUserContext<ApplicationAccount, long>(options)
 {
+    internal IPersonalDataProtector? PersonalDataProtector => personalDataProtector;
     public DbSet<RoleDefinition> RoleDefinitions => Set<RoleDefinition>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<UserPermissionGrant> UserPermissionGrants => Set<UserPermissionGrant>();
@@ -37,15 +43,36 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options) : Ide
         {
             fk.DeleteBehavior = DeleteBehavior.NoAction;
         }
+
+        if (personalDataProtector is not null)
+        {
+            var tokenConverter = new ValueConverter<string?, string?>(
+                v => v == null ? null : personalDataProtector.Protect(v),
+                v => v == null ? null : personalDataProtector.Unprotect(v));
+            model.Entity<IdentityUserToken<long>>()
+                .Property(t => t.Value)
+                .HasConversion(tokenConverter);
+        }
     }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         base.OnConfiguring(optionsBuilder);
+        optionsBuilder.ReplaceService<IModelCacheKeyFactory, AuthModelCacheKeyFactory>();
         var coreExt = optionsBuilder.Options.FindExtension<Microsoft.EntityFrameworkCore.Infrastructure.CoreOptionsExtension>();
         if (coreExt?.Interceptors?.OfType<ForgeFlow.Infrastructure.Persistence.Interceptors.AuthImmutableHistorySaveChangesInterceptor>().Any() != true)
             optionsBuilder.AddInterceptors(new ForgeFlow.Infrastructure.Persistence.Interceptors.AuthImmutableHistorySaveChangesInterceptor());
     }
 
     internal void Guard() => ForgeFlow.Infrastructure.Persistence.Interceptors.AuthImmutableHistorySaveChangesInterceptor.Guard(ChangeTracker);
+
+    private sealed class AuthModelCacheKeyFactory : IModelCacheKeyFactory
+    {
+        public object Create(DbContext context, bool designTime)
+        {
+            var protector = (context as AuthDbContext)?.PersonalDataProtector;
+            var protectorKey = protector is null ? 0 : RuntimeHelpers.GetHashCode(protector);
+            return (context.GetType(), designTime, protectorKey);
+        }
+    }
 }

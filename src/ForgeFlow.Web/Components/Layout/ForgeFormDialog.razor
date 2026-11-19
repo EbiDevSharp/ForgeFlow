@@ -1,4 +1,5 @@
 <BitDialog Width="@Width" MaxWidth="calc(100vw - 24px)" Classes="@DialogClasses" IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged"
+           OnDismissing="OnDialogDismissing"
            AriaLabel="@Title" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="false"
            AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
     <Body>
@@ -10,7 +11,7 @@
                     <p>@Subtitle</p>
                 }
             </div>
-            <button type="button" class="proc-po-close-btn" aria-label="@CloseTitle" title="@CloseTitle" @onclick="CloseAsync">
+            <button type="button" class="proc-po-close-btn" aria-label="@CloseTitle" title="@CloseTitle" disabled="@IsBusy" @onclick="CloseAsync">
                 <span class="ff-icon ff-icon--close" aria-hidden="true"></span>
             </button>
         </header>
@@ -48,6 +49,7 @@
 
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public bool IsBusy { get; set; }
     [Parameter] public string Width { get; set; } = "760px";
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
     [Parameter] public string? Subtitle { get; set; }
@@ -57,5 +59,9 @@
     [Parameter] public RenderFragment? FooterEnd { get; set; }
 
     private Task OnIsOpenChanged(bool next) => IsOpenChanged.InvokeAsync(next);
-    private Task CloseAsync() => IsOpenChanged.InvokeAsync(false);
+    private Task CloseAsync() => IsBusy ? Task.CompletedTask : IsOpenChanged.InvokeAsync(false);
+    private void OnDialogDismissing(BitDialogDismissArgs args)
+    {
+        if (IsBusy) args.Cancel = true;
+    }
 }

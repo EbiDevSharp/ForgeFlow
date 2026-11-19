@@ -110,16 +110,8 @@ app.UseRequestLocalization();
 app.UseExceptionHandler("/error", createScopeForErrors: true);
 app.UseStatusCodePagesWithReExecute("/not-found");
 
-// Short-circuit static assets before authentication/session middleware (F-02)
-app.Use(async (context, next) =>
-{
-    if (AuthenticationBackend.IsStaticAssetPath(context.Request.Path.Value))
-    {
-        await next(context);
-        return;
-    }
-    await next(context);
-});
+// Serve static assets before authentication/session middleware so asset requests do not hit session validation (F-02)
+app.MapStaticAssets();
 
 app.UseAuthentication();
 app.Use(async (context, next) =>
@@ -149,7 +141,6 @@ app.Use(async (context, next) =>
 app.UseAuthorization();
 app.UseRateLimiter();
 app.UseAntiforgery();
-app.MapStaticAssets();
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapPost("/culture", CultureEndpoint.SwitchAsync);
 app.MapAuthenticationBackend();

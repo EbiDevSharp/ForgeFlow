@@ -12,7 +12,7 @@
 @inject CulturePolicy Culture
 @implements IDisposable
 
-<ForgeFormDialog Width="980px" IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged"
+<ForgeFormDialog Width="980px" IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged" IsBusy="@saving"
                  Title="@Text["SalesDispatchModalTitle"]"
                  CloseTitle="@Text["ReadClose"]">
     <ChildContent>

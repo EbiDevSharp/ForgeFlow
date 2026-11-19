@@ -8,7 +8,7 @@
 @inject IStringLocalizer<SharedResources> Text
 @implements IDisposable
 
-<ForgeFormDialog IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged" Width="920px"
+<ForgeFormDialog IsOpen="@IsOpen" IsOpenChanged="OnDialogIsOpenChanged" IsBusy="@modalBusy" Width="920px"
                  Title="@Text[editingSpec is null ? "QcCreateSpecTitle" : "QcEditSpecTitle"]"
                  Subtitle="@Text["QcSpecModalSubtitle"]" CloseTitle="@Text["ReadClose"]">
     <ChildContent>

@@ -1,0 +1,131 @@
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Domain.ProductionOrders
+@using ForgeFlow.Web.Roles
+@inject ProductionOrderUseCases OrderService
+@inject DisplayFormatter Format
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-grid-card">
+    <div class="read-grid">
+        <BitDataGrid @ref="grid" TItem="ProductionOrderSummary" OnRead="ReadOrdersAsync" Pageable="true" PageSize="25"
+                     PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" SelectionMode="BitSelectionMode.Single"
+                     AriaLabelledBy="po-title" WrapCellText="true" Resizable="true">
+            <EmptyTemplate><p role="status" class="read-empty">@Text["ReadEmpty"]</p></EmptyTemplate>
+            <Columns>
+                <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoOrderNumberColumn"]">
+                    <Template Context="o">
+                        <strong dir="ltr">@o.OrderNumber</strong>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoSiteColumn"]">
+                    <Template Context="o">
+                        <span dir="ltr">@o.SiteCode</span> — @o.SiteName
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoItemColumn"]">
+                    <Template Context="o">
+                        <span dir="ltr">@o.ItemCode</span> — @o.ItemName
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoRequestedQtyColumn"]">
+                    <Template Context="o">
+                        <bdi dir="ltr">@Format.Number(o.RequestedQuantity) @o.RequestedUnitSymbol</bdi>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoDatesColumn"]">
+                    <Template Context="o">
+                        <bdi dir="ltr">@Format.Date(o.PlannedStartDate) – @Format.Date(o.PlannedDueDate)</bdi>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoBomSnapshotColumn"]">
+                    <Template Context="o">
+                        <span class="cap-badge" dir="ltr">@o.BomCodeSnapshot v@(o.BomVersionNumberSnapshot)</span>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["PoStatusColumn"]">
+                    <Template Context="o">
+                        <span class="read-badge @StatusBadgeClass(o.Status)">@StatusLabel(o.Status)</span>
+                    </Template>
+                </BitDataGridColumn>
+                <BitDataGridColumn TItem="ProductionOrderSummary" Title="@Text["ReadActions"]">
+                    <Template Context="o">
+                        <div class="read-row-actions">
+                            <BitTooltip Text="@Text["ReadDetails"]" ShowOnFocus="true">
+                                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action"
+                                           IconName="View" IconOnly="true" aria-label="@Text["ReadDetails"]"
+                                           OnClick="() => OnOpenWorkbench.InvokeAsync(o.Id)" />
+                            </BitTooltip>
+                        </div>
+                    </Template>
+                </BitDataGridColumn>
+            </Columns>
+        </BitDataGrid>
+    </div>
+</div>
+
+@code {
+    private BitDataGrid<ProductionOrderSummary>? grid;
+
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public long SiteFilter { get; set; }
+    [Parameter] public string StatusFilter { get; set; } = string.Empty;
+    [Parameter] public string? AppliedSearch { get; set; }
+    [Parameter] public int[] PageSizeOptions { get; set; } = [];
+    [Parameter] public BitDataGridStrings GridStrings { get; set; } = new();
+    [Parameter] public Func<ProductionOrderStatus, string> StatusLabel { get; set; } = s => s.ToString();
+    [Parameter] public Func<ProductionOrderStatus, string> StatusBadgeClass { get; set; } = _ => "po-status-draft";
+    [Parameter] public EventCallback<long> OnOpenWorkbench { get; set; }
+    [Parameter] public EventCallback<string?> OnPageError { get; set; }
+
+    public async Task ReloadFromFirstPageAsync()
+    {
+        if (grid is null) return;
+        if (grid.CurrentPage <= 1) await grid.RefreshAsync();
+        else await grid.GoToPageAsync(1);
+    }
+
+    public async Task RefreshCurrentPageAsync()
+    {
+        if (grid is not null)
+            await grid.RefreshAsync();
+    }
+
+    private async Task<BitDataGridReadResult<ProductionOrderSummary>> ReadOrdersAsync(BitDataGridReadRequest request)
+    {
+        if (CurrentScope is null) return new([], 0);
+        var orgId = CurrentScope switch
+        {
+            OrganizationScope.Organization o => o.OrganizationId,
+            OrganizationScope.Site s => s.OrganizationId,
+            _ => 0
+        };
+
+        var size = Math.Clamp(request.Take ?? 25, 1, 100);
+        var page = (request.Skip / size) + 1;
+        ProductionOrderStatus? parsedStatus = byte.TryParse(StatusFilter, out var st) && Enum.IsDefined((ProductionOrderStatus)st)
+            ? (ProductionOrderStatus)st
+            : null;
+        long? requestedSiteId = CurrentScope is OrganizationScope.Site siteScope ? siteScope.SiteId : (SiteFilter > 0 ? SiteFilter : null);
+
+        try
+        {
+            var res = await OrderService.ListOrders(CurrentScope, orgId, new ProductionOrderListQuery(requestedSiteId, parsedStatus, null, AppliedSearch, page, size), request.CancellationToken);
+            if (!res.Succeeded)
+            {
+                await OnPageError.InvokeAsync(RolePermissionLocalization.FailureKey(res.Error!.Code));
+                return new([], 0);
+            }
+            return new(res.Value!.Items.ToList(), res.Value.Total);
+        }
+        catch (OperationCanceledException)
+        {
+            return new([], 0);
+        }
+        catch
+        {
+            await OnPageError.InvokeAsync("ReadError");
+            return new([], 0);
+        }
+    }
+}

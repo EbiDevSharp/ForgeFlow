@@ -1,4 +1,4 @@
-@page "/business-partners"
+﻿@page "/business-partners"
 @page "/organizations/{OrganizationId:long}/business-partners"
 @using ForgeFlow.Application.BusinessPartners
 @using ForgeFlow.Application.Organizations
@@ -98,578 +98,69 @@
             </label>
         </div>
 
-        <div class="read-grid-card bp-grid-card">
-            <div class="read-grid">
-                <BitDataGrid @ref="grid" TItem="BusinessPartnerSummary" OnRead="ReadPartnersAsync" Pageable="true" PageSize="25"
-                             Resizable="true" WrapCellText="true"
-                             PageSizeOptions="@PageSizeOptions" Strings="@GridStrings" AriaLabel="@Text["BusinessPartners"]">
-                    <Columns>
-                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["ReadCode"]" Width="140px">
-                            <Template Context="p"><bdi dir="ltr">@p.Code</bdi></Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["ReadName"]" MinWidth="240">
-                            <Template Context="p">
-                                <div class="bp-name-cell">
-                                    <div class="bp-person-avatar @(p.PersonType == PersonType.Legal ? "bp-person-avatar--legal" : "bp-person-avatar--natural")"
-                                         title="@(p.PersonType == PersonType.Legal ? Text["BpPersonLegalTooltip"] : Text["BpPersonNaturalTooltip"])">
-                                        @if (p.PersonType == PersonType.Legal)
-                                        {
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
-                                                <path d="M9 22v-4h6v4"></path>
-                                                <path d="M8 6h.01"></path>
-                                                <path d="M16 6h.01"></path>
-                                                <path d="M8 10h.01"></path>
-                                                <path d="M16 10h.01"></path>
-                                                <path d="M8 14h.01"></path>
-                                                <path d="M16 14h.01"></path>
-                                            </svg>
-                                        }
-                                        else
-                                        {
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                                <circle cx="12" cy="7" r="4"></circle>
-                                            </svg>
-                                        }
-                                    </div>
-                                    <div class="bp-name-details">
-                                        <span class="bp-name-title" title="@p.Name">@p.Name</span>
-                                        <span class="bp-adaptive-id">
-                                            @if (p.PersonType == PersonType.Legal)
-                                            {
-                                                <span class="bp-adaptive-label">@Text["BpAdaptiveLegal"]:</span>
-                                                <bdi dir="ltr">@(string.IsNullOrWhiteSpace(p.NationalLegalId) ? "—" : p.NationalLegalId)</bdi>
-                                            }
-                                            else
-                                            {
-                                                <span class="bp-adaptive-label">@Text["BpAdaptiveNatural"]:</span>
-                                                <bdi dir="ltr">@(string.IsNullOrWhiteSpace(p.NationalCode) ? "—" : p.NationalCode)</bdi>
-                                            }
-                                        </span>
-                                    </div>
-                                </div>
-                            </Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["BpRolesLabel"]" MinWidth="150">
-                            <Template Context="p">
-                                <div class="bp-roles-wrap">
-                                    @foreach (var rId in p.RoleIds)
-                                    {
-                                        <span class="bp-role-badge @GetRoleBadgeClass(rId)">@RoleName(rId)</span>
-                                    }
-                                </div>
-                            </Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["BpContactInfo"]" Width="180px">
-                            <Template Context="p">
-                                <div class="bp-contact-cell">
-                                    <span class="bp-contact-phone"><bdi dir="ltr">@(string.IsNullOrWhiteSpace(p.Mobile) ? (string.IsNullOrWhiteSpace(p.Phone) ? "—" : p.Phone) : p.Mobile)</bdi></span>
-                                    @if (!string.IsNullOrWhiteSpace(p.Email))
-                                    {
-                                        <span class="bp-contact-email" title="@p.Email"><bdi dir="ltr">@p.Email</bdi></span>
-                                    }
-                                </div>
-                            </Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["ReadStatus"]" Width="100px">
-                            <Template Context="p">
-                                <span class="read-badge @(p.IsActive ? "active" : "inactive")">
-                                    @(p.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
-                                </span>
-                            </Template>
-                        </BitDataGridColumn>
-                        <BitDataGridColumn TItem="BusinessPartnerSummary" Title="@Text["ReadActions"]" Width="140px">
-                            <Template Context="p">
-                                <div class="bp-actions-cell">
-                                    <button type="button" class="bp-action-btn" title="@Text["ReadDetails"]" aria-label="@Text["ReadDetails"]" @onclick="() => OpenDetailModal(p)">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                            <circle cx="12" cy="12" r="3"></circle>
-                                        </svg>
-                                    </button>
-                                    @if (scopeCanManage)
-                                    {
-                                        <button type="button" class="bp-action-btn" title="@Text["ReadEdit"]" aria-label="@Text["ReadEdit"]" @onclick="() => OpenEditModal(p)">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                                            </svg>
-                                        </button>
-                                        var toggleLabel = Text[p.IsActive ? "WriteDeactivate" : "WriteActivate"];
-                                        <button type="button" class="bp-action-btn @(p.IsActive ? "bp-action-btn--deactivate" : "bp-action-btn--activate")"
-                                                title="@toggleLabel" aria-label="@toggleLabel" @onclick="() => OpenToggleActiveConfirm(p)">
-                                            @if (p.IsActive)
-                                            {
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                    <circle cx="12" cy="12" r="10"></circle>
-                                                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
-                                                </svg>
-                                            }
-                                            else
-                                            {
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                    <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-                                                    <line x1="12" y1="2" x2="12" y2="12"></line>
-                                                </svg>
-                                            }
-                                        </button>
-                                    }
-                                </div>
-                            </Template>
-                        </BitDataGridColumn>
-                    </Columns>
-                </BitDataGrid>
-            </div>
-        </div>
+        <BusinessPartnerGridSection @ref="gridSection"
+            OnReadPartners="@ReadPartnersAsync"
+            PageSizeOptions="@PageSizeOptions"
+            GridStrings="@GridStrings"
+            GetRoleBadgeClass="@GetRoleBadgeClass"
+            RoleName="@RoleName"
+            ScopeCanManage="@scopeCanManage"
+            OnOpenDetail="OpenDetailModal"
+            OnOpenEdit="OpenEditModal"
+            OnOpenToggleConfirm="OpenToggleActiveConfirm" />
     }
 
-    @* Create / Edit Form Modal *@
-    <BitDialog Width="760px" MaxWidth="calc(100vw - 24px)" Classes="@FormDialogClasses" @bind-IsOpen="formModalOpen"
-               Title="@(editingPartnerId.HasValue ? Text["BpEditTitle"] : Text["BpCreateTitle"])"
-               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="false"
-               AutoFocus="false" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-        <Body>
-            <div class="bp-modal-header">
-                <h2>@(editingPartnerId.HasValue ? Text["BpEditTitle"] : Text["BpCreateTitle"])</h2>
-                <button type="button" class="bp-close-btn" aria-label="@Text["ReadClose"]" @onclick="() => formModalOpen = false">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
-            </div>
+    <BusinessPartnerFormModal
+        FormDialogClasses="@FormDialogClasses"
+        @bind-IsOpen="formModalOpen"
+        IsEditing="@editingPartnerId.HasValue"
+        ModalError="@modalError"
+        @bind-RoleSupplier="roleSupplier"
+        @bind-RoleCustomer="roleCustomer"
+        @bind-RoleContractor="roleContractor"
+        FormPersonType="@formPersonType"
+        OnPersonTypeChanged="OnPersonTypeChanged"
+        FormCode="@formCode"
+        @bind-FormNationalLegalId="formNationalLegalId"
+        @bind-FormNationalCode="formNationalCode"
+        @bind-FormEconomicCode="formEconomicCode"
+        @bind-FormCompanyName="formCompanyName"
+        @bind-FormFirstName="formFirstName"
+        @bind-FormLastName="formLastName"
+        @bind-FormMobile="formMobile"
+        @bind-FormPhone="formPhone"
+        @bind-FormEmail="formEmail"
+        @bind-FormWebsite="formWebsite"
+        @bind-FormCountry="formCountry"
+        FormProvince="@formProvince"
+        OnProvinceChanged="OnProvinceChangedAsync"
+        @bind-FormCity="formCity"
+        @bind-FormAddress="formAddress"
+        Provinces="@provinces"
+        Cities="@cities"
+        FilterDigitsOnly="@FilterDigitsOnly"
+        Saving="@saving"
+        OnSave="SavePartnerAsync" />
 
-            <div class="bp-modal-body">
-                @if (modalError is not null)
-                {
-                    <p role="alert" class="write-error">@modalError</p>
-                }
-
-                @* Role Selection (Pills matching image) *@
-                <div class="bp-pills-row">
-                    <div class="bp-pills-row-head">
-                        <span class="bp-pills-label">@Text["BpRolesLabel"] <span class="proc-req-star" aria-hidden="true">*</span></span>
-                        <span class="bp-pills-hint">@Text["BpRolesHint"]</span>
-                    </div>
-                    <div class="bp-pills-container">
-                        <button type="button" class="bp-pill-btn @(roleSupplier ? "active" : "")" @onclick="() => roleSupplier = !roleSupplier">
-                            @if (roleSupplier)
-                            {
-                                <svg class="bp-pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
-                            }
-                            <span>@Text["BpRoleSupplier"]</span>
-                        </button>
-                        <button type="button" class="bp-pill-btn @(roleCustomer ? "active" : "")" @onclick="() => roleCustomer = !roleCustomer">
-                            @if (roleCustomer)
-                            {
-                                <svg class="bp-pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
-                            }
-                            <span>@Text["BpRoleCustomer"]</span>
-                        </button>
-                        <button type="button" class="bp-pill-btn @(roleContractor ? "active" : "")" @onclick="() => roleContractor = !roleContractor">
-                            @if (roleContractor)
-                            {
-                                <svg class="bp-pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
-                            }
-                            <span>@Text["BpRoleContractor"]</span>
-                        </button>
-                    </div>
-                </div>
-
-                @* Person Type Selection (Pills matching image) *@
-                <div class="bp-pills-row">
-                    <div class="bp-pills-row-head">
-                        <span class="bp-pills-label">@Text["BpPersonType"]</span>
-                    </div>
-                    <div class="bp-pills-container">
-                        <button type="button" class="bp-pill-btn @(formPersonType == PersonType.Legal ? "active" : "")" @onclick="() => OnPersonTypeChanged(PersonType.Legal)">
-                            @if (formPersonType == PersonType.Legal)
-                            {
-                                <svg class="bp-pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
-                            }
-                            <span>@Text["BpPersonLegal"]</span>
-                        </button>
-                        <button type="button" class="bp-pill-btn @(formPersonType == PersonType.Natural ? "active" : "")" @onclick="() => OnPersonTypeChanged(PersonType.Natural)">
-                            @if (formPersonType == PersonType.Natural)
-                            {
-                                <svg class="bp-pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                </svg>
-                            }
-                            <span>@Text["BpPersonNatural"]</span>
-                        </button>
-                    </div>
-                </div>
-
-                @* 1. General Information (اطلاعات عمومی) *@
-                <div class="bp-section">
-                    <div class="bp-section-head">
-                        <div class="bp-section-title">
-                            <svg class="bp-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                <circle cx="12" cy="7" r="4"></circle>
-                            </svg>
-                            <span>@Text["BpGeneralInfo"]</span>
-                        </div>
-                        <div class="bp-section-divider"></div>
-                    </div>
-
-                    @if (formPersonType == PersonType.Legal)
-                    {
-                        <div class="bp-grid-3">
-                            <div class="bp-field">
-                                <label for="bp-form-code">@Text["BpCode"]</label>
-                                <input id="bp-form-code" type="text" value="@formCode" disabled dir="ltr" />
-                            </div>
-                            <div class="bp-field">
-                                <label for="bp-form-legid">@Text["BpNationalLegalId"]</label>
-                                <input id="bp-form-legid" type="text" maxlength="11" value="@formNationalLegalId" @oninput="e => formNationalLegalId = FilterDigitsOnly(e.Value?.ToString(), 11)" placeholder="@Text["BpNationalLegalIdPlaceholder"]" dir="ltr" />
-                            </div>
-                            <div class="bp-field">
-                                <label for="bp-form-economic">@Text["BpEconomicCode"]</label>
-                                <input id="bp-form-economic" type="text" maxlength="14" value="@formEconomicCode" @oninput="e => formEconomicCode = FilterDigitsOnly(e.Value?.ToString(), 14)" placeholder="@Text["BpEconomicCode"]" dir="ltr" />
-                            </div>
-                        </div>
-
-                        <div class="bp-field">
-                            <label for="bp-form-company">@Text["BpCompanyName"] <span class="proc-req-star" aria-hidden="true">*</span></label>
-                            <input id="bp-form-company" type="text" maxlength="200" @bind="formCompanyName" placeholder="@Text["BpCompanyName"]" />
-                        </div>
-
-                        <div class="bp-grid-2">
-                            <div class="bp-field">
-                                <label for="bp-form-contact-first">@Text["BpContactFirstName"]</label>
-                                <input id="bp-form-contact-first" type="text" maxlength="100" @bind="formFirstName" placeholder="@Text["BpContactFirstName"]" />
-                            </div>
-                            <div class="bp-field">
-                                <label for="bp-form-contact-last">@Text["BpContactLastName"]</label>
-                                <input id="bp-form-contact-last" type="text" maxlength="100" @bind="formLastName" placeholder="@Text["BpContactLastName"]" />
-                            </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="bp-grid-3">
-                            <div class="bp-field">
-                                <label for="bp-form-code">@Text["BpCode"]</label>
-                                <input id="bp-form-code" type="text" value="@formCode" disabled dir="ltr" />
-                            </div>
-                            <div class="bp-field">
-                                <label for="bp-form-natcode">@Text["BpNationalCode"]</label>
-                                <input id="bp-form-natcode" type="text" maxlength="10" value="@formNationalCode" @oninput="e => formNationalCode = FilterDigitsOnly(e.Value?.ToString(), 10)" placeholder="@Text["BpNationalCodePlaceholder"]" dir="ltr" />
-                            </div>
-                            <div class="bp-field">
-                                <label for="bp-form-economic-nat">@Text["BpEconomicCode"]</label>
-                                <input id="bp-form-economic-nat" type="text" maxlength="14" value="@formEconomicCode" @oninput="e => formEconomicCode = FilterDigitsOnly(e.Value?.ToString(), 14)" placeholder="@Text["BpEconomicCode"]" dir="ltr" />
-                            </div>
-                        </div>
-
-                        <div class="bp-grid-2">
-                            <div class="bp-field">
-                                <label for="bp-form-natfirst">@Text["BpFirstName"] <span class="proc-req-star" aria-hidden="true">*</span></label>
-                                <input id="bp-form-natfirst" type="text" maxlength="100" @bind="formFirstName" placeholder="@Text["BpFirstName"]" />
-                            </div>
-                            <div class="bp-field">
-                                <label for="bp-form-natlast">@Text["BpLastName"] <span class="proc-req-star" aria-hidden="true">*</span></label>
-                                <input id="bp-form-natlast" type="text" maxlength="100" @bind="formLastName" placeholder="@Text["BpLastName"]" />
-                            </div>
-                        </div>
-                    }
-                </div>
-
-                @* 2. Contact Information (اطلاعات تماس) *@
-                <div class="bp-section">
-                    <div class="bp-section-head">
-                        <div class="bp-section-title">
-                            <svg class="bp-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                            </svg>
-                            <span>@Text["BpContactInfo"]</span>
-                        </div>
-                        <div class="bp-section-divider"></div>
-                    </div>
-
-                    <div class="bp-grid-2">
-                        <div class="bp-field">
-                            <label for="bp-form-mobile">@Text["BpMobile"]</label>
-                            <input id="bp-form-mobile" type="tel" maxlength="11" value="@formMobile" @oninput="e => formMobile = FilterDigitsOnly(e.Value?.ToString(), 11)" placeholder="@Text["BpMobilePlaceholder"]" dir="ltr" />
-                        </div>
-                        <div class="bp-field">
-                            <label for="bp-form-phone">@Text["BpPhone"]</label>
-                            <input id="bp-form-phone" type="tel" maxlength="15" value="@formPhone" @oninput="e => formPhone = FilterDigitsOnly(e.Value?.ToString(), 15)" placeholder="@Text["BpPhonePlaceholder"]" dir="ltr" />
-                        </div>
-                    </div>
-
-                    <div class="bp-grid-2">
-                        <div class="bp-field">
-                            <label for="bp-form-email">@Text["BpEmail"]</label>
-                            <input id="bp-form-email" type="email" maxlength="256" @bind="formEmail" placeholder="@Text["BpEmailPlaceholder"]" dir="ltr" />
-                        </div>
-                        <div class="bp-field">
-                            <label for="bp-form-web">@Text["BpWebsite"]</label>
-                            <input id="bp-form-web" type="url" maxlength="200" @bind="formWebsite" placeholder="@Text["BpWebsitePlaceholder"]" dir="ltr" />
-                        </div>
-                    </div>
-                </div>
-
-                @* 3. Address Information (اطلاعات آدرس) *@
-                <div class="bp-section">
-                    <div class="bp-section-head">
-                        <div class="bp-section-title">
-                            <svg class="bp-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                                <circle cx="12" cy="10" r="3"></circle>
-                            </svg>
-                            <span>@Text["BpAddressInfo"]</span>
-                        </div>
-                        <div class="bp-section-divider"></div>
-                    </div>
-
-                    <div class="bp-grid-3">
-                        <div class="bp-field">
-                            <label for="bp-form-country">@Text["BpCountry"]</label>
-                            <select id="bp-form-country" value="@formCountry" @onchange="e => formCountry = e.Value?.ToString() ?? string.Empty">
-                                <option value="IR">@Text["Country_IR"]</option>
-                            </select>
-                        </div>
-                        <div class="bp-field">
-                            <label for="bp-form-prov">@Text["BpProvince"]</label>
-                            <select id="bp-form-prov" value="@formProvince" @onchange="OnProvinceChangedAsync">
-                                <option value="">@Text["BpSelectProvince"]</option>
-                                @foreach (var p in provinces)
-                                {
-                                    <option value="@p.Name">@p.Name</option>
-                                }
-                            </select>
-                        </div>
-                        <div class="bp-field">
-                            <label for="bp-form-city">@Text["BpCity"]</label>
-                            <select id="bp-form-city" value="@formCity" @onchange="e => formCity = e.Value?.ToString() ?? string.Empty" disabled="@(cities.Count == 0 && string.IsNullOrWhiteSpace(formCity))">
-                                <option value="">@Text["BpSelectCity"]</option>
-                                @foreach (var c in cities)
-                                {
-                                    <option value="@c.Name">@c.Name</option>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(formCity) && !cities.Any(c => c.Name == formCity))
-                                {
-                                    <option value="@formCity">@formCity</option>
-                                }
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="bp-field">
-                        <label for="bp-form-addr">@Text["BpAddress"]</label>
-                        <textarea id="bp-form-addr" rows="2" maxlength="500" @bind="formAddress" placeholder="@Text["BpAddressPlaceholder"]"></textarea>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bp-modal-footer">
-                <span class="bp-modal-footer-hint">@Text["BpRequiredFieldHint"]</span>
-                <div class="bp-modal-footer-actions">
-                    <button type="button" class="bp-btn-cancel" @onclick="() => formModalOpen = false">
-                        @Text["WriteCancel"]
-                    </button>
-                    <button type="button" class="bp-btn-save" disabled="@saving" @onclick="SavePartnerAsync">
-                        @(saving ? Text["WriteSaving"] : Text["WriteSave"])
-                    </button>
-                </div>
-            </div>
-        </Body>
-    </BitDialog>
-
-    @* Detail Modal *@
-    <BitDialog Width="680px" MaxWidth="calc(100vw - 24px)" Classes="@DetailDialogClasses" @bind-IsOpen="detailModalOpen"
-               Title="@Text["BpDetailTitle"]" AriaLabel="@Text["BpDetailTitle"]"
-               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-        <Body>
-            @if (detailItem is not null)
-            {
-                <div class="bp-detail-dialog-body">
-                    <div class="bp-detail-hero">
-                        <div class="bp-person-avatar @(detailItem.PersonType == PersonType.Legal ? "bp-person-avatar--legal" : "bp-person-avatar--natural")" style="width: 52px; height: 52px;">
-                            @if (detailItem.PersonType == PersonType.Legal)
-                            {
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 28px; height: 28px;">
-                                    <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
-                                    <path d="M9 22v-4h6v4"></path>
-                                    <path d="M8 6h.01"></path>
-                                    <path d="M16 6h.01"></path>
-                                    <path d="M8 10h.01"></path>
-                                    <path d="M16 10h.01"></path>
-                                    <path d="M8 14h.01"></path>
-                                    <path d="M16 14h.01"></path>
-                                </svg>
-                            }
-                            else
-                            {
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 28px; height: 28px;">
-                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                                    <circle cx="12" cy="7" r="4"></circle>
-                                </svg>
-                            }
-                        </div>
-                        <div class="bp-detail-hero-info">
-                            <h3 class="bp-detail-name">@detailItem.Name</h3>
-                            <div class="bp-detail-meta">
-                                <span class="bp-detail-code"><bdi dir="ltr">@detailItem.Code</bdi></span>
-                                <span class="bp-detail-sep">•</span>
-                                <span class="read-badge @(detailItem.IsActive ? "active" : "inactive")">
-                                    @(detailItem.IsActive ? Text["ReadActive"] : Text["ReadInactiveStatus"])
-                                </span>
-                                <span class="bp-detail-sep">•</span>
-                                <span class="bp-detail-type">@(detailItem.PersonType == PersonType.Legal ? Text["BpPersonLegal"] : Text["BpPersonNatural"])</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    @* Roles *@
-                    <div class="bp-detail-card">
-                        <h4 class="bp-detail-card-title">@Text["BpRolesLabel"]</h4>
-                        <div class="bp-roles-wrap">
-                            @foreach (var r in detailItem.Roles)
-                            {
-                                <span class="bp-role-badge @GetRoleBadgeClass(r.Id)">@RoleName(r.Id)</span>
-                            }
-                        </div>
-                    </div>
-
-                    @* Identity & Registration *@
-                    <div class="bp-detail-card">
-                        <h4 class="bp-detail-card-title">@Text["BpGeneralInfo"]</h4>
-                        <div class="audit-meta-grid">
-                            @if (detailItem.PersonType == PersonType.Legal)
-                            {
-                                <div class="audit-meta-row">
-                                    <span class="audit-meta-label">@Text["BpCompanyName"]</span>
-                                    <span class="audit-meta-val">@(detailItem.CompanyName ?? detailItem.Name)</span>
-                                </div>
-                                <div class="audit-meta-row">
-                                    <span class="audit-meta-label">@Text["BpNationalLegalId"]</span>
-                                    <span class="audit-meta-val"><bdi dir="ltr">@(detailItem.NationalLegalId ?? "—")</bdi></span>
-                                </div>
-                                @if (!string.IsNullOrWhiteSpace(detailItem.FirstName) || !string.IsNullOrWhiteSpace(detailItem.LastName))
-                                {
-                                    <div class="audit-meta-row">
-                                        <span class="audit-meta-label">@Text["BpContactPerson"]</span>
-                                        <span class="audit-meta-val">@($"{detailItem.FirstName} {detailItem.LastName}".Trim())</span>
-                                    </div>
-                                }
-                            }
-                            else
-                            {
-                                <div class="audit-meta-row">
-                                    <span class="audit-meta-label">@Text["BpFullName"]</span>
-                                    <span class="audit-meta-val">@detailItem.Name</span>
-                                </div>
-                                <div class="audit-meta-row">
-                                    <span class="audit-meta-label">@Text["BpFirstName"]</span>
-                                    <span class="audit-meta-val">@(detailItem.FirstName ?? "—")</span>
-                                </div>
-                                <div class="audit-meta-row">
-                                    <span class="audit-meta-label">@Text["BpLastName"]</span>
-                                    <span class="audit-meta-val">@(detailItem.LastName ?? "—")</span>
-                                </div>
-                                <div class="audit-meta-row">
-                                    <span class="audit-meta-label">@Text["BpNationalCode"]</span>
-                                    <span class="audit-meta-val"><bdi dir="ltr">@(detailItem.NationalCode ?? "—")</bdi></span>
-                                </div>
-                            }
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["BpEconomicCode"]</span>
-                                <span class="audit-meta-val"><bdi dir="ltr">@(detailItem.EconomicCode ?? "—")</bdi></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    @* Contact Info *@
-                    <div class="bp-detail-card">
-                        <h4 class="bp-detail-card-title">@Text["BpContactInfo"]</h4>
-                        <div class="audit-meta-grid">
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["BpMobile"]</span>
-                                <span class="audit-meta-val"><bdi dir="ltr">@(detailItem.Mobile ?? "—")</bdi></span>
-                            </div>
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["BpPhone"]</span>
-                                <span class="audit-meta-val"><bdi dir="ltr">@(detailItem.Phone ?? "—")</bdi></span>
-                            </div>
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["BpEmail"]</span>
-                                <span class="audit-meta-val"><bdi dir="ltr">@(detailItem.Email ?? "—")</bdi></span>
-                            </div>
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["BpWebsite"]</span>
-                                <span class="audit-meta-val"><bdi dir="ltr">@(detailItem.Website ?? "—")</bdi></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    @* Address *@
-                    <div class="bp-detail-card">
-                        <h4 class="bp-detail-card-title">@Text["BpAddressInfo"]</h4>
-                        <div class="audit-meta-grid">
-                            <div class="audit-meta-row">
-                                <span class="audit-meta-label">@Text["BpCountryProvince"]</span>
-                                <span class="audit-meta-val">@($"{ResolveCountry(detailItem.Country)} - {detailItem.Province}".Trim(' ', '-'))</span>
-                            </div>
-                            <div class="audit-meta-row" style="grid-column: 1 / -1;">
-                                <span class="audit-meta-label">@Text["BpCityAddress"]</span>
-                                <span class="audit-meta-val">@($"{detailItem.City} - {detailItem.Address}".Trim(' ', '-'))</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            }
-        </Body>
-    </BitDialog>
-
-    @* Toggle Active Confirmation Dialog *@
-    <BitDialog Width="440px" MaxWidth="calc(100vw - 24px)" Classes="@DetailDialogClasses" @bind-IsOpen="confirmToggleOpen"
-               Title="@Text[targetIsActive ? "WriteDeactivate" : "WriteActivate"]"
-               CloseButtonTitle="@Text["ReadClose"]" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-               AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true">
-        <Body>
-            <div class="write-dialog-body">
-                @if (targetIsActive)
-                {
-                    <p>@Text["BpConfirmDeactivate", targetName]</p>
-                }
-                else
-                {
-                    <p>@Text["BpConfirmActivate", targetName]</p>
-                }
-                <div class="write-actions">
-                    <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="() => confirmToggleOpen = false">
-                        @Text["WriteCancel"]
-                    </BitButton>
-                    <BitButton Size="BitSize.Small"
-                               Class="@(targetIsActive ? "write-danger-btn" : string.Empty)"
-                               IsEnabled="@(!toggling)"
-                               OnClick="ExecuteToggleActiveAsync">
-                        @Text[targetIsActive ? "WriteDeactivate" : "WriteActivate"]
-                    </BitButton>
-                </div>
-            </div>
-        </Body>
-    </BitDialog>
+@using ForgeFlow.Web.Components.Pages.BusinessPartnerSections
+    <BusinessPartnerDetailAndToggleModals
+        DetailDialogClasses="@DetailDialogClasses"
+        @bind-DetailModalOpen="detailModalOpen"
+        DetailItem="@detailItem"
+        GetRoleBadgeClass="@GetRoleBadgeClass"
+        RoleName="@RoleName"
+        ResolveCountry="@ResolveCountry"
+        @bind-ConfirmToggleOpen="confirmToggleOpen"
+        TargetIsActive="@targetIsActive"
+        TargetName="@targetName"
+        Toggling="@toggling"
+        OnExecuteToggleActive="ExecuteToggleActiveAsync" />
 </section>
 
 @code {
     [Parameter] public long? OrganizationId { get; set; }
 
-    private BitDataGrid<BusinessPartnerSummary>? grid;
+    private BusinessPartnerGridSection? gridSection;
     private List<OrganizationScope> available = [];
     private int scopeIndex;
     private bool scopeCanManage;
@@ -894,7 +385,7 @@
 
     private async Task ReloadScopeAsync() => await LoadScopesAsync();
 
-    private Task RefreshGridAsync() => grid?.RefreshAsync() ?? Task.CompletedTask;
+    private Task RefreshGridAsync() => gridSection?.RefreshAsync() ?? Task.CompletedTask;
 
     private async Task<BitDataGridReadResult<BusinessPartnerSummary>> ReadPartnersAsync(BitDataGridReadRequest req)
     {

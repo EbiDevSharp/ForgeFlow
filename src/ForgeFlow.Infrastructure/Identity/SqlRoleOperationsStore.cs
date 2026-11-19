@@ -56,7 +56,7 @@ public sealed class SqlRoleOperationsStore(
                     r.IsSystem,
                     r.ScopeKind,
                     r.IsActive,
-                    RowVersion = EF.Property<byte[]>(r, "RowVersion")
+                    r.RowVersion
                 })
                 .ToListAsync(ct);
 
@@ -677,7 +677,7 @@ public sealed class SqlRoleOperationsStore(
                 r.IsSystem,
                 r.ScopeKind,
                 r.IsActive,
-                RowVersion = EF.Property<byte[]>(r, "RowVersion")
+                r.RowVersion
             })
             .SingleOrDefaultAsync(ct);
         if (role is null)
@@ -739,7 +739,7 @@ public sealed class SqlRoleOperationsStore(
                                        a.ScopeKind,
                                        a.SiteId,
                                        a.IsActive,
-                                       RowVersion = EF.Property<byte[]>(a, "RowVersion")
+                                       a.RowVersion
                                    })
             .ToListAsync(ct);
 
@@ -755,7 +755,7 @@ public sealed class SqlRoleOperationsStore(
                 g.SiteId,
                 g.PermissionCode,
                 g.IsActive,
-                RowVersion = EF.Property<byte[]>(g, "RowVersion")
+                g.RowVersion
             })
             .ToListAsync(ct);
 
@@ -865,11 +865,8 @@ public sealed class SqlRoleOperationsStore(
             groups);
     }
 
-    private static bool MatchesRowVersion(AuthDbContext db, object entity, byte[] expected)
-    {
-        var current = (byte[]?)db.Entry(entity).Property("RowVersion").CurrentValue;
-        return current is not null && current.SequenceEqual(expected);
-    }
+    private static bool MatchesRowVersion(AuthDbContext _, ForgeFlow.Domain.Common.IHasRowVersion entity, byte[] expected)
+        => entity.RowVersion.Length > 0 && entity.RowVersion.SequenceEqual(expected);
 
     private static void SetCreateMetadata(AuthDbContext db, object entity, DateTime now, long actorId)
     {
@@ -885,7 +882,7 @@ public sealed class SqlRoleOperationsStore(
         entry.Property("UpdatedAtUtc").CurrentValue = now >= created ? now : created;
         entry.Property("UpdatedByActorId").CurrentValue = actorId;
         if (expectedRowVersion is not null)
-            entry.Property("RowVersion").OriginalValue = expectedRowVersion;
+            entry.Property(nameof(ForgeFlow.Domain.Common.IHasRowVersion.RowVersion)).OriginalValue = expectedRowVersion;
     }
 
     private static void AddEvent(

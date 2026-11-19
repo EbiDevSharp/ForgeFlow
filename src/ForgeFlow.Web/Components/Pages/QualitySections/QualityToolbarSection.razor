@@ -1,0 +1,139 @@
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.ProductionOrders
+@using ForgeFlow.Application.Quality
+@using ForgeFlow.Domain.Quality
+@inject IStringLocalizer<SharedResources> Text
+
+<div class="read-tab-bar" role="tablist" aria-label="@Text["QualityControl"]">
+    <button type="button" role="tab" aria-selected="@(ActiveTab == TabInspections)"
+            class="read-tab-btn @(ActiveTab == TabInspections ? "active" : string.Empty)"
+            @onclick="() => OnSwitchTab.InvokeAsync(TabInspections)">@Text["QcTabInspections"]</button>
+    <button type="button" role="tab" aria-selected="@(ActiveTab == TabSpecs)"
+            class="read-tab-btn @(ActiveTab == TabSpecs ? "active" : string.Empty)"
+            @onclick="() => OnSwitchTab.InvokeAsync(TabSpecs)">@Text["QcTabSpecs"]</button>
+    <button type="button" role="tab" aria-selected="@(ActiveTab == TabParameters)"
+            class="read-tab-btn @(ActiveTab == TabParameters ? "active" : string.Empty)"
+            @onclick="() => OnSwitchTab.InvokeAsync(TabParameters)">@Text["QcTabParameters"]</button>
+    <button type="button" role="tab" aria-selected="@(ActiveTab == TabLots)"
+            class="read-tab-btn @(ActiveTab == TabLots ? "active" : string.Empty)"
+            @onclick="() => OnSwitchTab.InvokeAsync(TabLots)">@Text["QcTabLots"]</button>
+</div>
+
+<div class="read-toolbar-card">
+    @if (AvailableScopes.Count > 1)
+    {
+        <div class="read-field">
+            <label for="qc-scope">@Text["ReadScope"]</label>
+            <select id="qc-scope" aria-label="@Text["ReadScope"]" value="@ScopeIndex" @onchange="OnScopeChanged">
+                @for (var i = 0; i < AvailableScopes.Count; i++)
+                {
+                    <option value="@i">@ScopeLabel(AvailableScopes[i])</option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (ActiveTab == TabInspections && CurrentScope is OrganizationScope.Organization && AuthorizedSites.Count > 1)
+    {
+        <div class="read-field">
+            <label for="qc-site-filter">@Text["PoSiteColumn"]</label>
+            <select id="qc-site-filter" value="@SiteFilter" @onchange="OnSiteFilterChanged">
+                <option value="0">@Text["PoAllSitesOption"]</option>
+                @foreach (var s in AuthorizedSites)
+                {
+                    <option value="@s.Id">@s.Code — @s.Name</option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (ActiveTab == TabInspections)
+    {
+        <div class="read-field">
+            <label for="qc-status-filter">@Text["ReadStatus"]</label>
+            <select id="qc-status-filter" value="@StatusFilter" @onchange="OnStatusFilterChanged">
+                <option value="">@Text["PoAllStatusesOption"]</option>
+                <option value="@((byte)QualityInspectionStatus.Pending)">@StatusLabel(QualityInspectionStatus.Pending)</option>
+                <option value="@((byte)QualityInspectionStatus.InReview)">@StatusLabel(QualityInspectionStatus.InReview)</option>
+                <option value="@((byte)QualityInspectionStatus.Completed)">@StatusLabel(QualityInspectionStatus.Completed)</option>
+                <option value="@((byte)QualityInspectionStatus.Cancelled)">@StatusLabel(QualityInspectionStatus.Cancelled)</option>
+            </select>
+        </div>
+    }
+    else if (ActiveTab == TabLots)
+    {
+        <label class="read-inactive">
+            <input type="checkbox" checked="@OnlyExpiringLots" @onchange="OnToggleExpiringLots" />
+            <span>@Text["QcOnlyExpiringLabel"]</span>
+        </label>
+    }
+    else if (ActiveTab == TabParameters)
+    {
+        <label class="read-inactive">
+            <input type="checkbox" checked="@IncludeInactiveParams" @onchange="OnToggleInactiveParams" />
+            <span>@Text["ReadInactive"]</span>
+        </label>
+    }
+    else if (ActiveTab == TabSpecs)
+    {
+        <div class="read-field">
+            <label for="qc-spec-target-filter">@Text["QcSpecTargetKindLabel"]</label>
+            <select id="qc-spec-target-filter" value="@SpecTargetFilter" @onchange="OnSpecTargetFilterChanged">
+                <option value="">@Text["PoAllStatusesOption"]</option>
+                <option value="@((byte)QualitySpecTargetKind.Item)">@Text["QcTargetItem"]</option>
+                <option value="@((byte)QualitySpecTargetKind.Classification)">@Text["QcTargetClassification"]</option>
+            </select>
+        </div>
+        <div class="read-field">
+            <label for="qc-spec-ckpt-filter">@Text["QcSpecCheckpointLabel"]</label>
+            <select id="qc-spec-ckpt-filter" value="@SpecCheckpointFilter" @onchange="OnSpecCheckpointFilterChanged">
+                <option value="">@Text["PoAllStatusesOption"]</option>
+                <option value="@((byte)QualitySpecCheckpoint.Incoming)">@Text["QcCheckpointIncoming"]</option>
+                <option value="@((byte)QualitySpecCheckpoint.Production)">@Text["QcCheckpointProduction"]</option>
+                <option value="@((byte)QualitySpecCheckpoint.All)">@Text["QcCheckpointAll"]</option>
+            </select>
+        </div>
+        <label class="read-inactive">
+            <input type="checkbox" checked="@IncludeInactiveSpecs" @onchange="OnToggleInactiveSpecs" />
+            <span>@Text["ReadInactive"]</span>
+        </label>
+    }
+
+    <div class="read-field">
+        <label for="qc-search">@Text["ReadSearch"]</label>
+        <input id="qc-search" type="search" value="@Search" @oninput="OnSearchInput" maxlength="64" placeholder="@Text["ReadSearchPlaceholder"]" />
+    </div>
+</div>
+
+@code {
+    private const byte TabInspections = 0;
+    private const byte TabLots = 1;
+    private const byte TabParameters = 2;
+    private const byte TabSpecs = 3;
+
+    [Parameter] public int ActiveTab { get; set; }
+    [Parameter] public EventCallback<int> OnSwitchTab { get; set; }
+    [Parameter] public IReadOnlyList<OrganizationScope> AvailableScopes { get; set; } = [];
+    [Parameter] public int ScopeIndex { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnScopeChanged { get; set; }
+    [Parameter] public Func<OrganizationScope, string> ScopeLabel { get; set; } = _ => string.Empty;
+    [Parameter] public OrganizationScope? CurrentScope { get; set; }
+    [Parameter] public IReadOnlyList<ProductionOrderSiteInfo> AuthorizedSites { get; set; } = [];
+    [Parameter] public long SiteFilter { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnSiteFilterChanged { get; set; }
+    [Parameter] public string StatusFilter { get; set; } = string.Empty;
+    [Parameter] public EventCallback<ChangeEventArgs> OnStatusFilterChanged { get; set; }
+    [Parameter] public Func<QualityInspectionStatus, string> StatusLabel { get; set; } = s => s.ToString();
+    [Parameter] public bool OnlyExpiringLots { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnToggleExpiringLots { get; set; }
+    [Parameter] public bool IncludeInactiveParams { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnToggleInactiveParams { get; set; }
+    [Parameter] public string SpecTargetFilter { get; set; } = string.Empty;
+    [Parameter] public EventCallback<ChangeEventArgs> OnSpecTargetFilterChanged { get; set; }
+    [Parameter] public string SpecCheckpointFilter { get; set; } = string.Empty;
+    [Parameter] public EventCallback<ChangeEventArgs> OnSpecCheckpointFilterChanged { get; set; }
+    [Parameter] public bool IncludeInactiveSpecs { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnToggleInactiveSpecs { get; set; }
+    [Parameter] public string? Search { get; set; }
+    [Parameter] public EventCallback<ChangeEventArgs> OnSearchInput { get; set; }
+}

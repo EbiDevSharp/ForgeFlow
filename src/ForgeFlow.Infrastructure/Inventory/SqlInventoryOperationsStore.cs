@@ -625,39 +625,11 @@ public sealed class SqlInventoryOperationsStore(
             .ToArray();
 
         // Push WarehouseId, ItemId, and LotCode predicates and ORDER BY Id directly into raw SQL (F-14)
-        List<InventoryBalance> existingBalances;
-        if (sortedGrouped.Length == 1)
-        {
-            var g = sortedGrouped[0];
-            existingBalances = await db.InventoryBalances
-                .FromSqlInterpolated($"SELECT * FROM [organization].[InventoryBalance] WITH (UPDLOCK, ROWLOCK) WHERE [OrganizationId] = {organizationId} AND [WarehouseId] = {g.WarehouseId} AND [ItemId] = {g.ItemId} AND [LotCode] = {g.LotCode}")
-                .OrderBy(b => b.Id)
-                .ToListAsync(ct);
-        }
-        else
-        {
-            var sqlBuilder = new StringBuilder();
-            sqlBuilder.Append("SELECT * FROM [organization].[InventoryBalance] WITH (UPDLOCK, ROWLOCK) WHERE [OrganizationId] = @p0 AND (");
-            var parameters = new List<object> { new SqlParameter("@p0", organizationId) };
-
-            for (var i = 0; i < sortedGrouped.Length; i++)
-            {
-                if (i > 0) sqlBuilder.Append(" OR ");
-                var wIdx = parameters.Count;
-                var iIdx = wIdx + 1;
-                var lIdx = wIdx + 2;
-                sqlBuilder.Append($"([WarehouseId] = @p{wIdx} AND [ItemId] = @p{iIdx} AND [LotCode] = @p{lIdx})");
-                parameters.Add(new SqlParameter($"@p{wIdx}", sortedGrouped[i].WarehouseId));
-                parameters.Add(new SqlParameter($"@p{iIdx}", sortedGrouped[i].ItemId));
-                parameters.Add(new SqlParameter($"@p{lIdx}", sortedGrouped[i].LotCode));
-            }
-            sqlBuilder.Append(')');
-
-            existingBalances = await db.InventoryBalances
-                .FromSqlRaw(sqlBuilder.ToString(), parameters.ToArray())
-                .OrderBy(b => b.Id)
-                .ToListAsync(ct);
-        }
+        var existingBalances = await InventoryBalanceLockHelper.LockBalancesAsync(
+            db,
+            organizationId,
+            sortedGrouped.Select(g => (g.WarehouseId, g.ItemId, g.LotCode)),
+            ct);
 
         var balanceMap = existingBalances.ToDictionary(b => (b.WarehouseId, b.ItemId, b.LotCode));
 

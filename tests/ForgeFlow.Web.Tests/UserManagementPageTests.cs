@@ -228,6 +228,7 @@ public sealed class UserManagementPageTests
     {
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
         var page = new Users();
+        var modal = new ForgeFlow.Web.Components.Pages.UserSections.UserCreateModal();
         var store = new StoreStub();
         var actors = new ActorStub();
         var grants = new AllowOrgAdminGrants(1);
@@ -238,36 +239,38 @@ public sealed class UserManagementPageTests
             .BuildServiceProvider();
         var localizer = services.GetRequiredService<IStringLocalizer<SharedResources>>();
 
-        typeof(Users).GetProperty("UsersService", flags)!.SetValue(page, new UserUseCases(store, actors, grants));
-        typeof(Users).GetProperty("Text", flags)!.SetValue(page, localizer);
         typeof(Users).GetField("available", flags)!.SetValue(page, new List<OrganizationScope> { new OrganizationScope.Organization(1) });
-        typeof(Users).GetField("scopeCanCreate", flags)!.SetValue(page, true);
         typeof(Users).GetField("currentActorId", flags)!.SetValue(page, 10L);
-        typeof(Users).GetField("createUserName", flags)!.SetValue(page, "new.operator");
-        typeof(Users).GetField("createPassword", flags)!.SetValue(page, "StrongPassword!123");
+        typeof(Users).GetMethod("PrepareCreateDraft", flags)!.Invoke(page, null);
 
-        typeof(Users).GetMethod("OpenCreate", flags)!.Invoke(page, null);
         var pendingDraft = (DraftDefinition)typeof(Users).GetField("pendingDraft", flags)!.GetValue(page)!;
         Assert.Equal("actor:10:org:1:create-user", pendingDraft.Scope);
         var field = Assert.Single(pendingDraft.Fields);
         Assert.Equal("UserName", field.Name);
 
-        typeof(Users).GetField("createUserName", flags)!.SetValue(page, "new.operator");
-        typeof(Users).GetField("createPassword", flags)!.SetValue(page, "StrongPassword!123");
-        await (Task)typeof(Users).GetMethod("SubmitCreate", flags)!.Invoke(page, null)!;
+        var modalType = typeof(ForgeFlow.Web.Components.Pages.UserSections.UserCreateModal);
+        modalType.GetProperty("UsersService", flags)!.SetValue(modal, new UserUseCases(store, actors, grants));
+        modalType.GetProperty("Text", flags)!.SetValue(modal, localizer);
+        modalType.GetProperty("Scope")!.SetValue(modal, new OrganizationScope.Organization(1));
+        modalType.GetProperty("ScopeCanCreate")!.SetValue(modal, true);
+
+        await modal.OpenAsync();
+        modalType.GetField("createUserName", flags)!.SetValue(modal, "new.operator");
+        modalType.GetField("createPassword", flags)!.SetValue(modal, "StrongPassword!123");
+        await (Task)modalType.GetMethod("SubmitCreate", flags)!.Invoke(modal, null)!;
 
         Assert.True(store.CreateCalled);
         Assert.Equal("StrongPassword!123", store.LastPasswordSeen);
-        Assert.Equal(string.Empty, (string?)typeof(Users).GetField("createPassword", flags)!.GetValue(page));
-        Assert.False((bool)typeof(Users).GetField("creating", flags)!.GetValue(page)!);
-        Assert.False((bool)typeof(Users).GetField("createOpen", flags)!.GetValue(page)!);
+        Assert.Equal(string.Empty, (string?)modalType.GetField("createPassword", flags)!.GetValue(modal));
+        Assert.False((bool)modalType.GetField("creating", flags)!.GetValue(modal)!);
     }
 
     [Fact]
     public async Task User_mutation_clears_saving_flag_and_updates_selected_state()
     {
         var flags = BindingFlags.Instance | BindingFlags.NonPublic;
-        var page = new Users();
+        var modal = new ForgeFlow.Web.Components.Pages.UserSections.UserDetailModal();
+        var modalType = typeof(ForgeFlow.Web.Components.Pages.UserSections.UserDetailModal);
         var v = Convert.ToBase64String(new byte[8]);
         var store = new StoreStub
         {
@@ -276,22 +279,21 @@ public sealed class UserManagementPageTests
         var actors = new ActorStub();
         var grants = new AllowOrgAdminGrants(1);
 
-        typeof(Users).GetProperty("UsersService", flags)!.SetValue(page, new UserUseCases(store, actors, grants));
-        typeof(Users).GetField("available", flags)!.SetValue(page, new List<OrganizationScope> { new OrganizationScope.Organization(1) });
-        typeof(Users).GetField("selected", flags)!.SetValue(page, store.CurrentDetails);
+        modalType.GetProperty("UsersService", flags)!.SetValue(modal, new UserUseCases(store, actors, grants));
+        modalType.GetProperty("Scope")!.SetValue(modal, new OrganizationScope.Organization(1));
+        modalType.GetField("selected", flags)!.SetValue(modal, store.CurrentDetails);
 
-        await (Task)typeof(Users).GetMethod("OpenUserDialog", flags)!.Invoke(page, [77L, true])!;
-        Assert.True((bool)typeof(Users).GetField("detailOpen", flags)!.GetValue(page)!);
-        Assert.True((bool)typeof(Users).GetField("editMode", flags)!.GetValue(page)!);
+        await modal.OpenAsync(77L, edit: true);
+        Assert.True((bool)modalType.GetField("editMode", flags)!.GetValue(modal)!);
 
-        var confirmKind = typeof(Users).GetNestedType("ConfirmActionKind", BindingFlags.NonPublic)!;
+        var confirmKind = modalType.GetNestedType("ConfirmActionKind", BindingFlags.NonPublic)!;
         var disableAccount = Enum.Parse(confirmKind, "DisableAccount");
-        typeof(Users).GetMethod("AskConfirm", flags)!.Invoke(page, [disableAccount]);
-        await (Task)typeof(Users).GetMethod("ExecuteConfirm", flags)!.Invoke(page, null)!;
+        modalType.GetMethod("AskConfirm", flags)!.Invoke(modal, [disableAccount]);
+        await (Task)modalType.GetMethod("ExecuteConfirm", flags)!.Invoke(modal, null)!;
 
-        Assert.False((bool)typeof(Users).GetField("saving", flags)!.GetValue(page)!);
-        Assert.True((bool)typeof(Users).GetField("saved", flags)!.GetValue(page)!);
-        var updated = (UserDetails)typeof(Users).GetField("selected", flags)!.GetValue(page)!;
+        Assert.False((bool)modalType.GetField("saving", flags)!.GetValue(modal)!);
+        Assert.True((bool)modalType.GetField("saved", flags)!.GetValue(modal)!);
+        var updated = (UserDetails)modalType.GetField("selected", flags)!.GetValue(modal)!;
         Assert.False(updated.AccountIsActive);
     }
 

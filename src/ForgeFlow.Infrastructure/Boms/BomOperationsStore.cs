@@ -821,10 +821,8 @@ public sealed class BomOperationsStore(
     private static Task<(bool Ok, string? Error)> LockAndRequireActiveOrganization(OrganizationDbContext db, long organizationId, CancellationToken ct)
         => OrganizationActivityGuard.RequireActiveOrganizationAsync(db, organizationId, BomErrors.ParentOrganizationInactive, BomErrors.NotFound, ct);
 
-    private static bool Matches(OrganizationDbContext db, object entity, byte[] version)
-        => entity is ForgeFlow.Domain.Common.IHasRowVersion hasVersion && hasVersion.RowVersion.Length > 0
-            ? hasVersion.RowVersion.SequenceEqual(version)
-            : ((byte[])db.Entry(entity).Property("RowVersion").CurrentValue!).SequenceEqual(version);
+    private static bool Matches(OrganizationDbContext _, ForgeFlow.Domain.Common.IHasRowVersion entity, byte[] version)
+        => entity.RowVersion.Length > 0 && entity.RowVersion.SequenceEqual(version);
 
     private static bool Unavailable(Exception exception) => exception switch
     {
