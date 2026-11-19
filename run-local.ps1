@@ -1,19 +1,26 @@
-﻿# ForgeFlow Local Setup & Runner Script
+# ForgeFlow Local Setup & Runner Script
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
+# Set working directory to repository root
+Set-Location $PSScriptRoot
+
 Write-Host "==============================================================================" -ForegroundColor Cyan
-Write-Host "          ForgeFlow ERP - سامانه یکپارچه مدیریت کارخانه و تولید" -ForegroundColor Cyan
-Write-Host "                راه اندازی و اجرای خودکار سامانه (لوکال)" -ForegroundColor Cyan
+Write-Host "          ForgeFlow ERP - Local Setup and Runner" -ForegroundColor Cyan
+Write-Host "          Target URL : https://localhost:5001" -ForegroundColor Yellow
+Write-Host "          Target Port: 5001 (HTTPS)" -ForegroundColor Yellow
 Write-Host "==============================================================================" -ForegroundColor Cyan
 Write-Host ""
 
+# Terminate previous instance to free listening port and binary locks
+Get-Process -Name "ForgeFlow.Web" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
 # 1. Check .NET SDK
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    Write-Host "[خطا] دات نت (.NET SDK) روی سیستم شما نصب نیست یا در PATH تعریف نشده است!" -ForegroundColor Red
-    Write-Host "لطفاً دات‌نت 10 (یا بالاتر) را از نشانی زیر دریافت و نصب فرمایید:" -ForegroundColor Yellow
+    Write-Host "[ERROR] .NET SDK is not installed or not in PATH!" -ForegroundColor Red
+    Write-Host "Please download and install .NET 10 SDK or higher from:" -ForegroundColor Yellow
     Write-Host "  https://dotnet.microsoft.com/download/dotnet/10.0"
-    Write-Host "`nپس از نصب، این پنجره را ببندید و اسکریپت را مجدداً اجرا فرمایید."
+    Write-Host "`nAfter installing, close this window and run the script again."
     exit 1
 }
 
@@ -22,28 +29,30 @@ if (-not $env:ConnectionStrings__ForgeFlow) {
     $env:ConnectionStrings__ForgeFlow = "Server=localhost;Database=testforgflow;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;"
 }
 
-Write-Host "[مرحله ۱/۳] اطمینان از اعتماد به گواهی امنیتی لوکال (HTTPS Certificate)..." -ForegroundColor Gray
+Write-Host "[Step 1/3] Ensuring HTTPS development certificate trust..." -ForegroundColor Gray
 dotnet dev-certs https --trust 2>$null | Out-Null
 
-Write-Host "[مرحله ۲/۳] آماده‌سازی دیتابیس، اعمال Migrationها و راه‌اندازی اولیه..." -ForegroundColor Yellow
+Write-Host "[Step 2/3] Preparing database, applying migrations, and bootstrapping..." -ForegroundColor Yellow
 dotnet run --project tools\ForgeFlow.Setup\ForgeFlow.Setup.csproj -c Release
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "`n[خطا] عملیات آماده‌سازی پایگاه‌داده با خطا متوقف شد!" -ForegroundColor Red
-    Write-Host "نکات عیب‌یابی:" -ForegroundColor Yellow
-    Write-Host " ۱. آیا سرویس SQL Server در سیستم شما Start است؟"
-    Write-Host " ۲. در صورت استفاده از SQLEXPRESS، متغیر زیر را در پاورشل تنظیم کنید:"
+    Write-Host "`n[ERROR] Database setup failed!" -ForegroundColor Red
+    Write-Host "Troubleshooting tips:" -ForegroundColor Yellow
+    Write-Host " 1. Is the SQL Server service running?"
+    Write-Host " 2. If using SQLEXPRESS, set the connection string in PowerShell:"
     Write-Host '    $env:ConnectionStrings__ForgeFlow = "Server=localhost\SQLEXPRESS;Database=testforgflow;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;"'
     exit $LASTEXITCODE
 }
 
-Write-Host "`n[مرحله ۳/۳] در حال اجرای وب‌اپلیکیشن روی نشانی:" -ForegroundColor Green
-Write-Host "           https://localhost:5001" -ForegroundColor Cyan
-Write-Host "`nمرورگر به صورت خودکار باز خواهد شد..."
-Write-Host "(برای توقف برنامه، کلیدهای Ctrl + C را فشار دهید)`n"
+Write-Host "`n[Step 3/3] Starting Web Application at:" -ForegroundColor Green
+Write-Host "           URL : https://localhost:5001" -ForegroundColor Cyan
+Write-Host "           Port: 5001 (HTTPS)" -ForegroundColor Cyan
+Write-Host "`nBrowser will automatically open as soon as the server is ready."
+Write-Host "Press Ctrl + C to stop the application.`n"
 
 $env:ASPNETCORE_ENVIRONMENT = "Development"
 $env:ASPNETCORE_URLS = "https://localhost:5001"
 
-Start-Process "https://localhost:5001"
+# Launch background watcher that waits for HTTP 200 before opening browser
+Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSScriptRoot\scripts\launch-browser-when-ready.ps1`""
 
 dotnet run --project src\ForgeFlow.Web\ForgeFlow.Web.csproj -c Release

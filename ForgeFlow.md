@@ -1,4 +1,4 @@
-﻿# Slice index and shared boundaries — 01 design
+# Slice index and shared boundaries — 01 design
 
 ## Background Retention Cleanup Service & Session Eviction (2026-11-16)
 
@@ -5873,3 +5873,34 @@ oot.Movements)
   - **Verification Evidence (2026-11-19)**:
     - Build: `dotnet build ForgeFlow.slnx -c Release --no-restore -m:1` -> **0 Warning(s), 0 Error(s)**.
     - Tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~DiagnosticTests"` -> **11 Passed, 0 Failed**.
+
+- **Launch Scripts & Production Static Web Assets Hardening (2026-11-19)**:
+  - **Issues Identified**:
+    - `Run-ForgeFlow-Server.bat` ran in `Production` environment without calling `UseStaticWebAssets()`, causing ASP.NET Core `MapStaticAssets()` to bypass NuGet package static assets (`Bit.BlazorUI` CSS/JS) and return HTML login page fallback for CSS/JS requests (MIME error / unstyled page). Also lacked `TrustServerCertificate=True;` in default connection string fallback.
+    - `run-local.bat` failed completely on launch due to unescaped closing parentheses within CMD `if (...)` blocks (e.g. `(.NET SDK)` caused `cmd.exe` parser failure `روی was unexpected at this time.`), missing repository root change `cd /d "%~dp0"`, and lack of background process cleanup.
+  - **Changes**:
+    - `src/ForgeFlow.Web/Hosting/LocalRuntimeConfiguration.cs`: Added `builder.WebHost.UseStaticWebAssets();` under `builder.Environment.IsProduction()` branch so both `Production` server runs and `Development` runs properly serve all static assets (`app.css`, `_content/Bit.BlazorUI/styles/bit.blazorui.css`, `_content/Bit.BlazorUI/scripts/bit.blazorui.js`, fonts).
+    - `Run-ForgeFlow-Server.bat`: Added `chcp 65001 >nul`, `cd /d "%~dp0"`, `TrustServerCertificate=True;` to fallback connection string, and CRLF line endings.
+    - `run-local.bat`: Added `cd /d "%~dp0"`, background process cleanup (`taskkill /F /IM ForgeFlow.Web.exe`), replaced parentheses with square brackets in `if` blocks to prevent CMD syntax crash, and ensured proper CRLF line endings.
+  - **Verification Evidence (2026-11-19)**:
+    - `cmd.exe /c run-local.bat`: Successfully verified migration checks, database verification, bootstrap check, browser trigger, and server startup.
+    - `cmd.exe /c Run-ForgeFlow-Server.bat`: Successfully verified standalone server startup on `https://0.0.0.0:5001`.
+    - HTTP Asset Verification:
+      - `GET https://localhost:5001/account/login` -> **HTTP 200**
+      - `GET https://localhost:5001/app.css` -> **HTTP 200 (177,852 bytes, text/css)**
+      - `GET https://localhost:5001/_content/Bit.BlazorUI/styles/bit.blazorui.css` -> **HTTP 200 (1,359,262 bytes, text/css)**
+      - `GET https://localhost:5001/_content/Bit.BlazorUI/scripts/bit.blazorui.js` -> **HTTP 200 (241,163 bytes, text/javascript)**
+      - `GET https://localhost:5001/fonts/Vazirmatn.woff2` -> **HTTP 200 (111,152 bytes, font/woff2)**
+    - Live Development Instance running at `https://localhost:5001` (PID 25080).
+- **Runner Script English Localization & Browser Readiness Watcher (2026-11-19)**:
+  - **Issues Identified**:
+    - Persian console strings in `tools/ForgeFlow.Setup/Program.cs`, `run-local.bat`, and `run-local.ps1` rendered as square boxes/question marks (`[][][][][]`) on Windows consoles lacking UTF-8 Persian raster font support.
+    - `run-local.bat` called `start https://localhost:5001` before Kestrel started listening, causing the browser to open to an immediate `ERR_CONNECTION_REFUSED` error that required the user to manually refresh.
+  - **Changes**:
+    - `Run-ForgeFlow-Server.bat`, `run-local.bat`, `run-local.ps1`: Converted all messages and banner headings to clean English and added target URL (`https://localhost:5001`) and port (`5001`) at the top of the header.
+    - `tools/ForgeFlow.Setup/Program.cs`: Converted all console logs and step indicators from Persian to clean ASCII English (using `[OK]` instead of unicode checkmarks) so no square boxes appear on any terminal.
+    - `scripts/launch-browser-when-ready.ps1`: Created a background health-check watcher that polls `https://localhost:5001/account/login` until HTTP 200 is returned, then launches the browser directly to the loaded login page without needing manual refresh. Integrated into `run-local.bat`, `Run-ForgeFlow-Server.bat`, and `run-local.ps1`.
+  - **Verification Evidence (2026-11-19)**:
+    - `dotnet build tools/ForgeFlow.Setup/ForgeFlow.Setup.csproj -c Release` -> **Build succeeded. 0 Warning(s), 0 Error(s)**.
+    - `cmd.exe /c run-local.bat` executed with zero square boxes, clean English output, and the background watcher automatically loaded `https://localhost:5001/account/login` (HTTP 200) the instant Kestrel was ready.
+    - Server running live at `https://localhost:5001`.

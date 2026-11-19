@@ -31,6 +31,8 @@ public static class LocalRuntimeConfiguration
                 .SetApplicationName("ForgeFlow")
                 .PersistKeysToFileSystem(keyDirectory);
 
+            builder.WebHost.UseStaticWebAssets();
+
             return null;
         }
 

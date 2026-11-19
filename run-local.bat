@@ -1,45 +1,51 @@
 @echo off
-chcp 65001 >nul
-title ForgeFlow - سامانه مدیریت یکپارچه کارخانه‌ای فورج‌فلو
+title ForgeFlow ERP - Local Runner
 color 0b
 
+:: Set working directory to repository root
+cd /d "%~dp0"
+
 echo ==============================================================================
-echo           ForgeFlow ERP - سامانه یکپارچه مدیریت کارخانه و تولید
-echo                 راه اندازی و اجرای خودکار سامانه (لوکال)
+echo           ForgeFlow ERP - Local Setup and Runner
+echo           Target URL : https://localhost:5001
+echo           Target Port: 5001 (HTTPS)
 echo ==============================================================================
 echo.
 
-:: 1. بررسی نصب بودن دات‌نت SDK
+:: Terminate previous instance to free listening port and binary locks
+taskkill /F /IM ForgeFlow.Web.exe >nul 2>&1
+
+:: 1. Check .NET SDK installation
 where dotnet >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
     color 0c
-    echo [خطا] دات نت (.NET SDK) روی سیستم شما نصب نیست یا در PATH تعریف نشده است!
-    echo لطفاً دات‌نت 10 (یا بالاتر) را از نشانی زیر دریافت و نصب فرمایید:
+    echo [ERROR] .NET SDK is not installed or not in PATH!
+    echo Please download and install .NET 10 SDK or higher from:
     echo   https://dotnet.microsoft.com/download/dotnet/10.0
     echo.
-    echo پس از نصب، این پنجره را ببندید و فایل را مجدداً اجرا کنید.
+    echo After installing, close this window and run the script again.
     echo.
     pause
     exit /b 1
 )
 
-:: 2. تنظیم رشته اتصال پیش‌فرض SQL Server
+:: 2. Set default SQL Server connection string
 if "%ConnectionStrings__ForgeFlow%"=="" (
     set "ConnectionStrings__ForgeFlow=Server=localhost;Database=testforgflow;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;"
 )
 
-echo [مرحله ۱/۳] اطمینان از اعتماد به گواهی امنیتی لوکال (HTTPS Certificate)...
+echo [Step 1/3] Ensuring HTTPS development certificate trust...
 dotnet dev-certs https --trust >nul 2>nul
 
-echo [مرحله ۲/۳] آماده‌سازی دیتابیس، اعمال Migrationها و راه‌اندازی اولیه...
+echo [Step 2/3] Preparing database, applying migrations, and bootstrapping...
 dotnet run --project tools\ForgeFlow.Setup\ForgeFlow.Setup.csproj -c Release
 if %ERRORLEVEL% NEQ 0 (
     color 0c
     echo.
-    echo [خطا] عملیات آماده‌سازی پایگاه‌داده با خطا متوقف شد!
-    echo نکات عیب‌یابی:
-    echo  ۱. آیا سرویس SQL Server در سیستم شما Start است؟
-    echo  ۲. اگر SQL Server با نام مشخص نصب شده (مثلاً SQLEXPRESS)، دستور زیر را در CMD بزنید:
+    echo [ERROR] Database setup failed!
+    echo Troubleshooting tips:
+    echo  1. Is the SQL Server service running?
+    echo  2. If using SQLEXPRESS, set the connection string in CMD:
     echo     set "ConnectionStrings__ForgeFlow=Server=localhost\SQLEXPRESS;Database=testforgflow;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;"
     echo.
     pause
@@ -47,22 +53,20 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo.
-echo [مرحله ۳/۳] در حال اجرای وب‌اپلیکیشن روی نشانی:
-echo            https://localhost:5001
+echo [Step 3/3] Starting Web Application at:
+echo           URL : https://localhost:5001
+echo           Port: 5001 (HTTPS)
 echo.
-echo مرورگر تا لحظاتی دیگر به صورت خودکار باز خواهد شد...
-echo (برای توقف برنامه، کلیدهای Ctrl + C را در این پنجره فشار دهید)
+echo Browser will automatically open as soon as the server is ready.
+echo Press Ctrl + C in this window to stop the application.
 echo.
 
 set "ASPNETCORE_ENVIRONMENT=Development"
 set "ASPNETCORE_URLS=https://localhost:5001"
 
-start "" "https://localhost:5001"
+:: Launch background watcher that waits for HTTP 200 before opening browser
+start "" /b powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0scripts\launch-browser-when-ready.ps1"
 
-dotnet run --project src\ForgeFlow.Web\ForgeFlow.Web.csproj -c Release --no-build
-
-if %ERRORLEVEL% NEQ 0 (
-    dotnet run --project src\ForgeFlow.Web\ForgeFlow.Web.csproj -c Release
-)
+dotnet run --project src\ForgeFlow.Web\ForgeFlow.Web.csproj -c Release
 
 pause

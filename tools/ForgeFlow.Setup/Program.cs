@@ -14,7 +14,7 @@ public static class Program
     {
         Console.OutputEncoding = Encoding.UTF8;
         Console.WriteLine("==================================================================");
-        Console.WriteLine("     ForgeFlow - ابزار آماده‌سازی و راه‌اندازی پایگاه‌داده");
+        Console.WriteLine("     ForgeFlow - Database Setup & Migration Utility");
         Console.WriteLine("==================================================================");
         Console.WriteLine();
 
@@ -37,7 +37,7 @@ public static class Program
         var targetDatabase = string.IsNullOrWhiteSpace(csBuilder.InitialCatalog) ? "testforgflow" : csBuilder.InitialCatalog;
         var serverName = string.IsNullOrWhiteSpace(csBuilder.DataSource) ? "localhost" : csBuilder.DataSource;
 
-        Console.WriteLine($"[1/5] بررسی اتصال به SQL Server در '{serverName}'...");
+        Console.WriteLine($"[1/5] Checking SQL Server connection at '{serverName}'...");
 
         var masterBuilder = new SqlConnectionStringBuilder(connectionString)
         {
@@ -49,9 +49,9 @@ public static class Program
         {
             await using var masterConn = new SqlConnection(masterBuilder.ConnectionString);
             await masterConn.OpenAsync();
-            Console.WriteLine(" ✔ اتصال به SQL Server با موفقیت برقرار شد.");
+            Console.WriteLine(" [OK] SQL Server connection established successfully.");
 
-            Console.WriteLine($"[2/5] بررسی وجود پایگاه‌داده '{targetDatabase}'...");
+            Console.WriteLine($"[2/5] Checking database '{targetDatabase}'...");
             await using var checkCmd = masterConn.CreateCommand();
             checkCmd.CommandText = $@"
                 IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = @dbName)
@@ -60,16 +60,16 @@ public static class Program
                 END";
             checkCmd.Parameters.Add(new SqlParameter("@dbName", SqlDbType.NVarChar, 128) { Value = targetDatabase });
             await checkCmd.ExecuteNonQueryAsync();
-            Console.WriteLine($" ✔ پایگاه‌داده '{targetDatabase}' آماده است.");
+            Console.WriteLine($" [OK] Database '{targetDatabase}' is ready.");
         }
         catch (Exception ex)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"\n[خطا] امکان اتصال به SQL Server وجود ندارد:");
-            Console.WriteLine($"پیام خطا: {ex.Message}");
-            Console.WriteLine("\nراهنمای رفع مشکل:");
-            Console.WriteLine(" ۱. از اجرا بودن سرویس SQL Server (MSSQLSERVER یا SQLEXPRESS) در Windows Services مطمئن شوید.");
-            Console.WriteLine(" ۲. در صورتی که نام Instance متفاوتی دارید (مانند SQLEXPRESS)، متغیر محیطی ConnectionStrings__ForgeFlow را تنظیم کنید:");
+            Console.WriteLine($"\n[ERROR] Unable to connect to SQL Server:");
+            Console.WriteLine($"Error: {ex.Message}");
+            Console.WriteLine("\nTroubleshooting tips:");
+            Console.WriteLine(" 1. Ensure SQL Server service (MSSQLSERVER or SQLEXPRESS) is started in Windows Services.");
+            Console.WriteLine(" 2. If using a named instance (e.g. SQLEXPRESS), set ConnectionStrings__ForgeFlow:");
             Console.WriteLine(@"    set ""ConnectionStrings__ForgeFlow=Server=localhost\SQLEXPRESS;Database=testforgflow;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;""");
             Console.ResetColor();
             return 1;
@@ -81,11 +81,11 @@ public static class Program
             ConnectTimeout = 15
         }.ConnectionString;
 
-        Console.WriteLine("[3/5] در حال اعمال Migration‌های پایگاه‌داده (۳ اسکیما)...");
+        Console.WriteLine("[3/5] Applying database migrations (3 schemas)...");
         try
         {
             // 1. Diagnostics schema
-            Console.Write(" - اعمال اسکیما و مایگریشن‌های لاگ خطا و سیستم (DiagnosticsDbContext)... ");
+            Console.Write(" - Applying DiagnosticsDbContext migrations... ");
             var diagOptions = new DbContextOptionsBuilder<DiagnosticsDbContext>()
                 .UseSqlServer(targetConnString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "diag"))
                 .Options;
@@ -93,10 +93,10 @@ public static class Program
             {
                 await diagDb.Database.MigrateAsync();
             }
-            Console.WriteLine("✔");
+            Console.WriteLine("[OK]");
 
             // 2. Organization schema
-            Console.Write(" - اعمال اسکیما و مایگریشن‌های سازمانی و مدیریت کارخانه (OrganizationDbContext)... ");
+            Console.Write(" - Applying OrganizationDbContext migrations... ");
             var orgOptions = new DbContextOptionsBuilder<OrganizationDbContext>()
                 .UseSqlServer(targetConnString)
                 .Options;
@@ -104,10 +104,10 @@ public static class Program
             {
                 await orgDb.Database.MigrateAsync();
             }
-            Console.WriteLine("✔");
+            Console.WriteLine("[OK]");
 
             // 3. Auth schema
-            Console.Write(" - اعمال اسکیما و مایگریشن‌های احراز هویت و امنیت (AuthDbContext)... ");
+            Console.Write(" - Applying AuthDbContext migrations... ");
             var authOptions = new DbContextOptionsBuilder<AuthDbContext>()
                 .UseSqlServer(targetConnString, sql => sql.MigrationsHistoryTable("__EFMigrationsHistory", "auth"))
                 .Options;
@@ -115,19 +115,19 @@ public static class Program
             {
                 await authDb.Database.MigrateAsync();
             }
-            Console.WriteLine("✔");
+            Console.WriteLine("[OK]");
 
-            Console.WriteLine(" ✔ تمامی مایگریشن‌ها با موفقیت اعمال شدند.");
+            Console.WriteLine(" [OK] All migrations applied successfully.");
         }
         catch (Exception ex)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"\n[خطا] اعمال مایگریشن‌ها با شکست مواجه شد: {ex.Message}");
+            Console.WriteLine($"\n[ERROR] Migration execution failed: {ex.Message}");
             Console.ResetColor();
             return 2;
         }
 
-        Console.WriteLine("[4/5] بررسی وضعیت راه‌اندازی اولیه (Bootstrap)...");
+        Console.WriteLine("[4/5] Checking initial system bootstrap state...");
         try
         {
             var authOptions = new DbContextOptionsBuilder<AuthDbContext>()
@@ -138,11 +138,11 @@ public static class Program
             var isInitialized = await authDb.BootstrapStates.AnyAsync(s => s.State == 1);
             if (isInitialized)
             {
-                Console.WriteLine(" ✔ سامانه قبلاً راه‌اندازی شده است. حساب‌های کاربری و سازمان‌های موجود حفظ شدند.");
+                Console.WriteLine(" [OK] System already bootstrapped. Existing accounts and organizations retained.");
             }
             else
             {
-                Console.WriteLine(" - پایگاه‌داده تازه است. در حال ایجاد سازمان اولیه و حساب مدیر سیستم (Admin)...");
+                Console.WriteLine(" - Database is fresh. Bootstrapping default organization and admin account...");
 
                 const string adminUser = "admin";
                 const string adminPass = "Admin@123456!";
@@ -151,9 +151,9 @@ public static class Program
                     Guid.NewGuid(),
                     adminUser,
                     "ORG1",
-                    "شرکت تولیدی و صنعتی فورج‌فلو",
+                    "ForgeFlow Industrial Corp",
                     "SITE1",
-                    "کارخانه مرکزی"
+                    "Central Plant"
                 );
 
                 var bootstrapper = new HostBootstrapper(targetConnString);
@@ -162,17 +162,17 @@ public static class Program
                 if (res.Code is "Auth.Initialized" or "Auth.AlreadyInitialized")
                 {
                     Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine(" ✔ راه‌اندازی اولیه با موفقیت انجام شد:");
-                    Console.WriteLine($"    • نام کاربری مدیر (Username): {adminUser}");
-                    Console.WriteLine($"    • رمز عبور (Password):        {adminPass}");
-                    Console.WriteLine("    • کد سازمان:                 ORG1");
-                    Console.WriteLine("    • کد کارخانه:                SITE1");
+                    Console.WriteLine(" [OK] Initial bootstrap completed successfully:");
+                    Console.WriteLine($"    * Username:     {adminUser}");
+                    Console.WriteLine($"    * Password:     {adminPass}");
+                    Console.WriteLine("    * Organization: ORG1");
+                    Console.WriteLine("    * Site:         SITE1");
                     Console.ResetColor();
                 }
                 else
                 {
                     Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine($" ! نتیجه اعتبارسنجی راه‌اندازی: {res.Code}");
+                    Console.WriteLine($" ! Bootstrap validation result: {res.Code}");
                     Console.ResetColor();
                 }
             }
@@ -180,7 +180,7 @@ public static class Program
         catch (Exception ex)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"\n[خطا] راه‌اندازی اولیه با شکست مواجه شد: {ex.Message}");
+            Console.WriteLine($"\n[ERROR] Bootstrap execution failed: {ex.Message}");
             Console.ResetColor();
             return 3;
         }
@@ -189,7 +189,7 @@ public static class Program
         {
             Console.WriteLine();
             Console.WriteLine("==================================================================");
-            Console.WriteLine("     اجرای سناریوی جامع صنعتی و کاتالوگ چندصنعتی (Industrial Seeder)");
+            Console.WriteLine("     Running comprehensive industrial seed scenario...");
             Console.WriteLine("==================================================================");
             try
             {
@@ -198,7 +198,7 @@ public static class Program
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"\n[خطا] اجرای سناریوی صنعتی با شکست مواجه شد: {ex.Message}");
+                Console.WriteLine($"\n[ERROR] Industrial demo seed failed: {ex.Message}");
                 Console.WriteLine(ex.ToString());
                 Console.ResetColor();
                 return 4;
@@ -207,7 +207,7 @@ public static class Program
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine();
-        Console.WriteLine("[5/5] آماده‌سازی پایگاه‌داده با موفقیت به پایان رسید!");
+        Console.WriteLine("[5/5] Database setup completed successfully!");
         Console.ResetColor();
         return 0;
     }
