@@ -7,7 +7,8 @@
 
 <BitDialog IsOpen="@IsOpen" IsOpenChanged="OnIsOpenChanged" Title="@Text["BomDimEditHeading"]" Width="520px" MaxWidth="calc(100vw - 24px)"
            Classes="@DialogClasses" ShowOkButton="false" ShowCancelButton="false" ShowCloseButton="true"
-           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]">
+           AutoFocus="true" TrapFocus="true" RestoreFocus="true" CloseOnEscape="true" CloseAriaLabel="@Text["ReadClose"]"
+           OnDismissing="OnDismissing">
     <Body>
         @if (selectedDim is not null)
         {
@@ -20,7 +21,7 @@
                 </div>
                 <div class="write-field">
                     <label for="dim-edit-name">@Text["ReadName"]</label>
-                    <input id="dim-edit-name" type="text" maxlength="200" @bind="editDimName" disabled="@dimSaving" />
+                    <input id="dim-edit-name" type="text" maxlength="200" @bind="editDimName" @bind:event="oninput" disabled="@dimSaving" />
                 </div>
                 @if (dimError is not null)
                 {
@@ -59,6 +60,8 @@
         editDimName = dim.Name;
         dimError = null;
         IsOpen = true;
+        _ = IsOpenChanged.InvokeAsync(true);
+        try { StateHasChanged(); } catch (InvalidOperationException) { }
     }
 
     private async Task OnIsOpenChanged(bool open)
@@ -72,7 +75,22 @@
         await IsOpenChanged.InvokeAsync(open);
     }
 
-    private async Task CloseAsync() => await OnIsOpenChanged(false);
+    private void OnDismissing(BitDialogDismissArgs args)
+    {
+        if (dimSaving)
+        {
+            args.Cancel = true;
+            return;
+        }
+        IsOpen = false;
+        _ = IsOpenChanged.InvokeAsync(false);
+    }
+
+    private async Task CloseAsync()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+    }
 
     private async Task SubmitUpdateDimAsync()
     {
@@ -82,13 +100,14 @@
         try
         {
             var res = await BomService.UpdateContextDimension(CurrentScope,
-                new UpdateContextDimensionRequest(CurrentOrgId, selectedDim.Id, editDimName, selectedDim.RowVersion));
+                new UpdateContextDimensionRequest(CurrentOrgId, selectedDim.Id, editDimName.Trim(), selectedDim.RowVersion));
             if (!res.Succeeded)
             {
                 dimError = RolePermissionLocalization.FailureKey(res.Error!.Code);
                 return;
             }
-            await CloseAsync();
+            IsOpen = false;
+            await IsOpenChanged.InvokeAsync(false);
             await OnSaved.InvokeAsync();
         }
         finally

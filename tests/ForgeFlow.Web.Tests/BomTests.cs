@@ -266,4 +266,61 @@ public sealed class BomTests
         var clearMethod = panelType.GetMethod("ClearResults");
         Assert.NotNull(clearMethod);
     }
+
+    [Fact]
+    public void CreateContextDimensionModal_Open_SetsIsOpen_And_InvokesIsOpenChanged()
+    {
+        var modal = new ForgeFlow.Web.Components.Pages.BomSections.CreateContextDimensionModal();
+        bool notifiedOpen = false;
+        var callback = EventCallback.Factory.Create<bool>(this, (Action<bool>)(val => notifiedOpen = val));
+        typeof(ForgeFlow.Web.Components.Pages.BomSections.CreateContextDimensionModal)
+            .GetProperty("IsOpenChanged")!
+            .SetValue(modal, callback);
+
+        modal.Open();
+
+        Assert.True(modal.IsOpen);
+        Assert.True(notifiedOpen);
+    }
+
+    [Fact]
+    public void EditContextDimensionModal_Open_SetsIsOpen_And_InvokesIsOpenChanged()
+    {
+        var modal = new ForgeFlow.Web.Components.Pages.BomSections.EditContextDimensionModal();
+        bool notifiedOpen = false;
+        var callback = EventCallback.Factory.Create<bool>(this, (Action<bool>)(val => notifiedOpen = val));
+        typeof(ForgeFlow.Web.Components.Pages.BomSections.EditContextDimensionModal)
+            .GetProperty("IsOpenChanged")!
+            .SetValue(modal, callback);
+
+        var dim = new ContextDimensionSummary(10, 1, "COLOR", "Color", true, Convert.ToBase64String(new byte[8]));
+        modal.Open(dim);
+
+        Assert.True(modal.IsOpen);
+        Assert.True(notifiedOpen);
+    }
+
+    [Fact]
+    public void Boms_OpenCreateDim_And_OpenEditDim_SetModalOpenFlags()
+    {
+        var page = new Boms();
+        var openCreateMethod = typeof(Boms).GetMethod("OpenCreateDim", BindingFlags.NonPublic | BindingFlags.Instance);
+        var openEditMethod = typeof(Boms).GetMethod("OpenEditDim", BindingFlags.NonPublic | BindingFlags.Instance);
+        var createDimOpenField = typeof(Boms).GetField("createDimOpen", BindingFlags.NonPublic | BindingFlags.Instance);
+        var editDimOpenField = typeof(Boms).GetField("editDimOpen", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        Assert.NotNull(openCreateMethod);
+        Assert.NotNull(openEditMethod);
+        Assert.NotNull(createDimOpenField);
+        Assert.NotNull(editDimOpenField);
+
+        Assert.False((bool)createDimOpenField.GetValue(page)!);
+        openCreateMethod.Invoke(page, null);
+        Assert.True((bool)createDimOpenField.GetValue(page)!);
+
+        var dim = new ContextDimensionSummary(10, 1, "COLOR", "Color", true, Convert.ToBase64String(new byte[8]));
+        Assert.False((bool)editDimOpenField.GetValue(page)!);
+        openEditMethod.Invoke(page, [dim]);
+        Assert.True((bool)editDimOpenField.GetValue(page)!);
+    }
 }

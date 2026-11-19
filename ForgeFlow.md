@@ -5763,4 +5763,29 @@ oot.Movements)
     - Health Check Verification: `curl.exe -k -s -D - https://localhost:5001/health` -> **HTTP 200 OK (Healthy)**.
     - Web Server Verification: Development server listening on `https://localhost:5001`. `curl.exe -k -s -D - https://localhost:5001/account/login` -> **HTTP 200 OK**.
   - **Outstanding Acceptance Gaps**: None.
+  - **Next Small Step**: Fix Context Dimension modal opening in BOMs page.
+
+- **BOM Context Dimension Modals Lifecycle & Two-Way Binding Fix (2026-11-19)**:
+  - **Root Cause Analysis**:
+    - In `Boms.razor`, `OpenCreateDim()` and `OpenEditDim(dim)` invoked `createDimModal?.Open()` and `editDimModal?.Open(dim)` without setting the parent binding state flags (`createDimOpen = true;`, `editDimOpen = true;`).
+    - In `CreateContextDimensionModal.razor` and `EditContextDimensionModal.razor`, `Open()` only set the child's local `IsOpen = true;` without invoking `IsOpenChanged.InvokeAsync(true)`.
+    - Consequently, upon completion of the `BitButton.OnClick` event in `Boms.razor`, Blazor automatically re-rendered `Boms.razor`, passing down `createDimOpen` (still `false`) to the child component's `[Parameter] IsOpen`, immediately closing/suppressing the modal before it could render.
+    - Text inputs in both modals lacked `@bind:event="oninput"`, which caused submit buttons to remain disabled until inputs lost focus (blur).
+  - **Implementation**:
+    - In `CreateContextDimensionModal.razor` and `EditContextDimensionModal.razor`:
+      - Updated `Open()` to call `_ = IsOpenChanged.InvokeAsync(true);` and safe `try { StateHasChanged(); } catch (InvalidOperationException) { }`.
+      - Added `OnDismissing` handlers preventing dialog dismissal while save operations are active (`dimSaving`).
+      - Added `@bind:event="oninput"` to code and name inputs so validation updates reactively as the user types.
+      - Applied `.Trim()` to code and name values prior to sending creation/update requests.
+    - In `Boms.razor`:
+      - Updated `OpenCreateDim()` to explicitly set `createDimOpen = true;`.
+      - Updated `OpenEditDim(dim)` to explicitly set `editDimOpen = true;`.
+      - Updated `OpenBomEditModalAsync(bomId)` to explicitly set `bomEditOpen = true;`.
+  - **Unit & Integration Tests**:
+    - Added `CreateContextDimensionModal_Open_SetsIsOpen_And_InvokesIsOpenChanged`, `EditContextDimensionModal_Open_SetsIsOpen_And_InvokesIsOpenChanged`, and `Boms_OpenCreateDim_And_OpenEditDim_SetModalOpenFlags` in `tests/ForgeFlow.Web.Tests/BomTests.cs`.
+  - **Verification Evidence (2026-11-19)**:
+    - Build: `dotnet build -c Release` -> **0 Warnings, 0 Errors**.
+    - Full Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build` -> **821 Passed, 0 Failed, 1 Skipped, Total 822**.
+    - Live Review Verification: Review server running at `https://localhost:5001`. Verified HTTP 200 OK on `https://localhost:5001/health` and `https://localhost:5001/account/login`.
+  - **Outstanding Acceptance Gaps**: None.
   - **Next Small Step**: Await user instructions.

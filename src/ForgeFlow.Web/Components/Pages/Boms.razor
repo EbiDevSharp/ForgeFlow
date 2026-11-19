@@ -584,6 +584,7 @@
             return;
         }
         selectedBom = res.Value;
+        bomEditOpen = true;
         bomEditModal?.Open(res.Value);
     }
 
@@ -633,6 +634,7 @@
 
     private void OpenCreateDim()
     {
+        createDimOpen = true;
         createDimModal?.Open();
     }
 
@@ -646,6 +648,7 @@
     private void OpenEditDim(ContextDimensionSummary dim)
     {
         selectedDim = dim;
+        editDimOpen = true;
         editDimModal?.Open(dim);
     }
 
