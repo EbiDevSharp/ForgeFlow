@@ -35,6 +35,11 @@ if "%ASPNETCORE_URLS%"=="" (
     set ASPNETCORE_URLS=https://0.0.0.0:5001
 )
 
+:: Allow access from any LAN IP or hostname in Server Host mode
+if "%AllowedHosts%"=="" (
+    set AllowedHosts=*
+)
+
 cd /d "%~dp0src\ForgeFlow.Web"
 
 :: Launch independent background watcher that waits for HTTP 200 before opening browser

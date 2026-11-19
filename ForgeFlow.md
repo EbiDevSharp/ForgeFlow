@@ -5912,3 +5912,14 @@ oot.Movements)
     - Added clean termination banner (`ForgeFlow Web Server has stopped. Press any key to exit.`) and `pause >nul` upon application exit.
   - **Verification Evidence (2026-11-19)**:
     - Executed `cmd.exe /c run-local.bat`: Verified that the console window stays permanently open and active, while the detached background watcher successfully monitors port 5001 and triggers the browser. Kestrel remains actively serving requests (`Now listening on: https://localhost:5001`, HTTP 200).
+- **Host Filtering & LAN Access Hardening for Server Mode (2026-11-19)**:
+  - **Issues Identified**:
+    - When accessing ForgeFlow in server mode (`Run-ForgeFlow-Server.bat`) via network IP address (e.g. `https://172.30.10.91:5001`), ASP.NET Core `HostFilteringMiddleware` rejected requests with `400 Bad Request` (`The host '172.30.10.91:5001' does not match an allowed host`) because `AllowedHosts` in `appsettings.json` was restricted to `"localhost;127.0.0.1"`.
+  - **Changes**:
+    - `src/ForgeFlow.Web/appsettings.json`: Configured `"AllowedHosts": "*"` to permit access via local network IP addresses, hostnames, and domain names.
+    - `Run-ForgeFlow-Server.bat`: Added fallback `set AllowedHosts=*` so server host mode always permits LAN clients.
+  - **Verification Evidence (2026-11-19)**:
+    - Rebuilt `ForgeFlow.Web` in Release mode: `dotnet build src/ForgeFlow.Web/ForgeFlow.Web.csproj -c Release` (0 warnings, 0 errors).
+    - Sent HTTP GET request to `https://localhost:5001/account/login` with `Host: 172.30.10.91:5001` -> **HTTP 200 OK**.
+    - Sent direct HTTP GET request to `https://172.30.10.91:5001/account/login` -> **HTTP 200 OK**.
+    - Server running live at `https://0.0.0.0:5001`.
