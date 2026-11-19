@@ -39,7 +39,7 @@
                         @Text["InvWarehouseCreateBtn"]
                     </BitButton>
                 }
-                else
+                else if (activeTab != TabReservations)
                 {
                     <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" IsEnabled="@(activeWarehouses.Count > 0)" OnClick="() => OpenPostModal(null)">
                         @Text["InvPostMovementBtn"]
@@ -509,8 +509,10 @@
 
     private async Task SwitchTabAsync(int tab)
     {
+        // The newly rendered grid loads itself; refreshing here would target the previous tab's grid being disposed.
         activeTab = tab;
-        await ReloadActiveGridAsync(fromFirstPage: true);
+        pageError = null;
+        await Task.CompletedTask;
     }
 
     private async Task ChangeScopeAsync(ChangeEventArgs e)

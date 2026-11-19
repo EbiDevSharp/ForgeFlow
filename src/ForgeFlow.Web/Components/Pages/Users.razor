@@ -1,4 +1,4 @@
-﻿@page "/users"
+@page "/users"
 @page "/organizations/{OrganizationId:long}/users"
 @page "/organizations/{OrganizationId:long}/users/{UserId:long}"
 @page "/users/{UserId:long}"
@@ -33,12 +33,6 @@
             {
                 <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreate">
                     @Text["CreateUserButton"]
-                </BitButton>
-            }
-            @if (canPlatformAttach)
-            {
-                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-create-btn" OnClick="OpenAttach">
-                    @Text["AttachUserButton"]
                 </BitButton>
             }
         </div>
@@ -138,7 +132,7 @@ else
                                     var actLabel = Text[row.AccountIsActive ? "UserDeactivateAccount" : "UserActivateAccount"].Value;
                                     <BitTooltip Text="@actLabel" ShowOnFocus="true">
                                         <BitButton Variant="BitVariant.Outline" Size="BitSize.Small"
-                                                   Class="@(row.AccountIsActive ? "read-detail-action um-btn-danger" : "read-detail-action")"
+                                                   Class="@(row.AccountIsActive ? "read-detail-action mgmt-action-deactivate" : "read-detail-action mgmt-action-activate")"
                                                    Icon="@(row.AccountIsActive ? DeactivateIcon : ActivateIcon)" IconOnly="true"
                                                    aria-label="@actLabel" OnClick="() => PromptRowAccountActive(row)" />
                                     </BitTooltip>

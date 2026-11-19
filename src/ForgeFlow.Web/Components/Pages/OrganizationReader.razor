@@ -1,4 +1,4 @@
-﻿@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Application.Organizations
 @using ForgeFlow.Domain.Organizations
 @using ForgeFlow.Web.Drafts
 @inject OrganizationUseCases Queries
@@ -15,7 +15,7 @@
 <section class="organization-reader">
 <div class="read-page-head">
 <h1 id="reader-title">@Text[IsSites ? "Sites" : "Organizations"]</h1>
-@if (!initialLoading && error is null && canCreate)
+@if (!initialLoading && error is null && canCreate && IsSites)
 {
 <BitButton Size="BitSize.Small" IconName="Add" Class="read-create-btn" OnClick="OpenCreate">
 @Text[IsSites ? "CreateSiteButton" : "CreateOrganizationButton"]
@@ -71,6 +71,12 @@ else
 {
 <BitTooltip Text="@Text["ReadEdit"]" ShowOnFocus="true">
 <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="read-detail-action" Icon="@EditIcon" IconOnly="true" aria-label="@Text["ReadEdit"]" OnClick="() => Edit(row)" />
+</BitTooltip>
+}
+@if (IsSites && scopeCanSetActive)
+{
+<BitTooltip Text="@Text[row.Active ? "WriteDeactivate" : "WriteActivate"]" ShowOnFocus="true">
+<BitButton Variant="BitVariant.Outline" Size="BitSize.Small" Class="@(row.Active ? "read-detail-action mgmt-action-deactivate" : "read-detail-action mgmt-action-activate")" Icon="@(row.Active ? DeactivateIcon : ActivateIcon)" IconOnly="true" aria-label="@Text[row.Active ? "WriteDeactivate" : "WriteActivate"]" OnClick="() => ToggleFromGridAsync(row)" />
 </BitTooltip>
 }
 </div>
@@ -541,6 +547,13 @@ private async Task Write(bool rename)
 }
 private Task Detail(ReadRow row) => OpenDialog(row, edit: false);
 private Task Edit(ReadRow row) => OpenDialog(row, edit: true);
+private async Task ToggleFromGridAsync(ReadRow row)
+{
+await OpenDialog(row, edit: true);
+if (selected is not null && canSetActive) AskConfirm();
+}
+private static readonly BitIconInfo DeactivateIcon = BitIconInfo.Css("ff-icon ff-icon--deactivate");
+private static readonly BitIconInfo ActivateIcon = BitIconInfo.Css("ff-icon ff-icon--activate");
 private async Task OpenDialog(ReadRow row, bool edit)
 {
  if (disposed) return;

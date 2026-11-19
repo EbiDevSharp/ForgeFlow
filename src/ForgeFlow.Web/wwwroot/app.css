@@ -2111,3 +2111,19 @@ dd { margin-inline-start: 0; margin-block-start: .4rem; }
 
 
 
+
+/* Login submit: honour [hidden] on the loading indicator and keep its label visually hidden */
+.auth-loading-indicator[hidden] { display: none !important; }
+.auth-loading-indicator .bit-prgc-lbl, .auth-loading-indicator [class*='bit-prgc'] > span:not([class*='bit-prgc-cir']) { display: none !important; }
+.auth-submit [data-auth-loading][hidden] { display: none !important; }
+input, textarea { text-align: start; }
+
+/* Management-page toggle icons: same colors as the business partners activate/deactivate actions */
+.mgmt-action-deactivate { --bit-Button-color:#ef4444; --bit-Button-border-color:#fecaca; color:#ef4444 !important; border-color:#fecaca !important; }
+.mgmt-action-deactivate:hover { background:#fef2f2 !important; border-color:#f87171 !important; color:#dc2626 !important; }
+.mgmt-action-activate { --bit-Button-color:#10b981; --bit-Button-border-color:#a7f3d0; color:#10b981 !important; border-color:#a7f3d0 !important; }
+.mgmt-action-activate:hover { background:#ecfdf5 !important; border-color:#34d399 !important; color:#059669 !important; }
+[data-theme="dark"] .mgmt-action-deactivate { color:#fca5a5 !important; border-color:rgba(248,113,113,.4) !important; }
+[data-theme="dark"] .mgmt-action-deactivate:hover { background:rgba(185,28,28,.22) !important; }
+[data-theme="dark"] .mgmt-action-activate { color:#6ee7b7 !important; border-color:rgba(52,211,153,.4) !important; }
+[data-theme="dark"] .mgmt-action-activate:hover { background:rgba(16,185,129,.18) !important; }

@@ -87,6 +87,7 @@
     private Dictionary<string, object> UsernameAttributes => new()
     {
         ["id"] = "login-username",
+        ["dir"] = "ltr",
         ["autocomplete"] = "username",
         ["autocapitalize"] = "none",
         ["spellcheck"] = "false",
@@ -97,6 +98,7 @@
     private static readonly Dictionary<string, object> PasswordAttributes = new()
     {
         ["id"] = "login-password",
+        ["dir"] = "ltr",
         ["autocomplete"] = "current-password",
         ["aria-required"] = "true"
     };
