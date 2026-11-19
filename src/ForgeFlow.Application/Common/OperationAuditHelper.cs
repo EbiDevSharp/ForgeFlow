@@ -13,6 +13,24 @@ internal static class OperationAuditHelper
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
+    public static void ApplyScopeContext(
+        IOperationContextAccessor? opContext,
+        OrganizationScope? scope,
+        long? organizationId = null,
+        long? siteId = null,
+        string? componentName = null)
+    {
+        if (opContext is null) return;
+        var resolvedOrgId = organizationId ?? scope switch
+        {
+            OrganizationScope.Organization o => o.OrganizationId,
+            OrganizationScope.Site s => s.OrganizationId,
+            _ => (long?)null
+        };
+        var resolvedSiteId = siteId ?? (scope is OrganizationScope.Site st ? st.SiteId : null);
+        opContext.SetContext(resolvedOrgId, resolvedSiteId, componentName);
+    }
+
     public static async Task RecordAsync(
         IUserOperationRecorder? recorder,
         IOperationContextAccessor? opContext,

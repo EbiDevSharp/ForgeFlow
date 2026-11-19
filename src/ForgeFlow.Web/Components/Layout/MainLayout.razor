@@ -137,7 +137,9 @@
         <div id="auth-ui-notice" class="auth-ui-notice" role="status" hidden></div>
 
         <div class="ff-main-body">
-            @Body
+            <ForgeErrorBoundary @ref="errorBoundary">
+                @Body
+            </ForgeErrorBoundary>
         </div>
     </main>
 </div>
@@ -205,6 +207,7 @@
     private bool commandPaletteOpen;
     private bool shortcutsHelpOpen;
     private string commandQuery = string.Empty;
+    private ForgeErrorBoundary? errorBoundary;
     private Microsoft.JSInterop.IJSObjectReference? authUi;
     private DotNetObjectReference<MainLayout>? shortcutRef;
 
@@ -404,6 +407,7 @@
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
         drawerOpen = false;
+        errorBoundary?.Recover();
         _ = InvokeAsync(StateHasChanged);
     }
 

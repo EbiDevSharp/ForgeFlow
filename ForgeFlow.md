@@ -5862,3 +5862,14 @@ oot.Movements)
     - Full Test Suite: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build` -> **831 Passed, 0 Failed, 1 Skipped (`AuthHttpTests.Real_http_enforces_antiforgery_local_targets_cookie_security_and_outage_denial`), Total 832**.
     - Live Development Server (`https://localhost:5001`): `GET /health` -> **HTTP 200 (`Healthy`)**, `GET /account/login` -> **HTTP 200**.
   - **Remaining Gaps**: Live UI manual/browser acceptance across `fa-IR` (RTL), `en-US` (LTR), and mobile viewports remains open for user review on the running Development instance.
+
+- **UI Diagnostics, ErrorBoundary & Tenant Error Log Attribution Hardening (2026-11-19)**:
+  - **Changes**:
+    - `src/ForgeFlow.Web/Components/Layout/ForgeErrorBoundary.razor` & `MainLayout.razor`: Wrapped `@Body` in a custom `ForgeErrorBoundary` (`ErrorBoundaryBase`) that records unhandled Blazor component rendering/lifecycle exceptions into `IErrorLogRecorder` (`ErrorSourceKind.BlazorComponent`) with a user-visible `ErrorReference` and recovery buttons instead of crashing the circuit silently.
+    - `src/ForgeFlow.Web/Diagnostics/HttpOperationContextAccessor.cs`, `OperationCircuitHandler.cs`, `src/ForgeFlow.Application/Common/OperationAuditHelper.cs`, and `*SliceSupport.cs`: Propagated `OrganizationId` and `SiteId` from `OrganizationScope` into `IOperationContextAccessor` during slice authorization and preserved the scoped tenant snapshot across async state-machine unwinds so `OperationCircuitHandler` and `ForgeErrorBoundary` always attach tenant context.
+    - `src/ForgeFlow.Infrastructure/Diagnostics/SqlErrorLogStore.cs`: Added automatic `ResolveDefaultOrganizationIdAsync` fallback for authenticated actors when an unhandled exception occurs before a slice scope is evaluated, ensuring organization administrators can view their users' errors in `/errors`.
+    - `src/ForgeFlow.Web/Components/Pages/Inventory.razor` & `InventorySections/InventoryGridsSection.razor`: Wired `UiErrorReporter` into unexpected catch blocks so caught grid/page exceptions are persisted to `[diag].[ErrorLog]`.
+    - `tests/ForgeFlow.Web.Tests/DiagnosticTests.cs`: Added `D11_operation_circuit_handler_and_slice_support_populate_tenant_context_for_error_recorder`.
+  - **Verification Evidence (2026-11-19)**:
+    - Build: `dotnet build ForgeFlow.slnx -c Release --no-restore -m:1` -> **0 Warning(s), 0 Error(s)**.
+    - Tests: `dotnet test tests/ForgeFlow.Web.Tests/ForgeFlow.Web.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~DiagnosticTests"` -> **11 Passed, 0 Failed**.

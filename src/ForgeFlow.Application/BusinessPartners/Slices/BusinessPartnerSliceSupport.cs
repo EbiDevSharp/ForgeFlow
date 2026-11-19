@@ -54,6 +54,7 @@ public sealed class BusinessPartnerSliceSupport(
         string permission,
         CancellationToken ct)
     {
+        OperationAuditHelper.ApplyScopeContext(opContext, scope);
         if (scope is null) return (null, BusinessPartnerErrors.AccessDenied);
         if (actors is null) return (null, BusinessPartnerErrors.AccessDenied);
 
@@ -70,6 +71,7 @@ public sealed class BusinessPartnerSliceSupport(
         IReadOnlyList<string> requiredPermissions,
         CancellationToken ct)
     {
+        OperationAuditHelper.ApplyScopeContext(opContext, scope);
         if (scope is null || actors is null) return (null, BusinessPartnerErrors.AccessDenied);
 
         var actor = await actors.ResolveAsync(ct);

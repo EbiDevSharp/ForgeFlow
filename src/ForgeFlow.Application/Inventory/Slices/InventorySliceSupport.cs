@@ -29,6 +29,7 @@ public sealed class InventorySliceSupport(
         CancellationToken ct,
         params string[] allowedPermissions)
     {
+        OperationAuditHelper.ApplyScopeContext(opContext, scope);
         if (actors is null) return (null, null, InventoryErrors.ActorRequired);
         var actor = await actors.ResolveAsync(ct);
         if (actor is null) return (null, null, InventoryErrors.ActorRequired);

@@ -6,6 +6,7 @@
 @inject StockReservationUseCases ResService
 @inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
+@inject ForgeFlow.Web.Diagnostics.UiErrorReporter ErrorReporter
 
 @if (ActiveTab == 1)
 {
@@ -286,11 +287,19 @@ else if (ActiveTab == 3)
     [Parameter] public EventCallback<WarehouseSummary> OnEditWarehouse { get; set; }
     [Parameter] public EventCallback<StockReservationSummary> OnReleaseReservation { get; set; }
 
-    private static async Task<BitDataGridReadResult<T>> SafeReadAsync<T>(Func<Task<BitDataGridReadResult<T>>> read)
+    private async Task<BitDataGridReadResult<T>> SafeReadAsync<T>(Func<Task<BitDataGridReadResult<T>>> read)
     {
         try { return await read(); }
         catch (OperationCanceledException) { return new BitDataGridReadResult<T>([], 0); }
         catch (ObjectDisposedException) { return new BitDataGridReadResult<T>([], 0); }
+        catch (Exception ex)
+        {
+            long? orgId = CurrentScope is not null ? ScopeOrgId(CurrentScope) : null;
+            long? siteId = CurrentScope is OrganizationScope.Site s ? s.SiteId : (SiteFilter > 0 ? SiteFilter : null);
+            await ErrorReporter.ReportAsync(ex, nameof(InventoryGridsSection), orgId, siteId);
+            await OnPageError.InvokeAsync("ReadError");
+            return new BitDataGridReadResult<T>([], 0);
+        }
     }
 
     public async Task ReloadActiveGridAsync(bool fromFirstPage)
@@ -298,6 +307,13 @@ else if (ActiveTab == 3)
         try { await ReloadActiveGridCoreAsync(fromFirstPage); }
         catch (OperationCanceledException) { }
         catch (ObjectDisposedException) { }
+        catch (Exception ex)
+        {
+            long? orgId = CurrentScope is not null ? ScopeOrgId(CurrentScope) : null;
+            long? siteId = CurrentScope is OrganizationScope.Site s ? s.SiteId : (SiteFilter > 0 ? SiteFilter : null);
+            await ErrorReporter.ReportAsync(ex, nameof(InventoryGridsSection), orgId, siteId);
+            await OnPageError.InvokeAsync("ReadError");
+        }
     }
 
     private async Task ReloadActiveGridCoreAsync(bool fromFirstPage)

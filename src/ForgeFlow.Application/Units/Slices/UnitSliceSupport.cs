@@ -17,6 +17,7 @@ public sealed class UnitSliceSupport(
         string permission,
         CancellationToken ct)
     {
+        OperationAuditHelper.ApplyScopeContext(opContext, scope);
         if (actors is null) return (null, UnitErrors.ActorRequired);
         var actor = await actors.ResolveAsync(ct);
         if (actor is null) return (null, UnitErrors.ActorRequired);

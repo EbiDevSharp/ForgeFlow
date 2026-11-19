@@ -25,6 +25,7 @@ public sealed class UserSliceSupport(
     public async ValueTask<(TrustedActor? Actor, string? Error)> AuthorizeAsync(
         OrganizationScope? scope, string permission, CancellationToken ct)
     {
+        OperationAuditHelper.ApplyScopeContext(opContext, scope);
         if (actors is null) return (null, UserManagementErrors.ActorRequired);
         var actor = await actors.ResolveAsync(ct);
         if (actor is null) return (null, UserManagementErrors.ActorRequired);

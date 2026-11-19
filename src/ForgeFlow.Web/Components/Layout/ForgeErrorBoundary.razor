@@ -1,0 +1,114 @@
+@namespace ForgeFlow.Web.Components.Layout
+@using ForgeFlow.Application.Diagnostics
+@using ForgeFlow.Application.Organizations
+@using ForgeFlow.Domain.Diagnostics
+@using ForgeFlow.Web.Diagnostics
+@inherits ErrorBoundaryBase
+@inject IErrorLogRecorder ErrorRecorder
+@inject IOperationContextAccessor OperationContext
+@inject NavigationManager Navigation
+@inject IServiceProvider Services
+@inject IStringLocalizer<SharedResources> Text
+
+@if (CurrentException is null)
+{
+    @ChildContent
+}
+else
+{
+    <section class="organization-reader" role="alert">
+        <div class="read-state">
+            <h2>@Text["ErrorTitle"]</h2>
+            <p>@Text["UnexpectedError"]</p>
+            @if (!string.IsNullOrWhiteSpace(lastErrorReference))
+            {
+                <p class="write-hint">
+                    <span>@Text["ErrorReferenceLabel"]:</span>
+                    <strong dir="ltr">@lastErrorReference</strong>
+                </p>
+            }
+            <div class="read-row-actions" style="margin-top: 0.75rem;">
+                <BitButton Variant="BitVariant.Fill" Size="BitSize.Small" OnClick="RecoverAndRetry">
+                    @Text["ReconnectReload"]
+                </BitButton>
+                <BitButton Variant="BitVariant.Outline" Size="BitSize.Small" OnClick="GoHome">
+                    @Text["Reload"]
+                </BitButton>
+            </div>
+        </div>
+    </section>
+}
+
+@code {
+    private string? lastErrorReference;
+
+    protected override async Task OnErrorAsync(Exception exception)
+    {
+        if (exception is OperationCanceledException)
+            return;
+
+        try
+        {
+            long? actorId = null;
+            var actors = Services.GetService<ITrustedActorAccessor>();
+            if (actors is not null)
+            {
+                try { actorId = (await actors.ResolveAsync(CancellationToken.None))?.ActorId; }
+                catch { /* never mask original exception */ }
+            }
+
+            var snap = OperationContext.GetCurrent();
+            var requestPath = snap.RequestPath;
+            if (string.IsNullOrWhiteSpace(requestPath))
+            {
+                try
+                {
+                    var rel = Navigation.ToBaseRelativePath(Navigation.Uri);
+                    requestPath = "/" + rel;
+                }
+                catch { /* ignore navigation URI parse issues */ }
+            }
+
+            var componentName = snap.ComponentName
+                ?? exception.TargetSite?.DeclaringType?.Name
+                ?? "BlazorErrorBoundary";
+
+            var recorded = await ErrorRecorder.RecordExceptionAsync(exception, new ErrorLogRecordContext(
+                ErrorSeverity.Error,
+                ErrorSourceKind.BlazorComponent,
+                requestPath,
+                componentName,
+                actorId ?? snap.ActorUserId,
+                snap.OrganizationId,
+                snap.SiteId,
+                snap.CorrelationId,
+                snap.UserAgent), CancellationToken.None);
+
+            lastErrorReference = recorded.ErrorReference;
+            StateHasChanged();
+        }
+        catch
+        {
+            // Never throw inside error boundary persistence.
+        }
+    }
+
+    public new void Recover()
+    {
+        lastErrorReference = null;
+        base.Recover();
+    }
+
+    private void RecoverAndRetry()
+    {
+        lastErrorReference = null;
+        base.Recover();
+    }
+
+    private void GoHome()
+    {
+        lastErrorReference = null;
+        base.Recover();
+        Navigation.NavigateTo("/");
+    }
+}

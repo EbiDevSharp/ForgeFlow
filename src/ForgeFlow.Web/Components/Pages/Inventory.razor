@@ -21,6 +21,7 @@
 @inject CulturePolicy Culture
 @inject DisplayFormatter Format
 @inject IStringLocalizer<SharedResources> Text
+@inject ForgeFlow.Web.Diagnostics.UiErrorReporter ErrorReporter
 
 <PageTitle>@Text["Inventory"] - @Text["AppTitle"]</PageTitle>
 
@@ -424,8 +425,9 @@
                 await OpenPostModal(poId);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            await ErrorReporter.ReportAsync(ex, nameof(Inventory), OrganizationId);
             pageError = "ReadError";
         }
         finally

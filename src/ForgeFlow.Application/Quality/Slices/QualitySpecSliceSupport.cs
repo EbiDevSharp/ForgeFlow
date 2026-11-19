@@ -23,6 +23,7 @@ public sealed class QualitySpecSliceSupport(
         CancellationToken ct,
         params string[] allowedPermissions)
     {
+        OperationAuditHelper.ApplyScopeContext(opContext, scope);
         if (actors is null) return (null, QualityErrors.ActorRequired);
         var actor = await actors.ResolveAsync(ct);
         if (actor is null) return (null, QualityErrors.ActorRequired);

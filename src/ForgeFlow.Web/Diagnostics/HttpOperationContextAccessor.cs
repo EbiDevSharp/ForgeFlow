@@ -14,12 +14,28 @@ public sealed class HttpOperationContextAccessor(IHttpContextAccessor? httpAcces
     public const string ErrorRefItemKey = "ForgeFlow.ErrorReference";
 
     private readonly AsyncLocal<OperationContextSnapshot?> current = new();
+    private OperationContextSnapshot? scopedFallback;
 
     public OperationContextSnapshot GetCurrent()
     {
         var snap = current.Value;
+        var fb = scopedFallback;
+        if (snap is not null && fb is not null)
+        {
+            return snap with
+            {
+                RequestPath = snap.RequestPath ?? fb.RequestPath,
+                ComponentName = snap.ComponentName ?? fb.ComponentName,
+                ActorUserId = snap.ActorUserId ?? fb.ActorUserId,
+                OrganizationId = snap.OrganizationId ?? fb.OrganizationId,
+                SiteId = snap.SiteId ?? fb.SiteId,
+                UserAgent = snap.UserAgent ?? fb.UserAgent
+            };
+        }
         if (snap is not null)
             return snap;
+        if (fb is not null)
+            return fb;
 
         var ctx = httpAccessor?.HttpContext;
         if (ctx is not null)
@@ -38,24 +54,27 @@ public sealed class HttpOperationContextAccessor(IHttpContextAccessor? httpAcces
 
         var fresh = new OperationContextSnapshot(Guid.NewGuid());
         current.Value = fresh;
+        scopedFallback = fresh;
         return fresh;
     }
 
     public void SetContext(long? organizationId, long? siteId, string? componentName = null)
     {
         var baseSnap = GetCurrent();
-        current.Value = baseSnap with
+        var updated = baseSnap with
         {
-            OrganizationId = organizationId,
-            SiteId = siteId,
+            OrganizationId = organizationId ?? baseSnap.OrganizationId,
+            SiteId = siteId ?? baseSnap.SiteId,
             ComponentName = string.IsNullOrWhiteSpace(componentName) ? baseSnap.ComponentName : componentName
         };
+        current.Value = updated;
+        scopedFallback = updated;
     }
 
     public void SetCorrelation(Guid correlationId, string? requestPath = null, string? userAgent = null)
     {
-        var existing = current.Value;
-        current.Value = new OperationContextSnapshot(
+        var existing = current.Value ?? scopedFallback;
+        var updated = new OperationContextSnapshot(
             correlationId == Guid.Empty ? Guid.NewGuid() : correlationId,
             requestPath ?? existing?.RequestPath,
             existing?.ComponentName,
@@ -63,5 +82,7 @@ public sealed class HttpOperationContextAccessor(IHttpContextAccessor? httpAcces
             existing?.OrganizationId,
             existing?.SiteId,
             userAgent ?? existing?.UserAgent);
+        current.Value = updated;
+        scopedFallback = updated;
     }
 }

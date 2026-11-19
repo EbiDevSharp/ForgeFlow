@@ -307,6 +307,51 @@ public sealed class DiagnosticTests
         Assert.Equal("203.0.113.9", ForgeFlow.Web.Authentication.AuthenticationBackend.ResolveClientIp(proxyContext));
     }
 
+    [Fact]
+    public async Task D11_operation_circuit_handler_and_slice_support_populate_tenant_context_for_error_recorder()
+    {
+        var opContext = new ForgeFlow.Web.Diagnostics.HttpOperationContextAccessor();
+        var recorder = new CapturingErrorRecorder();
+        var actorAccessor = new StaticActor(PlatformActor);
+        var allowAll = new AllowAllPermissions();
+
+        var handler = new ForgeFlow.Web.Diagnostics.OperationCircuitHandler(opContext, recorder, actorAccessor);
+        var invSupport = new ForgeFlow.Application.Inventory.Slices.InventorySliceSupport(
+            actorAccessor, allowAll, null, opContext);
+
+        Func<Microsoft.AspNetCore.Components.Server.Circuits.CircuitInboundActivityContext, Task> pipeline =
+            handler.CreateInboundActivityHandler(async _ =>
+            {
+                await invSupport.AuthorizeAsync(
+                    new OrganizationScope.Site(7, 19),
+                    ForgeFlow.Application.Inventory.InventoryPermissions.InventoryRead,
+                    CancellationToken.None);
+                throw new InvalidOperationException("Simulated UI/Circuit failure during inventory interaction.");
+            });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => pipeline(null!));
+
+        var recorded = Assert.Single(recorder.Entries);
+        Assert.Equal(ErrorSourceKind.BlazorCircuit, recorded.Context.Source);
+        Assert.Equal(ErrorSeverity.Critical, recorded.Context.Severity);
+        Assert.Equal(PlatformActor.ActorId, recorded.Context.ActorUserId);
+        Assert.Equal(7L, recorded.Context.OrganizationId);
+        Assert.Equal(19L, recorded.Context.SiteId);
+    }
+
+    private sealed class CapturingErrorRecorder : IErrorLogRecorder
+    {
+        public List<(Exception Exception, ErrorLogRecordContext Context)> Entries { get; } = [];
+        public Task<RecordedErrorResult> RecordExceptionAsync(
+            Exception exception,
+            ErrorLogRecordContext context,
+            CancellationToken ct = default)
+        {
+            Entries.Add((exception, context));
+            return Task.FromResult(new RecordedErrorResult("FF-TEST-000001", context.CorrelationId ?? Guid.NewGuid(), true));
+        }
+    }
+
     private sealed class CapturingOperationRecorder : IUserOperationRecorder
     {
         public List<UserOperationRecordRequest> Entries { get; } = [];

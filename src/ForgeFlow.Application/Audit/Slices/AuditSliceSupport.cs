@@ -25,6 +25,7 @@ public sealed class AuditSliceSupport(
         string permission,
         CancellationToken ct)
     {
+        OperationAuditHelper.ApplyScopeContext(opContext, scope);
         if (actors is null || permissions is null)
             return (false, null, AuditErrors.ActorRequired);
 

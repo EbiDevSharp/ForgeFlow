@@ -54,6 +54,10 @@ public sealed class SqlErrorLogStore(
             ? null
             : DiagnosticRedactor.ScrubText(context.UserAgent.Trim());
 
+        var orgId = context.OrganizationId;
+        if (!orgId.HasValue && context.ActorUserId is > 0)
+            orgId = await ResolveDefaultOrganizationIdAsync(context.ActorUserId.Value, ct);
+
         var record = new ErrorLogRecord(
             errorRef,
             correlationId,
@@ -67,7 +71,7 @@ public sealed class SqlErrorLogStore(
             cleanPath,
             context.ComponentName,
             context.ActorUserId,
-            context.OrganizationId,
+            orgId,
             context.SiteId,
             cleanAgent);
 
@@ -352,6 +356,34 @@ public sealed class SqlErrorLogStore(
         catch
         {
             return [];
+        }
+    }
+
+    private async Task<long?> ResolveDefaultOrganizationIdAsync(long actorUserId, CancellationToken ct)
+    {
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var authDb = scope.ServiceProvider.GetService<AuthDbContext>();
+            if (authDb is null) return null;
+
+            var orgId = await authDb.OrganizationMemberships.AsNoTracking()
+                .Where(m => m.UserId == actorUserId && m.IsActive)
+                .OrderBy(m => m.OrganizationId)
+                .Select(m => (long?)m.OrganizationId)
+                .FirstOrDefaultAsync(ct);
+            if (orgId.HasValue)
+                return orgId;
+
+            return await authDb.ScopedRoleAssignments.AsNoTracking()
+                .Where(r => r.UserId == actorUserId && r.IsActive && r.OrganizationId != null)
+                .OrderBy(r => r.OrganizationId)
+                .Select(r => r.OrganizationId)
+                .FirstOrDefaultAsync(ct);
+        }
+        catch
+        {
+            return null;
         }
     }
 

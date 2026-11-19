@@ -19,6 +19,7 @@ public sealed class ItemSliceSupport(
         string permission,
         CancellationToken ct)
     {
+        OperationAuditHelper.ApplyScopeContext(opContext, scope);
         if (actors is null) return (null, ItemErrors.ActorRequired);
         var actor = await actors.ResolveAsync(ct);
         if (actor is null) return (null, ItemErrors.ActorRequired);

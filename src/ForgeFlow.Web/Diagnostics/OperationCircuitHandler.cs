@@ -28,24 +28,28 @@ public sealed class OperationCircuitHandler(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                var snap = operationContext.GetCurrent();
                 long? actorId = null;
                 if (actors is not null)
                 {
                     try { actorId = (await actors.ResolveAsync(CancellationToken.None))?.ActorId; }
                     catch { /* never mask original exception */ }
                 }
+                string? circuitId = null;
+                try { circuitId = context?.Circuit?.Id; }
+                catch { /* context.Circuit may be uninitialized in unit tests */ }
 
-                var snap = operationContext.GetCurrent();
+                var postSnap = operationContext.GetCurrent();
                 await errorRecorder.RecordExceptionAsync(ex, new ErrorLogRecordContext(
                     ErrorSeverity.Critical,
                     ErrorSourceKind.BlazorCircuit,
-                    snap.RequestPath,
-                    snap.ComponentName ?? context.Circuit.Id,
-                    actorId ?? snap.ActorUserId,
-                    snap.OrganizationId,
-                    snap.SiteId,
+                    snap.RequestPath ?? postSnap.RequestPath,
+                    snap.ComponentName ?? postSnap.ComponentName ?? circuitId,
+                    actorId ?? snap.ActorUserId ?? postSnap.ActorUserId,
+                    snap.OrganizationId ?? postSnap.OrganizationId,
+                    snap.SiteId ?? postSnap.SiteId,
                     correlationId,
-                    snap.UserAgent), CancellationToken.None);
+                    snap.UserAgent ?? postSnap.UserAgent), CancellationToken.None);
 
                 throw;
             }
