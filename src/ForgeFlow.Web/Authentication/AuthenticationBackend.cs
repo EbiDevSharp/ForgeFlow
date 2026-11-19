@@ -95,6 +95,7 @@ public sealed class SessionAuthenticationStateProvider : RevalidatingServerAuthe
                 _sessions.RegisterCircuit(reference.SessionId, _circuitId);
                 _sessions.SessionRevoked += OnSessionRevoked;
                 _sessions.UserSessionsRevoked += OnUserSessionsRevoked;
+                _sessions.SessionReplaced += OnSessionReplaced;
                 _subscribed = true;
             }
         }
@@ -111,6 +112,7 @@ public sealed class SessionAuthenticationStateProvider : RevalidatingServerAuthe
             {
                 _sessions.SessionRevoked -= OnSessionRevoked;
                 _sessions.UserSessionsRevoked -= OnUserSessionsRevoked;
+                _sessions.SessionReplaced -= OnSessionReplaced;
                 _sessions.UnregisterCircuit(_currentReference.SessionId, _circuitId);
                 _subscribed = false;
             }
@@ -147,6 +149,25 @@ public sealed class SessionAuthenticationStateProvider : RevalidatingServerAuthe
         if (shouldSignOut)
         {
             ForceSignOut();
+        }
+    }
+
+    private void OnSessionReplaced(Guid oldSessionId, SessionReference newReference)
+    {
+        bool shouldUpdate = false;
+        lock (_sync)
+        {
+            if (_currentReference?.SessionId == oldSessionId)
+            {
+                _sessions.UnregisterCircuit(oldSessionId, _circuitId);
+                _currentReference = newReference;
+                _sessions.RegisterCircuit(newReference.SessionId, _circuitId);
+                shouldUpdate = true;
+            }
+        }
+        if (shouldUpdate)
+        {
+            NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(SessionClaims.Create(newReference))));
         }
     }
 

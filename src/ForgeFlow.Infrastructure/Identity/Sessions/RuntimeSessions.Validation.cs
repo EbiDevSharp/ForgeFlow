@@ -240,7 +240,7 @@ public sealed partial class RuntimeSessions
             if (!stampResult.Succeeded)
                 return new("Auth.ServiceUnavailable");
 
-            await Revoke(db, user.Id, "PasswordReset", now, correlation, ct);
+            await RevokeDatabaseSessionsAsync(db, user.Id, "PasswordReset", now, correlation, ct);
 
             var expires = currentSession.ExpiresAtUtc > now ? currentSession.ExpiresAtUtc : now.Add(Lifetime);
             var normalizedIp = NormalizeIpString(clientIp);
@@ -287,11 +287,14 @@ public sealed partial class RuntimeSessions
             if (!await Commit(tx, ct, [currentPassword, newPassword]))
                 return new("Auth.ServiceUnavailable");
 
+            permCache?.InvalidateUser(user.Id);
+            var freshReference = new SessionReference(user.Id, freshSession.Id, user.SecurityStamp!, user.UserName);
             RegisterSessionInMemory(freshSession.Id, user.Id, user.SecurityStamp!, freshSession.IssuedAtUtc, freshSession.ExpiresAtUtc, freshSession.LastActivityAtUtc);
+            SessionReplaced?.Invoke(reference.SessionId, freshReference);
             RevokeUserSessions(reference.UserId, "PasswordReset", exceptSessionId: freshSession.Id);
 
             if (notifiedPassword) liveChannel?.NotifyUser(user.Id);
-            return new("Auth.PasswordChanged", new(user.Id, freshSession.Id, user.SecurityStamp!, user.UserName), new DateTimeOffset(freshSession.ExpiresAtUtc));
+            return new("Auth.PasswordChanged", freshReference, new DateTimeOffset(freshSession.ExpiresAtUtc));
         }
         catch (Exception e) when (AvailableFailure(e))
         {

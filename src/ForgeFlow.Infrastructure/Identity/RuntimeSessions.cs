@@ -75,6 +75,7 @@ public sealed partial class RuntimeSessions(
 
     public event Action<Guid, string>? SessionRevoked;
     public event Action<long, string>? UserSessionsRevoked;
+    public event Action<Guid, SessionReference>? SessionReplaced;
 
     public bool TryEnforceLimitInMemory(long userId, out Guid? evictedSessionId)
     {
@@ -271,6 +272,15 @@ public sealed partial class RuntimeSessions(
             ? JsonSerializer.Serialize(new { ip = normalized })
             : JsonSerializer.Serialize(new { device });
     }
+    private async Task RevokeDatabaseSessionsAsync(AuthDbContext db, long userId, string reason, DateTime now, Guid correlation, CancellationToken ct, string? currentStamp = null)
+    {
+        foreach (var session in await db.Sessions.Where(s => s.UserId == userId && s.RevokedAtUtc == null && (reason != "StampChanged" || s.SecurityStampSnapshot != currentStamp)).ToListAsync(ct))
+        {
+            session.RevokedAtUtc = now; session.RevokeReason = reason;
+            Event(db, "SessionRevoked", now, correlation, userId, session.Id);
+        }
+    }
+
     private async Task Revoke(AuthDbContext db, long userId, string reason, DateTime now, Guid correlation, CancellationToken ct, string? currentStamp = null)
     {
         permCache?.InvalidateUser(userId);
